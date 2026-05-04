@@ -9,6 +9,8 @@ import {
   getDrumKit,
   buildDrumPattern,
 }                              from './patterns/DrumPatternLibrary'
+import { getLivePartStart, quantizeGridTime } from './CompositionClock'
+import { SampledDrumKit }       from './SampledDrumKit'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -39,6 +41,8 @@ export class DrumGenerator extends GeneratorBase {
 
   // Master drum bus
   private compressor: Tone.Compressor
+  private sampleBus: Tone.Gain
+  private sampledKit: SampledDrumKit
 
   private part: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
@@ -58,9 +62,9 @@ export class DrumGenerator extends GeneratorBase {
   // Sidechain callback — fired on every kick hit so the bass channel can duck
   private onKickTrigger: ((time: number) => void) | null = null
 
-  // Micro-timing humanization — adds ±jitter to each hit for human feel
-  // Ghost notes (low velocity) get more jitter — real drummers don't lock ghosts to the grid
-  private readonly humanizeJitterMs: number = 22  // ±22ms
+  // Micro-timing humanization — keep the pocket tight first. Larger drift can
+  // make the synth kit sound like it is learning the beat during playback.
+  private readonly humanizeJitterMs: number = 3
 
   // Track last kick time for hat-on-kick ducking
   private lastKickTime: number = 0
@@ -76,8 +80,11 @@ export class DrumGenerator extends GeneratorBase {
 
     this.output     = new Tone.Gain(1)
     // Lighter drum bus compression — master bus handles the glue
-    this.compressor = new Tone.Compressor({ threshold: -24, ratio: 3, attack: 0.008, release: 0.2 })
+    this.compressor = new Tone.Compressor({ threshold: -24, ratio: 2.4, attack: 0.012, release: 0.18 })
     this.compressor.connect(this.output)
+    this.sampleBus = new Tone.Gain(0.95)
+    this.sampleBus.connect(this.compressor)
+    this.sampledKit = new SampledDrumKit(this.sampleBus)
 
     // ── Kick: sub + click layered ──
     this.kickBus  = new Tone.Gain(0.85)
@@ -87,10 +94,10 @@ export class DrumGenerator extends GeneratorBase {
     this.kickDist.connect(this.compressor)
 
     this.kickSub = new Tone.MembraneSynth({
-      pitchDecay:  0.09,       // slower pitch glide for 808 sub sweep
-      octaves:     4,          // was 8 — 8 octaves causes massive low-end impulse overload
+      pitchDecay:  0.06,
+      octaves:     2.5,
       oscillator:  { type: 'sine' },
-      envelope:    { attack: 0.001, decay: 0.4, sustain: 0.0, release: 0.3 },  // tightened envelope to eliminate sub-bass bleed
+      envelope:    { attack: 0.001, decay: 0.32, sustain: 0.0, release: 0.22 },
     })
     this.kickSub.volume.value = -6
     this.kickSub.connect(this.kickBus)
@@ -124,7 +131,7 @@ export class DrumGenerator extends GeneratorBase {
 
     // ── Hat: tamed MetalSynth + bandpass to kill screech ──
     // Bandpass instead of highpass so we keep the snap but cut the FM screech
-    this.hatFilter = new Tone.Filter({ frequency: 8000, type: 'bandpass', Q: 0.8 })
+    this.hatFilter = new Tone.Filter({ frequency: 6500, type: 'bandpass', Q: 0.55 })
     this.hatFilter.connect(this.compressor)
 
     this.hat = new Tone.MetalSynth({
@@ -134,7 +141,7 @@ export class DrumGenerator extends GeneratorBase {
       resonance:       4000,
       octaves:         0.5,
     })
-    this.hat.volume.value = -14
+    this.hat.volume.value = -24
     this.hat.connect(this.hatFilter)
 
     // Open hat — longer decay gives the "tsss" tail for hi-hat breathing
@@ -145,7 +152,7 @@ export class DrumGenerator extends GeneratorBase {
       resonance:       4000,
       octaves:         0.5,
     })
-    this.hatOpen.volume.value = -16
+    this.hatOpen.volume.value = -26
     this.hatOpen.connect(this.hatFilter)
 
     // ── Perc: bandpass noise for rim/shaker ──
@@ -156,7 +163,7 @@ export class DrumGenerator extends GeneratorBase {
       noise:    { type: 'pink' },
       envelope: { attack: 0.001, decay: 0.07, sustain: 0 },
     })
-    this.perc.volume.value = -18   // was -14
+    this.perc.volume.value = -22
     this.perc.connect(this.percFilter)
 
     this.setOutputLevel(0)
@@ -275,41 +282,42 @@ export class DrumGenerator extends GeneratorBase {
     this.rebuildPart(hits)
   }
 
-  // ── Kit presets — timbre variations applied on pattern rebuild ────────
+  // ── Kit presets — deterministic per mode so the groove keeps one body ──
 
   private static readonly KIT_PRESETS = [
     // Classic — warm boom-bap feel
-    { kickNote: 'C1',  kickPitchDecay: 0.05, kickVol: -6,  snareDecay: 0.15, snareVol: -9,  hatDecay: 0.05, hatVol: -14, hatResonance: 4000, percDecay: 0.07, percVol: -18 },
+    { kickNote: 'C1',  kickPitchDecay: 0.05, kickVol: -6,  snareDecay: 0.15, snareVol: -9,  hatDecay: 0.05, hatVol: -19, hatResonance: 3400, percDecay: 0.07, percVol: -21 },
     // Punchy — tighter transients, brighter hat
-    { kickNote: 'D1',  kickPitchDecay: 0.03, kickVol: -5,  snareDecay: 0.10, snareVol: -8,  hatDecay: 0.03, hatVol: -12, hatResonance: 5000, percDecay: 0.05, percVol: -16 },
+    { kickNote: 'D1',  kickPitchDecay: 0.03, kickVol: -5,  snareDecay: 0.10, snareVol: -8,  hatDecay: 0.03, hatVol: -19, hatResonance: 3800, percDecay: 0.05, percVol: -20 },
     // Lo-fi / dusty — deep kick, long snare, muffled hat
-    { kickNote: 'A#0', kickPitchDecay: 0.08, kickVol: -8,  snareDecay: 0.22, snareVol: -11, hatDecay: 0.08, hatVol: -17, hatResonance: 3000, percDecay: 0.10, percVol: -20 },
+    { kickNote: 'A#0', kickPitchDecay: 0.08, kickVol: -8,  snareDecay: 0.22, snareVol: -11, hatDecay: 0.08, hatVol: -22, hatResonance: 2600, percDecay: 0.10, percVol: -23 },
     // Hard — higher pitch kick, crispy hat, tight snare
-    { kickNote: 'E1',  kickPitchDecay: 0.04, kickVol: -4,  snareDecay: 0.12, snareVol: -7,  hatDecay: 0.04, hatVol: -13, hatResonance: 4500, percDecay: 0.06, percVol: -17 },
+    { kickNote: 'E1',  kickPitchDecay: 0.04, kickVol: -5,  snareDecay: 0.12, snareVol: -8,  hatDecay: 0.04, hatVol: -20, hatResonance: 3600, percDecay: 0.06, percVol: -21 },
     // Deep 808 — very sub-heavy kick, dry snare snap, minimal hat
-    { kickNote: 'G0',  kickPitchDecay: 0.12, kickVol: -3,  snareDecay: 0.08, snareVol: -7,  hatDecay: 0.02, hatVol: -18, hatResonance: 6000, percDecay: 0.04, percVol: -22 },
+    { kickNote: 'G0',  kickPitchDecay: 0.09, kickVol: -5,  snareDecay: 0.08, snareVol: -8,  hatDecay: 0.025, hatVol: -22, hatResonance: 4200, percDecay: 0.04, percVol: -24 },
     // Crispy Trap — short punchy kick, sharp snare, sparkly hat
-    { kickNote: 'F1',  kickPitchDecay: 0.02, kickVol: -5,  snareDecay: 0.09, snareVol: -6,  hatDecay: 0.025, hatVol: -11, hatResonance: 5500, percDecay: 0.04, percVol: -15 },
+    { kickNote: 'F1',  kickPitchDecay: 0.02, kickVol: -5,  snareDecay: 0.09, snareVol: -7,  hatDecay: 0.025, hatVol: -20, hatResonance: 3900, percDecay: 0.04, percVol: -20 },
     // Vinyl — wide pitch decay, long dusty snare, rolled-off hat
-    { kickNote: 'B0',  kickPitchDecay: 0.10, kickVol: -7,  snareDecay: 0.28, snareVol: -12, hatDecay: 0.10, hatVol: -19, hatResonance: 2500, percDecay: 0.12, percVol: -21 },
+    { kickNote: 'B0',  kickPitchDecay: 0.10, kickVol: -7,  snareDecay: 0.28, snareVol: -12, hatDecay: 0.10, hatVol: -23, hatResonance: 2300, percDecay: 0.12, percVol: -24 },
   ] as const
 
-  // Map physics modes to appropriate kit preset indices
+  // Map physics modes to one grounded kit preset. Random kit swaps were making
+  // the drummer sound like it changed rooms whenever the pattern rebuilt.
   // Indices match KIT_PRESETS array: 0=Classic, 1=Punchy, 2=Lo-fi, 3=Hard, 4=Deep808, 5=CrispyTrap, 6=Vinyl
-  private static readonly MODE_KIT_MAP: Record<string, number[]> = {
-    [OrganismMode.Heat]:   [4, 5, 3],     // Deep 808, Crispy Trap, Hard
-    [OrganismMode.Gravel]: [4, 3, 1],     // Deep 808, Hard, Punchy
-    [OrganismMode.Smoke]:  [0, 6, 2],     // Classic, Vinyl, Lo-fi (boom-bap kits)
-    [OrganismMode.Ice]:    [2, 6, 0],     // Lo-fi, Vinyl, Classic
-    [OrganismMode.Glow]:   [2, 0, 6],     // Lo-fi, Classic, Vinyl
+  private static readonly MODE_KIT_MAP: Record<string, number> = {
+    [OrganismMode.Heat]:   1,
+    [OrganismMode.Gravel]: 0,
+    [OrganismMode.Smoke]:  0,
+    [OrganismMode.Ice]:    2,
+    [OrganismMode.Glow]:   0,
   }
 
   private currentPhysicsMode: OrganismMode = OrganismMode.Glow
 
   private applyKitPreset(): void {
-    const kitIndices = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? [0]
-    const idx    = kitIndices[Math.floor(Math.random() * kitIndices.length)]
+    const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
+    this.sampledKit.setMode(this.currentPhysicsMode)
     this.currentKickNote          = preset.kickNote
     this.kickSub.pitchDecay       = preset.kickPitchDecay
     this.kickSub.volume.rampTo(preset.kickVol, 0.3)
@@ -325,9 +333,13 @@ export class DrumGenerator extends GeneratorBase {
   private rebuildPart(hits: DrumHit[]): void {
     this.stopPart()
     this.applyKitPreset()
-    this.currentHits = [...hits]   // snapshot for lockPattern()
+    const quantizedHits = hits.map(h => ({
+      ...h,
+      time: quantizeGridTime(h.time),
+    }))
+    this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
 
-    const events = hits.map(h => ({
+    const events = quantizedHits.map(h => ({
       time:       h.time,
       instrument: h.instrument,
       velocity:   h.velocity,
@@ -340,15 +352,12 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    // Start at next bar boundary — prevents past-event burst where all
-    // events before current Transport position fire simultaneously.
-    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
-    const startAt = Tone.getTransport().nextSubdivision(startGrid)
+    const startAt = getLivePartStart(this.hasStartedPlayback)
     this.part.start(startAt)
     this.hasStartedPlayback = true
     orgLog('drum:part-started', {
       hits: events.length,
-      startGrid,
+      startGrid: '1m',
       startAt: typeof startAt === 'number' ? Number(startAt.toFixed(3)) : startAt,
       transportState: Tone.getTransport().state,
       transportPos:   Tone.getTransport().position,
@@ -356,7 +365,7 @@ export class DrumGenerator extends GeneratorBase {
     })
 
     // Gap 3 — mirror current pattern into ProBeatMaker for visual display
-    this.broadcastToBeatMaker(hits)
+    this.broadcastToBeatMaker(quantizedHits)
   }
 
   // Broadcast dedup — avoids spamming React with identical beat-grid events.
@@ -487,6 +496,16 @@ export class DrumGenerator extends GeneratorBase {
     const jitterSec = ((Math.random() * 2 - 1) * jitterRange) / 1000
     const t = Math.max(0, time + jitterSec)
 
+    const sampledVoice = instrument === DrumInstrument.Hat && velocity > 0.55 ? 'sampleHatOpen' : `sample${instrument}`
+    const sampledTime = this.clampTime(sampledVoice, t)
+    if (this.sampledKit.trigger(instrument, sampledTime, velocity)) {
+      if (instrument === DrumInstrument.Kick) {
+        this.lastKickTime = sampledTime
+        if (this.onKickTrigger) this.onKickTrigger(sampledTime)
+      }
+      return
+    }
+
     switch (instrument) {
       case DrumInstrument.Kick: {
         const tSub = this.clampTime('kickSub', t)
@@ -564,6 +583,8 @@ export class DrumGenerator extends GeneratorBase {
     this.hatFilter.dispose()
     this.perc.dispose()
     this.percFilter.dispose()
+    this.sampledKit.dispose()
+    this.sampleBus.dispose()
     this.compressor.dispose()
     this.output.dispose()
   }

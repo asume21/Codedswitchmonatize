@@ -26,14 +26,15 @@ const GuitarStrumDown: PlayingTechnique = {
   family: ['plucked'],
   category: 'chord',
   description: 'Classic down-strum: low-to-high, 25ms spread, bass-heavy velocity curve',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
     const spread = 0.025  // 25ms total spread
     const sorted = [...notes]  // assume already low-to-high
+    const energyMult = 0.8 + ctx.energy * 0.4
     return sorted.map((note, i) => ({
       timeOffset: (i / Math.max(1, sorted.length - 1)) * spread,
       note,
       duration: '4n',
-      velocity: 0.68 - i * 0.025,  // low notes louder
+      velocity: (0.68 - i * 0.025) * energyMult,  // low notes louder
     }))
   },
 }
@@ -48,14 +49,15 @@ const GuitarStrumUp: PlayingTechnique = {
   family: ['plucked'],
   category: 'chord',
   description: 'Up-strum: high-to-low, lighter velocity, offbeat feel',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
     const spread = 0.020
     const reversed = [...notes].reverse()
+    const energyMult = 0.7 + ctx.energy * 0.5
     return reversed.map((note, i) => ({
       timeOffset: (i / Math.max(1, reversed.length - 1)) * spread,
       note,
       duration: '8n',
-      velocity: 0.45 + i * 0.02,
+      velocity: (0.45 + i * 0.02) * energyMult,
     }))
   },
 }
@@ -72,11 +74,12 @@ const GuitarArpRolled: PlayingTechnique = {
   description: 'Hip-hop arpeggio: notes on 16ths, spacey, high register',
   schedule: (notes, ctx) => {
     const sixteenthSec = 60 / ctx.tempo / 4
+    const energyMult = 0.8 + ctx.energy * 0.4
     return notes.map((note, i) => ({
       timeOffset: i * sixteenthSec,
       note,
       duration: '8n.',  // dotted 8th = slight overlap for smooth roll
-      velocity: 0.58 + (i === 0 ? 0.1 : 0),  // accent the first note
+      velocity: (0.58 + (i === 0 ? 0.1 : 0)) * energyMult,  // accent the first note
     }))
   },
 }
@@ -91,13 +94,14 @@ const GuitarMutedStab: PlayingTechnique = {
   family: ['plucked'],
   category: 'stab',
   description: 'Palm-muted chord chunk: very short, percussive, sits in pocket',
-  schedule: (notes) => {
-    const microSpread = 0.008  // 8ms spread — feels like one hit but with body
+  schedule: (notes, ctx) => {
+    const microSpread = 0.008  // 8ms spread
+    const energyMult = 0.75 + ctx.energy * 0.5
     return notes.map((note, i) => ({
       timeOffset: i * microSpread,
       note,
       duration: '32n',  // very short = muted feel
-      velocity: 0.55,
+      velocity: 0.55 * energyMult,
     }))
   },
 }
@@ -116,12 +120,13 @@ const PianoBlockChord: PlayingTechnique = {
   family: ['keyboard'],
   category: 'chord',
   description: 'All notes simultaneous — standard piano chord hit',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
+    const baseVel = 0.45 + ctx.energy * 0.4
     return notes.map(note => ({
       timeOffset: 0,
       note,
       duration: '4n',
-      velocity: 0.6,
+      velocity: baseVel,
     }))
   },
 }
@@ -136,13 +141,14 @@ const PianoRolledChord: PlayingTechnique = {
   family: ['keyboard'],
   category: 'chord',
   description: 'Bottom-to-top roll, 60ms spread — emotional / storytelling feel',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
     const spread = 0.060
+    const energyMult = 0.8 + ctx.energy * 0.4
     return notes.map((note, i) => ({
       timeOffset: (i / Math.max(1, notes.length - 1)) * spread,
       note,
       duration: '2n',  // sustained — this is a feature, not a stab
-      velocity: 0.55 + i * 0.02,
+      velocity: (0.55 + i * 0.02) * energyMult,
     }))
   },
 }
@@ -160,16 +166,18 @@ const PianoAlberti: PlayingTechnique = {
   schedule: (notes, ctx) => {
     if (notes.length < 3) {
       // Fallback to block chord for chords with too few notes
-      return notes.map(note => ({ timeOffset: 0, note, duration: '4n', velocity: 0.55 }))
+      const baseVel = 0.4 + ctx.energy * 0.3
+      return notes.map(note => ({ timeOffset: 0, note, duration: '4n', velocity: baseVel }))
     }
     const [root, third, fifth] = notes
     const pattern = [root, fifth, third, fifth]
     const eighthSec = 60 / ctx.tempo / 2
+    const energyMult = 0.8 + ctx.energy * 0.4
     return pattern.map((note, i) => ({
       timeOffset: i * eighthSec,
       note,
       duration: '8n',
-      velocity: i === 0 ? 0.62 : 0.52,
+      velocity: (i === 0 ? 0.62 : 0.52) * energyMult,
     }))
   },
 }
@@ -185,11 +193,12 @@ const PianoSustainedPad: PlayingTechnique = {
   category: 'pad',
   description: 'Long sustained chord — storytelling / cinematic foundation',
   schedule: (notes, ctx) => {
+    const baseVel = 0.35 + ctx.energy * 0.3
     return notes.map(note => ({
       timeOffset: 0,
       note,
       duration: ctx.chordDurationSec,  // holds the full chord duration
-      velocity: 0.42,  // soft — it's a bed, not a hit
+      velocity: baseVel,  // soft — it's a bed, not a hit
     }))
   },
 }
@@ -208,13 +217,14 @@ const StringsPizzicato: PlayingTechnique = {
   family: ['bowed'],
   category: 'stab',
   description: 'Plucked strings, short percussive hits — storytelling pulse',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
     // Stagger minimally — ensemble plucks aren't perfectly synced
+    const energyMult = 0.8 + ctx.energy * 0.4
     return notes.map((note, i) => ({
       timeOffset: i * 0.004,
       note,
       duration: '16n',
-      velocity: 0.55,
+      velocity: 0.55 * energyMult,
     }))
   },
 }
@@ -229,11 +239,12 @@ const StringsLegato: PlayingTechnique = {
   category: 'pad',
   description: 'Sustained bowing — cinematic, emotional sustain',
   schedule: (notes, ctx) => {
+    const baseVel = 0.4 + ctx.energy * 0.4
     return notes.map(note => ({
       timeOffset: 0,
       note,
       duration: ctx.chordDurationSec,
-      velocity: 0.48,
+      velocity: baseVel,
     }))
   },
 }
@@ -252,13 +263,14 @@ const StringsTremolo: PlayingTechnique = {
     const sixteenthSec = 60 / ctx.tempo / 4
     const repeats = Math.max(1, Math.floor(ctx.chordDurationSec / sixteenthSec))
     const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
     for (let r = 0; r < repeats; r++) {
       for (const note of notes) {
         events.push({
           timeOffset: r * sixteenthSec,
           note,
           duration: '32n',
-          velocity: 0.38 + (r / repeats) * 0.15,  // swells as it goes
+          velocity: (0.38 + (r / repeats) * 0.15) * energyMult,  // swells as it goes
         })
       }
     }
@@ -275,12 +287,13 @@ const StringsStaccato: PlayingTechnique = {
   family: ['bowed'],
   category: 'stab',
   description: 'Short detached bow strokes — crisp rhythmic punctuation',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
+    const baseVel = 0.45 + ctx.energy * 0.4
     return notes.map(note => ({
       timeOffset: 0,
       note,
       duration: '16n',
-      velocity: 0.58,
+      velocity: baseVel,
     }))
   },
 }
@@ -299,12 +312,13 @@ const BrassStab: PlayingTechnique = {
   family: ['brass'],
   category: 'stab',
   description: 'Short punchy horn hit — soul/funk sample aesthetic',
-  schedule: (notes) => {
+  schedule: (notes, ctx) => {
+    const energyMult = 0.8 + ctx.energy * 0.4
     return notes.map((note, i) => ({
       timeOffset: i * 0.006,  // tight but not perfectly simultaneous (real section)
       note,
       duration: '8n',
-      velocity: 0.68,
+      velocity: 0.68 * energyMult,
     }))
   },
 }
@@ -322,13 +336,14 @@ const BrassSwell: PlayingTechnique = {
     // Split chord duration into 4 segments with increasing velocity
     const segDur = ctx.chordDurationSec / 4
     const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
     for (let seg = 0; seg < 4; seg++) {
       for (const note of notes) {
         events.push({
           timeOffset: seg * segDur,
           note,
           duration: segDur,
-          velocity: 0.28 + seg * 0.12,
+          velocity: (0.28 + seg * 0.12) * energyMult,
         })
       }
     }
@@ -350,13 +365,14 @@ const BrassFanfare: PlayingTechnique = {
     // Fanfare pattern: hit-hit-rest-hit-hit across the chord
     const pattern = [0, 1, 3, 4]  // 8th-note positions
     const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
     for (const pos of pattern) {
       for (const note of notes) {
         events.push({
           timeOffset: pos * eighthSec,
           note,
           duration: '16n',
-          velocity: 0.65,
+          velocity: 0.65 * energyMult,
         })
       }
     }
@@ -374,11 +390,12 @@ const BrassSectionPad: PlayingTechnique = {
   category: 'pad',
   description: 'Sustained horn section — warm R&B backing',
   schedule: (notes, ctx) => {
+    const baseVel = 0.35 + ctx.energy * 0.3
     return notes.map(note => ({
       timeOffset: 0,
       note,
       duration: ctx.chordDurationSec,
-      velocity: 0.40,
+      velocity: baseVel,
     }))
   },
 }
@@ -400,11 +417,12 @@ const WindLegato: PlayingTechnique = {
   schedule: (notes, ctx) => {
     // Use just the top note of the chord for a monophonic line
     const topNote = notes[notes.length - 1]
+    const baseVel = 0.4 + ctx.energy * 0.4
     return [{
       timeOffset: 0,
       note: topNote,
       duration: ctx.chordDurationSec,
-      velocity: 0.50,
+      velocity: baseVel,
     }]
   },
 }
@@ -422,11 +440,12 @@ const WindRun: PlayingTechnique = {
     const sixteenthSec = 60 / ctx.tempo / 4
     // Ascending then descending: 1-3-5-7-5-3 pattern
     const pattern = [...notes, ...[...notes].reverse().slice(1, -1)]
+    const energyMult = 0.8 + ctx.energy * 0.4
     return pattern.map((note, i) => ({
       timeOffset: i * sixteenthSec,
       note,
       duration: '16n',
-      velocity: 0.48 + (i === 0 ? 0.1 : 0),
+      velocity: (0.48 + (i === 0 ? 0.1 : 0)) * energyMult,
     }))
   },
 }
@@ -443,12 +462,13 @@ const WindStaccato: PlayingTechnique = {
   schedule: (notes, ctx) => {
     const eighthSec = 60 / ctx.tempo / 2
     const topNote = notes[notes.length - 1]
+    const energyMult = 0.8 + ctx.energy * 0.4
     // Three short hits across the chord
     return [0, 2, 3].map(pos => ({
       timeOffset: pos * eighthSec,
       note: topNote,
       duration: '16n',
-      velocity: 0.55,
+      velocity: 0.55 * energyMult,
     }))
   },
 }
@@ -469,12 +489,13 @@ const WindTrill: PlayingTechnique = {
     const second = notes[notes.length - 2]
     const trillCount = Math.max(4, Math.floor(ctx.chordDurationSec / thirtySecondSec))
     const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
     for (let i = 0; i < trillCount; i++) {
       events.push({
         timeOffset: i * thirtySecondSec,
         note: i % 2 === 0 ? top : second,
         duration: '32n',
-        velocity: 0.45,
+        velocity: 0.45 * energyMult,
       })
     }
     return events

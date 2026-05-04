@@ -847,12 +847,13 @@ export const SUBGENRE_PATTERNS: Record<HipHopSubGenre, Array<() => DrumHit[]>> =
   'chill':       [glowPattern, minimalPattern],
 }
 
-// Legacy mode → pattern mapping (preserved for backward compat)
+// Legacy mode → foundation pattern mapping. These are deliberately stable:
+// first render should feel like a drummer with a pocket, not a slot machine.
 const MODE_PATTERN_VARIANTS: Record<string, Array<() => DrumHit[]>> = {
-  heat:   [trapPattern, trapPattern2, drillPattern],
+  heat:   [trapPattern2, trapPattern, drillPattern],
   ice:    [minimalPattern, glowPattern],
   smoke:  [boomBapPattern, boomBapPattern2, afrobeatPattern],
-  gravel: [grittyPattern, boomBapPattern2, drillPattern],
+  gravel: [boomBapPattern, grittyPattern, drillPattern],
   glow:   [glowPattern, minimalPattern, afrobeatPattern],
 }
 
@@ -939,7 +940,7 @@ export function mutatePattern(hits: DrumHit[], opts: Partial<MutationOptions> = 
  */
 export function buildSubGenrePattern(subGenre: HipHopSubGenre, variantIndex?: number): DrumPattern {
   const variants = SUBGENRE_PATTERNS[subGenre] ?? [minimalPattern]
-  const idx = variantIndex !== undefined ? variantIndex % variants.length : Math.floor(Math.random() * variants.length)
+  const idx = variantIndex !== undefined ? variantIndex % variants.length : 0
   return { hits: variants[idx](), length: '4m' }
 }
 
@@ -952,7 +953,7 @@ export function getDrumKit(_mode: OrganismMode | string): DrumKit {
 export function buildDrumPattern(kit: DrumKit, mode?: OrganismMode | string): DrumPattern {
   const modeStr = mode?.toString() ?? 'glow'
   const variants = MODE_PATTERN_VARIANTS[modeStr] ?? [minimalPattern]
-  const builder = variants[Math.floor(Math.random() * variants.length)]
+  const builder = variants[0]
   return { hits: builder(), length: '4m' }
 }
 

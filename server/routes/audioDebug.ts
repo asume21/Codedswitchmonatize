@@ -32,6 +32,8 @@ export function createAudioDebugRoutes(): Router {
     queuedAt:   Date
   }
 
+  const PENDING_COMMAND_TTL_MS = 10_000
+
   const captures     = new Map<string, StoredCapture>()
   const pending:       PendingCommand[] = []
   let   sseRes:        Response | null = null
@@ -63,7 +65,8 @@ export function createAudioDebugRoutes(): Router {
   // ── Pending commands drain — called by browser on SSE reconnect ────
 
   router.get('/pending-commands', (_req: Request, res: Response) => {
-    const cmds = pending.splice(0)
+    const cutoff = Date.now() - PENDING_COMMAND_TTL_MS
+    const cmds = pending.splice(0).filter(cmd => cmd.queuedAt.getTime() >= cutoff)
     res.json(cmds)
   })
 

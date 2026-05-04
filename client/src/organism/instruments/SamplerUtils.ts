@@ -72,7 +72,9 @@ export function createSoundfontSampler(
   const resolvedInstrument = resolveSelfHostedInstrument(instrumentName);
   const sfUrl = `${BASE_URL}${resolvedInstrument}-mp3/`;
 
-  // Sample every minor third for reasonable coverage without fetching 88 files.
+  // Sample every minor third across the most-used register. Keeping this to 12
+  // files per instrument prevents cold-start decode pressure from delaying the
+  // organism's first audible beat; Tone transposes these anchors for coverage.
   // The MusyngKite repo names black keys with FLATS (Db, Eb, Gb, Ab, Bb) — sharp
   // variants (Ds4.mp3, Fs4.mp3, etc.) return 404 and silently break every
   // sample-based instrument. Keep the enharmonic equivalents: D# = Eb, F# = Gb.
@@ -80,7 +82,7 @@ export function createSoundfontSampler(
   const noteMap: Record<string, string> = {};
   const noteNames = ['C', 'Eb', 'Gb', 'A'];
 
-  for (let octave = 2; octave <= 6; octave++) {
+  for (let octave = 3; octave <= 5; octave++) {
     for (const n of noteNames) {
       const key = `${n}${octave}`;
       noteMap[key] = `${sfUrl}${n}${octave}.mp3`;

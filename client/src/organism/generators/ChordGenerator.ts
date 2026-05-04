@@ -20,6 +20,13 @@ import {
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
+import { getLivePartStart, quantizeGridTime } from './CompositionClock'
+import {
+  conformChordToInstrument,
+  selectInstrumentPerformer,
+  type InstrumentPerformerId,
+  type InstrumentPerformerProfile,
+} from '../performers'
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -57,6 +64,9 @@ export class ChordGenerator extends GeneratorBase {
   private rootPitchClass:     number = 0     // synced from ScaleSnapEngine
   private currentMode:        string = 'glow'
   private currentSwing:       number = 0.35
+  private currentPerformer:   InstrumentPerformerProfile | null = null
+  private explicitPerformerId: InstrumentPerformerId | null = null
+  private lastPerformerEnergy: number = 0.5
 
   // Reactive state
   private volumeMultiplier: number = 1.0
@@ -102,6 +112,16 @@ export class ChordGenerator extends GeneratorBase {
 
   getTechnique(): string {
     return this.currentTechniqueId
+  }
+
+  setPerformerEnergy(energy: number): void {
+    this.lastPerformerEnergy = energy
+  }
+
+  setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
+    this.explicitPerformerId = instrumentId
+    this.applyVoice(this.currentMode)
+    if (this.currentProgression) this.rebuildPart()
   }
 
   // Tracked synth dispose timer
@@ -239,7 +259,7 @@ export class ChordGenerator extends GeneratorBase {
     // Mode-driven technique default: if the user/warmup hasn't overridden
     // the technique, auto-select the mode's idiomatic playing style.
     if (!this.techniqueOverridden && this.currentMode !== this.lastModeForTechnique) {
-      const modeDefault = defaultTechniqueForMode(this.currentMode)
+      const modeDefault = this.currentPerformer?.defaultTechnique ?? defaultTechniqueForMode(this.currentMode)
       if (modeDefault !== this.currentTechniqueId) {
         this.setTechnique(modeDefault, /* markAsOverride */ false)
       }
@@ -442,6 +462,11 @@ export class ChordGenerator extends GeneratorBase {
 
     const loopBars = Math.min(totalBars, 8)
 
+    const quantizedEvents = events.map(event => ({
+      ...event,
+      time: quantizeGridTime(event.time, loopBars),
+    }))
+
     this.part = new Tone.Part((time, event: ChordPartEvent) => {
       if (event.chordIdx !== this.currentChordIndex) {
         this.currentChordIndex = event.chordIdx
@@ -457,6 +482,9 @@ export class ChordGenerator extends GeneratorBase {
 
       // Use sampler only if fully loaded; otherwise use fallback PolySynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+      const playableNotes = this.currentPerformer
+        ? conformChordToInstrument(event.notes, this.currentPerformer)
+        : event.notes
 
       // ── Technique dispatch ─────────────────────────────────────────
       // Instead of firing all chord notes simultaneously (block-chord), the
@@ -476,21 +504,20 @@ export class ChordGenerator extends GeneratorBase {
           tempo,
           chordDurationSec,
         }
-        const scheduled = technique.schedule(event.notes, ctx)
+        const scheduled = technique.schedule(playableNotes, ctx)
         for (const n of scheduled) {
           const noteVel = Math.min(1, Math.max(0.05, n.velocity * vel / 0.6))
           voice.triggerAttackRelease(n.note, n.duration, time + n.timeOffset, noteVel)
         }
       } else {
         // Legacy block-chord path: fire all notes simultaneously
-        voice.triggerAttackRelease(event.notes, event.dur, time, vel)
+        voice.triggerAttackRelease(playableNotes, event.dur, time, vel)
       }
-    }, events)
+    }, quantizedEvents)
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
-    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.part.start(getLivePartStart(this.hasStartedPlayback))
     this.hasStartedPlayback = true
 
     const firstChord = prog.chords[0]
@@ -503,22 +530,18 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private applyVoice(mode: string): void {
-    // Score voices - mix and match, but prioritize the intended mode
-    let bestVoice = ChordGenerator.GLOBAL_VOICES[0]
-    let bestScore = -Infinity
-
-    for (const voice of ChordGenerator.GLOBAL_VOICES) {
-      let score = 0
-      if (voice.modes.includes(mode)) score += 3
-      score += Math.random() * 2 // Allows serendipitous mixing!
-      
-      if (score > bestScore) {
-        bestScore = score
-        bestVoice = voice
-      }
+    {
+    const performer = selectInstrumentPerformer({
+      role: 'chord',
+      mode,
+      energy: this.activityLevel,
+      explicitId: this.explicitPerformerId ?? undefined,
+    })
+    this.currentPerformer = performer
+    if (!this.techniqueOverridden) {
+      this.currentTechniqueId = performer.defaultTechnique
+      this.lastModeForTechnique = mode
     }
-    
-    const voice = bestVoice
 
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
@@ -536,7 +559,7 @@ export class ChordGenerator extends GeneratorBase {
       oldSynth.releaseAll()
       oldSynth.disconnect()
     } catch { /* */ }
-    
+
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
       try { oldSynth.dispose() } catch { /* */ }
@@ -544,29 +567,19 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    let newSynth: Tone.PolySynth | LoadableSampler
-    if (voice.type === 'Sampler' && voice.presetId) {
-      newSynth = createSoundfontSampler(
-        voice.presetId, 
-        voice.options.envelope,
-        voice.volume
-      )
-    } else {
-      if (voice.type === 'FM') {
-        newSynth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 8, ...voice.options } as any)
-      } else {
-        newSynth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 8, ...voice.options } as any)
-      }
-      newSynth.volume.value = voice.volume
-    }
-
-    this.synth = newSynth
+    this.synth = createSoundfontSampler(
+      performer.samplerPreset,
+      performer.envelope,
+      performer.volume,
+    )
     this.synth.connect(this.chorus)
+    this.chorus.wet.rampTo(performer.family === 'bowed' ? 0.42 : 0.25, 0.5)
+    this.reverb.decay = performer.family === 'bowed' ? 2.2 : 1.2
 
-    this.chorus.wet.rampTo(voice.chorusWet, 0.5)
-    this.reverb.decay = voice.reverbDecay
-
-    console.debug(`🎹 Chord voice: ${voice.name} (${mode})`)
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      console.debug(`Chord performer: ${performer.name} (${mode})`)
+    }
+    }
   }
 
   private stopPart(): void {

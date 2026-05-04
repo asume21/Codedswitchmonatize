@@ -59,6 +59,8 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     setMelodyVolume: vi.fn(),
     textureEnabled: false,
     setTextureEnabled: vi.fn(),
+    instrumentAssignments: { lead: null, bass: null, chord: null },
+    setOrganismInstrument: vi.fn(),
     quickStart: vi.fn().mockResolvedValue(undefined),
     swapPreset: vi.fn().mockResolvedValue(undefined),
     quickStartPresets: [],

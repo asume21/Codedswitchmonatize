@@ -19,6 +19,7 @@ import type { VibeClassification }     from './VibeMatcher'
 import type { FreestyleReport }        from './FreestyleReportCard'
 import type { PerformerState }        from '../../organism/audio/types'
 import type { SelfListenReport }      from '../../organism/audio/types'
+import type { InstrumentPerformerId } from '../../organism/performers'
 
 /**
  * High-frequency physics context — updates at ~15fps as the organism runs.
@@ -41,6 +42,14 @@ export interface SavedSession {
   beatBlob:     Blob | null      // master bus audio (webm)
   vocalBlob:    Blob | null      // raw mic recording (webm)
   lyrics:       string | null
+}
+
+export type OrganismInstrumentRole = 'lead' | 'bass' | 'chord'
+
+export interface OrganismInstrumentAssignments {
+  lead:  InstrumentPerformerId | null
+  bass:  InstrumentPerformerId | null
+  chord: InstrumentPerformerId | null
 }
 
 export interface OrganismContextValue {
@@ -152,6 +161,10 @@ export interface OrganismContextValue {
   // Texture toggle — off by default for hip-hop; enable for ambient/lo-fi genres
   textureEnabled:     boolean
   setTextureEnabled:  (enabled: boolean) => void
+
+  // Instrument picker — null means Auto, otherwise locks that generator role.
+  instrumentAssignments: OrganismInstrumentAssignments
+  setOrganismInstrument: (role: OrganismInstrumentRole, instrumentId: InstrumentPerformerId | null) => void
 
   // Guest experience
   guestSecondsRemaining: number      // 60→0 countdown while guest is playing

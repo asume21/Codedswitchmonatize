@@ -18,7 +18,6 @@ import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
 import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { TeaserOverlay } from "@/components/auth/TeaserOverlay";
 import { CommandPalette } from "@/components/CommandPalette";
 
 // Lazy load heavy audio providers - only needed for studio routes
@@ -278,10 +277,9 @@ function App() {
                   Heavy audio providers loaded ONLY here
                   ============================================ */}
               <Route path="/studio">
-                <ProtectedRoute teaserMode>
+                <ProtectedRoute>
                   <StudioProviders>
                     <AIMessageProvider>
-                      <TeaserOverlay />
                       <AppLayout><UnifiedStudioWorkspace /></AppLayout>
                     </AIMessageProvider>
                   </StudioProviders>

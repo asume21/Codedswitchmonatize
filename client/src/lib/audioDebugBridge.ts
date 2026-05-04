@@ -33,6 +33,11 @@ interface WebEarBridgeStatus {
 
 let tapNode:        MediaStreamAudioDestinationNode | null = null
 let tapContext:     AudioContext | null = null  // track which context the tap belongs to
+let tapSource:      { disconnect: (node?: AudioNode) => unknown } | null = null
+let organismSource: {
+  connect: (destination: Tone.InputNode) => void
+  disconnect: (destination: Tone.InputNode) => void
+} | null = null
 let recorder:       MediaRecorder | null = null
 let sseSource:      EventSource   | null = null
 let localSseSource: EventSource   | null = null
@@ -57,6 +62,33 @@ function setWebEarStatus(state: WebEarBridgeState, message: string) {
   status = { state, message, updatedAt: Date.now() }
   window.__webearStatus = status
   window.dispatchEvent(new CustomEvent('webear:status', { detail: status }))
+}
+
+export function registerOrganismAudioDebugSource(source: {
+  connect: (destination: Tone.InputNode) => void
+  disconnect: (destination: Tone.InputNode) => void
+}): () => void {
+  organismSource = source
+  if (tapNode) {
+    try {
+      source.connect(tapNode as unknown as Tone.InputNode)
+      tapSource = {
+        disconnect: () => source.disconnect(tapNode as unknown as Tone.InputNode),
+      }
+      log('Registered live Organism generator tap ✓')
+    } catch (e) {
+      log(`Could not attach live Organism generator tap: ${e}`)
+    }
+  }
+
+  return () => {
+    if (organismSource !== source) return
+    if (tapNode) {
+      try { source.disconnect(tapNode as unknown as Tone.InputNode) } catch { /* ignore */ }
+    }
+    organismSource = null
+    tapSource = null
+  }
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -141,8 +173,10 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     // If context changed (Tone.start() creates a new one), invalidate cached tap
     if (tapNode && tapContext !== ctx) {
       log('AudioContext changed — rebuilding tap')
+      try { tapSource?.disconnect(tapNode) } catch { /* ignore */ }
       tapNode = null
       tapContext = null
+      tapSource = null
     }
 
     if (tapNode) return tapNode
@@ -173,8 +207,28 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
 
     tapNode = ctx.createMediaStreamDestination()
     tapContext = ctx
+
+    if (organismSource) {
+      organismSource.connect(tapNode as unknown as Tone.InputNode)
+      tapSource = {
+        disconnect: () => organismSource?.disconnect(tapNode as unknown as Tone.InputNode),
+      }
+      log(`Tapped live Organism generator buses ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
+      return tapNode
+    }
+
+    try {
+      dest.connect(tapNode)
+      tapSource = dest
+      log(`Tapped Tone.js destination ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
+      return tapNode
+    } catch (e) {
+      log(`Tone destination tap failed, trying internal gain node: ${e}`)
+    }
+
     gainNode.connect(tapNode)
-    log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
+    tapSource = gainNode
+    log(`Tapped Tone.js master gain fallback ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null
@@ -270,6 +324,10 @@ function connectLocalSSE() {
 
   localSseSource = new EventSource('/api/audio-debug/events')
 
+  localSseSource.onopen = () => {
+    void drainPendingLocalCommands()
+  }
+
   localSseSource.addEventListener('capture', (e: MessageEvent) => {
     const { captureId, durationMs } = JSON.parse(e.data)
     // Upload to local endpoint instead of WebEar blob endpoint
@@ -280,6 +338,36 @@ function connectLocalSSE() {
     localSseSource?.close()
     localSseSource = null
     setTimeout(connectLocalSSE, 3000)
+  }
+}
+
+async function drainPendingLocalCommands(): Promise<void> {
+  try {
+    const res = await fetch('/api/audio-debug/pending-commands')
+    if (!res.ok) {
+      log(`Could not drain local audio-debug commands (${res.status})`)
+      return
+    }
+
+    const commands = await res.json() as Array<{
+      type: string
+      captureId: string
+      durationMs: number
+      queuedAt?: string
+    }>
+
+    const cutoff = Date.now() - 10_000
+    for (const command of commands) {
+      if (command.queuedAt && Date.parse(command.queuedAt) < cutoff) {
+        log(`Skipping stale local audio-debug capture ${command.captureId}`)
+        continue
+      }
+      if (command.type === 'capture') {
+        await doLocalCapture(command.captureId, command.durationMs ?? 3000)
+      }
+    }
+  } catch (e) {
+    log(`Could not drain local audio-debug commands: ${e}`)
   }
 }
 

@@ -2,7 +2,13 @@ import React, {
   useState, useEffect, useRef, useCallback, useMemo
 } from 'react'
 import { OrganismContext, OrganismPhysicsContext } from './OrganismContext'
-import type { OrganismContextValue, OrganismPhysicsContextValue, SavedSession } from './OrganismContext'
+import type {
+  OrganismContextValue,
+  OrganismInstrumentAssignments,
+  OrganismInstrumentRole,
+  OrganismPhysicsContextValue,
+  SavedSession,
+} from './OrganismContext'
 
 import { AudioAnalysisEngine }    from '../../organism/analysis/AudioAnalysisEngine'
 import { PhysicsEngine }          from '../../organism/physics/PhysicsEngine'
@@ -44,6 +50,7 @@ import { PerformerAnalyzer }    from '../../organism/audio/PerformerAnalyzer'
 import { SelfListenAnalyzer }   from '../../organism/audio/SelfListenAnalyzer'
 import type { PerformerState }  from '../../organism/audio/types'
 import type { SelfListenReport } from '../../organism/audio/types'
+import type { InstrumentPerformerId } from '../../organism/performers'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 import { useStudioStore } from '../../stores/useStudioStore'
@@ -51,6 +58,7 @@ import type { MusicalKey, KeyMode } from '../../stores/useStudioStore'
 import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
+import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
 
 interface Props {
   children:  React.ReactNode
@@ -195,6 +203,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [bassVolume,       setBassVolumeState]  = useState(1)
   const [melodyVolume,     setMelodyVolumeState]= useState(1)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
+  const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
+    lead: null,
+    bass: null,
+    chord: null,
+  })
   const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
@@ -306,6 +319,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestr.wire(physics, machine)
     reactive.wire(orchestr)
     mix.wire(orchestr)
+    const unregisterAudioDebugSource = registerOrganismAudioDebugSource({
+      connect: (destination) => {
+        mix.connectMasterOutput(destination)
+      },
+      disconnect: (destination) => {
+        mix.disconnectMasterOutput(destination)
+      },
+    })
 
     // Bridge chord changes to external listeners (Astutely, UI)
     const unsubChord = orchestr.onChordChange((chord, rootPitchClass) => {
@@ -395,11 +416,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // to avoid toast/pattern spam from rapid section changes.
     // Fire on every musically interesting section — not just drops.
     // Cooldown prevents spamming; each section has its own last-gen timestamp.
+    const ENABLE_GENERATIVE_DRUM_PATTERNS = false
     const GENERATIVE_SECTIONS = new Set(['intro', 'verse', 'verse2', 'build', 'drop', 'drop2', 'breakdown'])
     const PATTERN_GEN_COOLDOWN_MS = 16_000   // ~1 full 4-bar loop at 90 BPM
     const lastPatternGenBySection: Record<string, number> = {}
     let patternGenInFlight = false
     const handleSectionChange = async (e: Event) => {
+      if (!ENABLE_GENERATIVE_DRUM_PATTERNS) return
       const { section, physics: sectionPhysics, bpm } = (e as CustomEvent).detail ?? {}
       if (!GENERATIVE_SECTIONS.has(section)) return
 
@@ -451,6 +474,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubReactive()
       unsubSelfListen()
       unsubChord()
+      unregisterAudioDebugSource()
 
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
       mix.dispose()
@@ -601,8 +625,61 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   // ── Actions ───────────────────────────────────────────────────────
 
+  const scheduleSilentStartRecovery = useCallback((token: number) => {
+    const recoverDelays = [500, 1200, 2600]
+    for (const delay of recoverDelays) {
+      window.setTimeout(async () => {
+        if (startTokenRef.current !== token || !isRunningRef.current) return
+        const transportState = Tone.getTransport().state
+        const ctxState = Tone.getContext().state
+        const needsClockRecovery = transportState !== 'started' || ctxState !== 'running'
+        const masterMeter = mixRef.current?.getMasterMeter()
+        const meterIsSilent = !masterMeter
+          || !Number.isFinite(masterMeter.rmsDb)
+          || masterMeter.rmsDb < -75
+        if (!needsClockRecovery && !meterIsSilent) return
+
+        orgLog('provider:silent-start-recovery', {
+          delay,
+          transportState,
+          ctxState,
+          meterRmsDb: masterMeter?.rmsDb ?? null,
+        }, 'warn')
+
+        try {
+          await Tone.start()
+          Tone.getDestination().volume.value = 0
+          await orchestrRef.current?.start(undefined, true)
+          if (meterIsSilent) {
+            orchestrRef.current?.regenerateAll()
+            applyStablePlaybackDefaults()
+          }
+        } catch (err) {
+          orgLog('provider:silent-start-recovery-error', {
+            error: err instanceof Error ? err.message : String(err),
+          }, 'error')
+        }
+      }, delay)
+    }
+  }, [])
+
+  const applyStablePlaybackDefaults = useCallback(() => {
+    const orchestr = orchestrRef.current
+    if (!orchestr) return
+
+    orchestr.setArrangementEnabled(false)
+    orchestr.setGrooveLocked(true)
+    orchestr.setBassVolumeMultiplier(1.0)
+    orchestr.setMelodyVolumeMultiplier(0.42)
+    orchestr.setChordVolumeMultiplier(0.48)
+    orchestr.setTextureVolumeMultiplier(0)
+    orchestr.setTextureEnabled(false)
+  }, [])
+
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
+    const input = inputRef.current
+    const orchestr = orchestrRef.current
     if (isRunningRef.current) return
     if (startInFlightRef.current) return startInFlightRef.current
 
@@ -619,15 +696,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(null)
       cadenceLastLineIndexRef.current   = -1
       reportCardLastLineIndexRef.current = -1
-      await inputRef.current.start()
+      await input.start()
       if (startTokenRef.current !== token) {
-        inputRef.current?.stop()
+        input.stop()
         return
       }
-      await orchestrRef.current.start(undefined, false)
+      await orchestr.start(undefined, false)
       if (startTokenRef.current !== token) {
-        orchestrRef.current?.stop()
-        inputRef.current?.stop()
+        orchestr.stop()
+        input.stop()
         return
       }
       primeAutoGenerateStart()
@@ -635,6 +712,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // Fast-boot: skip the Dormant wait, start playing immediately from bar 1.
       // Set a floor of Breathing so a quiet mic can't regress to Dormant mid-session.
       if (stateMachRef.current && physicsRef.current) {
+        const stateMachine = stateMachRef.current
+        const physicsEngine = physicsRef.current
         const fallbackPulse = 90
         const fallbackBeatMs = 60000 / fallbackPulse
         const fallbackSixteenthMs = fallbackBeatMs / 4
@@ -653,28 +732,32 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           frameIndex: 0,
           voiceActive: false,
         }
-        const seedPhysics = physicsRef.current.getLastState() ?? fallbackPhysics
-        stateMachRef.current.forceState(OState.Awakening, seedPhysics)
-        stateMachRef.current.forceState(OState.Breathing, seedPhysics)
-        stateMachRef.current.setStateFloor(OState.Breathing)
-        orchestrRef.current.regenerateAll()
+        const seedPhysics = physicsEngine.getLastState() ?? fallbackPhysics
+        stateMachine.forceState(OState.Awakening, seedPhysics)
+        stateMachine.forceState(OState.Breathing, seedPhysics)
+        stateMachine.forceState(OState.Flow, seedPhysics)
+        stateMachine.setStateFloor(OState.Flow)
+        orchestr.regenerateAll()
       }
 
-      await orchestrRef.current.start()
+      await orchestr.start()
       if (startTokenRef.current !== token) {
-        orchestrRef.current?.stop()
-        inputRef.current?.stop()
+        orchestr.stop()
+        input.stop()
         return
       }
       setIsRunning(true)
+      isRunningRef.current = true
+      applyStablePlaybackDefaults()
+      scheduleSilentStartRecovery(token)
 
       // Start self-listen after audio is running
       selfListenRef.current?.start()
       if (transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
-      endPhase({ inputSource, bpm: orchestrRef.current.getBpm() })
-      orgLog('provider:started', { inputSource, bpm: orchestrRef.current.getBpm() })
+      endPhase({ inputSource, bpm: orchestr.getBpm() })
+      orgLog('provider:started', { inputSource, bpm: orchestr.getBpm() })
       window.dispatchEvent(new CustomEvent('organism:started'))
     } catch (err) {
       endPhase({ error: err instanceof Error ? err.message : String(err) })
@@ -692,7 +775,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [inputSource, transcriptionEnabled])
+  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
 
   const stop = useCallback(() => {
     startTokenRef.current += 1
@@ -700,6 +783,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setIsStarting(false)
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
+    orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
     // Clear state floor so the machine fully resets on the next start()
@@ -804,6 +888,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError('Engines not initialized')
       return
     }
+    const input = inputRef.current
+    const orchestr = orchestrRef.current
+    const stateMachine = stateMachRef.current
+    const physicsEngine = physicsRef.current
     if (isRunningRef.current) return
     if (startInFlightRef.current) return startInFlightRef.current
 
@@ -817,14 +905,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setActivePresetId(presetId)
       cadenceLastLineIndexRef.current   = -1
       reportCardLastLineIndexRef.current = -1
+      try { await Tone.start() } catch { /* already running is fine */ }
 
       // 1. Lock physics mode to the preset's genre — prevents ModeClassifier drift
-      physicsRef.current.lockMode(preset.mode)
+      physicsEngine.lockMode(preset.mode)
 
       // 2. Start the input source (mic, auto, etc.)
-      await inputRef.current.start()
+      await input.start()
       if (startTokenRef.current !== token) {
-        inputRef.current?.stop()
+        input.stop()
         return
       }
 
@@ -833,10 +922,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //    makes Tone.Part rebuilds miss the first grid and bunch into crackle.
       //    Do not set the global studio play state; arrangement/piano-roll
       //    playheads follow that state and should remain independent.
-      await orchestrRef.current.start(preset.bpm, false)
+      await orchestr.start(preset.bpm, false)
       if (startTokenRef.current !== token) {
-        orchestrRef.current?.stop()
-        inputRef.current?.stop()
+        orchestr.stop()
+        input.stop()
         return
       }
       useStudioStore.getState().setBpm(preset.bpm)
@@ -856,7 +945,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       // 4. Feed the physics engine one synthetic AnalysisFrame so all subscribers
       //    (state machine, generators, reactive behaviors) get seeded
-      physicsRef.current.processFrame({
+      physicsEngine.processFrame({
         rms:              syntheticPhysics.presence * 0.5,
         rmsRaw:           syntheticPhysics.presence * 0.5,
         pitch:            220,
@@ -880,24 +969,27 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       //    forceState() chains through transitions so generators get their
       //    onStateTransition callbacks with the synthetic physics.
       //    Flow ensures flowDepth > 0 so melody and bass are fully active.
-      stateMachRef.current.forceState(OState.Awakening, syntheticPhysics)
-      stateMachRef.current.forceState(OState.Breathing, syntheticPhysics)
-      stateMachRef.current.forceState(OState.Flow, syntheticPhysics)
+      stateMachine.forceState(OState.Awakening, syntheticPhysics)
+      stateMachine.forceState(OState.Breathing, syntheticPhysics)
+      stateMachine.forceState(OState.Flow, syntheticPhysics)
 
       // 5b. Belt + suspenders: force a full pattern regenerate so drums,
       //     bass, melody, and chord are all guaranteed to have notes ready
       //     for the very next Transport tick. Without this, bass/melody/chord
       //     rely on the staggered setTimeout rebuilds (50/120/180ms) fired
       //     from the wire() transition callback, which can miss the first bar.
-      orchestrRef.current.regenerateAll()
+      orchestr.regenerateAll()
 
-      await orchestrRef.current.start(preset.bpm)
+      await orchestr.start(preset.bpm)
       if (startTokenRef.current !== token) {
-        orchestrRef.current?.stop()
-        inputRef.current?.stop()
+        orchestr.stop()
+        input.stop()
         return
       }
       setIsRunning(true)
+      isRunningRef.current = true
+      applyStablePlaybackDefaults()
+      scheduleSilentStartRecovery(token)
 
       // 6. Start transcription if enabled
       if (transcriptionEnabled && transcriberRef.current) {
@@ -911,7 +1003,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         presetId,
         bpm: preset.bpm,
         mode: preset.mode,
-        state: stateMachRef.current.getCurrentState().current,
+        state: stateMachine.getCurrentState().current,
       })
       orgLog('quickstart:applied', { presetId, bpm: preset.bpm, mode: preset.mode })
     } catch (err) {
@@ -934,7 +1026,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [transcriptionEnabled])
+  }, [transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
 
   /**
    * Live preset swap — change the beat's genre + BPM without restarting.
@@ -965,9 +1057,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestr.setBpm(preset.bpm)
     useStudioStore.getState().setBpm(preset.bpm)
     orchestr.regenerateAll()
+    applyStablePlaybackDefaults()
+    Tone.getDestination().volume.value = 0
+    await orchestr.start(preset.bpm, true)
+    applyStablePlaybackDefaults()
+    scheduleSilentStartRecovery(startTokenRef.current)
     setActivePresetId(presetId)
     endSwap({ presetId, bpm: preset.bpm, mode: preset.mode })
-  }, [quickStart])
+  }, [quickStart, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
 
   /**
    * Natural Language Vibe Interpreter
@@ -1359,7 +1456,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     window.dispatchEvent(new CustomEvent('organism:recording-stopped', { detail: session }))
 
     return session
-  }, [isRecording])
+  }, [])
 
   const downloadSession = useCallback((session: SavedSession) => {
     const timestamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, '-')
@@ -1576,6 +1673,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     window.addEventListener('organism:command', handleCommand)
     return () => window.removeEventListener('organism:command', handleCommand)
   }, [start, stop, captureSession, downloadMidi, startRecording, stopRecording, quickStart])
+
+  useEffect(() => {
+    const handleListenNow = () => {
+      selfListenRef.current?.captureNow()
+    }
+    window.addEventListener('organism:listen-now', handleListenNow)
+    return () => window.removeEventListener('organism:listen-now', handleListenNow)
+  }, [])
 
   // ── Voice Command Engine: TriggerWordDetector + VoiceCommandRouter ──
   // Initializes on mount, processes transcription text, routes detected
@@ -2085,16 +2190,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         machine.forceState(OState.Flow, physics)
       }
       machine.setStateFloor(OState.Flow)
-      orchestr.setArrangementEnabled(false)
+      applyStablePlaybackDefaults()
     } else {
       machine.setStateFloor(null)
+      orchestr.setGrooveLocked(false)
       orchestr.setArrangementEnabled(true)
       orgLog('recording:lock-released', {
         arrangementEnabled: orchestr.isArrangementEnabled(),
         floor: null,
       })
     }
-  }, [isRecording])
+  }, [isRecording, applyStablePlaybackDefaults])
 
   useEffect(() => startOrgHeartbeat(() => {
     const physics = physicsRef.current?.getLastState()
@@ -2263,6 +2369,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           Object.entries(meterReading.channels).map(([name, ch]) => [name, ch.rmsDb])
         ),
       } : null,
+      selfListen: selfListenReport ? {
+        summary: selfListenReport.summary,
+        rmsDb: selfListenReport.rmsDb,
+        peakDb: selfListenReport.peakDb,
+        clippingPercent: selfListenReport.clippingPercent,
+        spectralCentroidHz: selfListenReport.spectralCentroidHz,
+        estimatedBpm: selfListenReport.estimatedBpm,
+        onsetCount: selfListenReport.onsetCount,
+        onsetTimingStdDevMs: selfListenReport.onsetTimingStdDevMs,
+        bandEnergy: selfListenReport.bandEnergy,
+        isSilent: selfListenReport.isSilent,
+      } : null,
       generators: output ? {
         drum: output.drum.activityLevel,
         bass: output.bass.activityLevel,
@@ -2274,7 +2392,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         supported: transcription.isSupported,
         enabled: transcriptionEnabled,
         lineCount: transcription.lines.length,
-        latestLine: transcription.lines.at(-1)?.text ?? null,
+        latestLine: transcription.lines[transcription.lines.length - 1]?.text ?? null,
       } : null,
       updatedAt: Date.now(),
     }
@@ -2288,9 +2406,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     physicsState,
     organismState,
     meterReading,
+    selfListenReport,
     transcription,
     transcriptionEnabled,
   ])
+
+  const setOrganismInstrument = useCallback((
+    role: OrganismInstrumentRole,
+    instrumentId: InstrumentPerformerId | null,
+  ) => {
+    setInstrumentAssignments(prev => {
+      if (prev[role] === instrumentId) return prev
+      return { ...prev, [role]: instrumentId }
+    })
+    orchestrRef.current?.setInstrumentPerformer(role, instrumentId)
+  }, [])
 
   const value: OrganismContextValue = useMemo(() => ({
     analysisEngine:    inputSource === 'mic' && inputRef.current && 'getStream' in inputRef.current
@@ -2442,6 +2572,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current?.setTextureEnabled(enabled)
     },
 
+    // Instrument picker
+    instrumentAssignments,
+    setOrganismInstrument,
+
     // Guest experience
     guestSecondsRemaining,
     isGuestNudgeVisible,
@@ -2481,6 +2615,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lastSavedSession, savedSessions, downloadSession,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, bassVolume, melodyVolume, textureEnabled,
+    instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isStarting, isCapturing, error,

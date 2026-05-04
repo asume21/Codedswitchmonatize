@@ -17,6 +17,7 @@ import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
 import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
+import type { InstrumentPerformerId } from '../performers'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -210,6 +211,7 @@ export class GeneratorOrchestrator {
 
   async start(bpm?: number, startTransport: boolean = true): Promise<void> {
     const dest = Tone.getDestination()
+    const transport = Tone.getTransport()
     // Always ensure destination is audible — a previous start() that mutes then
     // loses its ramp (StrictMode remount, start/stop thrash) must not leave the
     // global destination at -Infinity and silence the whole app.
@@ -217,6 +219,9 @@ export class GeneratorOrchestrator {
       if (dest.volume.value < -60) {
         console.warn('[Organism] destination was stuck at silence; restoring to 0 dB')
         dest.volume.value = 0
+      }
+      if (startTransport && transport.state !== 'started') {
+        transport.start()
       }
       return
     }
@@ -235,7 +240,6 @@ export class GeneratorOrchestrator {
 
     // BPM is synced from TransportContext (the single source of truth).
     // Only set BPM here as a fallback if Transport hasn't been configured yet.
-    const transport = Tone.getTransport()
     if (bpm != null && transport.bpm.value !== bpm) {
       transport.bpm.value = bpm
     }
@@ -302,6 +306,21 @@ export class GeneratorOrchestrator {
     this.melody.onStateTransition(state, this.lastPhysics)
   }
 
+  setInstrumentPerformer(
+    role: 'lead' | 'bass' | 'chord',
+    instrumentId: InstrumentPerformerId | null,
+  ): void {
+    if (role === 'lead') {
+      this.melody.setInstrumentPerformer(instrumentId)
+      return
+    }
+    if (role === 'bass') {
+      this.bass.setInstrumentPerformer(instrumentId)
+      return
+    }
+    this.chord.setInstrumentPerformer(instrumentId)
+  }
+
   /**
    * Fully dispose all four generators and free their Tone.js audio nodes.
    * Call this in the useEffect cleanup instead of reset() to prevent node leaks
@@ -362,12 +381,13 @@ export class GeneratorOrchestrator {
   // musically responds to the human in real time.
 
   applyPerformerState(performer: import('../audio/types').PerformerState): void {
-    // Feed performer features to melody generator for intelligent voice selection
+    // Feed performer features to melody/chord generators for intelligent dynamics
     this.melody.setPerformerFeatures(
       performer.energy,
       performer.spectralBrightness,
       performer.syllabicRate,
     )
+    this.chord.setPerformerEnergy(performer.energy)
 
     // Performer adjustments are computed as FRESH multipliers each frame —
     // they do NOT compound on top of stored multipliers.
@@ -551,20 +571,40 @@ export class GeneratorOrchestrator {
     this.drum.output.connect(destination)
   }
 
+  disconnectDrumOutput(destination: Tone.InputNode): void {
+    this.drum.output.disconnect(destination)
+  }
+
   connectBassOutput(destination: Tone.InputNode): void {
     this.bass.output.connect(destination)
+  }
+
+  disconnectBassOutput(destination: Tone.InputNode): void {
+    this.bass.output.disconnect(destination)
   }
 
   connectMelodyOutput(destination: Tone.InputNode): void {
     this.melody.output.connect(destination)
   }
 
+  disconnectMelodyOutput(destination: Tone.InputNode): void {
+    this.melody.output.disconnect(destination)
+  }
+
   connectTextureOutput(destination: Tone.InputNode): void {
     this.texture.output.connect(destination)
   }
 
+  disconnectTextureOutput(destination: Tone.InputNode): void {
+    this.texture.output.disconnect(destination)
+  }
+
   connectChordOutput(destination: Tone.InputNode): void {
     this.chord.output.connect(destination)
+  }
+
+  disconnectChordOutput(destination: Tone.InputNode): void {
+    this.chord.output.disconnect(destination)
   }
 
   /** Subscribe to chord changes for chord-aware generators. */
@@ -737,14 +777,16 @@ export class GeneratorOrchestrator {
    * Mutates existing drum patterns for variation without full rebuild.
    */
   private onPatternMutation(): void {
+    if (!this.arrangementEnabled) return
+
     // Mutate current drum pattern
     const state = this.director.getState()
     const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
     const mutated = mutatePattern(pattern.hits, {
-      ghostProbability: 0.2,
-      dropProbability: 0.1,
-      shiftProbability: 0.12,
-      velocitySpread: 0.08,
+      ghostProbability: 0.08,
+      dropProbability: 0,
+      shiftProbability: 0,
+      velocitySpread: 0.04,
     })
     this.drum.loadGeneratedPattern(mutated)
   }
@@ -770,6 +812,10 @@ export class GeneratorOrchestrator {
         rootPitchClass: state.rootPitchClass,
         tempo:       state.tempo,
         chordLabel:  state.currentChordLabel,
+        // Include technique and articulation state for UI sync
+        chordTechnique: this.chord.getTechnique(),
+        melodyArticulation: this.melody.getArticulation(),
+        bassArticulation: this.bass.getArticulation(),
       },
     }))
   }

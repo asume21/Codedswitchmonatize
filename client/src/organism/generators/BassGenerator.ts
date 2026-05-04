@@ -12,6 +12,7 @@ import {
   shouldEnableSlide,
   getPortamentoTime,
 }                              from './patterns/BassPatternLibrary'
+import { getLivePartStart, quantizeGridTime } from './CompositionClock'
 import type { ChordEvent }     from './patterns/ChordProgressionBank'
 import { getChordBassNote }    from './patterns/ChordProgressionBank'
 import type { PhysicsState }   from '../physics/types'
@@ -25,6 +26,12 @@ import {
   defaultBassArticulation,
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
+import {
+  conformNoteToInstrument,
+  selectInstrumentPerformer,
+  type InstrumentPerformerId,
+  type InstrumentPerformerProfile,
+} from '../performers'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -36,6 +43,10 @@ export class BassGenerator extends GeneratorBase {
   private distortion: Tone.Distortion
   private part:       Tone.Part | null = null
   private hasStartedPlayback: boolean = false
+
+  // Expression & Modulation
+  private lfo:        Tone.LFO
+  private lfoGain:    Tone.Gain
 
   // Musical state
   private rootMidi:        number       = 36   
@@ -58,6 +69,8 @@ export class BassGenerator extends GeneratorBase {
   private fallbackSynth: Tone.MonoSynth
   
   private isCurrentVoiceSampler: boolean = false
+  private currentPerformer: InstrumentPerformerProfile | null = null
+  private explicitPerformerId: InstrumentPerformerId | null = null
 
   // Articulation — per-note transform. Defaults to 'none' (legacy behavior).
   private currentArticulationId: string = DEFAULT_ARTICULATION_ID
@@ -75,6 +88,12 @@ export class BassGenerator extends GeneratorBase {
 
   getArticulation(): string {
     return this.currentArticulationId
+  }
+
+  setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
+    this.explicitPerformerId = instrumentId
+    this.applyBassPreset()
+    if (this.lastOutputGain > 0) this.rebuildPart()
   }
 
   // ─── Dynamic Global Voices ──────────────────────────────────
@@ -101,6 +120,18 @@ export class BassGenerator extends GeneratorBase {
     this.monoSub    = new Tone.Filter({ type: 'lowpass', frequency: 120, rolloff: -24 })
     this.compressor = new Tone.Compressor({ threshold: -20, ratio: 6, attack: 0.005, release: 0.12 })
     this.distortion = new Tone.Distortion({ distortion: 0.08, wet: 0.2 })
+
+    // LFO for filter "wobble" / emotional oscillation
+    this.lfoGain = new Tone.Gain(0)
+    this.lfo = new Tone.LFO({
+      type: 'sine',
+      min: -1,
+      max: 1,
+      frequency: 0
+    }).start()
+    
+    this.lfo.connect(this.lfoGain)
+    this.lfoGain.connect(this.filter.frequency)
 
     this.synth = new Tone.MonoSynth({
       oscillator: { type: 'fatsawtooth', spread: 15, count: 2 },
@@ -146,7 +177,7 @@ export class BassGenerator extends GeneratorBase {
     // Apply mode-default articulation unless explicitly overridden.
     const modeStr = physics.mode.toString()
     if (!this.articulationOverridden && modeStr !== this.lastModeForArticulation) {
-      this.currentArticulationId = defaultBassArticulation(modeStr)
+      this.currentArticulationId = this.currentPerformer?.defaultBassArticulation ?? defaultBassArticulation(modeStr)
       this.lastModeForArticulation = modeStr
     }
 
@@ -154,7 +185,7 @@ export class BassGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
-      this.rebuildPart()
+      this.rebuildPart(physics)
     }
 
     // Only duck filter if we are using a MonoSynth (samplers bypass the filter entirely)
@@ -170,6 +201,15 @@ export class BassGenerator extends GeneratorBase {
     const targetLevel = this.computeTargetLevel(organism)
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
+
+    // Update Modulation: Filter oscillation (wobble) increases with flow intensity.
+    // At deep flow, the bass starts to breathe and growl.
+    const flowIntensity = organism.flowDepth
+    const lfoRate = flowIntensity * 6 // 0 to 6Hz
+    const lfoDepth = flowIntensity * 200 // 0 to 200Hz sweep depth
+    
+    this.lfo.frequency.rampTo(lfoRate, 0.5)
+    this.lfoGain.gain.rampTo(lfoDepth, 0.5)
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
@@ -191,7 +231,7 @@ export class BassGenerator extends GeneratorBase {
       setBassSwing(physics.mode.toString())
       this.currentBehavior = getBassBehavior(physics.mode, to)
       this.applyBassPreset()
-      this.rebuildPart()
+      this.rebuildPart(physics)
       return
     }
 
@@ -205,7 +245,7 @@ export class BassGenerator extends GeneratorBase {
     setBassSwing(physics.mode.toString()) 
     this.currentBehavior = getBassBehavior(physics.mode, to)
     this.applyBassPreset()
-    this.rebuildPart()
+    this.rebuildPart(physics)
   }
 
   reset(): void {
@@ -218,31 +258,18 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private applyBassPreset(): void {
-    // Score voices 
-    let bestVoice = BassGenerator.GLOBAL_VOICES[0]
-    let bestScore = -Infinity
-
-    for (const voice of BassGenerator.GLOBAL_VOICES) {
-      let score = 0
-      if ((this.currentMode === OrganismMode.Heat || this.currentMode === OrganismMode.Ice) && voice.tags.includes('808')) {
-        score += 3
-        if (this.currentMode === OrganismMode.Heat && voice.tags.includes('aggressive')) score += 1
-      }
-      if ((this.currentMode === OrganismMode.Gravel || this.currentMode === OrganismMode.Smoke) && voice.tags.includes('acoustic')) {
-        score += 3
-      }
-      if (this.currentMode === OrganismMode.Smoke && voice.tags.includes('electric')) {
-        score += 3
-      }
-      score += Math.random() * 1.5
-
-      if (score > bestScore) {
-        bestScore = score
-        bestVoice = voice
-      }
+    {
+    const performer = selectInstrumentPerformer({
+      role: 'bass',
+      mode: this.currentMode.toString(),
+      energy: this.activityLevel,
+      explicitId: this.explicitPerformerId ?? undefined,
+    })
+    this.currentPerformer = performer
+    if (!this.articulationOverridden) {
+      this.currentArticulationId = performer.defaultBassArticulation
+      this.lastModeForArticulation = this.currentMode.toString()
     }
-
-    const voice = bestVoice
 
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
@@ -264,7 +291,7 @@ export class BassGenerator extends GeneratorBase {
       }
       oldSynth.disconnect()
     } catch { /* */ }
-    
+
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
       try { oldSynth.dispose() } catch { /* */ }
@@ -272,35 +299,19 @@ export class BassGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    if (voice.type === 'Sampler' && voice.presetId) {
-      this.isCurrentVoiceSampler = true
-      this.synth = createSoundfontSampler(
-        voice.presetId, 
-        { attack: voice.attack, release: voice.release },
-        voice.volume
-      )
-      // BYPASS FILTER AND DISTORTION ENTIRELY for acoustic/electric realism! 
-      // Straight to compressor for tightness.
-      this.synth.connect(this.compressor)
-    } else {
-      this.isCurrentVoiceSampler = false
-      this.synth = new Tone.MonoSynth({
-        oscillator: { type: voice.oscType || 'fatsawtooth', spread: 15, count: 2 },
-        filter:     { Q: voice.Q || 3, type: 'lowpass', rolloff: -24 },
-        envelope:   { attack: voice.attack, decay: voice.decay, sustain: voice.sustain, release: voice.release },
-        filterEnvelope: {
-          attack: 0.04, decay: 0.15, sustain: 0.35, release: 0.15,
-          baseFrequency: 80, octaves: voice.octaves || 2.0,
-        },
-      } as Partial<Tone.MonoSynthOptions>)
-      this.synth.volume.value = voice.volume
-      
-      // Connect to Filter -> MonoSub -> Distortion -> Compressor chain
-      this.synth.connect(this.filter)
-      this.distortion.wet.rampTo(voice.distWet || 0.1, 0.1)
-    }
+    this.isCurrentVoiceSampler = true
+    this.synth = createSoundfontSampler(
+      performer.samplerPreset,
+      performer.envelope,
+      performer.volume,
+    )
+    this.synth.connect(this.compressor)
+    this.distortion.wet.rampTo(performer.id === 'bass-synth' ? 0.12 : 0, 0.1)
 
-    console.debug(`🎸 Bass voice: ${voice.name} (${this.currentMode})`)
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      console.debug(`Bass performer: ${performer.name} (${this.currentMode})`)
+    }
+    }
   }
 
   private volumeMultiplier: number = 1.0
@@ -338,17 +349,17 @@ export class BassGenerator extends GeneratorBase {
   private lastRebuildTime: number = 0
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
-  private rebuildPart(): void {
+  private rebuildPart(physics?: PhysicsState): void {
     const now = performance.now()
     if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
     this.stopPart()
 
-    const notes = this.generateNotes()
+    const notes = this.generateNotes(physics ?? ({ density: 0.5 } as any))
     if (notes.length === 0) return
 
     const events = notes.map(n => ({
-      time: n.time,
+      time: quantizeGridTime(n.time),
       note: n.pitch,
       dur:  n.duration,
       vel:  n.velocity,
@@ -360,10 +371,13 @@ export class BassGenerator extends GeneratorBase {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
       const scheduledTime = time + LAY_BACK_SEC
+      const playableNote = this.currentPerformer
+        ? conformNoteToInstrument(event.note, this.currentPerformer)
+        : event.note
 
       // Fast-path: default articulation skips the transform.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(event.note, event.dur, scheduledTime, pocketVelocity)
+        voice.triggerAttackRelease(playableNote, event.dur, scheduledTime, pocketVelocity)
         return
       }
 
@@ -384,7 +398,7 @@ export class BassGenerator extends GeneratorBase {
 
       const scheduled = applyArticulation(
         this.currentArticulationId,
-        event.note,
+        playableNote,
         event.dur,
         pocketVelocity,
         artCtx
@@ -397,12 +411,11 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
-    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.part.start(getLivePartStart(this.hasStartedPlayback))
     this.hasStartedPlayback = true
   }
 
-  private generateNotes(): ScheduledNote[] {
+  private generateNotes(physics: PhysicsState): ScheduledNote[] {
     const slideActive = shouldEnableSlide(this.currentBehavior)
     const portTime = getPortamentoTime(this.currentBehavior)
     if (!this.isCurrentVoiceSampler) {
@@ -411,7 +424,7 @@ export class BassGenerator extends GeneratorBase {
       } catch { /* */ }
     }
 
-    return buildBassNotes(this.currentBehavior, this.rootMidi)
+    return buildBassNotes(this.currentBehavior, this.rootMidi, physics.density)
   }
 
   private startSubBassRise(): void {
@@ -473,6 +486,8 @@ export class BassGenerator extends GeneratorBase {
       try { this.pendingOldSynth.dispose() } catch { /* */ }
       this.pendingOldSynth = null
     }
+    this.lfo.dispose()
+    this.lfoGain.dispose()
     this.synth.dispose()
     this.fallbackSynth.dispose()
     this.filter.dispose()

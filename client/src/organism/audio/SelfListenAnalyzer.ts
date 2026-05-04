@@ -24,8 +24,9 @@ import * as Tone          from 'tone'
 import type { SelfListenReport } from './types'
 import { analyzePcm }     from './pcmAnalyzer'
 
-const CAPTURE_INTERVAL_MS  = 15_000  // run self-analysis every 15 seconds
+const CAPTURE_INTERVAL_MS  = 8_000   // run self-analysis often enough for live diagnosis
 const CAPTURE_DURATION_MS  = 2_000   // capture 2 seconds per sample
+const FIRST_CAPTURE_MS     = 2_500   // hear the startup phrase while it is still relevant
 const LOUD_DB              = -2      // above this → reduce volume
 const QUIET_DB             = -35     // below this → boost volume
 
@@ -49,12 +50,19 @@ export class SelfListenAnalyzer {
   start(): void {
     if (this.interval) return
     this.ensureTap()
-    // Delay first capture so the mix stabilizes before self-correction kicks in
+    // Delay first capture just enough for the first downbeat/phrase to exist,
+    // then keep listening periodically. Long delays hide startup failures.
     this.initTimer = setTimeout(() => {
       this.initTimer = null
       this.runCapture()
       this.interval = setInterval(() => this.runCapture(), CAPTURE_INTERVAL_MS)
-    }, 10_000)
+    }, FIRST_CAPTURE_MS)
+  }
+
+  /** Trigger an immediate capture for debugging or user-requested listening. */
+  captureNow(): void {
+    this.ensureTap()
+    this.runCapture()
   }
 
   stop(): void {

@@ -25,8 +25,8 @@ export class MasterBus {
     // Hip-hop master EQ: sub bass cleanup, mud cut, air presence, gentle LP safety net
     this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 45,   gain: -12.0 }) // aggressively cut sub-45Hz rumble that eats headroom
     this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,  gain: -3.0, Q: 0.8 }) // target exact 200Hz mud zone identified by WEBEAR
-    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: 1.0 })  // restore air/presence for hats
-    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 16000, rolloff: -24 }) // gentle LP — protect from harsh aliasing only
+    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -1.5 }) // tame harsh hats/leads
+    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 12500, rolloff: -24 }) // keep the beat listenable on small speakers
 
     // Glue compressor — gentle bus glue; individual channels already compress
     this.compressor = new Tone.Compressor({
@@ -78,6 +78,14 @@ export class MasterBus {
 
   setGainDb(db: number): void {
     this.masterGain.gain.rampTo(Tone.dbToGain(db), 0.05)
+  }
+
+  connectOutput(destination: Tone.InputNode): void {
+    this.analyser.connect(destination)
+  }
+
+  disconnectOutput(destination: Tone.InputNode): void {
+    this.analyser.disconnect(destination)
   }
 
   dispose(): void {

@@ -178,11 +178,15 @@ export class MusicalDirector {
       if (this.subGenreLockBars > 0) this.subGenreLockBars--
       this.state.barsSinceLastMutation++
 
-      // STORY MODE: Reduced mutation probability during Flow to keep the story consistent
-      const mutationBias = isFlow ? 0.5 : 1.0
-      this.state.mutationProbability = Math.min(0.6 * mutationBias,
-        this.state.barsSinceLastMutation / 48
-      )
+      // Keep Flow performance stable. Random drum mutation during playback can
+      // make the beat feel like it forgets its own pocket.
+      if (isFlow || this.isGrooveLocked) {
+        this.state.mutationProbability = 0
+      } else {
+        this.state.mutationProbability = Math.min(0.6,
+          this.state.barsSinceLastMutation / 48
+        )
+      }
 
       // Find current arrangement section
       const cycleBar = currentBar % ARRANGEMENT_TOTAL_BARS
@@ -205,7 +209,7 @@ export class MusicalDirector {
         for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
 
         // Check for pattern mutation on section change
-        if (Math.random() < this.state.mutationProbability) {
+        if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
           this.state.barsSinceLastMutation = 0
           this.state.mutationProbability = 0
           for (const cb of this.mutationListeners) cb()

@@ -106,6 +106,8 @@ export function OnboardingTour() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!window.location.pathname.startsWith("/studio")) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("studio-tour")) return;
     const completed = localStorage.getItem(STORAGE_KEY) === "true";
     if (!completed) setOpen(true);
   }, []);

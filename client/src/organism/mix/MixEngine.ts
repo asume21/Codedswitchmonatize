@@ -115,6 +115,10 @@ export class MixEngine {
     return () => this.meterCallbacks.delete(callback)
   }
 
+  getMasterMeter(): { peakDb: number; rmsDb: number } {
+    return this.master.getMeter()
+  }
+
   setChannelGainDb(channel: 'drum' | 'bass' | 'melody' | 'texture' | 'chord', db: number): void {
     this.getChannel(channel).setGainDb(db)
   }
@@ -125,6 +129,14 @@ export class MixEngine {
 
   setMasterGainDb(db: number): void {
     this.master.setGainDb(db)
+  }
+
+  connectMasterOutput(destination: import('tone').InputNode): void {
+    this.master.connectOutput(destination)
+  }
+
+  disconnectMasterOutput(destination: import('tone').InputNode): void {
+    this.master.disconnectOutput(destination)
   }
 
   dispose(): void {

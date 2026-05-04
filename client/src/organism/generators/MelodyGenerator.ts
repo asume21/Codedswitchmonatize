@@ -24,6 +24,13 @@ import {
   defaultMelodyArticulation,
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
+import { getLivePartStart, quantizeGridTime } from './CompositionClock'
+import {
+  conformNoteToInstrument,
+  selectInstrumentPerformer,
+  type InstrumentPerformerId,
+  type InstrumentPerformerProfile,
+} from '../performers'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -33,6 +40,11 @@ export class MelodyGenerator extends GeneratorBase {
   // Fallback synth — always available for instant playback while CDN samplers load
   private fallbackSynth: Tone.PolySynth
   private hasStartedPlayback: boolean = false
+
+  // Expression & Phrasing — Tone.Vibrato sits inline in the audio chain so it
+  // works for both PolySynth and Sampler sources (PolySynth does not expose a
+  // connectable detune AudioParam at the top level).
+  private vibrato: Tone.Vibrato
 
   // Reactive state (Section 05)
   private pitchOffsetSemitones: number = 0
@@ -56,6 +68,9 @@ export class MelodyGenerator extends GeneratorBase {
 
   // Current voice name for debugging/display
   private currentVoiceName: string = 'Default FM'
+  private currentPerformer: InstrumentPerformerProfile | null = null
+  private explicitPerformerId: InstrumentPerformerId | null = null
+  private currentModeName: string = 'glow'
 
   // Tracked synth dispose timer — prevents zombie synth accumulation
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
@@ -217,6 +232,10 @@ export class MelodyGenerator extends GeneratorBase {
     this.fallbackSynth = this.buildDefaultSynth()
     this.fallbackSynth.volume.value = -9
 
+    // Vibrato — inline pitch modulation between synths and chorus. Depth is
+    // ramped from setPerformerFeatures based on performer energy.
+    this.vibrato = new Tone.Vibrato({ frequency: 5, depth: 0 })
+
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
 
     this.dryBus     = new Tone.Gain(0.80)
@@ -228,8 +247,9 @@ export class MelodyGenerator extends GeneratorBase {
     this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
-    this.synth.connect(this.chorus)
-    this.fallbackSynth.connect(this.chorus)
+    this.synth.connect(this.vibrato)
+    this.fallbackSynth.connect(this.vibrato)
+    this.vibrato.connect(this.chorus)
     this.chorus.connect(this.dryBus)
     this.chorus.connect(this.delaySend)
     this.chorus.connect(this.reverbSend)
@@ -267,42 +287,32 @@ export class MelodyGenerator extends GeneratorBase {
     this.lastPerformerSyllabicRate = syllabicRate
   }
 
+  setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
+    this.explicitPerformerId = instrumentId
+    this.applyModeVoice(this.currentModeName)
+    if (this.lastOutputGain > 0) this.scaleDirty = true
+  }
+
   /**
    * Intelligently picks from GLOBAL_VOICES based on performer features
    * (Aggressive rap = 808s/pianos, softer = rhodes/pads)
    */
   private applyModeVoice(mode: string): void {
-    let bestVoice = MelodyGenerator.GLOBAL_VOICES[0]
-    let bestScore = -Infinity
+    {
+    const performer = selectInstrumentPerformer({
+      role: 'lead',
+      mode,
+      energy: this.lastPerformerEnergy,
+      brightness: this.lastPerformerBrightness,
+      explicitId: this.explicitPerformerId ?? undefined,
+    })
+    this.currentPerformer = performer
+    this.currentVoiceName = performer.name
 
-    for (const voice of MelodyGenerator.GLOBAL_VOICES) {
-      let score = 0
-      
-      // Energy
-      if (this.lastPerformerEnergy > 0.65) {
-        if (voice.tags.includes('aggressive') || voice.tags.includes('dark')) score += 3
-        if (voice.tags.includes('ethereal')) score -= 2
-      } else if (this.lastPerformerEnergy < 0.35 || mode === 'smoke' || mode === 'glow') {
-        if (voice.tags.includes('warm') || voice.tags.includes('chill')) score += 3
-      }
-      
-      // Syllables
-      if (this.lastPerformerSyllabicRate > 4) {
-        // Fast rapping -> clean acoustic or short envelope synth
-        if (voice.type === 'Sampler') score += 2
-      }
-      
-      // Introduce some random variety
-      score += Math.random() * 2
-
-      if (score > bestScore) {
-        bestScore = score
-        bestVoice = voice
-      }
+    if (!this.articulationOverridden) {
+      this.currentArticulationId = performer.defaultLeadArticulation
+      this.lastModeForArticulation = mode
     }
-
-    const voice = bestVoice
-    this.currentVoiceName = voice.name
 
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
@@ -320,7 +330,7 @@ export class MelodyGenerator extends GeneratorBase {
       oldSynth.releaseAll()
       oldSynth.disconnect()
     } catch { /* */ }
-    
+
     this.pendingOldSynth = oldSynth
     this.pendingSynthDispose = setTimeout(() => {
       try { oldSynth.dispose() } catch { /* */ }
@@ -328,38 +338,19 @@ export class MelodyGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    let newSynth: Tone.PolySynth | LoadableSampler
-    if (voice.type === 'Sampler' && voice.presetId) {
-      newSynth = createSoundfontSampler(
-        voice.presetId, 
-        voice.options.envelope,
-        voice.volume
-      )
-    } else {
-      switch (voice.type) {
-        case 'Mono':
-          newSynth = new Tone.PolySynth(Tone.MonoSynth, { maxPolyphony: 4, ...voice.options } as any)
-          break
-        case 'Synth':
-          newSynth = new Tone.PolySynth(Tone.Synth, { maxPolyphony: 6, ...voice.options } as any)
-          break
-        case 'FM':
-        default:
-          newSynth = new Tone.PolySynth(Tone.FMSynth, { maxPolyphony: 6, ...voice.options } as any)
-          break
-      }
-      newSynth.volume.value = voice.volume
-    }
-
-    this.synth = newSynth
-    this.synth.connect(this.chorus)
-
-    this.chorus.wet.rampTo(voice.chorusWet, 0.5)
-    this.reverb.decay = voice.reverbDecay
-    this.delay.feedback.rampTo(voice.delayFeedback, 0.5)
+    this.synth = createSoundfontSampler(
+      performer.samplerPreset,
+      performer.envelope,
+      performer.volume,
+    )
+    this.synth.connect(this.vibrato)
+    this.chorus.wet.rampTo(performer.family === 'wind' || performer.family === 'bowed' ? 0.28 : 0.18, 0.5)
+    this.reverb.decay = performer.family === 'wind' || performer.family === 'bowed' ? 1.6 : 1.0
+    this.delay.feedback.rampTo(performer.family === 'plucked' ? 0.12 : 0.08, 0.5)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(` Melody voice: ${voice.name}`)
+      console.debug(`Melody performer: ${performer.name}`)
+    }
     }
   }
 
@@ -368,6 +359,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth
     this.currentSwing    = MelodyGenerator.MODE_SWING[physics.mode.toString()] ?? 0.35
+    this.currentModeName = physics.mode.toString()
 
     // Auto-apply mode-default articulation if user/warmup hasn't overridden it.
     const modeStr = physics.mode.toString()
@@ -414,6 +406,11 @@ export class MelodyGenerator extends GeneratorBase {
     const targetLevel = this.computeTargetLevel(organism, newBehavior)
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
+
+    // Update Phrasing: Vibrato depth scales with performer energy.
+    // Tone.Vibrato.depth is 0–1; cap around 0.06 so high energy adds breath
+    // without sounding seasick.
+    this.vibrato.depth.rampTo(this.lastPerformerEnergy * 0.06, 0.4)
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
@@ -510,10 +507,13 @@ export class MelodyGenerator extends GeneratorBase {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
       const finalVel = event.vel * presenceDuck
+      const playableNote = this.currentPerformer
+        ? conformNoteToInstrument(event.note, this.currentPerformer)
+        : event.note
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(event.note, event.dur, time, finalVel)
+        voice.triggerAttackRelease(playableNote, event.dur, time, finalVel)
         return
       }
 
@@ -534,7 +534,7 @@ export class MelodyGenerator extends GeneratorBase {
 
       const scheduled = applyArticulation(
         this.currentArticulationId,
-        event.note,
+        playableNote,
         event.dur,
         finalVel,
         artCtx
@@ -544,31 +544,35 @@ export class MelodyGenerator extends GeneratorBase {
         const t = Math.max(time + n.timeOffset, time - 0.02)
         voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
       }
-    }, notes.map(n => ({ time: n.time, note: n.pitch, dur: n.duration, vel: n.velocity })))
+    }, notes.map(n => ({ time: quantizeGridTime(n.time, Math.ceil(phraseLength / 16)), note: n.pitch, dur: n.duration, vel: n.velocity })))
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`
-    const startGrid = this.hasStartedPlayback ? '1m' : '16n'
-    this.part.start(Tone.getTransport().nextSubdivision(startGrid))
+    this.part.start(getLivePartStart(this.hasStartedPlayback))
     this.hasStartedPlayback = true
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
     const notes: ScheduledNote[] = []
     const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
-    const octave  = octaves[0] + Math.floor(Math.random() * (octaves[1] - octaves[0] + 1))
+    
+    // Deterministic octave based on mode hash
+    const modeHash = physics.mode.toString().length
+    const octave  = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
+    
     const isHint  = this.currentBehavior === MelodyBehavior.Hint
 
-    // CALL & RESPONSE: 
-    // If voice is active (rapping), play an Ostinato (repetitive, out of the way).
-    // If voice is inactive (breath/wait), play a Fill or Arp.
+    // CALL & RESPONSE: Deterministic selection based on chord root
+    const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0)) % 10
+    
     let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
     if (!this.voiceActive) {
-      motifBank = Math.random() > 0.5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
+      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
     }
     
-    // Pick a motif shape
-    const motif = motifBank[Math.floor(Math.random() * motifBank.length)]
+    // Pick a motif shape deterministically
+    const motifIdx = chordSeed % motifBank.length
+    const motif = motifBank[motifIdx]
 
     // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
     const chordDegs: number[] = []
@@ -619,11 +623,16 @@ export class MelodyGenerator extends GeneratorBase {
         const bar  = Math.floor(c / 16)
         const beat = Math.floor((c % 16) / 4)
         const sub  = c % 4
-        const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
-        const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
+        const time = `${bar}:${beat}:${sub}`
         
         const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
-        const vel = Math.min(1, Math.max(0.15, accentBase + (Math.random() - 0.5) * 0.18))
+        
+        // Deterministic velocity seeded by position and energy
+        const seed = (bar * 16) + (beat * 4) + sub
+        const hash = Math.sin(seed * 9.87) * 1000
+        const pseudoRand = hash - Math.floor(hash)
+        
+        const vel = Math.min(1, Math.max(0.15, (accentBase * this.lastPerformerEnergy) + (pseudoRand - 0.5) * 0.12))
         
         out.push({ pitch, duration: durStr, velocity: vel, time })
         c += step.dur16ths
@@ -681,6 +690,7 @@ export class MelodyGenerator extends GeneratorBase {
       try { this.pendingOldSynth.dispose() } catch { /* */ }
       this.pendingOldSynth = null
     }
+    this.vibrato.dispose()
     this.synth.dispose()
     this.fallbackSynth.dispose()
     this.chorus.dispose()

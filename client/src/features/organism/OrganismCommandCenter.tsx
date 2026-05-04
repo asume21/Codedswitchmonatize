@@ -17,6 +17,8 @@ import { VoiceMonitorWindow } from './VoiceMonitorWindow'
 import { useOrganismShortcuts } from './useOrganismShortcuts'
 import { OState } from '../../organism/state/types'
 import { useStudioStore } from '../../stores/useStudioStore'
+import { INSTRUMENT_PERFORMERS } from '../../organism/performers'
+import type { InstrumentPerformerId, PerformerRole } from '../../organism/performers'
 
 // ── Web Speech API local typings ───────────────────────────────────────────
 // The browser's SpeechRecognition is experimental — TS lib doesn't always
@@ -151,9 +153,96 @@ function StatusDot({ active, color }: { active: boolean; color: string }) {
       width: 7, height: 7, borderRadius: '50%',
       background: active ? color : 'rgba(255,255,255,0.15)',
       boxShadow: active ? `0 0 6px ${color}` : 'none',
-      transition: 'all 0.3s',
+      transition: 'background-color 140ms ease, box-shadow 140ms ease',
       flexShrink: 0,
     }} />
+  )
+}
+
+interface PillToggleProps {
+  active: boolean
+  label: string
+  onToggle: () => void
+  color: string
+}
+
+const PillToggle = React.memo(function PillToggle({
+  active,
+  label,
+  onToggle,
+  color,
+}: PillToggleProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 9px',
+        borderRadius: 999,
+        border: active ? `1px solid ${color}55` : '1px solid rgba(100,116,139,0.2)',
+        background: active ? `${color}18` : 'transparent',
+        color: active ? color : C.text3,
+        fontSize: 11,
+        fontWeight: 500,
+        cursor: 'pointer',
+        transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        contain: 'paint',
+      }}
+    >
+      <StatusDot active={active} color={color} />
+      {label}
+    </button>
+  )
+})
+
+function InstrumentSelect({
+  label,
+  role,
+  value,
+  onChange,
+}: {
+  label: string
+  role: PerformerRole
+  value: InstrumentPerformerId | null
+  onChange: (id: InstrumentPerformerId | null) => void
+}) {
+  const options = INSTRUMENT_PERFORMERS.filter(profile => profile.roles.includes(role))
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 112, flex: '1 1 112px' }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: C.text3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {label}
+      </span>
+      <select
+        value={value ?? 'auto'}
+        onChange={event => {
+          const next = event.currentTarget.value
+          onChange(next === 'auto' ? null : next as InstrumentPerformerId)
+        }}
+        style={{
+          width: '100%',
+          height: 28,
+          borderRadius: 6,
+          border: `0.5px solid ${C.border2}`,
+          background: C.bg2,
+          color: value ? C.cyan : C.text2,
+          fontSize: 11,
+          fontWeight: 700,
+          padding: '0 8px',
+          outline: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="auto">Auto</option>
+        {options.map(profile => (
+          <option key={profile.id} value={profile.id}>{profile.name}</option>
+        ))}
+      </select>
+    </label>
   )
 }
 
@@ -174,6 +263,7 @@ export function OrganismCommandCenter() {
     kickVelocity, setKickVelocity,
     bassVolume,   setBassVolume,
     melodyVolume, setMelodyVolume,
+    instrumentAssignments, setOrganismInstrument,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -295,6 +385,30 @@ export function OrganismCommandCenter() {
     orchestrator?.setBassArticulation(id)
   }, [orchestrator])
 
+  const resetChordTech = useCallback(() => {
+    orchestrator?.resetChordTechniqueOverride()
+  }, [orchestrator])
+
+  const resetMelodyArt = useCallback(() => {
+    orchestrator?.resetMelodyArticulationOverride()
+  }, [orchestrator])
+
+  const resetBassArt = useCallback(() => {
+    orchestrator?.resetBassArticulationOverride()
+  }, [orchestrator])
+
+  // Sync local UI state with engine state
+  useEffect(() => {
+    const handleMusicalState = (e: any) => {
+      const { chordTechnique, melodyArticulation, bassArticulation } = e.detail
+      if (chordTechnique) setChordTechLocal(chordTechnique)
+      if (melodyArticulation) setMelodyArtLocal(melodyArticulation)
+      if (bassArticulation) setBassArtLocal(bassArticulation)
+    }
+    window.addEventListener('organism:musical-state', handleMusicalState)
+    return () => window.removeEventListener('organism:musical-state', handleMusicalState)
+  }, [])
+
   const toggleStyleShifts = useCallback(() => {
     const next = !styleShifts
     setStyleShiftsLocal(next)
@@ -368,35 +482,26 @@ export function OrganismCommandCenter() {
     setMicMonitoringEnabled,
   ])
 
+  const toggleCadenceLock = useCallback(() => {
+    setCadenceLockEnabled(!cadenceLockEnabled)
+  }, [cadenceLockEnabled, setCadenceLockEnabled])
+
+  const toggleCallResponse = useCallback(() => {
+    setCallResponseEnabled(!callResponseEnabled)
+  }, [callResponseEnabled, setCallResponseEnabled])
+
+  const toggleDropDetector = useCallback(() => {
+    setDropDetectorEnabled(!dropDetectorEnabled)
+  }, [dropDetectorEnabled, setDropDetectorEnabled])
+
+  const toggleVibeMatch = useCallback(() => {
+    setVibeMatchEnabled(!vibeMatchEnabled)
+  }, [setVibeMatchEnabled, vibeMatchEnabled])
+
   useEffect(() => {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcription?.lines.length])
 
-
-  // ── Section helpers ──────────────────────────────────────────────────────
-
-  function PillToggle({ active, label, onToggle, color }: {
-    active: boolean; label: string; onToggle: () => void; color: string
-  }) {
-    return (
-      <button
-        onClick={onToggle}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          padding: '3px 9px',
-          borderRadius: 999,
-          border: active ? `1px solid ${color}55` : `1px solid rgba(100,116,139,0.2)`,
-          background: active ? `${color}18` : 'transparent',
-          color: active ? color : C.text3,
-          fontSize: 11, fontWeight: 500, cursor: 'pointer',
-          transition: 'all 0.15s',
-        }}
-      >
-        <StatusDot active={active} color={color} />
-        {label}
-      </button>
-    )
-  }
 
   // Story Mode (formerly Pattern Lock) — toggle is on the context now.
   const isStoryMode = isPatternLocked
@@ -1062,7 +1167,7 @@ export function OrganismCommandCenter() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {/* Chord technique */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Chords</span>
                 <select
                   value={chordTech}
@@ -1104,9 +1209,18 @@ export function OrganismCommandCenter() {
                     <option value="wind-trill">Trill</option>
                   </optgroup>
                 </select>
+                <button
+                  onClick={resetChordTech}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: '4px 6px',
+                    borderRadius: 4, border: `0.5px solid ${C.border2}`,
+                    background: C.bg2, color: C.cyan, cursor: 'pointer',
+                  }}
+                  title="Reset to Mode Auto"
+                >AUTO</button>
               </div>
               {/* Melody articulation */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Melody</span>
                 <select
                   value={melodyArt}
@@ -1123,9 +1237,18 @@ export function OrganismCommandCenter() {
                   <option value="grace-flick">Grace-Note Flick</option>
                   <option value="trill-ornament">Trill Ornament</option>
                 </select>
+                <button
+                  onClick={resetMelodyArt}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: '4px 6px',
+                    borderRadius: 4, border: `0.5px solid ${C.border2}`,
+                    background: C.bg2, color: C.cyan, cursor: 'pointer',
+                  }}
+                  title="Reset to Mode Auto"
+                >AUTO</button>
               </div>
               {/* Bass articulation */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 10, color: C.text3, width: 62, flexShrink: 0 }}>Bass</span>
                 <select
                   value={bassArt}
@@ -1142,6 +1265,15 @@ export function OrganismCommandCenter() {
                   <option value="bass-octave-jump">Octave Jump</option>
                   <option value="bass-walking-step">Walking Step</option>
                 </select>
+                <button
+                  onClick={resetBassArt}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: '4px 6px',
+                    borderRadius: 4, border: `0.5px solid ${C.border2}`,
+                    background: C.bg2, color: C.cyan, cursor: 'pointer',
+                  }}
+                  title="Reset to Mode Auto"
+                >AUTO</button>
               </div>
             </div>
           </div>
@@ -1210,12 +1342,47 @@ export function OrganismCommandCenter() {
             flexShrink: 0,
           }}>
             <div style={{ ...label11, marginBottom: 7 }}>Features</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={() => setCadenceLockEnabled(!cadenceLockEnabled)}   color={C.cyan} />
-              <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={() => setCallResponseEnabled(!callResponseEnabled)} color={C.purple} />
-              <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={() => setDropDetectorEnabled(!dropDetectorEnabled)}   color={C.amber} />
-              <PillToggle active={vibeMatchEnabled}     label="Vibe Match"    onToggle={() => setVibeMatchEnabled(!vibeMatchEnabled)}         color={C.green} />
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 5,
+              isolation: 'isolate',
+              transformStyle: 'flat',
+            }}>
+              <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />
+              <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={toggleCallResponse} color={C.purple} />
+              <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={toggleDropDetector}   color={C.amber} />
+              <PillToggle active={vibeMatchEnabled}     label="Vibe Match"    onToggle={toggleVibeMatch}      color={C.green} />
               <PillToggle active={isStoryMode}          label="Story Mode"    onToggle={toggleStoryMode}                                     color={C.red} />
+            </div>
+          </div>
+
+          {/* Instrument assignment */}
+          <div style={{
+            padding: '8px 14px',
+            borderBottom: `0.5px solid ${C.border}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ ...label11, marginBottom: 7 }}>Instruments</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <InstrumentSelect
+                label="Lead"
+                role="lead"
+                value={instrumentAssignments.lead}
+                onChange={id => setOrganismInstrument('lead', id)}
+              />
+              <InstrumentSelect
+                label="Bass"
+                role="bass"
+                value={instrumentAssignments.bass}
+                onChange={id => setOrganismInstrument('bass', id)}
+              />
+              <InstrumentSelect
+                label="Chords"
+                role="chord"
+                value={instrumentAssignments.chord}
+                onChange={id => setOrganismInstrument('chord', id)}
+              />
             </div>
           </div>
 
