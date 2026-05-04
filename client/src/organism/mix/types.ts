@@ -55,10 +55,10 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 35, highShelfHz: 2000, highShelfGain: -6 },  // HP kills sub-rumble; roll off highs
     },
     melody: {
-      name: 'melody', pan: 0.15, gainDb: -6,
-      compThresholdDb: -24, compRatio: 3, compAttackMs: 20,
+      name: 'melody', pan: 0.15, gainDb: 0,
+      compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
-      eq: { highpassHz: 150, midHz: 250, midGain: -4, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // HP + scoop 250Hz mud + add presence
+      eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
     },
     texture: {
       name: 'texture', pan: 0, gainDb: -14,

@@ -28,13 +28,14 @@ export class MasterBus {
     this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -1.5 }) // tame harsh hats/leads
     this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 12500, rolloff: -24 }) // keep the beat listenable on small speakers
 
-    // Glue compressor — gentle bus glue; individual channels already compress
+    // Glue compressor — fast attack so transients don't punch through
+    // and then trigger the limiter into a long duck.
     this.compressor = new Tone.Compressor({
-      threshold: -20,   // less aggressive threshold
-      ratio:     1.8,   // gentle ratio — glue, not squash
-      attack:    0.03,  // slower attack — let transients breathe
-      release:   0.30,  // slightly longer release
-      knee:      10,    // soft knee — gradual onset
+      threshold: -18,
+      ratio:     1.5,
+      attack:    0.008, // 8ms — catches transients before they reach limiter
+      release:   0.15,  // 150ms — quicker recovery
+      knee:      10,
     })
 
     this.saturator = new Tone.Distortion({

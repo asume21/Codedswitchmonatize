@@ -178,6 +178,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [isCapturing,    setIsCapturing]    = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [wowMoment,      setWowMoment]      = useState<WowMomentState>(WOW_INITIAL_STATE)
+  const wowMomentRef = useRef<WowMomentState>(WOW_INITIAL_STATE)
+  const wowSnapshotTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wowLogIdRef = useRef(0)
   const wowOnsetsRef = useRef<WowOnset[]>([])
   const wowPhraseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -583,22 +585,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       text,
       tone,
     }
-    setWowMoment(prev => ({
-      ...prev,
-      logs: [entry, ...prev.logs].slice(0, 8),
-    }))
+    wowMomentRef.current = {
+      ...wowMomentRef.current,
+      logs: [entry, ...wowMomentRef.current.logs].slice(0, 8),
+    }
   }, [])
 
   const setWowEngineActive = useCallback((engine: keyof WowMomentState['engines'], activeMs = 700) => {
-    setWowMoment(prev => ({
-      ...prev,
-      engines: { ...prev.engines, [engine]: true },
-    }))
+    wowMomentRef.current = {
+      ...wowMomentRef.current,
+      engines: { ...wowMomentRef.current.engines, [engine]: true },
+    }
     window.setTimeout(() => {
-      setWowMoment(prev => ({
-        ...prev,
-        engines: { ...prev.engines, [engine]: false },
-      }))
+      wowMomentRef.current = {
+        ...wowMomentRef.current,
+        engines: { ...wowMomentRef.current.engines, [engine]: false },
+      }
     }, activeMs)
   }, [])
 
@@ -656,7 +658,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const finalizeWowPhrase = useCallback(() => {
     const onsets = wowOnsetsRef.current
     wowOnsetsRef.current = []
-    setWowMoment(prev => ({ ...prev, phraseActive: false, capturedOnsets: 0 }))
+    wowMomentRef.current = { ...wowMomentRef.current, phraseActive: false, capturedOnsets: 0 }
     if (onsets.length < 2) return
 
     const bpm = Math.round(orchestrRef.current?.getBpm() ?? physicsRef.current?.getLastState()?.pulse ?? 90)
@@ -697,7 +699,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     ) {
       wowLastSyncLogRef.current = now
       wowSyncBpmRef.current = Math.round(performer.bpm)
-      setWowMoment(prev => ({ ...prev, syncBpm: Math.round(performer.bpm) }))
+      wowMomentRef.current = { ...wowMomentRef.current, syncBpm: Math.round(performer.bpm) }
       pushWowLog(`sync established at ${Math.round(performer.bpm)} BPM`, 'sync')
     }
 
@@ -715,12 +717,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
 
     wowOnsetsRef.current = [...wowOnsetsRef.current, pulse].slice(-16)
-    setWowMoment(prev => ({
-      ...prev,
+    wowMomentRef.current = {
+      ...wowMomentRef.current,
       phraseActive: true,
       lastPulse: mapped.instrument,
       capturedOnsets: wowOnsetsRef.current.length,
-    }))
+    }
     setWowEngineActive('drums', 420)
 
     pushWowLog(`heard: ${mapped.word ?? 'transient'}`, 'pulse')
@@ -737,7 +739,40 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   ])
 
   const clearWowMomentLog = useCallback(() => {
-    setWowMoment(prev => ({ ...prev, logs: [] }))
+    wowMomentRef.current = { ...wowMomentRef.current, logs: [] }
+    setWowMoment(wowMomentRef.current)
+  }, [])
+
+  useEffect(() => {
+    if (wowSnapshotTimerRef.current) return
+    wowSnapshotTimerRef.current = setInterval(() => {
+      setWowMoment(prev => {
+        const next = wowMomentRef.current
+        if (
+          prev === next ||
+          (
+            prev.logs === next.logs &&
+            prev.phraseActive === next.phraseActive &&
+            prev.lastPulse === next.lastPulse &&
+            prev.capturedOnsets === next.capturedOnsets &&
+            prev.syncBpm === next.syncBpm &&
+            prev.engines.drums === next.engines.drums &&
+            prev.engines.bass === next.engines.bass &&
+            prev.engines.harmony === next.engines.harmony
+          )
+        ) {
+          return prev
+        }
+        return next
+      })
+    }, 250)
+
+    return () => {
+      if (wowSnapshotTimerRef.current) {
+        clearInterval(wowSnapshotTimerRef.current)
+        wowSnapshotTimerRef.current = null
+      }
+    }
   }, [])
 
   // Input-source effect — swap the InputSource without touching the
@@ -1061,14 +1096,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
     wowOnsetsRef.current = []
     wowSyncBpmRef.current = null
-    setWowMoment(prev => ({
-      ...prev,
+    wowMomentRef.current = {
+      ...wowMomentRef.current,
       engines: { drums: false, bass: false, harmony: false },
       phraseActive: false,
       lastPulse: null,
       capturedOnsets: 0,
       syncBpm: null,
-    }))
+    }
+    setWowMoment(wowMomentRef.current)
     // Clear state floor so the machine fully resets on the next start()
     stateMachRef.current?.setStateFloor(null)
     setIsRunning(false)

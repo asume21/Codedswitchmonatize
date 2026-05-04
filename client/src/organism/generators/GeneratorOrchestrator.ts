@@ -598,21 +598,33 @@ export class GeneratorOrchestrator {
       // Save current multipliers so we can restore them later
       this.savedDrumMult = this.kickVelocityMultiplier
       this.savedBassMult = this.bassVolumeMultiplier
-      // Silence drums, bass, texture — keep melody + chords for harmonic context
+      // Silence drums, bass, texture — kill BOTH arrangement and volume chains
+      // so a quiet arrangement section can't leave melody muted alongside them.
       this.drum.applyArrangementMultiplier(0)
       this.bass.applyArrangementMultiplier(0)
+      this.texture.applyArrangementMultiplier(0)
       this.texture.applyVolumeMultiplier(0)
-      // Boost melody into the foreground, keep chords subtle
+      // Force melody and chord arrangement multipliers ON — otherwise an
+      // arrangement section that had melody at 0 would keep it muted until
+      // the next bar boundary.
+      this.melody.applyArrangementMultiplier(1)
+      this.chord.applyArrangementMultiplier(0.5)
       this.melody.applyVolumeMultiplier(Math.min(1.4, this.melodyVolumeMultiplier * 1.2))
       this.chord.applyVolumeMultiplier(0.5)
     } else {
-      // Restore — let arrangement logic take over on next frame
+      // Restore — clear arrangement caches so applyArrangement re-evaluates.
       this.drum.applyArrangementMultiplier(1.0)
       this.bass.applyArrangementMultiplier(1.0)
+      this.texture.applyArrangementMultiplier(1.0)
+      this.melody.applyArrangementMultiplier(1.0)
+      this.chord.applyArrangementMultiplier(1.0)
       if (this.textureEnabled) this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
       this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
       this.chord.applyVolumeMultiplier(1.0)
     }
+    // Force applyArrangement to re-evaluate on next bar so multipliers
+    // converge to the current section.
+    this.lastArrangementBar = -1
   }
 
   isMelodyOnly(): boolean { return this.melodyOnlyMode }
