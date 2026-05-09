@@ -1,7 +1,7 @@
 import React from 'react'
 import * as Tone from 'tone'
 import { Link } from 'wouter'
-import { Activity, Clock, Lock, Mic, Play, Radio, UserPlus, Volume2, Zap } from 'lucide-react'
+import { Activity, Clock, Lock, Mic, Play, Radio, Square, UserPlus, Volume2, Zap } from 'lucide-react'
 import { OrganismCommandCenter } from './OrganismCommandCenter'
 import { useOrganismPhysics } from './OrganismContext'
 import { useOrganismActivation, useOrganismSafe } from './GlobalOrganismWrapper'
@@ -239,11 +239,29 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
       <div className="pointer-events-auto rounded-xl border border-cyan-500/25 bg-black/82 p-3 shadow-[0_0_32px_rgba(6,182,212,0.18)] backdrop-blur-md">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
-            <Activity className={`h-3.5 w-3.5 ${listening ? 'animate-pulse' : ''}`} />
+            <Activity className={`h-3.5 w-3.5 ${isRunning ? 'animate-pulse' : ''}`} />
             WOW Console
           </div>
-          <div className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest ${listening ? 'bg-emerald-400/15 text-emerald-300' : 'bg-white/5 text-white/45'}`}>
-            {listening ? 'Listening' : 'Idle'}
+          <div className="flex items-center gap-2">
+            {isRunning ? (
+              <button
+                onClick={() => organism.stop()}
+                className="flex items-center gap-1 rounded-full border border-red-500/40 bg-red-500/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-red-300 transition hover:bg-red-500/30"
+              >
+                <Square className="h-2.5 w-2.5 fill-red-300" /> Stop
+              </button>
+            ) : (
+              <button
+                onClick={() => organism.quickStart(organism.activePresetId ?? '')}
+                disabled={!organism.activePresetId}
+                className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40"
+              >
+                <Play className="h-2.5 w-2.5 fill-emerald-300" /> Play
+              </button>
+            )}
+            <div className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest ${isRunning ? 'bg-emerald-400/15 text-emerald-300' : 'bg-white/5 text-white/45'}`}>
+              {isRunning ? 'Live' : 'Stopped'}
+            </div>
           </div>
         </div>
         <div className="mb-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
