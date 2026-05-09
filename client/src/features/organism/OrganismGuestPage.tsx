@@ -1,7 +1,7 @@
 import React from 'react'
 import * as Tone from 'tone'
 import { Link } from 'wouter'
-import { Activity, Clock, Lock, Mic, Play, Radio, UserPlus, Zap } from 'lucide-react'
+import { Activity, Clock, Lock, Mic, Play, Radio, UserPlus, Volume2, Zap } from 'lucide-react'
 import { OrganismCommandCenter } from './OrganismCommandCenter'
 import { useOrganismPhysics } from './OrganismContext'
 import { useOrganismActivation, useOrganismSafe } from './GlobalOrganismWrapper'
@@ -194,6 +194,13 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
   const { analysisEngine, inputSource, isRunning, performerState, selfListenReport, wowMoment } = organism
   const { physicsState } = useOrganismPhysics()
   const [micSignal, setMicSignal] = React.useState({ level: 0, fresh: false, active: false })
+  const [masterVol, setMasterVol] = React.useState(100)
+
+  const handleVolumeChange = (val: number) => {
+    setMasterVol(val)
+    // 100 = 0dB (unity), 200 = +6dB (boost), 0 = -inf
+    Tone.getDestination().volume.value = val === 0 ? -60 : Tone.gainToDb(val / 100)
+  }
   const listening = isRunning && inputSource === 'mic'
   const outputLevel = selfListenReport?.isSilent
     ? 0
@@ -289,6 +296,23 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
               &gt; {entry.text}
             </div>
           ))}
+        </div>
+
+        {/* Master volume */}
+        <div className="mt-2.5 flex items-center gap-2 border-t border-white/10 pt-2.5">
+          <Volume2 className="h-3.5 w-3.5 shrink-0 text-cyan-300/70" />
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={1}
+            value={masterVol}
+            onChange={e => handleVolumeChange(Number(e.target.value))}
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400"
+          />
+          <span className="w-8 shrink-0 text-right text-[10px] font-bold tabular-nums text-white/40">
+            {masterVol}%
+          </span>
         </div>
       </div>
     </aside>
