@@ -19,16 +19,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 ENTRYPOINT ["/bin/bash", "-c"]
 
 # FIX 1: OLLAMA_HOST=0.0.0.0:$PORT makes Ollama listen on Railway's dynamic port
-# FIX 2: Use llama3.1:8b (4.7GB Q4) — much stronger than phi3:mini for beat/vibe generation
+# FIX 2: Use llama3.2:3b (2GB Q4) — strong upgrade over phi3:mini, safe within 8GB RAM
 # FIX 3: Start server first (healthcheck passes immediately), pull model in background
 #         so Railway's healthcheck window isn't blocked by a multi-GB download
-# NOTE:  Railway volume must be >= 8GB to persist the model across deploys
+# NOTE:  Railway volume must be >= 4GB to persist the model across deploys
 CMD ["export OLLAMA_HOST=0.0.0.0:${PORT:-11434}; \
       ollama serve & SERVER_PID=$!; \
       echo \"[ollama-init] Waiting for server on port ${PORT:-11434}...\"; \
       until curl -sf http://localhost:${PORT:-11434}/api/tags > /dev/null 2>&1; do sleep 2; done; \
       echo \"[ollama-init] Server ready — healthcheck will pass.\"; \
-      MODEL=${OLLAMA_MODEL:-llama3.1:8b}; \
+      MODEL=${OLLAMA_MODEL:-llama3.2:3b}; \
       if ollama list 2>/dev/null | grep -q \"$MODEL\"; then \
         echo \"[ollama-init] $MODEL already on volume — skipping pull.\"; \
       else \
