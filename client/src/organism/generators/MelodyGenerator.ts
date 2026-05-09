@@ -424,7 +424,7 @@ export class MelodyGenerator extends GeneratorBase {
       this.applyModeVoice(physics.mode.toString())
       // Immediately build a phrase so melody plays from beat 1.
       // Without this, processFrame's debounce delays the first notes by 3+ frames.
-      const startBehavior = to === OState.Flow ? MelodyBehavior.Respond : MelodyBehavior.Hint
+      const startBehavior = to === OState.Flow ? MelodyBehavior.Lead : MelodyBehavior.Hint
       if (this.currentBehavior === MelodyBehavior.Rest || this.part === null) {
         this.currentBehavior = startBehavior
         this.lastRebuildTime = 0 // clear throttle so rebuild goes through

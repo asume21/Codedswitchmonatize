@@ -85,12 +85,12 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 4, drums: 0.28, bass: 0.35, melody: 0.0, texture: 0, chord: 0.72 },
-    { name: 'verse',     bars: 8, drums: 0.58, bass: 0.88, melody: 0.32, texture: 0, chord: 0.54 },
-    { name: 'build',     bars: 4, drums: 0.7, bass: 0.92, melody: 0.72, texture: 0, chord: 0.66 },
-    { name: 'drop',      bars: 8, drums: 0.88, bass: 1.0, melody: 1.15, texture: 0, chord: 0.74 },
-    { name: 'breakdown', bars: 4, drums: 0.3, bass: 0.55, melody: 0.45, texture: 0, chord: 0.8 },
-    { name: 'drop2',     bars: 4, drums: 0.88, bass: 1.0, melody: 1.2, texture: 0, chord: 0.72 },
+    { name: 'intro',     bars: 2, drums: 0.62, bass: 0.82, melody: 0.60, texture: 0, chord: 0.82 },
+    { name: 'verse',     bars: 8, drums: 0.62, bass: 0.90, melody: 0.42, texture: 0, chord: 0.58 },
+    { name: 'build',     bars: 4, drums: 0.75, bass: 0.93, melody: 0.80, texture: 0, chord: 0.68 },
+    { name: 'drop',      bars: 8, drums: 0.90, bass: 1.0,  melody: 1.15, texture: 0, chord: 0.76 },
+    { name: 'breakdown', bars: 4, drums: 0.35, bass: 0.60, melody: 0.50, texture: 0, chord: 0.82 },
+    { name: 'drop2',     bars: 4, drums: 0.90, bass: 1.0,  melody: 1.20, texture: 0, chord: 0.74 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
@@ -831,9 +831,11 @@ export class GeneratorOrchestrator {
     // Sync bass swing to new sub-genre
     setBassSwingFromSubGenre(subGenre)
 
-    // Rebuild drum pattern with sub-genre-specific variant
+    // Rebuild drum pattern with sub-genre-specific variant.
+    // force=true bypasses the 500ms throttle so a preset's subgenre pattern
+    // always wins even when called immediately after a state-transition rebuild.
     const drumPattern = buildSubGenrePattern(subGenre)
-    this.drum.loadGeneratedPattern(drumPattern.hits)
+    this.drum.loadGeneratedPattern(drumPattern.hits, true)
 
     // Bass will pick up new behavior from director state on next processFrame
     // via getBassBehavior → rebuildPart, no explicit call needed
@@ -1008,8 +1010,13 @@ export class GeneratorOrchestrator {
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */
-  loadGeneratedDrumPattern(hits: import('./types').DrumHit[]): void {
-    this.drum.loadGeneratedPattern(hits)
+  loadGeneratedDrumPattern(hits: import('./types').DrumHit[], force = false): void {
+    this.drum.loadGeneratedPattern(hits, force)
+  }
+
+  /** Immediate vocal-response drum pulse for the WOW layer. */
+  triggerWowDrumPulse(instrument: import('./types').DrumInstrument, velocity = 0.75): void {
+    this.drum.triggerImmediateHit(instrument, velocity)
   }
 
   /**

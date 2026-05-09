@@ -258,7 +258,6 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private applyBassPreset(): void {
-    {
     const performer = selectInstrumentPerformer({
       role: 'bass',
       mode: this.currentMode.toString(),
@@ -299,6 +298,31 @@ export class BassGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
+    // Trap/drill modes use an inline 808 sine MonoSynth — no CDN load latency
+    // and far more authentic than the synth_bass_1 General MIDI soundfont.
+    const modeStr = this.currentMode.toString()
+    const use808 = !this.explicitPerformerId && (modeStr === 'heat' || modeStr === 'gravel')
+
+    if (use808) {
+      // fatsine gives the fundamental sine sub plus subtle harmonics for audibility
+      // on smaller speakers — pure sine disappears below 80Hz on laptop speakers.
+      const s808 = new Tone.MonoSynth({
+        oscillator: { type: 'fatsine', count: 2, spread: 6 } as any,
+        filter:     { Q: 1, type: 'lowpass', rolloff: -24 },
+        envelope:   { attack: 0.001, decay: 1.3, sustain: 0.15, release: 1.8 },
+        filterEnvelope: {
+          attack: 0.001, decay: 0.55, sustain: 0.0, release: 0.5,
+          baseFrequency: 55, octaves: 3.5,
+        },
+        portamento: 0.07,
+      })
+      s808.volume.value = -4
+      s808.connect(this.compressor)
+      this.synth = s808
+      this.isCurrentVoiceSampler = false
+      return
+    }
+
     this.isCurrentVoiceSampler = true
     this.synth = createSoundfontSampler(
       performer.samplerPreset,
@@ -310,7 +334,6 @@ export class BassGenerator extends GeneratorBase {
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
       console.debug(`Bass performer: ${performer.name} (${this.currentMode})`)
-    }
     }
   }
 
@@ -469,9 +492,11 @@ export class BassGenerator extends GeneratorBase {
     this.output.gain.rampTo(linear, 0.35)
   }
 
-  /** Check if the current synth is a sampler AND has finished loading */
+  /** Check if the current voice is ready for note scheduling.
+   *  MonoSynth (isCurrentVoiceSampler=false) is always ready.
+   *  CDN Sampler returns true only after its samples finish loading. */
   private isSamplerReady(): boolean {
-    if (!this.isCurrentVoiceSampler) return false
+    if (!this.isCurrentVoiceSampler) return true  // MonoSynth is always ready
     return (this.synth as LoadableSampler).isLoaded === true
   }
 

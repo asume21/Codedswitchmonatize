@@ -14,10 +14,10 @@ export interface SidechainConfig {
 }
 
 const DEFAULT_SIDECHAIN: SidechainConfig = {
-  depthDb:    -6,
-  attackMs:   2,
-  releaseMs:  120,
-  holdMs:     30,
+  depthDb:    -7,
+  attackMs:   1,
+  releaseMs:  90,
+  holdMs:     20,
 }
 
 export class SidechainDucker {

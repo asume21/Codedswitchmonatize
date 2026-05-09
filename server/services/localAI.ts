@@ -27,7 +27,7 @@ export class LocalAIService {
 
   constructor(
     baseUrl: string = process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    defaultModel: string = process.env.OLLAMA_MODEL || 'phi3:mini',
+    defaultModel: string = process.env.OLLAMA_MODEL || 'llama3.1:8b',
   ) {
     this.baseUrl = baseUrl;
     this.defaultModel = defaultModel;

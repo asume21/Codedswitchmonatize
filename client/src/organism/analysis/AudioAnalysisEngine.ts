@@ -94,7 +94,7 @@ export class AudioAnalysisEngine {
         channelCount: 1,
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: false,
+        autoGainControl: true,
       },
     })
 

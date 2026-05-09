@@ -51,11 +51,11 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
 }
 
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
-  kick: -5,
-  snare: -12,
-  hatClosed: -31,
-  hatOpen: -33,
-  perc: -14,
+  kick: -3,
+  snare: -6,
+  hatClosed: -14,
+  hatOpen: -16,
+  perc: -10,
 }
 
 const VOICE_DURATION: Record<SampleVoice, Tone.Unit.Time> = {
@@ -78,6 +78,7 @@ export class SampledDrumKit {
   private readonly output: Tone.Gain
   private readonly slots = new Map<SampleVoice, SampleVoiceSlot[]>()
   private readonly slotCursor = new Map<SampleVoice, number>()
+  private readonly slotErrored = new Set<string>()  // "voice:slotIndex" → failed to load
   private currentMode: OrganismMode | null = null
   private warnedVoices = new Set<SampleVoice>()
 
@@ -89,6 +90,8 @@ export class SampledDrumKit {
   setMode(mode: OrganismMode): void {
     if (this.currentMode === mode) return
     this.disposeVoices()
+    this.slotErrored.clear()
+    this.warnedVoices.clear()
     this.currentMode = mode
 
     const definition = KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
@@ -97,6 +100,7 @@ export class SampledDrumKit {
       const poolSize = VOICE_POOL_SIZE[voice]
 
       for (let i = 0; i < poolSize; i++) {
+        const slotKey = `${voice}:${i}`
         const gain = new Tone.Gain(0)
         gain.connect(this.output)
 
@@ -104,6 +108,7 @@ export class SampledDrumKit {
           url: sampleUrl(filename),
           fadeOut: 0.006,
           onerror: (error) => {
+            this.slotErrored.add(slotKey)
             if (this.warnedVoices.has(voice)) return
             this.warnedVoices.add(voice)
             console.warn('[Organism] sampled drum voice failed to load; using synth fallback', {
@@ -129,12 +134,16 @@ export class SampledDrumKit {
     if (!voiceSlots || voiceSlots.length === 0) return false
 
     const cursor = this.slotCursor.get(voice) ?? 0
-    const slot = voiceSlots[cursor % voiceSlots.length]
-    this.slotCursor.set(voice, (cursor + 1) % voiceSlots.length)
+    const slotIndex = cursor % voiceSlots.length
+    const slot = voiceSlots[slotIndex]
+    this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
 
-    // If the sample is still loading, drop this one hit instead of falling back
-    // to the synthetic drum voice. The synth fallback was making kicks sound
-    // broken during startup or after a kit swap.
+    const slotKey = `${voice}:${slotIndex}`
+    // If this slot permanently errored (server returned 404/network fail), fall
+    // through to the synth fallback so drums are never silent.
+    if (this.slotErrored.has(slotKey)) return false
+
+    // Still loading — suppress synth to avoid a glitchy doubled hit at startup.
     if (!slot.player.loaded) return true
 
     const shapedVelocity = Math.max(0, Math.min(1, velocity))

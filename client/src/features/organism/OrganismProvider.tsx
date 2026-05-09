@@ -90,6 +90,15 @@ function createInputSource(
   }
 }
 
+function isInputSourceType(input: InputSource, type: InputSourceType): boolean {
+  switch (type) {
+    case 'mic': return input instanceof AudioAnalysisEngine
+    case 'autoGenerate': return input instanceof AutoGenerateSource
+    case 'midi': return input instanceof MidiInputSource
+    case 'audioFile': return input instanceof AudioFileSource
+  }
+}
+
 type WowPulseInstrument = 'kick' | 'snare' | 'hat'
 
 interface WowOnset {
@@ -310,7 +319,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // 1. Create engine instances (input is handled by a separate effect)
     const physics     = new PhysicsEngine()
     const machine     = new StateMachine(
-      inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 4 } : {}
+      inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 1 } : {}
     )
     const orchestr    = new GeneratorOrchestrator()
     const reactive    = new ReactiveBehaviorEngine()
@@ -637,15 +646,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         velocity: Math.max(0.35, Math.min(1, 0.46 + onset.strength * 0.5)),
       }))
 
-    if (!hits.some(hit => hit.instrument === DrumInstrument.Kick)) {
-      hits.unshift({ instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.78 })
+    const hasHit = (instrument: DrumInstrument, time: string) =>
+      hits.some(hit => hit.instrument === instrument && hit.time === time)
+    const addHit = (instrument: DrumInstrument, time: string, velocity: number) => {
+      if (!hasHit(instrument, time)) hits.push({ instrument, time, velocity })
     }
-    if (!hits.some(hit => hit.instrument === DrumInstrument.Snare) && hits.length >= 3) {
-      hits.push({ instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.68 })
+
+    // Keep the human rhythm, but add musical anchors so the response feels like
+    // a beat instead of a literal click track.
+    addHit(DrumInstrument.Kick, '0:0:0', 0.82)
+    if (!hits.some(hit => hit.instrument === DrumInstrument.Kick && hit.time !== '0:0:0')) {
+      addHit(DrumInstrument.Kick, '0:2:2', 0.58)
     }
-    if (hits.filter(hit => hit.instrument === DrumInstrument.Hat).length === 0 && bpm >= 80) {
-      hits.push({ instrument: DrumInstrument.Hat, time: '0:0:2', velocity: 0.48 })
-      hits.push({ instrument: DrumInstrument.Hat, time: '0:2:2', velocity: 0.46 })
+
+    addHit(DrumInstrument.Snare, '0:1:0', 0.66)
+    addHit(DrumInstrument.Snare, '0:3:0', 0.62)
+
+    if (hits.filter(hit => hit.instrument === DrumInstrument.Hat).length < 2 && bpm >= 70) {
+      ;['0:0:2', '0:1:2', '0:2:2', '0:3:2'].forEach((time, index) => {
+        addHit(DrumInstrument.Hat, time, index % 2 === 0 ? 0.42 : 0.36)
+      })
     }
 
     return hits.sort((a, b) => {
@@ -668,7 +688,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     pushWowLog(`phrase captured: ${onsets.length} pulses`, 'info')
     pushWowLog('pattern detected: 4/4, syncopation mild', 'sync')
     pushWowLog('generating response...', 'info')
-    orchestrRef.current?.loadGeneratedDrumPattern(hits)
+    orchestrRef.current?.loadGeneratedDrumPattern(hits, true)
 
     setWowEngineActive('drums', 900)
     pushWowLog('drums online', 'wake')
@@ -708,6 +728,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     wowLastOnsetLogRef.current = now
 
     const mapped = mapFrameToWowInstrument(frame)
+    const drumInstrument = drumInstrumentForWow(mapped.instrument)
     const pulse: WowOnset = {
       time: frame.onsetTimestamp || now,
       strength: frame.onsetStrength,
@@ -724,6 +745,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       capturedOnsets: wowOnsetsRef.current.length,
     }
     setWowEngineActive('drums', 420)
+    orchestrRef.current?.triggerWowDrumPulse(
+      drumInstrument,
+      Math.max(0.45, Math.min(1, 0.5 + frame.onsetStrength * 0.45)),
+    )
 
     pushWowLog(`heard: ${mapped.word ?? 'transient'}`, 'pulse')
     pushWowLog(`mapped: ${mapped.instrument}`, 'pulse')
@@ -786,11 +811,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr  = orchestrRef.current
     if (!physics || !performer) return // engines not ready yet
 
-    // Stop + drop the previous input before creating a new one.
-    inputRef.current?.stop()
-
-    const input = createInputSource(inputSource, audioFileRef.current, autoEnergy)
-    inputRef.current = input
+    // Reuse an existing input if handleSetInputSource already created one for
+    // this source type (avoids a child-effect race where start() runs before
+    // this parent effect fires and would otherwise use the stale input).
+    const existing = inputRef.current
+    if (!existing || !isInputSourceType(existing, inputSource)) {
+      existing?.stop()
+      inputRef.current = createInputSource(inputSource, audioFileRef.current, autoEnergy)
+    }
+    const input = inputRef.current!
     setInputSourceRevision((revision) => revision + 1)
 
     // input → physics (every frame must reach physics for accurate transitions)
@@ -984,6 +1013,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   const start = useCallback(async () => {
     if (!inputRef.current || !orchestrRef.current) return
+    if (isGuest && guestSecondsRemaining <= 0) {
+      setIsGuestNudgeVisible(true)
+      setError('Create a free account to keep using the Organism.')
+      return
+    }
     const input = inputRef.current
     const orchestr = orchestrRef.current
     if (isRunningRef.current) return
@@ -1079,7 +1113,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
+  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts, isGuest, guestSecondsRemaining])
 
   const stop = useCallback(() => {
     startTokenRef.current += 1
@@ -1278,9 +1312,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         frameIndex:       0,
       })
 
-      // 5. Seed Breathing and let the state machine ramp to Flow. This keeps
-      //    the first bars structured instead of slamming every generator on.
-      seedSongRamp(syntheticPhysics)
+      // 5. Single jump to Flow — avoids the 3-transition cascade that causes
+      //    generator rebuild throttles to suppress bass/melody/chord.
+      //    Floor stays at Breathing so silence gaps don't regress to Dormant.
+      const stateMachine = stateMachRef.current!
+      stateMachine.forceState(OState.Flow, syntheticPhysics)
+      stateMachine.setStateFloor(OState.Breathing)
+      orchestr.primeFrame(syntheticPhysics, stateMachine.getCurrentState())
+      if (preset.subGenre) {
+        orchestr.forceSubGenre(preset.subGenre)
+      }
       await waitForStartupParts()
 
       await orchestr.start(preset.bpm)
@@ -1359,6 +1400,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     physics.lockMode(preset.mode)
     orchestr.setBpm(preset.bpm)
     useStudioStore.getState().setBpm(preset.bpm)
+    if (preset.subGenre) {
+      orchestr.forceSubGenre(preset.subGenre)
+    }
     orchestr.regenerateAll()
     applyStablePlaybackDefaults()
     Tone.getDestination().volume.value = 0
@@ -1366,7 +1410,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     applyStablePlaybackDefaults()
     scheduleSilentStartRecovery(startTokenRef.current)
     setActivePresetId(presetId)
-    endSwap({ presetId, bpm: preset.bpm, mode: preset.mode })
+    endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
   }, [quickStart, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
 
   /**
@@ -2646,8 +2690,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (type === 'audioFile' && file) {
       audioFileRef.current = file
     }
+
+    // Eagerly create the new input so start() can use it immediately.
+    // Child useEffects (e.g. GuestTrialBanner's voiceTrialPending) call start()
+    // before the parent's input-source effect fires. Without this eager swap,
+    // start() would use the old stale input and the mic would never open.
+    inputRef.current = createInputSource(type, audioFileRef.current, autoEnergy)
+
     setInputSourceType(type)
-  }, [])
+  }, [autoEnergy])
 
   // ── Context value ─────────────────────────────────────────────────
 

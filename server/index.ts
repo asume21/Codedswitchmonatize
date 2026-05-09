@@ -120,6 +120,24 @@ app.use("/data", express.static(dataRoot));
 const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
 app.use("/assets", express.static(assetsRoot));
 
+// Serve reference beats
+const referenceBeatsPath = [
+  path.resolve(process.cwd(), "audio", "reference-beats"),
+  path.resolve(process.cwd(), "..", "audio", "reference-beats"),
+].find((candidate) => fs.existsSync(candidate));
+if (referenceBeatsPath) {
+  app.use("/api/reference-beats", express.static(referenceBeatsPath, {
+    maxAge: '7d',
+    setHeaders: (res, filePath) => {
+      res.set('Cache-Control', 'public, max-age=604800');
+      res.set('Accept-Ranges', 'bytes');
+    }
+  }));
+  console.log(`📂 Reference beats served from: ${referenceBeatsPath}`);
+} else {
+  console.warn("⚠️  Reference beats path not found");
+}
+
 // Serve stem separation output files (include musicgen-stems subfolder)
 const stemsRoot = LOCAL_OBJECTS_DIR;
 app.use("/api/stems", express.static(stemsRoot, {
@@ -132,9 +150,14 @@ app.use("/api/stems", express.static(stemsRoot, {
   }
 }));
 
-// Serve sample library files
-const sampleLibraryPath = process.env.SAMPLE_LIBRARY_PATH || (isProduction ? '' : path.resolve("D:\\DATA SET\\good-sounds\\sound_files"));
-if (sampleLibraryPath && fs.existsSync(sampleLibraryPath)) {
+// Serve sample library files — check env var first, then bundled audio/samples/
+const sampleLibraryPath = [
+  process.env.SAMPLE_LIBRARY_PATH,
+  path.resolve(process.cwd(), "audio", "samples"),
+  path.resolve(process.cwd(), "..", "audio", "samples"),
+  isProduction ? null : path.resolve("D:\\DATA SET\\good-sounds\\sound_files"),
+].filter(Boolean).find((p) => p && fs.existsSync(p)) ?? null;
+if (sampleLibraryPath) {
   app.use("/api/samples", express.static(sampleLibraryPath, {
     maxAge: '7d',
     setHeaders: (res, filePath) => {
@@ -144,7 +167,7 @@ if (sampleLibraryPath && fs.existsSync(sampleLibraryPath)) {
   }));
   console.log(`📂 Sample library served from: ${sampleLibraryPath}`);
 } else {
-  console.warn(sampleLibraryPath ? `⚠️  Sample library path not found: ${sampleLibraryPath}` : '⚠️  Sample library path not configured');
+  console.warn('⚠️  Sample library path not found — drum samples will use synth fallback');
 }
 
 // Trust proxy for secure cookies (Railway, Replit, etc.)

@@ -39,9 +39,9 @@ export const DEFAULT_ANALYSIS_CONFIG: AnalysisConfig = {
   smoothingReleaseMs: 200,
   pitchMinHz: 60,
   pitchMaxHz: 1200,
-  onsetThreshold: 0.3,
-  voiceActivityThreshold: 0.03,
-  noiseGateThreshold: 0.02,
+  onsetThreshold: 0.12,
+  voiceActivityThreshold: 0.02,
+  noiseGateThreshold: 0.008,
   debugMode: false,
 }
 

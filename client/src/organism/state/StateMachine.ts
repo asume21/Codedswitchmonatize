@@ -203,11 +203,11 @@ export class StateMachine {
     }
 
     if (this.state.current === OState.Breathing || this.state.current === OState.Flow) {
-      this.state.breathingWarmth = Math.min(1, this.state.breathingWarmth + 0.003)
+      this.state.breathingWarmth = Math.min(1, this.state.breathingWarmth + 0.007)
     }
 
     if (this.state.current === OState.Flow) {
-      this.state.flowDepth = Math.min(1, this.state.flowDepth + 0.002)
+      this.state.flowDepth = Math.min(1, this.state.flowDepth + 0.004)
     }
   }
 
@@ -311,14 +311,20 @@ export class StateMachine {
 
   private resolveForceTransition(from: OState, to: OState): OTransition | null {
     const map: Record<string, OTransition | undefined> = {
-      [`${OState.Dormant}->${OState.Awakening}`]: OTransition.DormantToAwakening,
+      [`${OState.Dormant}->${OState.Awakening}`]:   OTransition.DormantToAwakening,
       [`${OState.Awakening}->${OState.Breathing}`]: OTransition.AwakeningToBreathing,
-      [`${OState.Breathing}->${OState.Flow}`]: OTransition.BreathingToFlow,
-      [`${OState.Flow}->${OState.Breathing}`]: OTransition.FlowToBreathing,
+      [`${OState.Breathing}->${OState.Flow}`]:      OTransition.BreathingToFlow,
+      [`${OState.Flow}->${OState.Breathing}`]:      OTransition.FlowToBreathing,
       [`${OState.Breathing}->${OState.Awakening}`]: OTransition.BreathingToAwakening,
-      [`${OState.Breathing}->${OState.Dormant}`]: OTransition.BreathingToDormant,
-      [`${OState.Awakening}->${OState.Dormant}`]: OTransition.AwakeningToDormant,
-      [`${OState.Flow}->${OState.Dormant}`]: OTransition.FlowToDormant,
+      [`${OState.Breathing}->${OState.Dormant}`]:   OTransition.BreathingToDormant,
+      [`${OState.Awakening}->${OState.Dormant}`]:   OTransition.AwakeningToDormant,
+      [`${OState.Flow}->${OState.Dormant}`]:         OTransition.FlowToDormant,
+      // Skip-ahead shortcuts for quickStart — let forceState jump directly to Flow
+      // without firing intermediate Awakening/Breathing transitions that cause
+      // generator rebuild-throttle collisions.
+      [`${OState.Dormant}->${OState.Breathing}`]:   OTransition.AwakeningToBreathing,
+      [`${OState.Dormant}->${OState.Flow}`]:         OTransition.BreathingToFlow,
+      [`${OState.Awakening}->${OState.Flow}`]:       OTransition.BreathingToFlow,
     }
 
     return map[`${from}->${to}`] ?? null

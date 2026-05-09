@@ -67,14 +67,14 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 400, highShelfHz: 6000, highShelfGain: -3 },  // HP at 400Hz kills hum; bandpass texture
     },
     chord: {
-      name: 'chord', pan: -0.10, gainDb: -8,
+      name: 'chord', pan: -0.10, gainDb: -5,
       compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
       compReleaseMs: 250, compKneeDb: 8,
       eq: { highpassHz: 200, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -2 },  // HP to avoid bass mud; scoop 500Hz; tame highs
     },
   },
   master: {
-    gainDb: -4,              // pull master down 4dB — more headroom for transients
+    gainDb: -2,              // moderate master reduction — headroom without killing loudness
     limiterThreshDb: -3.0,   // softer ceiling — prevents clicking from fast limiting
     limiterLookaheadMs: 5,
     saturationAmount: 0.02,  // minimal warmth — less harmonic buildup

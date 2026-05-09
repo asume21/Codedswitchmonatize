@@ -82,7 +82,7 @@ export class DrumGenerator extends GeneratorBase {
     // Lighter drum bus compression — master bus handles the glue
     this.compressor = new Tone.Compressor({ threshold: -24, ratio: 2.4, attack: 0.012, release: 0.18 })
     this.compressor.connect(this.output)
-    this.sampleBus = new Tone.Gain(0.68)
+    this.sampleBus = new Tone.Gain(1.0)
     this.sampleBus.connect(this.compressor)
     this.sampledKit = new SampledDrumKit(this.sampleBus)
 
@@ -275,11 +275,17 @@ export class DrumGenerator extends GeneratorBase {
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
   /** Load an AI-generated pattern externally (Gap 2 — generative patterns). */
-  loadGeneratedPattern(hits: DrumHit[]): void {
+  loadGeneratedPattern(hits: DrumHit[], force = false): void {
     const now = performance.now()
-    if (now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
+    if (!force && now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
     this.rebuildPart(hits)
+  }
+
+  /** Immediate audition hit for voice/WOW interactions. */
+  triggerImmediateHit(instrument: DrumInstrument, velocity = 0.75): void {
+    const time = Tone.now() + 0.018
+    this.triggerDrum(instrument, time, Math.max(0.2, Math.min(1, velocity)))
   }
 
   // ── Kit presets — deterministic per mode so the groove keeps one body ──

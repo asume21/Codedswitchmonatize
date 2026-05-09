@@ -31,9 +31,13 @@ const SongWorkSessionProvider = React.lazy(() => import("@/contexts/SongWorkSess
 const SessionDestinationProvider = React.lazy(() => import("@/contexts/SessionDestinationContext").then(m => ({ default: m.SessionDestinationProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const AstutelyCoreProvider = React.lazy(() => import("@/contexts/AstutelyCoreContext").then(m => ({ default: m.AstutelyCoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioPlayer = React.lazy(() => import("@/components/GlobalAudioPlayer").then(m => ({ default: m.GlobalAudioPlayer })).catch(() => ({ default: () => null })));
-const GlobalTransportBar = React.lazy(() => import("@/components/studio/GlobalTransportBar"));
-const KeyboardShortcutsHelp = React.lazy(() => import("@/components/studio/KeyboardShortcutsHelp"));
-const OnboardingTour = React.lazy(() => import("@/components/studio/OnboardingTour"));
+const StudioChromeFallback: React.ComponentType<any> = () => <></>;
+const GlobalTransportBar = React.lazy<React.ComponentType<any>>(() => import("@/components/studio/GlobalTransportBar").catch((error) => {
+  console.error("Failed to load GlobalTransportBar", error);
+  return { default: StudioChromeFallback };
+}));
+const KeyboardShortcutsHelp = React.lazy<React.ComponentType<any>>(() => import("@/components/studio/KeyboardShortcutsHelp").catch(() => ({ default: StudioChromeFallback })));
+const OnboardingTour = React.lazy<React.ComponentType<any>>(() => import("@/components/studio/OnboardingTour").catch(() => ({ default: StudioChromeFallback })));
 
 // Eagerly loaded pages (small, frequently accessed) - FAST INITIAL LOAD
 import Landing from "@/pages/landing";
@@ -62,6 +66,7 @@ const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default:
 const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: () => <NotFound /> })));
 const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: () => <NotFound /> })));
 const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: () => <NotFound /> })));
+const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -292,6 +297,9 @@ function App() {
                   UnifiedStudioWorkspace reads ?tab=… from the URL on mount. */}
               <Route path="/lyric-lab"><Redirect to="/studio?tab=lyrics" /></Route>
               <Route path="/organism"><OrganismGuestPage /></Route>
+              <Route path="/recording-booth">
+                <ProtectedRoute><AppLayout><RecordingBoothPage /></AppLayout></ProtectedRoute>
+              </Route>
 
               {/* ============================================
                   LEGACY STUDIO ROUTES - Redirect to /studio

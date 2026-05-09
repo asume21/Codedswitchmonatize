@@ -15,6 +15,7 @@
 
 import { OrganismMode } from '../../organism/physics/types'
 import type { PhysicsState } from '../../organism/physics/types'
+import type { HipHopSubGenre } from '../../organism/state/MusicalState'
 
 export interface QuickStartPreset {
   id:          string
@@ -22,6 +23,7 @@ export interface QuickStartPreset {
   genre:       string
   bpm:         number
   mode:        OrganismMode
+  subGenre?:   HipHopSubGenre
   energy:      'low' | 'medium' | 'high'
   icon:        string
   physics:     PhysicsState
@@ -47,6 +49,120 @@ function makePhysics(overrides: Partial<PhysicsState> & { mode: OrganismMode; pu
 }
 
 export const QUICK_START_PRESETS: QuickStartPreset[] = [
+  {
+    id:       'ref-lucid-dreams-80',
+    label:    'Lucid',
+    genre:    'Reference / Melodic Emo Trap',
+    bpm:      80,
+    mode:     OrganismMode.Glow,
+    subGenre: 'chill',
+    energy:   'low',
+    icon:     '✨',
+    physics: makePhysics({
+      mode:     OrganismMode.Glow,
+      pulse:    80,
+      bounce:   0.38,
+      swing:    0.50,
+      pocket:   0.62,
+      presence: 0.42,
+      density:  0.32,
+    }),
+  },
+  {
+    id:       'ref-dababy-140',
+    label:    'DaBaby',
+    genre:    'Reference / Bounce Trap',
+    bpm:      140,
+    mode:     OrganismMode.Heat,
+    subGenre: 'trap',
+    energy:   'high',
+    icon:     '🔥',
+    physics: makePhysics({
+      mode:     OrganismMode.Heat,
+      pulse:    140,
+      bounce:   0.72,
+      swing:    0.18,
+      pocket:   0.34,
+      presence: 0.74,
+      density:  0.58,
+    }),
+  },
+  {
+    id:       'ref-violin-trap-130',
+    label:    'Violin Trap',
+    genre:    'Reference / Orchestral Trap',
+    bpm:      130,
+    mode:     OrganismMode.Glow,
+    subGenre: 'trap',
+    energy:   'medium',
+    icon:     '🎻',
+    physics: makePhysics({
+      mode:     OrganismMode.Glow,
+      pulse:    130,
+      bounce:   0.58,
+      swing:    0.24,
+      pocket:   0.44,
+      presence: 0.62,
+      density:  0.50,
+    }),
+  },
+  {
+    id:       'ref-weekend-110',
+    label:    'Weekend',
+    genre:    'Reference / R&B Pop Trap',
+    bpm:      110,
+    mode:     OrganismMode.Glow,
+    subGenre: 'bounce',
+    energy:   'medium',
+    icon:     '❄️',
+    physics: makePhysics({
+      mode:     OrganismMode.Glow,
+      pulse:    110,
+      bounce:   0.56,
+      swing:    0.32,
+      pocket:   0.52,
+      presence: 0.54,
+      density:  0.42,
+    }),
+  },
+  {
+    id:       'ref-alt-pop-120',
+    label:    'Ref 05',
+    genre:    'Reference / Alt Pop Trap',
+    bpm:      120,
+    mode:     OrganismMode.Glow,
+    subGenre: 'afrobeat',
+    energy:   'medium',
+    icon:     '〰',
+    physics: makePhysics({
+      mode:     OrganismMode.Glow,
+      pulse:    120,
+      bounce:   0.62,
+      swing:    0.34,
+      pocket:   0.48,
+      presence: 0.58,
+      density:  0.46,
+    }),
+  },
+  {
+    id:       'ref-dark-pocket-96',
+    label:    'Ref 06',
+    genre:    'Reference / Dark Pocket',
+    bpm:      96,
+    mode:     OrganismMode.Smoke,
+    subGenre: 'west-coast',
+    energy:   'medium',
+    icon:     '◌',
+    physics: makePhysics({
+      mode:     OrganismMode.Smoke,
+      pulse:    96,
+      bounce:   0.50,
+      swing:    0.46,
+      pocket:   0.60,
+      presence: 0.50,
+      density:  0.38,
+    }),
+  },
   {
     id:     'trap-140',
     label:  'Trap 144',
