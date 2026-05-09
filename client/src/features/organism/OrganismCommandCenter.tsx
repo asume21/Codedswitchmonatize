@@ -256,6 +256,7 @@ export function OrganismCommandCenter() {
   const {
     start, stop, isRunning, isStarting, error,
     quickStartPresets, activePresetId, swapPreset, countInStart, countInBeat,
+    v2Status, setV2MasterGain,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     isRecording, startRecording, stopRecording,
     // Tweak controls
@@ -367,6 +368,7 @@ export function OrganismCommandCenter() {
   const [bassArt,      setBassArtLocal]    = useState('none')
   const [styleShifts,  setStyleShiftsLocal] = useState(true)
   const [bpmInput,     setBpmInput]     = useState('')
+  const [v2Gain,       setV2Gain]       = useState(1.45)
 
   const applyMode = useCallback((mode: string | null) => {
     setLockedMode(mode)
@@ -504,6 +506,11 @@ export function OrganismCommandCenter() {
   const toggleMelodyFocus = useCallback(() => {
     setMelodyFocusEnabled(!melodyFocusEnabled)
   }, [melodyFocusEnabled, setMelodyFocusEnabled])
+
+  const handleV2Gain = useCallback((value: number) => {
+    setV2Gain(value)
+    setV2MasterGain(value)
+  }, [setV2MasterGain])
 
   useEffect(() => {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -662,6 +669,56 @@ export function OrganismCommandCenter() {
               </div>
             </div>
           )}
+
+          <div style={{
+            marginBottom: 18,
+            padding: 12,
+            borderRadius: 8,
+            background: v2Status.active ? 'rgba(34,197,94,0.07)' : 'rgba(255,255,255,0.035)',
+            border: v2Status.active ? '1px solid rgba(34,197,94,0.18)' : '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ ...label11, color: v2Status.active ? C.green : C.text3 }}>Organism v2</span>
+              <span style={{ fontSize: 10, color: v2Status.active ? C.green : C.text3, fontWeight: 800 }}>
+                {v2Status.active
+                  ? `Loop stems live · ${v2Status.targetBpm} BPM`
+                  : 'Ready'}
+              </span>
+              {v2Status.kitBpm && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: C.text3 }}>
+                  kit {v2Status.kitBpm} BPM · rate {v2Status.playbackRate.toFixed(2)}x
+                </span>
+              )}
+            </div>
+            <SliderRow
+              label="V2 Master"
+              value={v2Gain}
+              onChange={handleV2Gain}
+              min={0.35}
+              max={2.5}
+              step={0.05}
+              color={C.green}
+            />
+            {v2Status.stems.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {v2Status.stems.map(stem => (
+                  <span
+                    key={stem.id}
+                    style={{
+                      fontSize: 10,
+                      color: C.text2,
+                      padding: '3px 7px',
+                      borderRadius: 999,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    {stem.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* ── Top bar removed, redundant with AI PRODUCER header ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

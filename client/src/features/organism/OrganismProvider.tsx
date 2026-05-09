@@ -61,6 +61,7 @@ import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
 import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
+import { OrganismV2LoopPlayer, type OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
 
 interface Props {
   children:  React.ReactNode
@@ -118,6 +119,15 @@ const WOW_INITIAL_STATE: WowMomentState = {
   syncBpm: null,
 }
 
+const ORGANISM_V2_INITIAL_STATUS: OrganismV2Status = {
+  active: false,
+  presetId: null,
+  kitBpm: null,
+  targetBpm: null,
+  playbackRate: 1,
+  stems: [],
+}
+
 const WOW_WORDS: Record<string, WowPulseInstrument> = {
   boom: 'kick',
   boomp: 'kick',
@@ -173,6 +183,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const physicsRef     = useRef<PhysicsEngine            | null>(null)
   const stateMachRef   = useRef<StateMachine             | null>(null)
   const orchestrRef    = useRef<GeneratorOrchestrator    | null>(null)
+  const v2PlayerRef    = useRef<OrganismV2LoopPlayer     | null>(null)
   const reactiveRef    = useRef<ReactiveBehaviorEngine   | null>(null)
   const mixRef         = useRef<MixEngine                | null>(null)
   const captureRef     = useRef<CaptureEngine            | null>(null)
@@ -225,6 +236,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   // Quick Start state
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
+  const [v2Status, setV2Status] = useState<OrganismV2Status>(ORGANISM_V2_INITIAL_STATUS)
   const startTokenRef = useRef(0)
   const startInFlightRef = useRef<Promise<void> | null>(null)
 
@@ -322,6 +334,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 1 } : {}
     )
     const orchestr    = new GeneratorOrchestrator()
+    const v2Player    = new OrganismV2LoopPlayer()
     const reactive    = new ReactiveBehaviorEngine()
     const mix         = new MixEngine()
     const capture     = new CaptureEngine()
@@ -334,6 +347,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (profile) physics.setProfile(profile)
     stateMachRef.current = machine
     orchestrRef.current  = orchestr
+    v2PlayerRef.current  = v2Player
     reactiveRef.current  = reactive
     mixRef.current       = mix
     captureRef.current   = capture
@@ -560,6 +574,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let patternGenAbort: AbortController | null = null
 
     return () => {
+      v2Player.stop()
+      setV2Status(ORGANISM_V2_INITIAL_STATUS)
       patternGenAbort?.abort()
       unsubPhysicsState()
       unsubOrganism()
@@ -1121,6 +1137,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setIsStarting(false)
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
+    v2PlayerRef.current?.stop()
+    setV2Status(ORGANISM_V2_INITIAL_STATUS)
     orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
@@ -1142,6 +1160,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Clear state floor so the machine fully resets on the next start()
     stateMachRef.current?.setStateFloor(null)
     setIsRunning(false)
+    isRunningRef.current = false
     orgLog('provider:stopped', { inputSource, bpm })
 
     // Auto-bridge any accumulated generator events into the studio store
@@ -1231,7 +1250,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(`Unknown quick start preset: ${presetId}`)
       return
     }
-    if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current) {
+    if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current || !v2PlayerRef.current) {
       setError('Engines not initialized')
       return
     }
@@ -1270,17 +1289,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         return
       }
 
-      // 3. Prepare Organism audio at the preset BPM, but do not start the
-      //    clock until after the initial patterns are built. Starting first
-      //    makes Tone.Part rebuilds miss the first grid and bunch into crackle.
-      //    Do not set the global studio play state; arrangement/piano-roll
-      //    playheads follow that state and should remain independent.
-      await orchestr.start(preset.bpm, false)
-      if (startTokenRef.current !== token) {
-        orchestr.stop()
-        input.stop()
-        return
-      }
+      // 3. Set tempo/physics without starting the legacy synth stack. The v2
+      // loop player is the audible engine; the old generators stay available
+      // for MIDI/session capture but no longer carry the live listening path.
+      orchestr.setBpm(preset.bpm)
+      orchestr.stop()
       useStudioStore.getState().setBpm(preset.bpm)
       orgLog('quickstart:audio-check', {
         ctxState:       Tone.getContext().state,
@@ -1330,16 +1343,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
       await waitForStartupParts()
 
-      await orchestr.start(preset.bpm)
+      const nextV2Status = await v2PlayerRef.current!.start(preset)
       if (startTokenRef.current !== token) {
-        orchestr.stop()
+        v2PlayerRef.current?.stop()
+        setV2Status(ORGANISM_V2_INITIAL_STATUS)
         input.stop()
         return
       }
+      setV2Status(nextV2Status)
       setIsRunning(true)
       isRunningRef.current = true
       applyStablePlaybackDefaults()
-      scheduleSilentStartRecovery(token)
 
       // 6. Start transcription if enabled
       if (transcriptionEnabled && transcriberRef.current) {
@@ -1357,6 +1371,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       })
       orgLog('quickstart:applied', { presetId, bpm: preset.bpm, mode: preset.mode })
     } catch (err) {
+      v2PlayerRef.current?.stop()
+      setV2Status(ORGANISM_V2_INITIAL_STATUS)
       endPhase({ presetId, error: err instanceof Error ? err.message : String(err) })
       orgLog('quickstart:error', {
         presetId,
@@ -1400,7 +1416,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Hot path — live swap, no teardown
     const physics = physicsRef.current
     const orchestr = orchestrRef.current
-    if (!physics || !orchestr) return
+    const v2Player = v2PlayerRef.current
+    if (!physics || !orchestr || !v2Player) return
 
     const endSwap = orgPhase('swapPreset', 100)
     physics.lockMode(preset.mode)
@@ -1409,12 +1426,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (preset.subGenre) {
       orchestr.forceSubGenre(preset.subGenre)
     }
-    orchestr.regenerateAll()
+    orchestr.stop()
     applyStablePlaybackDefaults()
     Tone.getDestination().volume.value = 0
-    await orchestr.start(preset.bpm, true)
+    const nextV2Status = await v2Player.start(preset)
+    setV2Status(nextV2Status)
     applyStablePlaybackDefaults()
-    scheduleSilentStartRecovery(startTokenRef.current)
     setActivePresetId(presetId)
     endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
   }, [quickStart, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
@@ -2797,6 +2814,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestrRef.current?.setInstrumentPerformer(role, instrumentId)
   }, [])
 
+  const setV2MasterGain = useCallback((value: number) => {
+    v2PlayerRef.current?.setMasterGain(value)
+  }, [])
+
   const value: OrganismContextValue = useMemo(() => ({
     analysisEngine:    inputSource === 'mic' && inputRef.current && 'getStream' in inputRef.current
       ? inputRef.current as unknown as AudioAnalysisEngine
@@ -2818,6 +2839,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     swapPreset,
     quickStartPresets: QUICK_START_PRESETS,
     activePresetId,
+    v2Status,
+    setV2MasterGain,
 
     // Count-In Start
     countInStart,
@@ -2984,7 +3007,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
-    quickStart, swapPreset, activePresetId,
+    quickStart, swapPreset, activePresetId, v2Status, setV2MasterGain,
     countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     cadenceLockEnabled, cadenceSnapshot,

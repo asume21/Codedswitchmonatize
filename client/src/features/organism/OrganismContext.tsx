@@ -20,6 +20,7 @@ import type { FreestyleReport }        from './FreestyleReportCard'
 import type { PerformerState }        from '../../organism/audio/types'
 import type { SelfListenReport }      from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
+import type { OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
 
 /**
  * High-frequency physics context — updates at ~15fps as the organism runs.
@@ -97,6 +98,8 @@ export interface OrganismContextValue {
   swapPreset:         (presetId: string) => Promise<void>
   quickStartPresets:  QuickStartPreset[]
   activePresetId:     string | null
+  v2Status:           OrganismV2Status
+  setV2MasterGain:    (value: number) => void
 
   // Count-In Start — "1, 2, 3, 4" then beat drops
   countInStart:       (presetId: string) => Promise<void>
