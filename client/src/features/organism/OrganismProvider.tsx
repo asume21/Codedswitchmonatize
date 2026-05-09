@@ -125,9 +125,6 @@ const ORGANISM_V2_INITIAL_STATUS: OrganismV2Status = {
   kitBpm: null,
   targetBpm: null,
   playbackRate: 1,
-  section: null,
-  bar: 0,
-  cycleBars: 32,
   stems: [],
 }
 
@@ -354,7 +351,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     reactiveRef.current  = reactive
     mixRef.current       = mix
     captureRef.current   = capture
-    const unsubV2Status = v2Player.onStatusChange(setV2Status)
 
     // 3. Wire in correct order:
     //    input → physics → state machine
@@ -578,7 +574,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let patternGenAbort: AbortController | null = null
 
     return () => {
-      unsubV2Status()
       v2Player.stop()
       setV2Status(ORGANISM_V2_INITIAL_STATUS)
       patternGenAbort?.abort()

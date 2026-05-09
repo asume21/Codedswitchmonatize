@@ -14,17 +14,7 @@ export interface OrganismV2Status {
   kitBpm: number | null
   targetBpm: number | null
   playbackRate: number
-  section: string | null
-  bar: number
-  cycleBars: number
   stems: OrganismV2Stem[]
-}
-
-interface ArrangementSection {
-  name: 'intro' | 'verse' | 'hook' | 'breakdown' | 'drop'
-  bars: number
-  gains: Record<OrganismV2Stem['id'], number>
-  bass: number
 }
 
 const AVAILABLE_BPMS = [85, 95, 105, 124, 132]
@@ -75,41 +65,6 @@ const STEM_GAINS: Record<OrganismV2Stem['id'], number> = {
   toms: 0.22,
 }
 
-const ARRANGEMENT: ArrangementSection[] = [
-  {
-    name: 'intro',
-    bars: 4,
-    gains: { kick: 0.18, snare: 0.28, hats: 0.34, perc: 0.18, toms: 0 },
-    bass: 0,
-  },
-  {
-    name: 'verse',
-    bars: 8,
-    gains: { kick: 0.82, snare: 0.70, hats: 0.36, perc: 0.24, toms: 0 },
-    bass: 0.68,
-  },
-  {
-    name: 'hook',
-    bars: 8,
-    gains: { kick: 1.0, snare: 0.84, hats: 0.50, perc: 0.34, toms: 0.08 },
-    bass: 1.0,
-  },
-  {
-    name: 'breakdown',
-    bars: 4,
-    gains: { kick: 0.18, snare: 0.36, hats: 0.28, perc: 0.18, toms: 0 },
-    bass: 0.22,
-  },
-  {
-    name: 'drop',
-    bars: 8,
-    gains: { kick: 1.05, snare: 0.88, hats: 0.56, perc: 0.38, toms: 0.16 },
-    bass: 1.08,
-  },
-]
-
-const ARRANGEMENT_TOTAL_BARS = ARRANGEMENT.reduce((sum, section) => sum + section.bars, 0)
-
 function nearestKitBpm(targetBpm: number): number {
   return AVAILABLE_BPMS.reduce((best, bpm) =>
     Math.abs(bpm - targetBpm) < Math.abs(best - targetBpm) ? bpm : best,
@@ -137,31 +92,14 @@ export class OrganismV2LoopPlayer {
   private master: GainNode | null = null
   private compressor: DynamicsCompressorNode | null = null
   private bassGain: GainNode | null = null
-  private bassDrive: WaveShaperNode | null = null
-  private bassFilter: BiquadFilterNode | null = null
   private bassTimer: number | null = null
-  private barTimer: number | null = null
-  private barIndex: number = 0
-  private currentPreset: QuickStartPreset | null = null
-  private statusListener: ((status: OrganismV2Status) => void) | null = null
   private status: OrganismV2Status = {
     active: false,
     presetId: null,
     kitBpm: null,
     targetBpm: null,
     playbackRate: 1,
-    section: null,
-    bar: 0,
-    cycleBars: ARRANGEMENT_TOTAL_BARS,
     stems: [],
-  }
-
-  onStatusChange(listener: (status: OrganismV2Status) => void): () => void {
-    this.statusListener = listener
-    listener(this.getStatus())
-    return () => {
-      if (this.statusListener === listener) this.statusListener = null
-    }
   }
 
   getStatus(): OrganismV2Status {
@@ -237,9 +175,7 @@ export class OrganismV2LoopPlayer {
     })
 
     await Promise.all(this.stems.map(({ audio }) => audio.play()))
-    this.currentPreset = preset
-    this.barIndex = 0
-    this.startBassChain(preset.energy)
+    this.startBassPattern(preset.bpm, preset.energy)
 
     this.status = {
       active: true,
@@ -247,14 +183,8 @@ export class OrganismV2LoopPlayer {
       kitBpm,
       targetBpm: preset.bpm,
       playbackRate,
-      section: 'intro',
-      bar: 1,
-      cycleBars: ARRANGEMENT_TOTAL_BARS,
       stems,
     }
-    this.applyArrangementBar()
-    this.startArrangementClock(preset.bpm)
-    this.emitStatus()
     return this.getStatus()
   }
 
@@ -268,10 +198,6 @@ export class OrganismV2LoopPlayer {
       window.clearInterval(this.bassTimer)
       this.bassTimer = null
     }
-    if (this.barTimer !== null) {
-      window.clearInterval(this.barTimer)
-      this.barTimer = null
-    }
 
     this.stems.forEach(({ audio, source, gain }) => {
       audio.pause()
@@ -281,13 +207,7 @@ export class OrganismV2LoopPlayer {
       gain.disconnect()
     })
     this.stems = []
-    this.currentPreset = null
-    this.barIndex = 0
-    this.bassDrive?.disconnect()
-    this.bassFilter?.disconnect()
     this.bassGain?.disconnect()
-    this.bassDrive = null
-    this.bassFilter = null
     this.bassGain = null
     this.master?.disconnect()
     this.compressor?.disconnect()
@@ -300,166 +220,46 @@ export class OrganismV2LoopPlayer {
       kitBpm: null,
       targetBpm: null,
       playbackRate: 1,
-      section: null,
-      bar: 0,
-      cycleBars: ARRANGEMENT_TOTAL_BARS,
       stems: [],
     }
-    this.emitStatus()
   }
 
-  private startArrangementClock(bpm: number): void {
-    const barMs = (60 / bpm) * 4 * 1000
-    this.barTimer = window.setInterval(() => {
-      this.barIndex = (this.barIndex + 1) % ARRANGEMENT_TOTAL_BARS
-      this.applyArrangementBar()
-      this.emitStatus()
-    }, barMs)
-  }
-
-  private getSectionForBar(barIndex: number): { section: ArrangementSection; localBar: number } {
-    let cursor = 0
-    for (const section of ARRANGEMENT) {
-      if (barIndex < cursor + section.bars) {
-        return { section, localBar: barIndex - cursor }
-      }
-      cursor += section.bars
-    }
-    return { section: ARRANGEMENT[ARRANGEMENT.length - 1], localBar: 0 }
-  }
-
-  private applyArrangementBar(): void {
-    if (!this.currentPreset) return
-
-    const ctx = getAudioContext()
-    const { section, localBar } = this.getSectionForBar(this.barIndex)
-    const isFillBar = this.barIndex > 0 && (this.barIndex + 1) % 8 === 0
-    const isDropEntry = localBar === 0 && (section.name === 'hook' || section.name === 'drop')
-    const now = ctx.currentTime
-
-    this.stems.forEach(({ stem, gain }) => {
-      let target = stem.gain * section.gains[stem.id]
-      if (isFillBar && (stem.id === 'toms' || stem.id === 'perc')) target *= 2.4
-      if (isDropEntry && (stem.id === 'kick' || stem.id === 'snare')) target *= 1.12
-      gain.gain.cancelScheduledValues(now)
-      gain.gain.setTargetAtTime(Math.max(0, target), now, 0.08)
-    })
-
-    if (this.bassGain) {
-      const energyGain = this.currentPreset.energy === 'high' ? 0.42 : this.currentPreset.energy === 'medium' ? 0.32 : 0.22
-      this.bassGain.gain.cancelScheduledValues(now)
-      this.bassGain.gain.setTargetAtTime(energyGain * section.bass, now, 0.05)
-    }
-
-    this.scheduleBassBar(section, localBar, isFillBar)
-
-    this.status = {
-      ...this.status,
-      section: section.name,
-      bar: this.barIndex + 1,
-    }
-  }
-
-  private startBassChain(energy: QuickStartPreset['energy']): void {
+  private startBassPattern(bpm: number, energy: QuickStartPreset['energy']): void {
     const ctx = getAudioContext()
     const bassGain = ctx.createGain()
-    bassGain.gain.value = energy === 'high' ? 0.42 : energy === 'medium' ? 0.32 : 0.22
-
-    const drive = ctx.createWaveShaper()
-    drive.curve = this.makeDriveCurve(energy === 'high' ? 1.8 : 1.2)
-    drive.oversample = '2x'
-
-    const filter = ctx.createBiquadFilter()
-    filter.type = 'lowpass'
-    filter.frequency.value = energy === 'high' ? 420 : 320
-    filter.Q.value = 0.7
-
-    bassGain.connect(drive)
-    drive.connect(filter)
-    filter.connect(this.master ?? ctx.destination)
+    bassGain.gain.value = energy === 'high' ? 0.34 : energy === 'medium' ? 0.26 : 0.18
+    bassGain.connect(this.master ?? ctx.destination)
     this.bassGain = bassGain
-    this.bassDrive = drive
-    this.bassFilter = filter
-  }
 
-  private scheduleBassBar(section: ArrangementSection, localBar: number, isFillBar: boolean): void {
-    if (!this.currentPreset || !this.bassGain || section.bass <= 0) return
-
-    const ctx = getAudioContext()
-    const bpm = this.currentPreset.bpm
-    const energy = this.currentPreset.energy
     const beatSeconds = 60 / bpm
-    const root = energy === 'high' ? 43.65 : energy === 'low' ? 38.89 : 41.2
-    const fifth = root * 1.5
-    const minorSeventh = root * 1.7818
-    const octave = root * 2
-    const barVariation = localBar % 4
-    const pattern = section.name === 'breakdown'
-      ? [{ beat: 0, note: root, length: 2.4 }]
-      : energy === 'high'
-        ? [
-            { beat: 0, note: root, length: 0.64 },
-            { beat: 0.75, note: root, length: 0.42 },
-            { beat: 1.5, note: barVariation === 3 ? minorSeventh : fifth, length: 0.56 },
-            { beat: 2.5, note: root * 0.89, length: 0.48 },
-            { beat: isFillBar ? 3.0 : 3.25, note: isFillBar ? octave : root, length: 0.38 },
-          ]
-        : energy === 'medium'
-          ? [
-              { beat: 0, note: root, length: 0.9 },
-              { beat: 1.5, note: barVariation === 2 ? fifth : root * 0.89, length: 0.58 },
-              { beat: 2.5, note: root, length: 0.72 },
-              ...(isFillBar ? [{ beat: 3.35, note: octave, length: 0.32 }] : []),
-            ]
-          : [
-              { beat: 0, note: root, length: 1.65 },
-              { beat: 2, note: barVariation === 3 ? fifth : root * 0.89, length: 1.2 },
-            ]
+    const pattern = energy === 'high'
+      ? [0, 0.75, 1.5, 2.5, 3.25]
+      : energy === 'medium'
+        ? [0, 1.5, 2.5]
+        : [0, 2]
+    const notes = energy === 'high' ? [43.65, 43.65, 51.91, 38.89, 43.65] : [43.65, 38.89, 43.65]
 
-    const now = ctx.currentTime + 0.025
-    pattern.forEach(({ beat, note, length }) => {
-      const osc = ctx.createOscillator()
-      const click = ctx.createOscillator()
-      const noteGain = ctx.createGain()
-      const clickGain = ctx.createGain()
-      const start = now + beat * beatSeconds
-      const duration = beatSeconds * length
-
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(note, start)
-      osc.frequency.exponentialRampToValueAtTime(Math.max(28, note * 0.72), start + duration)
-
-      click.type = 'triangle'
-      click.frequency.setValueAtTime(note * 2, start)
-
-      noteGain.gain.setValueAtTime(0.0001, start)
-      noteGain.gain.exponentialRampToValueAtTime(1, start + 0.01)
-      noteGain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
-      clickGain.gain.setValueAtTime(0.12, start)
-      clickGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.045)
-
-      osc.connect(noteGain)
-      click.connect(clickGain)
-      noteGain.connect(this.bassGain!)
-      clickGain.connect(this.bassGain!)
-      osc.start(start)
-      click.start(start)
-      osc.stop(start + duration + 0.02)
-      click.stop(start + 0.06)
-    })
-  }
-
-  private makeDriveCurve(amount: number): Float32Array<ArrayBuffer> {
-    const samples = 256
-    const curve = new Float32Array(new ArrayBuffer(samples * Float32Array.BYTES_PER_ELEMENT))
-    for (let i = 0; i < samples; i += 1) {
-      const x = (i * 2) / samples - 1
-      curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x))
+    const playBar = () => {
+      const now = ctx.currentTime + 0.03
+      pattern.forEach((beat, index) => {
+        const osc = ctx.createOscillator()
+        const noteGain = ctx.createGain()
+        const start = now + beat * beatSeconds
+        const duration = beatSeconds * (energy === 'low' ? 1.6 : 0.82)
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(notes[index % notes.length], start)
+        osc.frequency.exponentialRampToValueAtTime(Math.max(28, notes[index % notes.length] * 0.72), start + duration)
+        noteGain.gain.setValueAtTime(0.0001, start)
+        noteGain.gain.exponentialRampToValueAtTime(1, start + 0.012)
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
+        osc.connect(noteGain)
+        noteGain.connect(bassGain)
+        osc.start(start)
+        osc.stop(start + duration + 0.02)
+      })
     }
-    return curve as Float32Array<ArrayBuffer>
-  }
 
-  private emitStatus(): void {
-    this.statusListener?.(this.getStatus())
+    playBar()
+    this.bassTimer = window.setInterval(playBar, beatSeconds * 4 * 1000)
   }
 }
