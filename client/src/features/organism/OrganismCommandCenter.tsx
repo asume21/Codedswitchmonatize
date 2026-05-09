@@ -541,7 +541,11 @@ export function OrganismCommandCenter() {
             </p>
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {error && (
+              <span style={{ fontSize: 10, color: '#f87171', fontWeight: 700, maxWidth: 160 }}
+                title={error}>⚠ {error.slice(0, 40)}{error.length > 40 ? '…' : ''}</span>
+            )}
             {!isRunning ? (
               <button
                 onClick={handleInstantStart}

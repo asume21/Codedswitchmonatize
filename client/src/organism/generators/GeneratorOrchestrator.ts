@@ -85,12 +85,12 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 2, drums: 0.62, bass: 0.82, melody: 0.60, texture: 0, chord: 0.82 },
-    { name: 'verse',     bars: 8, drums: 0.62, bass: 0.90, melody: 0.42, texture: 0, chord: 0.58 },
-    { name: 'build',     bars: 4, drums: 0.75, bass: 0.93, melody: 0.80, texture: 0, chord: 0.68 },
-    { name: 'drop',      bars: 8, drums: 0.90, bass: 1.0,  melody: 1.15, texture: 0, chord: 0.76 },
-    { name: 'breakdown', bars: 4, drums: 0.35, bass: 0.60, melody: 0.50, texture: 0, chord: 0.82 },
-    { name: 'drop2',     bars: 4, drums: 0.90, bass: 1.0,  melody: 1.20, texture: 0, chord: 0.74 },
+    { name: 'intro',     bars: 2, drums: 0.85, bass: 1.0,  melody: 0.85, texture: 0, chord: 0.90 },
+    { name: 'verse',     bars: 8, drums: 0.80, bass: 1.0,  melody: 0.70, texture: 0, chord: 0.75 },
+    { name: 'build',     bars: 4, drums: 0.90, bass: 1.0,  melody: 0.90, texture: 0, chord: 0.80 },
+    { name: 'drop',      bars: 8, drums: 1.0,  bass: 1.0,  melody: 1.10, texture: 0, chord: 0.85 },
+    { name: 'breakdown', bars: 4, drums: 0.55, bass: 0.75, melody: 0.65, texture: 0, chord: 0.90 },
+    { name: 'drop2',     bars: 4, drums: 1.0,  bass: 1.0,  melody: 1.10, texture: 0, chord: 0.85 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true

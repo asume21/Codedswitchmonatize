@@ -982,15 +982,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     orchestr.setArrangementEnabled(true)
     orchestr.setGrooveLocked(true)
-    setHatDensityState(0.55)
-    setKickVelocityState(0.82)
-    setBassVolumeState(1.25)
-    setMelodyVolumeState(1.55)
-    orchestr.setHatDensityMultiplier(0.55)
-    orchestr.setKickVelocityMultiplier(0.82)
-    orchestr.setBassVolumeMultiplier(1.25)
-    orchestr.setMelodyVolumeMultiplier(1.55)
-    orchestr.setChordVolumeMultiplier(0.58)
+    setHatDensityState(0.75)
+    setKickVelocityState(0.95)
+    setBassVolumeState(1.6)
+    setMelodyVolumeState(1.8)
+    orchestr.setHatDensityMultiplier(0.75)
+    orchestr.setKickVelocityMultiplier(0.95)
+    orchestr.setBassVolumeMultiplier(1.6)
+    orchestr.setMelodyVolumeMultiplier(1.8)
+    orchestr.setChordVolumeMultiplier(0.75)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
   }, [])
@@ -1241,6 +1241,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const physicsEngine = physicsRef.current
     if (isRunningRef.current) return
     if (startInFlightRef.current) return startInFlightRef.current
+
+    // Force-reset orchestrator running flag in case a prior session left it stuck
+    // (e.g. globalAudioKillSwitch fired, page navigation, or a crashed start attempt)
+    if (orchestrRef.current) {
+      orchestrRef.current.stop()
+    }
 
     const token = ++startTokenRef.current
 
