@@ -1299,11 +1299,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         return
       }
 
-      // 3. Set tempo/physics without starting the legacy synth stack. The v2
-      // loop player is the audible engine; the old generators stay available
-      // for MIDI/session capture but no longer carry the live listening path.
+      // 3. Set tempo — v1 generators are the audible engine (proper hip-hop samples + patterns).
       orchestr.setBpm(preset.bpm)
-      orchestr.stop()
       useStudioStore.getState().setBpm(preset.bpm)
       orgLog('quickstart:audio-check', {
         ctxState:       Tone.getContext().state,
@@ -1353,14 +1350,24 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
       await waitForStartupParts()
 
-      const nextV2Status = await v2PlayerRef.current!.start(preset)
+      // Start v1 generators — real hip-hop drum samples + patterns from DrumPatternLibrary
+      await orchestr.start(preset.bpm, true)
       if (startTokenRef.current !== token) {
-        v2PlayerRef.current?.stop()
-        setV2Status(ORGANISM_V2_INITIAL_STATUS)
+        orchestr.stop()
         input.stop()
         return
       }
-      setV2Status(nextV2Status)
+      setV2Status({
+        active:       true,
+        presetId:     preset.id,
+        kitBpm:       preset.bpm,
+        targetBpm:    preset.bpm,
+        playbackRate: 1,
+        section:      'intro',
+        bar:          0,
+        cycleBars:    32,
+        stems:        [],
+      })
       setIsRunning(true)
       isRunningRef.current = true
       applyStablePlaybackDefaults()
