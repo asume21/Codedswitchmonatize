@@ -8,7 +8,6 @@ export default function SitemapPage() {
       description: 'Main application pages and entry points',
       links: [
         { href: '/', label: 'Home / Landing' },
-        { href: '/home', label: 'Home (alt)' },
         { href: '/login', label: 'Login' },
         { href: '/signup', label: 'Sign Up' },
         { href: '/activate', label: 'Activate Account' },
@@ -23,6 +22,10 @@ export default function SitemapPage() {
       links: [
         { href: '/studio', label: 'Unified Studio Workspace' },
         { href: '/lyric-lab', label: 'Lyric Lab (Lyrics Tab)' },
+        { href: '/pro-audio', label: 'AI Audio Generator' },
+        { href: '/mix-studio', label: 'Online Mix Studio' },
+        { href: '/daw-layout', label: 'Online DAW' },
+        { href: '/song-structure', label: 'Song Structure Builder' },
       ],
     },
     {

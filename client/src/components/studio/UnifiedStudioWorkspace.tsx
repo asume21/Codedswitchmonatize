@@ -74,6 +74,7 @@ import { WindowManagerProvider } from '@/contexts/WindowManagerContext';
 import WindowLauncher from './WindowLauncher';
 const StudioWindowRenderer = React.lazy(() => import('./StudioWindowRenderer'));
 import UndoRedoControls from './UndoRedoControls';
+import { useMasteringAnalyzer } from '@/hooks/useMasteringAnalyzer';
 
 function TabLoadingFallback() {
   return (
@@ -965,6 +966,13 @@ export default function UnifiedStudioWorkspace() {
   }, []);
   const { isPro, requirePro, startUpgrade } = useLicenseGate();
   const [showLicenseModal, setShowLicenseModal] = useState(false);
+  const masteringAnalyzer = useMasteringAnalyzer();
+  useEffect(() => {
+    if (activeView === 'ai-studio' && !masteringAnalyzer.isAnalyzing) {
+      masteringAnalyzer.analyze();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
   useEffect(() => {
     if (!audioContextRef.current) {
       audioContextRef.current = getAudioContext();
@@ -4388,7 +4396,11 @@ export default function UnifiedStudioWorkspace() {
             <div className="flex-1 overflow-y-auto bg-gray-900 pt-14 p-4">
               <React.Suspense fallback={<TabLoadingFallback />}>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
-                <AIMasteringCard />
+                <AIMasteringCard
+                  peakLevel={masteringAnalyzer.peakLevel}
+                  rmsLevel={masteringAnalyzer.rmsLevel}
+                  frequencyData={masteringAnalyzer.frequencyData}
+                />
                 <AIArrangementBuilder
                   currentBpm={tempo}
                   currentKey="C"

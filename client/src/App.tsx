@@ -67,6 +67,10 @@ const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => 
 const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: () => <NotFound /> })));
 const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: () => <NotFound /> })));
 const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: () => <NotFound /> })));
+const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() => ({ default: () => <NotFound /> })));
+const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() => ({ default: () => <NotFound /> })));
+const DawLayoutLanding = React.lazy(() => import("@/pages/daw-layout").catch(() => ({ default: () => <NotFound /> })));
+const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -218,7 +222,7 @@ function App() {
                   LIGHTWEIGHT ROUTES - No audio providers
                   These pages load instantly
                   ============================================ */}
-              <Route path="/home" component={Landing} />
+              <Route path="/home"><Redirect to="/" /></Route>
               <Route path="/login" component={Login} />
               <Route path="/signup" component={Signup} />
               <Route path="/activate"><ActivatePage /></Route>
@@ -302,29 +306,33 @@ function App() {
               </Route>
 
               {/* ============================================
-                  LEGACY STUDIO ROUTES - Redirect to /studio
-                  Keeps old bookmarks working
+                  FEATURE LANDING PAGES — public, indexable
                   ============================================ */}
-              <Route path="/music-studio"><Redirect to="/studio" /></Route>
-              <Route path="/song-uploader"><Redirect to="/studio" /></Route>
-              <Route path="/beat-studio"><Redirect to="/studio" /></Route>
-              <Route path="/melody-composer"><Redirect to="/studio" /></Route>
-              <Route path="/unified-studio"><Redirect to="/studio" /></Route>
-              <Route path="/daw-layout"><Redirect to="/studio" /></Route>
-              <Route path="/flow"><Redirect to="/studio" /></Route>
-              <Route path="/code-translator"><Redirect to="/studio" /></Route>
-              <Route path="/codebeat-studio"><Redirect to="/studio" /></Route>
-              <Route path="/mix-studio"><Redirect to="/studio" /></Route>
-              <Route path="/pro-console"><Redirect to="/studio" /></Route>
-              <Route path="/midi-controller"><Redirect to="/studio" /></Route>
-              <Route path="/advanced-sequencer"><Redirect to="/studio" /></Route>
-              <Route path="/granular-engine"><Redirect to="/studio" /></Route>
-              <Route path="/wavetable-oscillator"><Redirect to="/studio" /></Route>
-              <Route path="/pack-generator"><Redirect to="/studio" /></Route>
-              <Route path="/song-structure"><Redirect to="/studio" /></Route>
-              <Route path="/pro-audio"><Redirect to="/studio" /></Route>
-              <Route path="/codebeat-studio-direct"><Redirect to="/studio" /></Route>
-              <Route path="/piano-roll"><Redirect to="/studio" /></Route>
+              <Route path="/pro-audio" component={ProAudioLanding} />
+              <Route path="/mix-studio" component={MixStudioLanding} />
+              <Route path="/daw-layout" component={DawLayoutLanding} />
+              <Route path="/song-structure" component={SongStructureLanding} />
+
+              {/* ============================================
+                  LEGACY ROUTES — redirect to home (not /studio)
+                  so Google doesn't hit a login wall
+                  ============================================ */}
+              <Route path="/music-studio"><Redirect to="/" /></Route>
+              <Route path="/song-uploader"><Redirect to="/" /></Route>
+              <Route path="/beat-studio"><Redirect to="/" /></Route>
+              <Route path="/melody-composer"><Redirect to="/" /></Route>
+              <Route path="/unified-studio"><Redirect to="/" /></Route>
+              <Route path="/flow"><Redirect to="/" /></Route>
+              <Route path="/code-translator"><Redirect to="/" /></Route>
+              <Route path="/codebeat-studio"><Redirect to="/" /></Route>
+              <Route path="/pro-console"><Redirect to="/" /></Route>
+              <Route path="/midi-controller"><Redirect to="/" /></Route>
+              <Route path="/advanced-sequencer"><Redirect to="/" /></Route>
+              <Route path="/granular-engine"><Redirect to="/" /></Route>
+              <Route path="/wavetable-oscillator"><Redirect to="/" /></Route>
+              <Route path="/pack-generator"><Redirect to="/" /></Route>
+              <Route path="/codebeat-studio-direct"><Redirect to="/" /></Route>
+              <Route path="/piano-roll"><Redirect to="/" /></Route>
               
               {/* 404 */}
               <Route component={NotFound} />

@@ -312,7 +312,20 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     res.json({ ok: true });
   });
 
-  // ── 3. MCP SSE transport — Claude Code connects here ─────────────────────
+  // ── 3. In-app analyze — no auth, no credits; used by mastering card ─────
+  router.get('/analyze-app/:captureId', async (req: Request, res: Response) => {
+    const blob = audioBlobs.get(req.params.captureId);
+    if (!blob) return void res.status(404).json({ error: 'Capture not found or expired (5 min TTL)' });
+    try {
+      const decoded = await decodeWebmToPcm(blob.buffer);
+      const report  = analyzePcm(decoded.samples, decoded.sampleRate);
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── 4. MCP SSE transport — Claude Code connects here ─────────────────────
   router.get('/mcp/sse', async (req: Request, res: Response) => {
     const key = extractApiKey(req);
     const keyRecord = await resolveKey(key);
