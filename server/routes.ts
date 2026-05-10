@@ -29,6 +29,7 @@ import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createWebearKeyRoutes } from "./routes/webearKeys";
 import { createWebearRelayRoutes } from "./routes/webearRelay";
 import { createOrganismKitRoutes } from "./routes/organismKits";
+import { createAceStepRoutes } from "./routes/aceStep";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -349,6 +350,9 @@ ${urls
   app.use("/api/organism/sessions", sessionRouter);
   app.use("/api/organism/profile", profileRouter);
   app.use("/api/organism", createOrganismKitRoutes());
+
+  // ACE-Step text-to-music generation (status, generate, job polling, audio serving)
+  app.use("/api/ai-music", createAceStepRoutes());
 
   // Audio Debug Bridge — dev only, gives Claude Code ears
   if (process.env.NODE_ENV !== 'production') {

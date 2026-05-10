@@ -431,6 +431,15 @@ export function OrganismCommandCenter() {
     setBpmInput('')
   }, [bpmInput, orchestrator])
 
+  // ── Render to Track state ────────────────────────────────────────────────
+  const [renderState, setRenderState] = useState<'idle' | 'booting' | 'generating' | 'done' | 'error'>('idle')
+  const [renderAudioUrl, setRenderAudioUrl] = useState<string | null>(null)
+  const [renderDuration, setRenderDuration] = useState<number | null>(null)
+  const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Clean up poll on unmount
+  useEffect(() => () => { if (renderPollRef.current) clearInterval(renderPollRef.current) }, [])
+
   const lyricsEndRef = useRef<HTMLDivElement>(null)
   const [shareCaption, setShareCaption] = useState('')
   const [shareConfirmed, setShareConfirmed] = useState(false)
@@ -460,6 +469,50 @@ export function OrganismCommandCenter() {
 
   const ostate = organismState?.current
   const isFlow = ostate === OState.Flow
+
+  const handleRender = useCallback(async () => {
+    if (renderState === 'booting' || renderState === 'generating') return
+    setRenderState('booting')
+    setRenderAudioUrl(null)
+    setRenderDuration(null)
+
+    const genre   = currentVibe?.genre ?? activePreset?.genre ?? 'trap'
+    const mood    = currentVibe?.mood  ?? 'dark'
+    const section = v2Status?.section  ?? 'verse'
+    const bpm     = currentBpm || 90
+
+    try {
+      const res = await fetch('/api/ai-music/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: 30, inferStep: 25 }),
+      })
+      if (!res.ok) throw new Error(`Generate failed: ${res.status}`)
+      const { jobId } = await res.json() as { jobId: string }
+      setRenderState('generating')
+
+      const poll = setInterval(async () => {
+        try {
+          const jr = await fetch(`/api/ai-music/job/${jobId}`)
+          const job = await jr.json() as { status: string; output_url?: string; duration_s?: number }
+          if (job.status === 'done' && job.output_url) {
+            clearInterval(poll)
+            renderPollRef.current = null
+            setRenderAudioUrl(job.output_url)
+            setRenderDuration(job.duration_s ?? null)
+            setRenderState('done')
+          } else if (job.status === 'error') {
+            clearInterval(poll)
+            renderPollRef.current = null
+            setRenderState('error')
+          }
+        } catch { /* keep polling */ }
+      }, 2000)
+      renderPollRef.current = poll
+    } catch {
+      setRenderState('error')
+    }
+  }, [renderState, currentVibe, activePreset, v2Status, currentBpm])
 
   const handleShare = useCallback(async () => {
     const result = await shareSession(shareCaption)
@@ -784,7 +837,76 @@ export function OrganismCommandCenter() {
           }} />
           {isRecording ? 'REC' : 'REC'}
         </button>
+
+        {/* Render to Track button */}
+        <button
+          onClick={handleRender}
+          disabled={renderState === 'booting' || renderState === 'generating'}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '4px 12px',
+            borderRadius: 6,
+            border: renderState === 'done'
+              ? '1px solid rgba(167,139,250,0.5)'
+              : renderState === 'error'
+              ? '1px solid rgba(251,191,36,0.4)'
+              : '1px solid rgba(167,139,250,0.2)',
+            background: renderState === 'done'
+              ? 'rgba(167,139,250,0.12)'
+              : renderState === 'booting' || renderState === 'generating'
+              ? 'rgba(167,139,250,0.06)'
+              : 'transparent',
+            color: renderState === 'idle' || renderState === 'error' ? C.text3 : C.purple,
+            fontSize: 12, fontWeight: 600,
+            cursor: renderState === 'booting' || renderState === 'generating' ? 'wait' : 'pointer',
+            opacity: renderState === 'booting' || renderState === 'generating' ? 0.7 : 1,
+          }}
+          title="Generate a finished audio track from the current vibe"
+        >
+          {renderState === 'booting'    && '⏳ Waking GPU…'}
+          {renderState === 'generating' && '🎵 Rendering…'}
+          {renderState === 'done'       && '✓ Download'}
+          {renderState === 'error'      && '↺ Retry'}
+          {renderState === 'idle'       && 'Render Track'}
+        </button>
       </div>
+
+      {/* Render result — audio player + download */}
+      {renderState === 'done' && renderAudioUrl && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 12px',
+          background: 'rgba(167,139,250,0.06)',
+          border: '1px solid rgba(167,139,250,0.15)',
+          borderRadius: 8,
+          marginTop: 8,
+        }}>
+          <span style={{ fontSize: 11, color: C.purple, fontWeight: 600, flexShrink: 0 }}>
+            RENDERED{renderDuration ? ` · ${Math.round(renderDuration)}s` : ''}
+          </span>
+          <audio
+            controls
+            src={renderAudioUrl}
+            style={{ flex: 1, height: 28, accentColor: C.purple }}
+          />
+          <a
+            href={renderAudioUrl}
+            download
+            style={{
+              fontSize: 11, color: C.purple, fontWeight: 600,
+              textDecoration: 'none', padding: '3px 8px',
+              border: '1px solid rgba(167,139,250,0.3)',
+              borderRadius: 5, flexShrink: 0,
+            }}
+          >
+            ↓ WAV
+          </a>
+          <button
+            onClick={() => { setRenderState('idle'); setRenderAudioUrl(null) }}
+            style={{ background: 'none', border: 'none', color: C.text3, cursor: 'pointer', fontSize: 14 }}
+          >×</button>
+        </div>
+      )}
 
       {/* ── Main grid: left (voice + styles) | right (beat shape + tweaks) ─ */}
       <div style={{
