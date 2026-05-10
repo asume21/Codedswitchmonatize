@@ -105,12 +105,23 @@ export function createAIRoutes() {
 
       console.log('💬 AI Chat request received');
 
-      const response = await makeAICall(
-        Array.isArray(messages) && messages.length > 0
-          ? messages
-          : [{ role: "user", content: prompt || "Hello" }],
-        { temperature: 0.7, max_tokens: 800 },
-      );
+      const FALLBACK_SYSTEM = {
+        role: 'system' as const,
+        content: 'You are Astutely — the creative director AI inside CodedSwitch Studio. ' +
+          'You are a seasoned hip-hop and R&B producer with deep music theory knowledge. ' +
+          'Be specific, direct, and concise. No filler phrases.',
+      }
+
+      let msgList = Array.isArray(messages) && messages.length > 0
+        ? messages
+        : [{ role: 'user', content: prompt || 'Hello' }]
+
+      // Inject fallback system prompt only when the caller didn't provide one
+      if (!msgList.some((m: { role: string }) => m.role === 'system')) {
+        msgList = [FALLBACK_SYSTEM, ...msgList]
+      }
+
+      const response = await makeAICall(msgList, { temperature: 0.7, max_tokens: 800 });
 
       const content = response.choices?.[0]?.message?.content || "";
       console.log(`✅ AI response received: ${content.substring(0, 50)}...`);
