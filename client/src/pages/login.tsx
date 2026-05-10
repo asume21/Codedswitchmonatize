@@ -61,8 +61,7 @@ export default function Login() {
         description: "You've successfully logged in.",
       });
 
-      // Redirect to home
-      setLocation("/");
+      setLocation("/dashboard");
     } catch (error: any) {
       toast({
         title: "Login Failed",

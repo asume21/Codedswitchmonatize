@@ -2,36 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "wouter";
 import {
-  Music, Code, Upload, Mic, Shield, MessageSquare, Users, Mic2,
-  Zap, Radio, TrendingUp, Clock, Play, CreditCard, Star, ChevronRight, Circle,
+  Music, Upload, Mic, Shield, MessageSquare, Users, Mic2,
+  Zap, Radio, TrendingUp, Clock, Play, CreditCard, Star,
+  ChevronRight, Circle, Brain, Code, ShoppingBag, Headphones,
 } from "lucide-react";
+import { Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest } from "@/lib/queryClient";
 
-interface CreditBalance {
-  balance: number;
-  isOwner?: boolean;
-}
-
-interface UserStats {
-  followers: number;
-  following: number;
-  totalSongs: number;
-  credits: number;
-  level: string;
-}
-
+interface CreditBalance { balance: number; isOwner?: boolean }
+interface UserStats { followers: number; following: number; totalSongs: number; credits: number; level: string }
 interface Song {
-  id: string;
-  name: string;
-  format: string | null;
-  duration: number | null;
-  uploadDate: string | null;
-  estimatedBPM: number | null;
-  keySignature: string | null;
-  genre: string | null;
+  id: string; name: string; format: string | null; duration: number | null;
+  uploadDate: string | null; estimatedBPM: number | null; keySignature: string | null; genre: string | null;
 }
 
 function formatDuration(seconds: number | null): string {
@@ -48,8 +32,59 @@ function timeAgo(dateStr: string | null): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+// ── Hero card (4 primary features) ────────────────────────────────────────────
+function HeroCard({
+  href, label, title, desc, icon: Icon, cta, accent,
+}: {
+  href: string; label: string; title: string; desc: string;
+  icon: React.ElementType; cta: string;
+  accent: { border: string; bg: string; glow: string; badge: string; badgeText: string; btn: string; icon: string };
+}) {
+  return (
+    <Link href={href}>
+      <Card className={`cursor-pointer h-full border ${accent.border} ${accent.bg} ${accent.glow} hover:scale-[1.02] transition-all`}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${accent.icon}`}>
+              <Icon className="h-6 w-6" />
+            </div>
+            <div>
+              <div className={`text-xs font-black uppercase tracking-[0.2em] ${accent.badgeText}`}>{label}</div>
+              <CardTitle className="text-xl">{title}</CardTitle>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{desc}</p>
+          <Button className={`w-full ${accent.btn}`}>
+            <Zap className="h-4 w-4 mr-2" /> {cta}
+          </Button>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+// ── Small tool card (secondary features) ──────────────────────────────────────
+function ToolCard({ href, title, desc, icon: Icon, color }: {
+  href: string; title: string; desc: string; icon: React.ElementType; color: string;
+}) {
+  return (
+    <Link href={href}>
+      <Card className="cursor-pointer hover:scale-[1.03] transition-all h-full">
+        <CardContent className="flex flex-col items-center gap-2 pt-4 pb-4 px-3 text-center">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${color}`}>
+            <Icon className="h-4 w-4 text-white" />
+          </div>
+          <p className="text-xs font-semibold leading-tight">{title}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight hidden sm:block">{desc}</p>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 export default function Dashboard() {
@@ -58,34 +93,32 @@ export default function Dashboard() {
 
   const { data: credits } = useQuery<CreditBalance>({
     queryKey: ["/api/credits/balance"],
-    queryFn: () => apiRequest("GET", "/api/credits/balance").then((r) => r.json()),
+    queryFn: () => apiRequest("GET", "/api/credits/balance").then(r => r.json()),
     staleTime: 30_000,
   });
-
   const { data: stats } = useQuery<UserStats>({
     queryKey: ["/api/user/stats"],
-    queryFn: () => apiRequest("GET", "/api/user/stats").then((r) => r.json()),
+    queryFn: () => apiRequest("GET", "/api/user/stats").then(r => r.json()),
     staleTime: 60_000,
   });
-
   const { data: songs } = useQuery<Song[]>({
     queryKey: ["/api/songs"],
-    queryFn: () => apiRequest("GET", "/api/songs").then((r) => r.json()),
+    queryFn: () => apiRequest("GET", "/api/songs").then(r => r.json()),
     staleTime: 60_000,
   });
 
   const creditBalance = credits?.isOwner ? null : (credits?.balance ?? null);
-  const LOW_CREDITS = 10;
-  const creditsLow = creditBalance !== null && !credits?.isOwner && creditBalance < LOW_CREDITS;
+  const creditsLow = creditBalance !== null && !credits?.isOwner && creditBalance < 10;
   const recentSongs = (songs ?? []).slice(0, 5);
 
-  const quickActions = [
-    { title: "Recording Booth", description: "Record over a beat", icon: Circle, href: "/recording-booth", color: "bg-red-600" },
-    { title: "AI Assistant", description: "Chat about music and code", icon: MessageSquare, href: "/ai-assistant", color: "bg-pink-500" },
-    { title: "Social Hub", description: "Share tracks and discover", icon: Users, href: "/social-hub", color: "bg-purple-500" },
-    { title: "Lyric Lab", description: "Write and generate lyrics", icon: Mic2, href: "/lyric-lab", color: "bg-orange-500" },
-    { title: "Voice Convert", description: "Transform vocals with AI", icon: Mic, href: "/voice-convert", color: "bg-blue-500" },
-    { title: "Security Scanner", description: "Scan code for vulnerabilities", icon: Shield, href: "/vulnerability-scanner", color: "bg-green-500" },
+  const secondaryTools = [
+    { href: "/studio",               title: "Full Studio",       desc: "Beat maker, piano roll, mixer", icon: Music,         color: "bg-violet-600" },
+    { href: "/lyric-lab",            title: "Lyric Lab",         desc: "Write & generate lyrics",       icon: Mic2,          color: "bg-orange-500" },
+    { href: "/voice-convert",        title: "Voice Convert",     desc: "Transform vocals with AI",      icon: Mic,           color: "bg-blue-500"   },
+    { href: "/ai-assistant",         title: "AI Assistant",      desc: "Chat about music and code",     icon: MessageSquare, color: "bg-pink-500"   },
+    { href: "/vulnerability-scanner",title: "Code Scanner",      desc: "Scan for vulnerabilities",      icon: Shield,        color: "bg-green-500"  },
+    { href: "/sample-library",       title: "Sample Library",    desc: "Browse & use samples",          icon: Headphones,    color: "bg-teal-600"   },
+    { href: "/pricing",              title: "Upgrade",           desc: "Unlock Pro features",           icon: ShoppingBag,   color: "bg-amber-500"  },
   ];
 
   return (
@@ -112,21 +145,13 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="text-2xl font-black">
-              {credits?.isOwner ? (
-                <span className="text-cyan-400">∞</span>
-              ) : creditBalance !== null ? (
-                <span className={creditsLow ? "text-orange-400" : ""}>{creditBalance}</span>
-              ) : (
-                <span className="text-muted-foreground">--</span>
-              )}
+              {credits?.isOwner ? <span className="text-cyan-400">∞</span>
+                : creditBalance !== null ? <span className={creditsLow ? "text-orange-400" : ""}>{creditBalance}</span>
+                : <span className="text-muted-foreground">--</span>}
             </div>
-            {creditsLow ? (
-              <Link href="/settings">
-                <p className="text-xs text-orange-400 font-semibold cursor-pointer hover:underline">Low — top up</p>
-              </Link>
-            ) : (
-              <p className="text-xs text-muted-foreground">{credits?.isOwner ? "Unlimited" : "Available"}</p>
-            )}
+            {creditsLow
+              ? <Link href="/settings"><p className="text-xs text-orange-400 font-semibold cursor-pointer hover:underline">Low — top up</p></Link>
+              : <p className="text-xs text-muted-foreground">{credits?.isOwner ? "Unlimited" : "Available"}</p>}
           </CardContent>
         </Card>
 
@@ -164,61 +189,82 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Featured: Organism + Studio */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Organism */}
-        <Link href="/organism">
-          <Card className="cursor-pointer border-cyan-500/40 bg-gradient-to-br from-cyan-950/40 to-black shadow-[0_0_28px_rgba(6,182,212,0.18)] hover:shadow-[0_0_40px_rgba(6,182,212,0.3)] transition-all hover:scale-[1.02] h-full">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/40 bg-cyan-400/10">
-                  <Radio className="h-6 w-6 text-cyan-300" />
-                </div>
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-400">WOW Mode</div>
-                  <CardTitle className="text-xl">Organism AI</CardTitle>
-                </div>
-                <Badge className="ml-auto bg-cyan-500/20 text-cyan-300 border-cyan-500/40 text-[10px]">NEW</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Speak a rhythm — the AI hears you and generates drums, bass, and melody in real time.
-              </p>
-              <Button className="w-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/30">
-                <Zap className="h-4 w-4 mr-2" /> Launch Organism
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
-
-        {/* Studio */}
-        <Link href="/studio">
-          <Card className="cursor-pointer border-violet-500/30 bg-gradient-to-br from-violet-950/30 to-black hover:border-violet-400/50 transition-all hover:scale-[1.02] h-full">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-400/10">
-                  <Music className="h-6 w-6 text-violet-300" />
-                </div>
-                <div>
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-400">Full DAW</div>
-                  <CardTitle className="text-xl">Studio</CardTitle>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Beat maker, piano roll, mixer, AI generation, and lyric tools — all in one workspace.
-              </p>
-              <Button className="w-full bg-violet-500/20 border border-violet-500/40 text-violet-200 hover:bg-violet-500/30">
-                <Play className="h-4 w-4 mr-2" /> Open Studio
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
+      {/* ── PRIMARY 4 HERO CARDS ─────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-3">Start Creating</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <HeroCard
+            href="/organism"
+            label="WOW Mode"
+            title="Organism AI"
+            desc="Speak a rhythm — the AI generates drums, bass, chords, and melody in real time."
+            icon={Radio}
+            cta="Launch Organism"
+            accent={{
+              border: "border-cyan-500/40",
+              bg: "bg-gradient-to-br from-cyan-950/40 to-black",
+              glow: "shadow-[0_0_28px_rgba(6,182,212,0.18)] hover:shadow-[0_0_40px_rgba(6,182,212,0.3)]",
+              badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 text-[10px]",
+              badgeText: "text-cyan-400",
+              btn: "bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 hover:bg-cyan-500/30",
+              icon: "border-cyan-400/40 bg-cyan-400/10 text-cyan-300",
+            }}
+          />
+          <HeroCard
+            href="/recording-booth"
+            label="Record + AI"
+            title="Recording Booth"
+            desc="Organism generates a live beat while you record your vocals over it. One take, full track."
+            icon={Circle}
+            cta="Enter Booth"
+            accent={{
+              border: "border-red-500/40",
+              bg: "bg-gradient-to-br from-red-950/40 to-black",
+              glow: "shadow-[0_0_28px_rgba(239,68,68,0.15)] hover:shadow-[0_0_40px_rgba(239,68,68,0.28)]",
+              badge: "",
+              badgeText: "text-red-400",
+              btn: "bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30",
+              icon: "border-red-400/40 bg-red-400/10 text-red-300",
+            }}
+          />
+          <HeroCard
+            href="/ai-assistant"
+            label="AI Brain"
+            title="Astutely"
+            desc="Your creative director. Ask anything — beat ideas, song structures, lyric rewrites, music theory."
+            icon={Brain}
+            cta="Talk to Astutely"
+            accent={{
+              border: "border-violet-500/40",
+              bg: "bg-gradient-to-br from-violet-950/40 to-black",
+              glow: "shadow-[0_0_28px_rgba(139,92,246,0.15)] hover:shadow-[0_0_40px_rgba(139,92,246,0.28)]",
+              badge: "",
+              badgeText: "text-violet-400",
+              btn: "bg-violet-500/20 border border-violet-500/40 text-violet-200 hover:bg-violet-500/30",
+              icon: "border-violet-400/40 bg-violet-400/10 text-violet-300",
+            }}
+          />
+          <HeroCard
+            href="/social-hub"
+            label="Community"
+            title="Social Hub"
+            desc="Drop your tracks, follow producers, get feedback, and discover what's hitting right now."
+            icon={Users}
+            cta="Open Social Hub"
+            accent={{
+              border: "border-emerald-500/40",
+              bg: "bg-gradient-to-br from-emerald-950/40 to-black",
+              glow: "shadow-[0_0_28px_rgba(16,185,129,0.15)] hover:shadow-[0_0_40px_rgba(16,185,129,0.28)]",
+              badge: "",
+              badgeText: "text-emerald-400",
+              btn: "bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/30",
+              icon: "border-emerald-400/40 bg-emerald-400/10 text-emerald-300",
+            }}
+          />
+        </div>
       </div>
 
-      {/* Recent Songs */}
+      {/* ── RECENT SONGS ─────────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-lg">Your Songs</CardTitle>
@@ -264,27 +310,17 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
+      {/* ── SECONDARY TOOLS ──────────────────────────────────────────────── */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">More Tools</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {quickActions.map((action) => (
-            <Link key={action.href + action.title} href={action.href}>
-              <Card className="cursor-pointer hover:scale-[1.03] transition-all h-full text-center">
-                <CardContent className="flex flex-col items-center gap-2 pt-4 pb-4 px-3">
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${action.color}`}>
-                    <action.icon className="h-4 w-4 text-white" />
-                  </div>
-                  <p className="text-xs font-semibold leading-tight">{action.title}</p>
-                  <p className="text-[10px] text-muted-foreground leading-tight hidden sm:block">{action.description}</p>
-                </CardContent>
-              </Card>
-            </Link>
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-3">More Tools</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          {secondaryTools.map((t) => (
+            <ToolCard key={t.href} {...t} />
           ))}
         </div>
       </div>
 
-      {/* Upgrade CTA for free users */}
+      {/* Upgrade CTA */}
       {!isPro && (
         <Card className="border-amber-500/30 bg-gradient-to-r from-amber-950/30 to-black">
           <CardContent className="flex items-center justify-between gap-4 py-4">
@@ -296,9 +332,7 @@ export default function Dashboard() {
               </div>
             </div>
             <Link href="/settings">
-              <Button size="sm" className="bg-amber-500 text-black hover:bg-amber-400 shrink-0 font-bold">
-                Upgrade
-              </Button>
+              <Button size="sm" className="bg-amber-500 text-black hover:bg-amber-400 shrink-0 font-bold">Upgrade</Button>
             </Link>
           </CardContent>
         </Card>

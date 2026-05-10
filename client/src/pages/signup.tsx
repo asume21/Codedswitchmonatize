@@ -105,8 +105,7 @@ export default function Signup() {
         });
       }
 
-      // Redirect to home
-      setLocation("/");
+      setLocation("/dashboard");
     } catch (error: any) {
       toast({
         title: "Registration Failed",
