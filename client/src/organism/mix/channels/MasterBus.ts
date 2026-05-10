@@ -12,6 +12,7 @@ export class MasterBus {
   private  compressor: Tone.Compressor
   private  saturator:  Tone.Distortion
   private  limiter:    Tone.Limiter
+  private  tapGain:    Tone.Gain      // dedicated pass-through for audio debug tap
   private  analyser:   Tone.Analyser
 
   constructor(
@@ -44,9 +45,11 @@ export class MasterBus {
     })
 
     this.limiter  = new Tone.Limiter(limiterThreshDb)
+    this.tapGain  = new Tone.Gain(1)
     this.analyser = new Tone.Analyser('waveform', 256)
 
-    // Signal chain: input → gain → EQ → hiCut → compressor → saturator → limiter → analyser → out
+    // Signal chain: input → gain → EQ → hiCut → compressor → saturator → limiter → tapGain → analyser → out
+    // tapGain is a plain Gain node used as the debug tap point — more reliable than tapping the Analyser
     this.input.connect(this.masterGain)
     this.masterGain.connect(this.lowShelf)
     this.lowShelf.connect(this.midCut)
@@ -55,7 +58,8 @@ export class MasterBus {
     this.hiCut.connect(this.compressor)
     this.compressor.connect(this.saturator)
     this.saturator.connect(this.limiter)
-    this.limiter.connect(this.analyser)
+    this.limiter.connect(this.tapGain)
+    this.tapGain.connect(this.analyser)
     this.analyser.toDestination()
   }
 
@@ -82,11 +86,11 @@ export class MasterBus {
   }
 
   connectOutput(destination: Tone.InputNode): void {
-    this.analyser.connect(destination)
+    this.tapGain.connect(destination)
   }
 
   disconnectOutput(destination: Tone.InputNode): void {
-    this.analyser.disconnect(destination)
+    try { this.tapGain.disconnect(destination) } catch { /* already disconnected */ }
   }
 
   dispose(): void {
@@ -99,6 +103,7 @@ export class MasterBus {
     this.compressor.dispose()
     this.saturator.dispose()
     this.limiter.dispose()
+    this.tapGain.dispose()
     this.analyser.dispose()
   }
 }

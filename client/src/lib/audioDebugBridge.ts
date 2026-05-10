@@ -88,6 +88,10 @@ export function registerOrganismAudioDebugSource(source: {
     }
     organismSource = null
     tapSource = null
+    // Null tapNode so the next Organism session builds a fresh tap rather than
+    // reusing a stale node that has nothing connected to it.
+    tapNode = null
+    tapContext = null
   }
 }
 

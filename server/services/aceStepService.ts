@@ -1,9 +1,9 @@
 /**
  * ACE-Step Service
  *
- * Talks to the local ACE-Step Python worker (persistent FastAPI server).
- * The worker runs at ACE_STEP_WORKER_URL (default http://127.0.0.1:8008).
- * It loads the model once at startup and accepts generation jobs via HTTP.
+ * Talks to ACE-Step through one of two backends:
+ *   1. RunPod Serverless when RUNPOD_SERVERLESS_ENDPOINT_ID is set.
+ *   2. A persistent FastAPI worker at ACE_STEP_WORKER_URL for local/dev fallback.
  *
  * Flow:
  *   1. POST /generate → returns { job_id }
@@ -33,6 +33,9 @@ export interface AceStepJob {
 }
 
 export async function isWorkerReady(): Promise<boolean> {
+  const { isServerlessConfigured, isServerlessEndpointHealthy } = await import('./runpodServerlessService')
+  if (isServerlessConfigured()) return isServerlessEndpointHealthy()
+
   try {
     const res = await fetch(`${WORKER_URL}/health`, { signal: AbortSignal.timeout(3000) })
     if (!res.ok) return false
@@ -44,6 +47,9 @@ export async function isWorkerReady(): Promise<boolean> {
 }
 
 export async function submitGeneration(req: AceStepRequest): Promise<string> {
+  const { isServerlessConfigured, submitServerlessGeneration } = await import('./runpodServerlessService')
+  if (isServerlessConfigured()) return submitServerlessGeneration(req)
+
   const body = {
     prompt:           req.prompt,
     lyrics:           req.lyrics ?? '',
@@ -79,6 +85,9 @@ export async function submitGeneration(req: AceStepRequest): Promise<string> {
 }
 
 export async function pollJob(jobId: string): Promise<AceStepJob> {
+  const { isServerlessConfigured, pollServerlessJob } = await import('./runpodServerlessService')
+  if (isServerlessConfigured()) return pollServerlessJob(jobId)
+
   const res = await fetch(`${WORKER_URL}/job/${jobId}`, {
     signal: AbortSignal.timeout(5000),
   })
@@ -97,10 +106,11 @@ export async function pollJob(jobId: string): Promise<AceStepJob> {
   }
 }
 
-/** Submit and wait — starts the RunPod pod if needed, resets idle timer when done. */
+/** Submit and wait — supports RunPod Serverless or legacy pod/local worker. */
 export async function generateAndWait(req: AceStepRequest): Promise<AceStepJob> {
+  const { isServerlessConfigured } = await import('./runpodServerlessService')
   const { ensureWorkerReady, jobCompleted } = await import('./runpodService')
-  await ensureWorkerReady()
+  if (!isServerlessConfigured()) await ensureWorkerReady()
 
   const jobId = await submitGeneration(req)
   const deadline = Date.now() + POLL_TIMEOUT_MS
@@ -108,8 +118,8 @@ export async function generateAndWait(req: AceStepRequest): Promise<AceStepJob> 
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS)
     const job = await pollJob(jobId)
-    if (job.status === 'done')  { jobCompleted(); return job }
-    if (job.status === 'error') { jobCompleted(); throw new Error(`ACE-Step generation failed: ${job.error}`) }
+    if (job.status === 'done')  { if (!isServerlessConfigured()) jobCompleted(); return job }
+    if (job.status === 'error') { if (!isServerlessConfigured()) jobCompleted(); throw new Error(`ACE-Step generation failed: ${job.error}`) }
   }
 
   throw new Error(`ACE-Step job ${jobId} timed out after ${POLL_TIMEOUT_MS / 1000}s`)

@@ -1,0 +1,34 @@
+name: Build ACE-Step Serverless Image
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "serverless/ace-step/**"
+      - ".github/workflows/ace-step-serverless-image.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: serverless/ace-step
+          push: true
+          tags: ghcr.io/asume21/codedswitch-ace-step-serverless:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -96,6 +96,9 @@ function resetIdleTimer() {
  * Resets the idle timer so the pod stays up while in use.
  */
 export async function ensureWorkerReady(): Promise<void> {
+  const { isServerlessConfigured } = await import('./runpodServerlessService')
+  if (isServerlessConfigured()) return
+
   // No RunPod config → assume local worker, skip lifecycle
   if (!apiKey || !podId) return
 
@@ -128,6 +131,14 @@ export async function ensureWorkerReady(): Promise<void> {
  * Call after a generation job completes to reset the idle timer.
  */
 export function jobCompleted() {
+  // RunPod Serverless scales down according to endpoint settings; no manual
+  // pod stop lifecycle is required.
+  void import('./runpodServerlessService').then(({ isServerlessConfigured }) => {
+    if (!isServerlessConfigured()) resetIdleTimer()
+  })
+}
+
+export function legacyPodJobCompleted() {
   resetIdleTimer()
 }
 

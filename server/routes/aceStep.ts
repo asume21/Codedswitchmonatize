@@ -12,9 +12,11 @@ import path from 'path'
 import fs from 'fs'
 import { isWorkerReady, submitGeneration, pollJob, AceStepRequest } from '../services/aceStepService'
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
+import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
 import { makeAICall } from '../services/grok'
 
 const OUTPUT_DIR = path.resolve(process.cwd(), 'private', 'ace-step', 'output')
+const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
 
 // ── Prompt builder — Ollama/Grok generates ACE-Step style tags ────────────────
 async function buildAceStepPrompt(opts: {
@@ -78,6 +80,8 @@ export function createAceStepRoutes(): Router {
       const ready = await isWorkerReady()
       res.json({
         ready,
+        backend: isServerlessConfigured() ? 'runpod-serverless' : 'worker',
+        endpointId: getServerlessEndpointId(),
         workerUrl: process.env.ACE_STEP_WORKER_URL ?? 'http://127.0.0.1:8008',
       })
     } catch (err: any) {
@@ -109,7 +113,7 @@ export function createAceStepRoutes(): Router {
         ? rawPrompt
         : await buildAceStepPrompt({ genre, mood, bpm, section, extraHints })
 
-      // Wake the pod if stopped (waits up to 2 min for model load)
+      // Wake the legacy pod if stopped. Serverless endpoints scale themselves.
       await ensureWorkerReady()
 
       const jobReq: AceStepRequest = { prompt, lyrics, audioDuration, inferStep, seed }
@@ -127,14 +131,21 @@ export function createAceStepRoutes(): Router {
     try {
       const job = await pollJob(req.params.jobId)
       if (job.status === 'done' || job.status === 'error') jobCompleted()
-      res.json(job)
+      res.json({
+        ...job,
+        // Keep both shapes while older clients are still deployed.
+        output_url: job.outputUrl,
+        duration_s: job.durationS,
+        job_id: job.jobId,
+      })
     } catch (err: any) {
       res.status(502).json({ error: err.message })
     }
   })
 
-  // Serve generated audio (path traversal safe)
-  router.get('/audio/:filename', (req: Request, res: Response) => {
+  // Serve generated audio (path traversal safe). Prefer a local file when the
+  // worker runs beside Express; otherwise proxy the file from the RunPod worker.
+  router.get('/audio/:filename', async (req: Request, res: Response) => {
     const filename = path.basename(req.params.filename)
     if (!filename.endsWith('.wav') && !filename.endsWith('.mp3')) {
       res.status(400).json({ error: 'Invalid file type' })
@@ -142,7 +153,22 @@ export function createAceStepRoutes(): Router {
     }
     const filePath = path.join(OUTPUT_DIR, filename)
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'Audio file not found' })
+      try {
+        const workerAudio = await fetch(`${WORKER_URL}/audio/${encodeURIComponent(filename)}`, {
+          signal: AbortSignal.timeout(30_000),
+        })
+        if (!workerAudio.ok) {
+          res.status(workerAudio.status).json({ error: 'Audio file not found' })
+          return
+        }
+        const contentType = workerAudio.headers.get('content-type') ?? 'audio/wav'
+        const arrayBuffer = await workerAudio.arrayBuffer()
+        res.setHeader('Content-Type', contentType)
+        res.setHeader('Cache-Control', 'private, max-age=3600')
+        res.send(Buffer.from(arrayBuffer))
+      } catch (err: any) {
+        res.status(502).json({ error: err.message ?? 'Audio proxy failed' })
+      }
       return
     }
     res.sendFile(filePath)
