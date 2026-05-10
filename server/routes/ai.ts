@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { getAIClient, getAIProviderStatus, makeAICall } from "../services/grok";
+import { generateNextSectionDirective } from "../services/aiProducer";
 import { aiProviderManager } from "../services/aiProviderManager";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
@@ -59,6 +60,41 @@ export function createAIRoutes() {
       res.status(500).json({ error: 'AI generation failed' });
     }
   });
+
+  // ============================================
+  // AI PRODUCER — real-time beat section director
+  // Called by the client AIDirector pipeline when a section starts.
+  // No auth required — runs for guest users too (organism demo).
+  // ============================================
+  router.post("/next-section", async (req: Request, res: Response) => {
+    try {
+      const { currentSection, nextSection, context } = req.body as {
+        currentSection: string
+        nextSection: string
+        context: {
+          subGenre: string
+          bpm: number
+          energy: number
+          barInCycle: number
+          totalBars: number
+          cycleCount: number
+        }
+      }
+
+      if (!currentSection || !nextSection) {
+        return res.status(400).json({ error: 'currentSection and nextSection are required' })
+      }
+
+      const directive = await generateNextSectionDirective(currentSection, nextSection, context ?? {
+        subGenre: 'trap', bpm: 140, energy: 0.7, barInCycle: 0, totalBars: 32, cycleCount: 0
+      })
+
+      return res.json(directive)
+    } catch (error) {
+      console.error('[/ai/next-section] error:', error)
+      return res.status(500).json({ error: 'Section generation failed' })
+    }
+  })
 
   // ============================================
   // CHAT ENDPOINT - Generic AI chat

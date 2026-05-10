@@ -1,18 +1,34 @@
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 
+type AIProvider = 'ollama' | 'grok' | 'openai';
+
 // Load API keys (server-only)
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
+const ollamaBaseUrl = process.env.OLLAMA_BASE_URL?.trim(); // e.g. http://localhost:11434
+const ollamaModel = process.env.OLLAMA_MODEL?.trim() || 'llama3.1:8b';
 
 // Debug logging for API key detection
 console.log('🔑 AI API Key Status:');
 console.log(`  XAI_API_KEY: ${xaiApiKey ? `Present (${xaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
 console.log(`  OPENAI_API_KEY: ${openaiApiKey ? `Present (${openaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
+console.log(`  OLLAMA_BASE_URL: ${ollamaBaseUrl || 'Not set'}`);
 
 // Shared timeout to avoid slow requests blocking the route
 const AI_TIMEOUT_MS = 30000; // Increased to 30s for production reliability
 const AI_RESPONSE_DEADLINE_MS = 35000; // hard cap per request before fallback
+
+// Configure Ollama client (local LLM — free inference, highest priority)
+let ollamaClient: OpenAI | null = null;
+if (ollamaBaseUrl) {
+  ollamaClient = new OpenAI({
+    baseURL: `${ollamaBaseUrl}/v1`,
+    apiKey: 'ollama', // Ollama doesn't check the key but the SDK requires one
+    timeout: AI_TIMEOUT_MS
+  });
+  console.log(`✅ Ollama client initialized → ${ollamaBaseUrl} (model: ${ollamaModel})`);
+}
 
 // Configure Grok (xAI) client
 let grokClient: OpenAI | null = null;
@@ -45,7 +61,7 @@ export async function performAIProviderSelfTest() {
       temperature: 0,
       max_tokens: 32
     },
-    provider as 'grok' | 'openai'
+    provider as AIProvider
   );
 
   const start = Date.now();
@@ -74,32 +90,43 @@ if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
 }
 
 // Check if we have at least one working AI client
-if (!grokClient && !openaiClient) {
-  console.warn("❌ No AI API keys configured. AI features will use fallback patterns.");
+if (!ollamaClient && !grokClient && !openaiClient) {
+  console.warn("❌ No AI providers configured. AI features will use fallback patterns.");
 } else {
-  console.log(`🤖 AI Provider: ${grokClient ? 'Grok (xAI)' : 'OpenAI'} (${openaiClient ? 'OpenAI fallback available' : 'No fallback'})`);
+  const primary = ollamaClient ? `Ollama (${ollamaModel})` : grokClient ? 'Grok (xAI)' : 'OpenAI';
+  const fallbacks = [grokClient && 'Grok', openaiClient && 'OpenAI'].filter(Boolean).join(', ');
+  console.log(`🤖 AI Provider: ${primary}${fallbacks ? ` → fallbacks: ${fallbacks}` : ''}`);
 }
 
-// Determine preferred AI provider
-function getPreferredClient() {
-  // Prefer Grok if available, fallback to OpenAI
-  if (grokClient) return { client: grokClient, model: "grok-3", provider: "grok" };
-  if (openaiClient) return { client: openaiClient, model: "gpt-4", provider: "openai" };
+// Determine preferred AI provider — Ollama first (free), then Grok, then OpenAI
+function getPreferredClient(): { client: OpenAI; model: string; provider: AIProvider } | null {
+  if (ollamaClient) return { client: ollamaClient, model: ollamaModel, provider: 'ollama' };
+  if (grokClient) return { client: grokClient, model: 'grok-3', provider: 'grok' };
+  if (openaiClient) return { client: openaiClient, model: 'gpt-4', provider: 'openai' };
   return null;
 }
 
-function getClientByProvider(provider?: string) {
+function getClientByProvider(provider?: string): { client: OpenAI; model: string; provider: AIProvider } | null {
+  if (provider === 'ollama' && ollamaClient) {
+    return { client: ollamaClient, model: ollamaModel, provider: 'ollama' };
+  }
   if (provider === 'grok' && grokClient) {
-    return { client: grokClient, model: 'grok-3', provider: 'grok' as const };
+    return { client: grokClient, model: 'grok-3', provider: 'grok' };
   }
   if (provider === 'openai' && openaiClient) {
-    return { client: openaiClient, model: 'gpt-4', provider: 'openai' as const };
+    return { client: openaiClient, model: 'gpt-4', provider: 'openai' };
   }
   return null;
 }
 
 export function getAIProviderStatus() {
   return {
+    ollama: {
+      configured: Boolean(ollamaBaseUrl),
+      clientReady: Boolean(ollamaClient),
+      model: ollamaModel,
+      note: ollamaBaseUrl ? `${ollamaBaseUrl} (${ollamaModel})` : 'Set OLLAMA_BASE_URL to enable'
+    },
     grok: {
       configured: Boolean(xaiApiKey),
       clientReady: Boolean(grokClient),
@@ -124,7 +151,7 @@ function buildRequestPayload(
   model: string,
   messages: ChatCompletionCreateParamsNonStreaming['messages'],
   options: any,
-  provider: 'grok' | 'openai'
+  provider: AIProvider
 ): ChatCompletionCreateParamsNonStreaming {
   const payload: ChatCompletionCreateParamsNonStreaming = {
     model,
@@ -142,7 +169,11 @@ function buildRequestPayload(
   }
 
   if (options.response_format) {
-    const canUseStructured = provider === 'grok' || modelSupportsStructuredOutput(model);
+    // Grok supports it; OpenAI only on 4.1/4o+; Ollama: Llama 3.1+ supports it via OpenAI-compat API
+    const canUseStructured =
+      provider === 'grok' ||
+      provider === 'ollama' ||
+      modelSupportsStructuredOutput(model);
     if (canUseStructured) {
       payload.response_format = options.response_format;
     } else {
@@ -159,21 +190,24 @@ function buildRequestPayload(
   return payload;
 }
 
-function handleAuthFailure(provider: 'grok' | 'openai', error: any) {
+function handleAuthFailure(provider: AIProvider, error: any) {
   const status = error?.status || error?.statusCode;
   const message = String(error?.error || error?.message || '').toLowerCase();
   if ([400, 401, 403].includes(status) && message.includes('api key')) {
     if (provider === 'grok') {
-      console.warn('⚠️ Disabling Grok client after authentication error. Falling back to OpenAI only.');
+      console.warn('⚠️ Disabling Grok client after authentication error.');
       grokClient = null;
-    } else {
+    } else if (provider === 'openai') {
       console.warn('⚠️ Disabling OpenAI client after authentication error.');
       openaiClient = null;
+    } else if (provider === 'ollama') {
+      console.warn('⚠️ Disabling Ollama client after connection error.');
+      ollamaClient = null;
     }
   }
 }
 
-// Helper function to make AI calls with fallback
+// Helper function to make AI calls with fallback: Ollama → Grok → OpenAI
 export async function makeAICall(messages: any[], options: any = {}) {
   const requestedProvider =
     typeof options?.preferredProvider === 'string'
@@ -182,76 +216,41 @@ export async function makeAICall(messages: any[], options: any = {}) {
   const preferred = getClientByProvider(requestedProvider) || getPreferredClient();
 
   if (!preferred) {
-    throw new Error("No AI API keys configured");
+    throw new Error("No AI providers configured (set OLLAMA_BASE_URL, XAI_API_KEY, or OPENAI_API_KEY)");
   }
 
-  const { client, model, provider } = preferred;
+  // Build ordered fallback chain starting from preferred provider
+  const allProviders: Array<{ client: OpenAI; model: string; provider: AIProvider }> = [];
+  if (ollamaClient)  allProviders.push({ client: ollamaClient,  model: ollamaModel,    provider: 'ollama' });
+  if (grokClient)    allProviders.push({ client: grokClient,    model: 'grok-3',       provider: 'grok' });
+  if (openaiClient)  allProviders.push({ client: openaiClient,  model: 'gpt-4.1-mini', provider: 'openai' });
 
-  try {
-    console.log(`🤖 Making ${provider} API call with model ${model}`);
+  // Start from the requested/preferred provider
+  const startIdx = allProviders.findIndex(p => p.provider === preferred.provider);
+  const ordered = startIdx > 0
+    ? [...allProviders.slice(startIdx), ...allProviders.slice(0, startIdx)]
+    : allProviders;
 
-    const requestPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
-      model,
-      messages,
-      options,
-      provider as 'grok' | 'openai'
-    );
-    const response = await client.chat.completions.create(requestPayload);
-
-    console.log(`✅ ${provider} API call successful`);
-    return response;
-
-  } catch (error) {
-    console.error(`❌ ${provider} API call failed:`, error);
-    handleAuthFailure(provider as 'grok' | 'openai', error);
-
-    // If Grok failed and we have OpenAI, try OpenAI as fallback
-    if (provider === "grok" && openaiClient) {
-      console.log("🔄 Falling back to OpenAI...");
-      try {
-        const fallbackPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
-          "gpt-4.1-mini",
-          messages,
-          options,
-          'openai'
-        );
-        const fallbackResponse = await openaiClient.chat.completions.create(fallbackPayload);
-
-        console.log("✅ OpenAI fallback successful");
-        return fallbackResponse;
-
-      } catch (fallbackError) {
-        console.error("❌ OpenAI fallback also failed:", fallbackError);
-        handleAuthFailure('openai', fallbackError);
-        throw new Error("Both Grok and OpenAI APIs failed");
+  let lastError: unknown;
+  for (let i = 0; i < ordered.length; i++) {
+    const { client, model, provider } = ordered[i];
+    try {
+      console.log(`🤖 Making ${provider} API call with model ${model}`);
+      const payload = buildRequestPayload(model, messages, options, provider);
+      const response = await client.chat.completions.create(payload);
+      console.log(`✅ ${provider} API call successful`);
+      return response;
+    } catch (error) {
+      console.error(`❌ ${provider} API call failed:`, error);
+      handleAuthFailure(provider, error);
+      lastError = error;
+      if (ordered[i + 1]) {
+        console.log(`🔄 Falling back to ${ordered[i + 1].provider}...`);
       }
     }
-
-    // If OpenAI failed and we have Grok, try Grok as fallback
-    if (provider === "openai" && grokClient) {
-      console.log("🔄 Falling back to Grok...");
-      try {
-        const fallbackPayload: ChatCompletionCreateParamsNonStreaming = buildRequestPayload(
-          "grok-3",
-          messages,
-          options,
-          'grok'
-        );
-        const fallbackResponse = await grokClient.chat.completions.create(fallbackPayload);
-
-        console.log("✅ Grok fallback successful");
-        return fallbackResponse;
-
-      } catch (fallbackError) {
-        console.error("❌ Grok fallback also failed:", fallbackError);
-        handleAuthFailure('grok', fallbackError);
-        throw new Error("Both OpenAI and Grok APIs failed");
-      }
-    }
-
-    // No fallback available
-    throw error;
   }
+
+  throw lastError || new Error("All AI providers failed");
 }
 
 export async function translateCode(sourceCode: string, sourceLanguage: string, targetLanguage: string, aiProvider?: string): Promise<string> {

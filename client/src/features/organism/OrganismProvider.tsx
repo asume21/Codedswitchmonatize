@@ -18,6 +18,7 @@ import { GeneratorOrchestrator }  from '../../organism/generators/GeneratorOrche
 import { ReactiveBehaviorEngine } from '../../organism/reactive/ReactiveBehaviorEngine'
 import { MixEngine }              from '../../organism/mix/MixEngine'
 import { CaptureEngine }          from '../../organism/session/CaptureEngine'
+import { AIDirector }             from '../../organism/AIDirector'
 
 import { MidiInputSource }       from '../../organism/input/MidiInputSource'
 import { AudioFileSource }       from '../../organism/input/AudioFileSource'
@@ -120,12 +121,15 @@ const WOW_INITIAL_STATE: WowMomentState = {
 }
 
 const ORGANISM_V2_INITIAL_STATUS: OrganismV2Status = {
-  active: false,
-  presetId: null,
-  kitBpm: null,
-  targetBpm: null,
+  active:       false,
+  presetId:     null,
+  kitBpm:       null,
+  targetBpm:    null,
   playbackRate: 1,
-  stems: [],
+  section:      null,
+  bar:          0,
+  cycleBars:    32,
+  stems:        [],
 }
 
 const WOW_WORDS: Record<string, WowPulseInstrument> = {
@@ -351,6 +355,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     reactiveRef.current  = reactive
     mixRef.current       = mix
     captureRef.current   = capture
+    const unsubV2Status  = v2Player.onStatusChange(setV2Status)
 
     // 3. Wire in correct order:
     //    input → physics → state machine
@@ -416,6 +421,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestr.wire(physics, machine)
     reactive.wire(orchestr)
     mix.wire(orchestr)
+
+    // Wire AI Director — pre-generates next section directive while current plays
+    const aiDirector = new AIDirector(orchestr)
     const unregisterAudioDebugSource = registerOrganismAudioDebugSource({
       connect: (destination) => {
         mix.connectMasterOutput(destination)
@@ -574,6 +582,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let patternGenAbort: AbortController | null = null
 
     return () => {
+      unsubV2Status()
       v2Player.stop()
       setV2Status(ORGANISM_V2_INITIAL_STATUS)
       patternGenAbort?.abort()
@@ -588,6 +597,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unsubChord()
       unregisterAudioDebugSource()
 
+      aiDirector.dispose()
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
       mix.dispose()
       capture.reset()

@@ -28,6 +28,7 @@ import { createAudioDebugRoutes } from "./routes/audioDebug";
 import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createWebearKeyRoutes } from "./routes/webearKeys";
 import { createWebearRelayRoutes } from "./routes/webearRelay";
+import { createOrganismKitRoutes } from "./routes/organismKits";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
@@ -347,6 +348,7 @@ ${urls
   // Mount Organism routes (Session Capture + Evolution Profile)
   app.use("/api/organism/sessions", sessionRouter);
   app.use("/api/organism/profile", profileRouter);
+  app.use("/api/organism", createOrganismKitRoutes());
 
   // Audio Debug Bridge — dev only, gives Claude Code ears
   if (process.env.NODE_ENV !== 'production') {

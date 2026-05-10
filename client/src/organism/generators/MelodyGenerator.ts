@@ -280,6 +280,9 @@ export class MelodyGenerator extends GeneratorBase {
   private lastPerformerEnergy: number = 0.5
   private lastPerformerBrightness: number = 0.5
   private lastPerformerSyllabicRate: number = 4
+  // Section behavior override — set by arrangement to control melody density per section.
+  // null = use normal getMelodyBehavior() logic
+  private sectionBehavior: MelodyBehavior | null = null
 
   setPerformerFeatures(energy: number, brightness: number, syllabicRate: number): void {
     this.lastPerformerEnergy = energy
@@ -291,6 +294,26 @@ export class MelodyGenerator extends GeneratorBase {
     this.explicitPerformerId = instrumentId
     this.applyModeVoice(this.currentModeName)
     if (this.lastOutputGain > 0) this.scaleDirty = true
+  }
+
+  /**
+   * Called by the orchestrator on each arrangement section change.
+   * Sets the melody behavior (density) appropriate for the section:
+   *   intro/breakdown → Rest (melody plays alone or drops out — drums carry the space)
+   *   verse           → Hint (short fills, leaves room for the rapper)
+   *   build/drop/drop2 → Lead (full phrase, melody is front and center)
+   *
+   * The lead instrument DOES NOT change — it is the signature of the beat.
+   */
+  onSectionChange(sectionName: string): void {
+    if (sectionName === 'verse') {
+      // Verse: sparse fills only — leaves space for the rapper
+      this.sectionBehavior = MelodyBehavior.Hint
+    } else {
+      // All other sections: let normal getMelodyBehavior() logic run
+      // (responds to voice activity, flow depth, physics mode)
+      this.sectionBehavior = null
+    }
   }
 
   /**
@@ -368,11 +391,12 @@ export class MelodyGenerator extends GeneratorBase {
       this.lastModeForArticulation = modeStr
     }
 
-    const newBehavior = getMelodyBehavior(
-      physics.mode,
-      physics.voiceActive,
-      organism.flowDepth
-    )
+    // Section behavior overrides normal behavior logic so the arrangement
+    // can enforce Rest in intro/breakdown and Hint in verse regardless of
+    // voice energy — the drums and space ARE the arrangement in those sections.
+    const newBehavior = this.sectionBehavior !== null
+      ? this.sectionBehavior
+      : getMelodyBehavior(physics.mode, physics.voiceActive, organism.flowDepth)
 
     let shouldRebuild = false
     if (newBehavior !== this.currentBehavior) {
@@ -443,6 +467,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.currentBehavior = MelodyBehavior.Rest
     this.currentScale    = MODE_SCALES.glow
     this.hasStartedPlayback = false
+    this.sectionBehavior = null  // clear so next start uses normal behavior logic
     this.setOutputLevel(0)
   }
 

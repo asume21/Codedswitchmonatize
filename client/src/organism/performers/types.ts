@@ -50,4 +50,5 @@ export interface PerformerSelectionContext {
   energy: number
   brightness?: number
   explicitId?: InstrumentPerformerId
+  variation?: number  // section counter — rotates preferred list so each section picks a different instrument
 }

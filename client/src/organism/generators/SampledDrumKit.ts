@@ -5,12 +5,26 @@ import { OrganismMode } from '../physics/types'
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
 type SampleKitDefinition = Record<SampleVoice, string>
+type PrivateKitSample = {
+  role: 'kick' | 'snare' | 'hat' | 'perc' | 'tom' | 'bass808' | 'loop'
+  fileName: string
+  url: string
+}
+type PrivateKitResponse = {
+  success: boolean
+  bestKitId: string | null
+  kits: Array<{
+    id: string
+    samples: PrivateKitSample[]
+  }>
+}
 type SampleVoiceSlot = {
   gain: Tone.Gain
   player: Tone.Player
 }
 
-const sampleUrl = (filename: string): string => `/api/samples/${encodeURIComponent(filename)}`
+const sampleUrl = (filenameOrUrl: string): string =>
+  filenameOrUrl.startsWith('/api/') ? filenameOrUrl : `/api/samples/${encodeURIComponent(filenameOrUrl)}`
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
@@ -80,11 +94,13 @@ export class SampledDrumKit {
   private readonly slotCursor = new Map<SampleVoice, number>()
   private readonly slotErrored = new Set<string>()  // "voice:slotIndex" → failed to load
   private currentMode: OrganismMode | null = null
+  private privateKitDefinition: SampleKitDefinition | null = null
   private warnedVoices = new Set<SampleVoice>()
 
   constructor(output: Tone.Gain) {
     this.output = output
     this.setMode(OrganismMode.Glow)
+    void this.hydratePrivateKit()
   }
 
   setMode(mode: OrganismMode): void {
@@ -94,7 +110,7 @@ export class SampledDrumKit {
     this.warnedVoices.clear()
     this.currentMode = mode
 
-    const definition = KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
+    const definition = this.privateKitDefinition ?? KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
     for (const [voice, filename] of Object.entries(definition) as [SampleVoice, string][]) {
       const voiceSlots: SampleVoiceSlot[] = []
       const poolSize = VOICE_POOL_SIZE[voice]
@@ -190,5 +206,42 @@ export class SampledDrumKit {
     }
     this.slots.clear()
     this.slotCursor.clear()
+  }
+
+  private async hydratePrivateKit(): Promise<void> {
+    try {
+      const response = await fetch('/api/organism/kits')
+      if (!response.ok) return
+
+      const data = await response.json() as PrivateKitResponse
+      const kit = data.kits.find((candidate) => candidate.id === data.bestKitId) ?? data.kits[0]
+      if (!kit) return
+
+      const definition = this.buildDefinitionFromPrivateKit(kit.samples)
+      if (!definition) return
+
+      this.privateKitDefinition = definition
+      const mode = this.currentMode ?? OrganismMode.Glow
+      this.currentMode = null
+      this.setMode(mode)
+      console.info('[Organism] private drum kit loaded', { kitId: kit.id })
+    } catch (error) {
+      console.warn('[Organism] private drum kit discovery failed; using bundled kit', error)
+    }
+  }
+
+  private buildDefinitionFromPrivateKit(samples: PrivateKitSample[]): SampleKitDefinition | null {
+    const byRole = (role: PrivateKitSample['role'], match?: RegExp) =>
+      samples.find((sample) => sample.role === role && (!match || match.test(sample.fileName)))?.url
+
+    const kick = byRole('kick')
+    const snare = byRole('snare')
+    const hatClosed = byRole('hat', /\b(cl|closed|close|ch)\b/i) ?? byRole('hat')
+    const hatOpen = byRole('hat', /\b(op|open|oh)\b/i) ?? hatClosed
+    const perc = byRole('perc') ?? byRole('tom') ?? snare
+
+    if (!kick || !snare || !hatClosed || !hatOpen || !perc) return null
+
+    return { kick, snare, hatClosed, hatOpen, perc }
   }
 }

@@ -681,7 +681,7 @@ export function OrganismCommandCenter() {
               <span style={{ ...label11, color: v2Status.active ? C.green : C.text3 }}>Organism v2</span>
               <span style={{ fontSize: 10, color: v2Status.active ? C.green : C.text3, fontWeight: 800 }}>
                 {v2Status.active
-                  ? `Loop stems live · ${v2Status.targetBpm} BPM`
+                  ? `${v2Status.section ?? 'arrangement'} · bar ${v2Status.bar}/${v2Status.cycleBars} · ${v2Status.targetBpm} BPM`
                   : 'Ready'}
               </span>
               {v2Status.kitBpm && (

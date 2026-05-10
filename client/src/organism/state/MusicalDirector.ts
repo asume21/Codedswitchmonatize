@@ -203,6 +203,9 @@ export class MusicalDirector {
         // Notify section change listeners
         for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
 
+        // Advance variant index so each new section can pick a different pattern
+        this.state.drums.variantIndex = (this.state.drums.variantIndex + 1)
+
         // Check for pattern mutation on section change
         if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
           this.state.barsSinceLastMutation = 0

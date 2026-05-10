@@ -67,6 +67,9 @@ export class ChordGenerator extends GeneratorBase {
   private currentPerformer:   InstrumentPerformerProfile | null = null
   private explicitPerformerId: InstrumentPerformerId | null = null
   private lastPerformerEnergy: number = 0.5
+  // Section technique override — controls playing style per arrangement section.
+  // null = fall back to mode default. User's explicit override (techniqueOverridden) wins.
+  private sectionTechniqueId: string | null = null
 
   // Reactive state
   private volumeMultiplier: number = 1.0
@@ -256,14 +259,22 @@ export class ChordGenerator extends GeneratorBase {
     this.currentMode = physics.mode.toString()
     this.currentSwing = MODE_SWING[this.currentMode] ?? 0.35
 
-    // Mode-driven technique default: if the user/warmup hasn't overridden
-    // the technique, auto-select the mode's idiomatic playing style.
-    if (!this.techniqueOverridden && this.currentMode !== this.lastModeForTechnique) {
-      const modeDefault = this.currentPerformer?.defaultTechnique ?? defaultTechniqueForMode(this.currentMode)
-      if (modeDefault !== this.currentTechniqueId) {
-        this.setTechnique(modeDefault, /* markAsOverride */ false)
+    // Technique priority (highest → lowest):
+    //   1. User explicit override (techniqueOverridden=true) — never touched here
+    //   2. Section technique (sectionTechniqueId) — arrangement automation
+    //   3. Mode default — fires only on mode change when no section override
+    if (!this.techniqueOverridden) {
+      if (this.sectionTechniqueId !== null) {
+        if (this.currentTechniqueId !== this.sectionTechniqueId) {
+          this.setTechnique(this.sectionTechniqueId, /* markAsOverride */ false)
+        }
+      } else if (this.currentMode !== this.lastModeForTechnique) {
+        const modeDefault = this.currentPerformer?.defaultTechnique ?? defaultTechniqueForMode(this.currentMode)
+        if (modeDefault !== this.currentTechniqueId) {
+          this.setTechnique(modeDefault, /* markAsOverride */ false)
+        }
+        this.lastModeForTechnique = this.currentMode
       }
-      this.lastModeForTechnique = this.currentMode
     }
 
     const newBehavior = this.getChordBehavior(organism)
@@ -316,6 +327,7 @@ export class ChordGenerator extends GeneratorBase {
     this.currentProgression = null
     this.currentChordIndex = 0
     this.hasStartedPlayback = false
+    this.sectionTechniqueId = null  // clear so next start uses mode default
     this.setOutputLevel(0)
   }
 
@@ -526,6 +538,36 @@ export class ChordGenerator extends GeneratorBase {
       for (const listener of this.chordChangeListeners) {
         listener(firstChord, this.rootPitchClass)
       }
+    }
+  }
+
+  /**
+   * Called by the orchestrator on each arrangement section change.
+   * Changes the chord playing TECHNIQUE to match the section's energy —
+   * the chord instrument stays constant (it IS the beat's harmonic signature).
+   *
+   *   intro/breakdown → sustained pad (spacious, emotional, held notes)
+   *   verse           → rolled chord  (gentle arpeggio, rhythmic but airy)
+   *   build/drop/drop2 → mode default (punchy stab or block chord)
+   */
+  onSectionChange(sectionName: string, aiTechnique?: string): void {
+    if (aiTechnique) {
+      // AI Director explicitly chose a technique — map its shorthand to technique IDs
+      const techniqueMap: Record<string, string | null> = {
+        pad:    'piano-sustained-pad',
+        rolled: 'piano-rolled-chord',
+        stab:   null,  // null = mode default (punchy stab)
+      }
+      this.sectionTechniqueId = (aiTechnique in techniqueMap) ? techniqueMap[aiTechnique] : null
+      return
+    }
+    if (sectionName === 'intro' || sectionName === 'breakdown') {
+      this.sectionTechniqueId = 'piano-sustained-pad'
+    } else if (sectionName === 'verse') {
+      this.sectionTechniqueId = 'piano-rolled-chord'
+    } else {
+      // build / drop / drop2 — let mode default take over (punchy stab)
+      this.sectionTechniqueId = null
     }
   }
 

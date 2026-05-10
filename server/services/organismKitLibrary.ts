@@ -1,0 +1,128 @@
+import fs from "fs";
+import path from "path";
+
+export type OrganismKitRole = "kick" | "snare" | "hat" | "perc" | "tom" | "bass808" | "loop";
+
+export interface OrganismKitSample {
+  role: OrganismKitRole;
+  filePath: string;
+  relativePath: string;
+  fileName: string;
+  sourceKit: string;
+}
+
+export interface OrganismKit {
+  id: string;
+  name: string;
+  licenseNote: string;
+  root: string;
+  samples: OrganismKitSample[];
+}
+
+const DEFAULT_PRIVATE_KIT_ROOT =
+  process.env.ORGANISM_KIT_ROOT ||
+  (fs.existsSync("/data")
+    ? path.resolve("/data", "organism-kits")
+    : path.resolve(process.cwd(), "private", "organism-kits"));
+
+const ROLE_PATTERNS: Array<[OrganismKitRole, RegExp]> = [
+  ["bass808", /\b(808|sub|bass)\b/i],
+  ["kick", /\b(kick|bd)\b/i],
+  ["snare", /\b(snare|sd)\b/i],
+  ["hat", /\b(hat|hihat|hi-hat|closed hat|open hat)\b/i],
+  ["perc", /\b(perc|percussion|clap|rim|snap|shaker|cowbell)\b/i],
+  ["tom", /\b(tom|fill)\b/i],
+  ["loop", /\b(loop|drumloop|toploop|groove)\b/i],
+];
+
+function walkWavs(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  const out: string[] = [];
+  const stack = [root];
+  while (stack.length) {
+    const current = stack.pop()!;
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.isFile() && /\.(wav|aiff|aif|mp3)$/i.test(entry.name)) out.push(full);
+    }
+  }
+  return out;
+}
+
+function roleForFile(fileName: string): OrganismKitRole | null {
+  for (const [role, pattern] of ROLE_PATTERNS) {
+    if (pattern.test(fileName)) return role;
+  }
+  return null;
+}
+
+function readLicenseNote(root: string): string {
+  for (const name of ["LICENSE.txt", "LICENSE.md", "license.txt", "README.txt", "README.md"]) {
+    const candidate = path.join(root, name);
+    if (fs.existsSync(candidate)) {
+      return fs.readFileSync(candidate, "utf8").slice(0, 800);
+    }
+  }
+  return "No license file found in kit folder. Treat as private/internal only until license is verified.";
+}
+
+export function getOrganismKitRoot(): string {
+  return DEFAULT_PRIVATE_KIT_ROOT;
+}
+
+export function listOrganismKits(): OrganismKit[] {
+  const root = getOrganismKitRoot();
+  if (!fs.existsSync(root)) return [];
+
+  return fs.readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const kitRoot = path.join(root, entry.name);
+      const samples = walkWavs(kitRoot)
+        .map((filePath): OrganismKitSample | null => {
+          const fileName = path.basename(filePath);
+          const role = roleForFile(fileName);
+          if (!role) return null;
+          return {
+            role,
+            filePath,
+            relativePath: path.relative(kitRoot, filePath).split(path.sep).join("/"),
+            fileName,
+            sourceKit: entry.name,
+          };
+        })
+        .filter((sample): sample is OrganismKitSample => Boolean(sample));
+
+      return {
+        id: entry.name,
+        name: entry.name.replace(/[-_]+/g, " "),
+        licenseNote: readLicenseNote(kitRoot),
+        root: kitRoot,
+        samples,
+      };
+    })
+    .filter((kit) => kit.samples.length > 0);
+}
+
+export function findOrganismKitSample(kitId: string, relativePath: string): OrganismKitSample | null {
+  const kit = listOrganismKits().find((candidate) => candidate.id === kitId);
+  if (!kit) return null;
+
+  const normalizedRelative = relativePath.replace(/\\/g, "/");
+  return kit.samples.find((sample) => sample.relativePath === normalizedRelative) ?? null;
+}
+
+export function pickBestOrganismKit(preferredRoles: OrganismKitRole[] = ["kick", "snare", "hat", "bass808"]): OrganismKit | null {
+  const kits = listOrganismKits();
+  if (!kits.length) return null;
+
+  return kits
+    .map((kit) => {
+      const roles = new Set(kit.samples.map((sample) => sample.role));
+      const roleScore = preferredRoles.reduce((score, role) => score + (roles.has(role) ? 10 : 0), 0);
+      const sizeScore = Math.min(kit.samples.length, 100) / 10;
+      return { kit, score: roleScore + sizeScore };
+    })
+    .sort((a, b) => b.score - a.score)[0]?.kit ?? null;
+}

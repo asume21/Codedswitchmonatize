@@ -84,18 +84,30 @@ export class GeneratorOrchestrator {
   //
   // Total cycle: 32 bars, then repeats.
 
-  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number }[] = [
-    { name: 'intro',     bars: 2, drums: 0.85, bass: 1.0,  melody: 0.85, texture: 0, chord: 0.90 },
-    { name: 'verse',     bars: 8, drums: 0.80, bass: 1.0,  melody: 0.70, texture: 0, chord: 0.75 },
-    { name: 'build',     bars: 4, drums: 0.90, bass: 1.0,  melody: 0.90, texture: 0, chord: 0.80 },
-    { name: 'drop',      bars: 8, drums: 1.0,  bass: 1.0,  melody: 1.10, texture: 0, chord: 0.85 },
-    { name: 'breakdown', bars: 4, drums: 0.55, bass: 0.75, melody: 0.65, texture: 0, chord: 0.90 },
-    { name: 'drop2',     bars: 4, drums: 1.0,  bass: 1.0,  melody: 1.10, texture: 0, chord: 0.85 },
+  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number; energy: number }[] = [
+    // intro: beat plays from bar 1 — drums low, melody sparse, chords up front
+    { name: 'intro',     bars: 2, drums: 0.55, bass: 0.65, melody: 0.45, texture: 0, chord: 0.90, energy: 0.3 },
+    // verse: drums lock in, melody stays sparse (leaves room for the rapper)
+    { name: 'verse',     bars: 8, drums: 0.75, bass: 0.92, melody: 0.50, texture: 0, chord: 0.70, energy: 0.5 },
+    // build: everything rises
+    { name: 'build',     bars: 4, drums: 0.88, bass: 0.95, melody: 0.82, texture: 0, chord: 0.78, energy: 0.75 },
+    // drop: full mix — melody pushed forward
+    { name: 'drop',      bars: 8, drums: 1.0,  bass: 1.0,  melody: 1.0,  texture: 0, chord: 0.85, energy: 1.0 },
+    // breakdown: stripped but still playing — space before the return
+    { name: 'breakdown', bars: 4, drums: 0.42, bass: 0.68, melody: 0.42, texture: 0, chord: 0.88, energy: 0.35 },
+    // drop2: full energy return
+    { name: 'drop2',     bars: 4, drums: 1.0,  bass: 1.0,  melody: 1.0,  texture: 0, chord: 0.85, energy: 1.0 },
   ]
   private arrangementTotalBars: number = 0
   private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
+
+  // AI Director overrides — keyed by section name, applied next time that section starts
+  private aiDirectiveOverrides: Map<string, {
+    drumsArrangement: number; bassVolume: number; melodyVolume: number; chordTechnique: string
+    hatDensity: number; kickPunch: number
+  }> = new Map()
 
   // Chord-awareness bridge: unsub stored for dispose()
   private unsubChordBridge: (() => void) | null = null
@@ -978,35 +990,76 @@ export class GeneratorOrchestrator {
       accumulated += s.bars
     }
 
-    // Apply section multipliers to generator volumes
-    this.drum.applyArrangementMultiplier(section.drums)
-    this.bass.applyArrangementMultiplier(section.bass)
-    this.melody.applyArrangementMultiplier(section.melody)
+    // Merge AI directive if one was buffered for this section
+    const aiOverride = this.aiDirectiveOverrides.get(section.name)
+
+    const drumsMultiplier = aiOverride ? aiOverride.drumsArrangement : section.drums
+    const bassMultiplier  = aiOverride ? aiOverride.bassVolume        : section.bass
+    const melodyMultiplier = aiOverride ? aiOverride.melodyVolume     : section.melody
+
+    this.drum.applyArrangementMultiplier(drumsMultiplier)
+    this.bass.applyArrangementMultiplier(bassMultiplier)
+    this.melody.applyArrangementMultiplier(melodyMultiplier)
     this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
     this.chord.applyArrangementMultiplier(section.chord)
 
-    // Gap 2 — notify listeners that a new arrangement section has started
-    // so they can request an AI-generated pattern variation
+    if (aiOverride) {
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * aiOverride.hatDensity)
+      this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * aiOverride.kickPunch)
+    }
+
+    // Notify on section change: swap instrument voices + dispatch event
     if (section.name !== this.lastArrangementSection) {
       this.lastArrangementSection = section.name
       orgLog('arrangement:apply', {
         section: section.name,
         bar: barNumber,
         cycleBar,
-        drums: section.drums,
-        bass: section.bass,
-        melody: section.melody,
-        texture: this.textureEnabled ? section.texture : 0,
-        chord: section.chord,
+        drums: drumsMultiplier,
+        bass: bassMultiplier,
+        melody: melodyMultiplier,
+        aiDirected: Boolean(aiOverride),
       })
+
+      // Shift melody density and chord technique per section.
+      // Staggered so Part rebuilds don't collide on the audio thread.
+      setTimeout(() => this.melody.onSectionChange(section.name), 80)
+      setTimeout(() => {
+        if (aiOverride?.chordTechnique) {
+          this.chord.onSectionChange(section.name, aiOverride.chordTechnique)
+        } else {
+          this.chord.onSectionChange(section.name)
+        }
+      }, 160)
+
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {
-          section:  section.name,
-          physics:  this.lastPhysics,
-          bpm:      transport.bpm.value,
+          section:    section.name,
+          physics:    this.lastPhysics,
+          bpm:        transport.bpm.value,
+          subGenre:   this.director.getState().subGenre,
+          barInCycle: cycleBar,
+          totalBars:  this.arrangementTotalBars,
+          aiDirected: Boolean(aiOverride),
         },
       }))
     }
+  }
+
+  /**
+   * Buffer an AI-produced directive for a named section.
+   * Called by AIDirector after a successful /api/ai/next-section response.
+   * The values are applied the next time applyArrangement() enters that section.
+   */
+  setNextSectionDirective(directive: import('../AIDirector').AIBeatDirective): void {
+    this.aiDirectiveOverrides.set(directive.section, {
+      drumsArrangement: directive.drums.arrangement,
+      bassVolume:       directive.bass.volume,
+      melodyVolume:     directive.melody.volume,
+      chordTechnique:   directive.melody.chordTechnique,
+      hatDensity:       directive.drums.hat,
+      kickPunch:        directive.drums.kick,
+    })
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */
