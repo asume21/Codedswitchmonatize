@@ -37,17 +37,17 @@ const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, I
     chord: ['piano', 'rhodes', 'guitar-nylon'],   // nylon guitar kept as optional flavor
   },
   smoke: {
-    lead: ['sax', 'clarinet', 'guitar-nylon', 'rhodes'],
+    lead: ['sax', 'clarinet', 'violin', 'guitar-nylon'],
     bass: ['bass-upright', 'bass-electric'],
     chord: ['rhodes', 'piano', 'guitar-nylon'],
   },
   ice: {
-    lead: ['flute', 'harp', 'sitar', 'guitar-nylon'],
+    lead: ['flute', 'harp', 'violin', 'sitar'],
     bass: ['bass-synth', 'bass-electric'],
     chord: ['harp', 'strings', 'guitar-nylon'],
   },
   glow: {
-    lead: ['flute', 'rhodes', 'guitar-nylon', 'clarinet'],
+    lead: ['violin', 'flute', 'guitar-nylon', 'clarinet'],
     bass: ['bass-electric', 'bass-upright'],
     chord: ['rhodes', 'strings', 'guitar-nylon'],
   },

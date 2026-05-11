@@ -615,6 +615,51 @@ export class MelodyGenerator extends GeneratorBase {
       chordDegs.push(0, 2, 4)
     }
 
+    const performer = this.currentPerformer
+    const isBowedLead = performer?.family === 'bowed'
+    const melodicOctave = isBowedLead
+      ? Math.min(octaves[1], Math.max(octaves[0], (performer?.preferredOctave ?? octave + 1) - 1))
+      : octave
+
+    const degreeToPitch = (degIndex: number, transposeOct: number = 0): string => {
+      const normDeg = ((degIndex % this.currentScale.length) + this.currentScale.length) % this.currentScale.length
+      const octMidiOffset = Math.floor(degIndex / this.currentScale.length) * 12
+      const semitone = this.currentScale[normDeg]
+      const midi = ((melodicOctave + transposeOct) * 12) + 12 + semitone + octMidiOffset + this.rootPitchClass + this.pitchOffsetSemitones
+      return Tone.Frequency(midi, 'midi').toNote()
+    }
+
+    if (isBowedLead) {
+      const phraseStep = this.currentBehavior === MelodyBehavior.Hint ? 8 : 6
+      const noteDur = this.currentBehavior === MelodyBehavior.Hint ? '2n' : '4n.'
+      const degrees = [
+        chordDegs[0] ?? 0,
+        chordDegs[1] ?? chordDegs[0] ?? 0,
+        chordDegs[2] ?? chordDegs[1] ?? chordDegs[0] ?? 0,
+        chordDegs[1] ?? chordDegs[0] ?? 0,
+      ]
+
+      let cursor = 0
+      let phraseIndex = 0
+      while (cursor < length16ths) {
+        const degIndex = degrees[phraseIndex % degrees.length]
+        const bar  = Math.floor(cursor / 16)
+        const beat = Math.floor((cursor % 16) / 4)
+        const sub  = cursor % 4
+        const velocity = this.currentBehavior === MelodyBehavior.Lead ? 0.58 : 0.42
+        notes.push({
+          pitch: degreeToPitch(degIndex),
+          duration: noteDur,
+          velocity,
+          time: `${bar}:${beat}:${sub}`,
+        })
+        cursor += phraseStep
+        phraseIndex += 1
+      }
+
+      return notes
+    }
+
     const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number) => {
       const out: ScheduledNote[] = []
       let c = cursorStart
@@ -632,12 +677,7 @@ export class MelodyGenerator extends GeneratorBase {
            degIndex = chordDegs[0] + step.index
         }
 
-        const normDeg = degIndex % this.currentScale.length
-        const octMidiOffset = Math.floor(degIndex / this.currentScale.length) * 12
-        const semitone = this.currentScale[normDeg]
-        
-        const midi = ((octave + transposeOct) * 12) + 12 + semitone + octMidiOffset + this.rootPitchClass + this.pitchOffsetSemitones
-        const pitch = Tone.Frequency(midi, 'midi').toNote()
+        const pitch = degreeToPitch(degIndex, transposeOct)
         
         const durStr = step.dur16ths <= 1 ? '16n'
                      : step.dur16ths <= 2 ? '8n'
