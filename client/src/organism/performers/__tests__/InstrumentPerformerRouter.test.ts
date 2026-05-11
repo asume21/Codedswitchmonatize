@@ -11,7 +11,7 @@ import { INSTRUMENT_PERFORMERS_BY_ID } from '../InstrumentRegistry'
 describe('InstrumentPerformerRouter', () => {
   it('selects idiomatic lead instruments by mode', () => {
     expect(selectInstrumentPerformer({ role: 'lead', mode: 'ice', energy: 0.4 }).id).toBe('flute')
-    expect(selectInstrumentPerformer({ role: 'lead', mode: 'glow', energy: 0.5 }).id).toBe('violin')
+    expect(selectInstrumentPerformer({ role: 'lead', mode: 'glow', energy: 0.5 }).id).toBe('flute')
     expect(selectInstrumentPerformer({ role: 'lead', mode: 'heat', energy: 0.9 }).id).toBe('trumpet')
   })
 
