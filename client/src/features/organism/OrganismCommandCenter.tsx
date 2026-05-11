@@ -1700,7 +1700,7 @@ export function OrganismCommandCenter() {
                       ? 'Capture window active'
                       : inputSource === 'mic'
                         ? 'Ready for voice capture'
-                        : 'Selects mic before start'}
+                        : 'Select mic before start'}
                 </div>
               </div>
               <button
@@ -1791,7 +1791,7 @@ export function OrganismCommandCenter() {
             )}
 
             {/* Live lyrics */}
-            {transcription?.isSupported && (
+            {inputSource === 'mic' && transcription?.isSupported && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ ...label11, marginBottom: 7, display: 'flex', alignItems: 'center', gap: 7 }}>
                   Live Lyrics

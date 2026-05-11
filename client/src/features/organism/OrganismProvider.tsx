@@ -1119,7 +1119,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       // Start self-listen after audio is running
       selfListenRef.current?.start()
-      if (transcriptionEnabled && transcriberRef.current) {
+      if (inputSource === 'mic' && transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
       endPhase({ inputSource, bpm: orchestr.getBpm() })
@@ -1394,7 +1394,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyStablePlaybackDefaults()
 
       // 6. Start transcription if enabled
-      if (transcriptionEnabled && transcriberRef.current) {
+      if (inputSource === 'mic' && transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
 
@@ -1430,7 +1430,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
+  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
 
   /**
    * Live preset swap — change the beat's genre + BPM without restarting.

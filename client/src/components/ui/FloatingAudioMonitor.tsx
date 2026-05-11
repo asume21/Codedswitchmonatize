@@ -14,6 +14,7 @@ import {
   Volume2, VolumeX, X, ChevronUp, ChevronDown, Square,
   Play, Mic2, Circle, Download, Zap, Lock, Unlock, Headphones,
 } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { getAudioContext } from '@/lib/audioContext';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
@@ -296,6 +297,7 @@ function OrganismMiniControls() {
 }
 
 export default function FloatingAudioMonitor() {
+  const [location] = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
   const [trackedAudios, setTrackedAudios] = useState<TrackedAudio[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -397,6 +399,10 @@ export default function FloatingAudioMonitor() {
   };
 
   const { isActivated } = useOrganismActivation();
+  const hasDedicatedOrganismSurface = location === '/organism' || location === '/recording-booth';
+
+  if (hasDedicatedOrganismSurface) return null;
+
   // Determine floating button state
   const buttonState = organismRecording ? 'recording' : organismRunning ? 'organism-live' : playingCount > 0 ? 'audio-playing' : 'idle';
 

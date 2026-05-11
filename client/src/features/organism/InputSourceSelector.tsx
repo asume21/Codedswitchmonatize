@@ -13,7 +13,7 @@ const SOURCE_OPTIONS: { type: InputSourceType; label: string; icon: string; desc
   { type: 'mic', label: 'Mic', icon: '🎤', desc: 'Speak, rap, freestyle — the organism reacts to your voice' },
   { type: 'midi', label: 'MIDI', icon: '🎹', desc: 'Play keys or pads — velocity & notes drive the organism' },
   { type: 'audioFile', label: 'Audio File', icon: '📁', desc: 'Drop in a beat, vocal, or loop — the organism reacts to it' },
-  { type: 'autoGenerate', label: 'Auto', icon: '🤖', desc: 'Fully autonomous — the organism creates on its own' },
+  { type: 'autoGenerate', label: 'Auto', icon: '🤖', desc: 'Creates a beat on its own — no mic needed' },
 ]
 
 const ENERGY_OPTIONS: { value: 'chill' | 'medium' | 'intense'; label: string; color: string }[] = [
