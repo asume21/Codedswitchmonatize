@@ -55,7 +55,7 @@ describe('MusicalDirector arrangement masks', () => {
     expect(director.getState().section).toBe('intro')
     expect(director.getState().drums.dropout).toBe(false)
     expect(director.getState().bass.dropout).toBe(false)
-    expect(director.getState().melody.dropout).toBe(true)
+    expect(director.getState().melody.dropout).toBe(false)
 
     director.update(physics, organism, 4)
     expect(director.getState().section).toBe('verse')

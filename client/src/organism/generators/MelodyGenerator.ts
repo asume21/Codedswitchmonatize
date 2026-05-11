@@ -467,7 +467,8 @@ export class MelodyGenerator extends GeneratorBase {
     this.currentBehavior = MelodyBehavior.Rest
     this.currentScale    = MODE_SCALES.glow
     this.hasStartedPlayback = false
-    this.sectionBehavior = null  // clear so next start uses normal behavior logic
+    this.lastRebuildTime = 0
+    this.sectionBehavior = null
     this.setOutputLevel(0)
   }
 

@@ -30,9 +30,10 @@ export class DrumGenerator extends GeneratorBase {
   private snareTone: Tone.MembraneSynth
   private snareBus:  Tone.Gain
 
-  // Hat: closed (short decay) + open (long decay)
-  private hat:        Tone.MetalSynth
-  private hatOpen:    Tone.MetalSynth
+  // Hat: closed (short decay) + open (long decay) — NoiseSynth + highpass sounds
+  // far more like real hi-hats than MetalSynth's FM screech which reads as techno.
+  private hat:        Tone.NoiseSynth
+  private hatOpen:    Tone.NoiseSynth
   private hatFilter:  Tone.Filter
 
   // Perc: bandpass noise
@@ -129,30 +130,23 @@ export class DrumGenerator extends GeneratorBase {
     this.snareTone.volume.value = -15  // was -12
     this.snareTone.connect(this.snareBus)
 
-    // ── Hat: tamed MetalSynth + bandpass to kill screech ──
-    // Bandpass instead of highpass so we keep the snap but cut the FM screech
-    this.hatFilter = new Tone.Filter({ frequency: 6500, type: 'bandpass', Q: 0.55 })
+    // ── Hat: white NoiseSynth + highpass — natural hi-hat snap without FM screeching ──
+    this.hatFilter = new Tone.Filter({ frequency: 8000, type: 'highpass', Q: 0.4 })
     this.hatFilter.connect(this.compressor)
 
-    this.hat = new Tone.MetalSynth({
-      envelope:        { attack: 0.001, decay: 0.05, release: 0.006 },
-      harmonicity:     5.1,
-      modulationIndex: 8,
-      resonance:       4000,
-      octaves:         0.5,
+    this.hat = new Tone.NoiseSynth({
+      noise:    { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.045, sustain: 0, release: 0.01 },
     })
-    this.hat.volume.value = -24
+    this.hat.volume.value = -20
     this.hat.connect(this.hatFilter)
 
-    // Open hat — longer decay gives the "tsss" tail for hi-hat breathing
-    this.hatOpen = new Tone.MetalSynth({
-      envelope:        { attack: 0.001, decay: 0.22, release: 0.08 },
-      harmonicity:     5.1,
-      modulationIndex: 8,
-      resonance:       4000,
-      octaves:         0.5,
+    // Open hat — longer decay gives the "tsss" tail for groove breathing
+    this.hatOpen = new Tone.NoiseSynth({
+      noise:    { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.22, sustain: 0, release: 0.06 },
     })
-    this.hatOpen.volume.value = -26
+    this.hatOpen.volume.value = -22
     this.hatOpen.connect(this.hatFilter)
 
     // ── Perc: bandpass noise for rim/shaker ──
@@ -216,6 +210,7 @@ export class DrumGenerator extends GeneratorBase {
     this.currentPresence = 0
     this.currentPocket   = 0
     this.hasStartedPlayback = false
+    this.lastRebuildTime = 0  // clear throttle so next onStateTransition always rebuilds
     this.lastTriggerByVoice.clear()
     this.lastBroadcastSig  = ''
     this.lastBroadcastTime = 0
@@ -331,7 +326,6 @@ export class DrumGenerator extends GeneratorBase {
     this.snareBody.volume.rampTo(preset.snareVol, 0.3)
     this.hat.envelope.decay       = preset.hatDecay
     this.hat.volume.rampTo(preset.hatVol, 0.3)
-    this.hat.resonance            = preset.hatResonance
     this.perc.envelope.decay      = preset.percDecay
     this.perc.volume.rampTo(preset.percVol, 0.3)
   }

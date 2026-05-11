@@ -174,13 +174,17 @@ export interface OrganismContextValue {
   // Tweak controls (active even when locked)
   hatDensity:         number   // 0–2, default 1
   kickVelocity:       number   // 0–2, default 1
+  drumsVolume:        number   // 0–2, default 1
   bassVolume:         number   // 0–2, default 1
   melodyVolume:       number   // 0–2, default 1
+  chordVolume:        number   // 0–2, default 1
   melodyFocusEnabled: boolean
   setHatDensity:      (v: number) => void
   setKickVelocity:    (v: number) => void
+  setDrumsVolume:     (v: number) => void
   setBassVolume:      (v: number) => void
   setMelodyVolume:    (v: number) => void
+  setChordVolume:     (v: number) => void
   setMelodyFocusEnabled: (enabled: boolean) => void
 
   // Texture toggle — off by default for hip-hop; enable for ambient/lo-fi genres

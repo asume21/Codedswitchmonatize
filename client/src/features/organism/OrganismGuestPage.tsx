@@ -206,6 +206,7 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
     ? 0
     : Math.max(0, Math.min(1, selfListenReport?.rmsLinear ? selfListenReport.rmsLinear * 8 : 0))
   const logs = wowMoment.logs.length > 0 ? wowMoment.logs : [{ id: 'empty', text: listening ? 'listening: say boom boom clap' : 'waiting for mic start', tone: 'info' as const, timestamp: Date.now() }]
+  const playPresetId = organism.activePresetId ?? organism.quickStartPresets[0]?.id ?? null
 
   React.useEffect(() => {
     if (!listening) {
@@ -252,8 +253,8 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
               </button>
             ) : (
               <button
-                onClick={() => organism.quickStart(organism.activePresetId ?? '')}
-                disabled={!organism.activePresetId}
+                onClick={() => { if (playPresetId) organism.quickStart(playPresetId) }}
+                disabled={!playPresetId}
                 className="flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-40"
               >
                 <Play className="h-2.5 w-2.5 fill-emerald-300" /> Play

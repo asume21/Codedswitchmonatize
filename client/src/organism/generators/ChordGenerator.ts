@@ -327,7 +327,8 @@ export class ChordGenerator extends GeneratorBase {
     this.currentProgression = null
     this.currentChordIndex = 0
     this.hasStartedPlayback = false
-    this.sectionTechniqueId = null  // clear so next start uses mode default
+    this.lastRebuildTime = 0
+    this.sectionTechniqueId = null
     this.setOutputLevel(0)
   }
 

@@ -49,13 +49,13 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 30, midHz: 300, midGain: -2, midQ: 0.8 },  // scoop low-mid mud
     },
     bass: {
-      name: 'bass', pan: 0, gainDb: -2,
+      name: 'bass', pan: 0, gainDb: 2,
       compThresholdDb: -20, compRatio: 5, compAttackMs: 10,
       compReleaseMs: 150, compKneeDb: 4,
       eq: { highpassHz: 35, highShelfHz: 2000, highShelfGain: -6 },  // HP kills sub-rumble; roll off highs
     },
     melody: {
-      name: 'melody', pan: 0.15, gainDb: 0,
+      name: 'melody', pan: 0.15, gainDb: 3,
       compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence

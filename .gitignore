@@ -74,3 +74,4 @@ repo_tree*.txt
 **/target/
 audio/reference-beats/
 private/organism-kits/
+private/ace-step/

@@ -22,6 +22,14 @@ describe('CompositionClock', () => {
     expect(getLivePartStart(false)).toBe(0)
   })
 
+  it('starts first playback immediately even if shared transport is already running', () => {
+    const transport = Tone.getTransport()
+    transport.state = 'started'
+
+    expect(getLivePartStart(false)).toBe(0)
+    expect(transport.nextSubdivision).not.toHaveBeenCalled()
+  })
+
   it('starts live rebuilds on the next measure boundary', () => {
     const transport = Tone.getTransport()
     transport.state = 'started'

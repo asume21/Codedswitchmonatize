@@ -27,14 +27,14 @@ const DEFAULT_BY_ROLE: Record<PerformerRole, InstrumentPerformerId> = {
 
 const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, InstrumentPerformerId[]>>>> = {
   heat: {
-    lead: ['guitar-distorted', 'trumpet', 'guitar-clean'],
+    lead: ['piano', 'trumpet', 'rhodes'],        // trap: piano riffs + brass stabs
     bass: ['bass-synth', 'bass-electric'],
-    chord: ['guitar-clean', 'guitar-distorted', 'piano'],
+    chord: ['piano', 'strings', 'rhodes'],        // piano block chords or string pads
   },
   gravel: {
-    lead: ['guitar-clean', 'sax', 'trumpet'],
+    lead: ['piano', 'sax', 'trumpet'],            // boom-bap: keys, horns
     bass: ['bass-synth', 'bass-electric'],
-    chord: ['guitar-clean', 'piano'],
+    chord: ['piano', 'rhodes', 'guitar-nylon'],   // nylon guitar kept as optional flavor
   },
   smoke: {
     lead: ['sax', 'clarinet', 'violin', 'guitar-nylon'],

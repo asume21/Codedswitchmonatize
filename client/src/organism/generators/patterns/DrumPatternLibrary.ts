@@ -940,7 +940,9 @@ export function mutatePattern(hits: DrumHit[], opts: Partial<MutationOptions> = 
  */
 export function buildSubGenrePattern(subGenre: HipHopSubGenre, variantIndex?: number): DrumPattern {
   const variants = SUBGENRE_PATTERNS[subGenre] ?? [minimalPattern]
-  const idx = variantIndex !== undefined ? variantIndex % variants.length : Math.floor(Math.random() * variants.length)
+  const idx = variantIndex !== undefined
+    ? ((variantIndex % variants.length) + variants.length) % variants.length
+    : Math.floor(Math.random() * variants.length)
   return { hits: variants[idx](), length: '4m' }
 }
 
@@ -950,10 +952,13 @@ export function getDrumKit(_mode: OrganismMode | string): DrumKit {
   return { kick: [], snare: [], hat: [], perc: [] }
 }
 
-export function buildDrumPattern(kit: DrumKit, mode?: OrganismMode | string): DrumPattern {
+export function buildDrumPattern(kit: DrumKit, mode?: OrganismMode | string, variantIndex?: number): DrumPattern {
   const modeStr = mode?.toString() ?? 'glow'
   const variants = MODE_PATTERN_VARIANTS[modeStr] ?? [minimalPattern]
-  const builder = variants[Math.floor(Math.random() * variants.length)]
+  const idx = variantIndex !== undefined
+    ? ((variantIndex % variants.length) + variants.length) % variants.length
+    : Math.floor(Math.random() * variants.length)
+  const builder = variants[idx]
   return { hits: builder(), length: '4m' }
 }
 

@@ -14,6 +14,7 @@ import { OState }              from '../state/types'
 import type { GeneratorOutput } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
+import { PRODUCER_ARRANGEMENT_TOTAL_BARS, getProducerArrangementSlot } from '../state/ProducerArrangement'
 import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
@@ -84,21 +85,7 @@ export class GeneratorOrchestrator {
   //
   // Total cycle: 32 bars, then repeats.
 
-  private readonly ARRANGEMENT: { name: string; bars: number; drums: number; bass: number; melody: number; texture: number; chord: number; energy: number }[] = [
-    // intro: beat plays from bar 1 — drums low, melody sparse, chords up front
-    { name: 'intro',     bars: 2, drums: 0.55, bass: 0.65, melody: 0.45, texture: 0, chord: 0.90, energy: 0.3 },
-    // verse: drums lock in, melody stays sparse (leaves room for the rapper)
-    { name: 'verse',     bars: 8, drums: 0.75, bass: 0.92, melody: 0.50, texture: 0, chord: 0.70, energy: 0.5 },
-    // build: everything rises
-    { name: 'build',     bars: 4, drums: 0.88, bass: 0.95, melody: 0.82, texture: 0, chord: 0.78, energy: 0.75 },
-    // drop: full mix — melody pushed forward
-    { name: 'drop',      bars: 8, drums: 1.0,  bass: 1.0,  melody: 1.0,  texture: 0, chord: 0.85, energy: 1.0 },
-    // breakdown: stripped but still playing — space before the return
-    { name: 'breakdown', bars: 4, drums: 0.42, bass: 0.68, melody: 0.42, texture: 0, chord: 0.88, energy: 0.35 },
-    // drop2: full energy return
-    { name: 'drop2',     bars: 4, drums: 1.0,  bass: 1.0,  melody: 1.0,  texture: 0, chord: 0.85, energy: 1.0 },
-  ]
-  private arrangementTotalBars: number = 0
+  private arrangementTotalBars: number = PRODUCER_ARRANGEMENT_TOTAL_BARS
   private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
@@ -125,13 +112,17 @@ export class GeneratorOrchestrator {
     this.texture = new TextureGenerator()
     this.chord   = new ChordGenerator()
     this.director = new MusicalDirector()
-    this.arrangementTotalBars = this.ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
 
-    // Bridge chord changes to Bass, Melody, AND the Director
+    // Bridge chord changes to Bass, Melody, AND the Director.
+    // Deferred to the JS thread (setTimeout 0) because onChordChange fires from
+    // inside a Tone.Part callback — running bass/melody rebuilds synchronously
+    // there triggers Tone.js "accurate timing" warnings and potential crackling.
     this.unsubChordBridge = this.chord.onChordChange((chord, rootPC) => {
-      this.bass.setCurrentChord(chord, rootPC)
-      this.melody.setCurrentChord(chord, rootPC)
-      this.director.setCurrentChord(chord, rootPC)
+      setTimeout(() => {
+        this.bass.setCurrentChord(chord, rootPC)
+        this.melody.setCurrentChord(chord, rootPC)
+        this.director.setCurrentChord(chord, rootPC)
+      }, 0)
     })
 
     // When director changes sub-genre, rebuild drum + bass patterns
@@ -173,6 +164,11 @@ export class GeneratorOrchestrator {
           bpm: Tone.getTransport().bpm.value,
         },
       }))
+
+      if (!this.melodyOnlyMode && this.arrangementEnabled) {
+        const pattern = buildSubGenrePattern(this.director.getState().subGenre, this.director.getState().drums.variantIndex)
+        this.drum.loadGeneratedPattern(pattern.hits, true)
+      }
     })
   }
 
@@ -494,14 +490,42 @@ export class GeneratorOrchestrator {
     // cancels in-progress ramps and causes crackling.
     // The selfListenGainCorrection is applied next frame via onFrame → processFrame.
 
-    // ── Frequency balance — log only, no gain changes ─────────────────────
-    // Frequency corrections via gain were causing cascading feedback.
-    // These are now informational for future EQ-based corrections.
+    // ── Producer mix targets ───────────────────────────────────────────────
+    // Apply tiny, bounded trims so WebEar/self-listen can keep the beat in a
+    // usable reference range without fighting the user's base controls.
+    const lowWeight = report.bandEnergy.sub + report.bandEnergy.bass
+    const highWeight = report.bandEnergy.high
+    const lowMidWeight = report.bandEnergy.lowMid + report.bandEnergy.highMid
+
+    if (lowWeight > 0.72) {
+      this.reactiveBassVolumeMultiplier = Math.max(0.82, this.reactiveBassVolumeMultiplier * 0.96)
+      this.reactiveKickVelocityMultiplier = Math.max(0.86, this.reactiveKickVelocityMultiplier * 0.98)
+    } else if (lowWeight < 0.28 && report.rmsDb < -14) {
+      this.reactiveBassVolumeMultiplier = Math.min(1.16, this.reactiveBassVolumeMultiplier * 1.02)
+    } else {
+      this.reactiveBassVolumeMultiplier += (1.0 - this.reactiveBassVolumeMultiplier) * 0.06
+      this.reactiveKickVelocityMultiplier += (1.0 - this.reactiveKickVelocityMultiplier) * 0.06
+    }
+
+    if (highWeight > 0.32 || report.spectralCentroidHz > 6500) {
+      this.reactiveHatDensityMultiplier = Math.max(0.72, this.reactiveHatDensityMultiplier * 0.95)
+      this.reactiveMelodyVolumeMultiplier = Math.max(0.86, this.reactiveMelodyVolumeMultiplier * 0.98)
+    } else if (lowMidWeight > 0.55 && report.spectralCentroidHz < 1400) {
+      this.reactiveMelodyVolumeMultiplier = Math.min(1.12, this.reactiveMelodyVolumeMultiplier * 1.02)
+      this.reactiveHatDensityMultiplier = Math.min(1.08, this.reactiveHatDensityMultiplier * 1.01)
+    } else {
+      this.reactiveHatDensityMultiplier += (1.0 - this.reactiveHatDensityMultiplier) * 0.06
+      this.reactiveMelodyVolumeMultiplier += (1.0 - this.reactiveMelodyVolumeMultiplier) * 0.06
+    }
+
+    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
+    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
+
     // Frequency balance and diagnostics are logged only in development
     // to prevent console.info from blocking the main thread (1-2ms per call)
     // and stealing time from the audio scheduler.
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      if (report.bandEnergy.sub + report.bandEnergy.bass > 0.7) {
+      if (lowWeight > 0.7) {
         console.debug('[SelfListen] Muddy mix detected')
       }
       if (report.hasDcOffset) {
@@ -978,17 +1002,7 @@ export class GeneratorOrchestrator {
     if (barNumber === this.lastArrangementBar) return
     this.lastArrangementBar = barNumber
 
-    // Find which arrangement section we're in
-    const cycleBar = barNumber % this.arrangementTotalBars
-    let accumulated = 0
-    let section = this.ARRANGEMENT[0]
-    for (const s of this.ARRANGEMENT) {
-      if (cycleBar < accumulated + s.bars) {
-        section = s
-        break
-      }
-      accumulated += s.bars
-    }
+    const { slot: section, cycleBar, sectionBar } = getProducerArrangementSlot(barNumber)
 
     // Merge AI directive if one was buffered for this section
     const aiOverride = this.aiDirectiveOverrides.get(section.name)
@@ -1039,6 +1053,7 @@ export class GeneratorOrchestrator {
           bpm:        transport.bpm.value,
           subGenre:   this.director.getState().subGenre,
           barInCycle: cycleBar,
+          barInSection: sectionBar,
           totalBars:  this.arrangementTotalBars,
           aiDirected: Boolean(aiOverride),
         },

@@ -40,7 +40,8 @@ describe('MasterBus', () => {
 
   it('dispose() cleans up all nodes', () => {
     expect(() => bus.dispose()).not.toThrow()
-    // 10 nodes: input, masterGain, lowShelf, midCut, highShelf, hiCut, compressor, saturator, limiter, analyser
-    expect(mockDispose).toHaveBeenCalledTimes(10)
+    // 11 nodes: input, masterGain, lowShelf, midCut, highShelf, hiCut,
+    // compressor, saturator, limiter, tapGain, analyser
+    expect(mockDispose).toHaveBeenCalledTimes(11)
   })
 })

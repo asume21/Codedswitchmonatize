@@ -325,6 +325,19 @@ ${urls
   // Mount Sample Library routes
   app.use("/api/samples", createSampleRoutes());
 
+  // Serve Neumann bass samples — 159 chromatic WAV files (0000.wav–0158.wav)
+  // File N maps to MIDI note N. Bass range 24–72 (C1–C4) is what the Organism uses.
+  const NEUMANN_DIR = path.resolve(process.cwd(), 'server', 'Assets', 'neumann-bass')
+  app.get('/api/neumann-bass/:id', (req: Request, res: Response) => {
+    const raw = req.params.id
+    if (!/^\d{4}\.wav$/.test(raw)) return res.status(400).end()
+    const filePath = path.join(NEUMANN_DIR, raw)
+    if (!fs.existsSync(filePath)) return res.status(404).end()
+    res.setHeader('Content-Type', 'audio/wav')
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    fs.createReadStream(filePath).pipe(res)
+  })
+
   // Mount User profile routes
   app.use("/api/user", createUserRoutes(storage));
 

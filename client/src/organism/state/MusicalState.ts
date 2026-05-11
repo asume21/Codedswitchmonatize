@@ -283,7 +283,7 @@ export function createDefaultMusicalState(): MusicalState {
     subGenre: 'chill',
     section: 'intro',
     sectionBar: 0,
-    arrangementTotalBars: 28,
+    arrangementTotalBars: 32,
     energy: 0,
     density: 0,
     voiceActive: false,

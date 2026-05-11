@@ -11,23 +11,23 @@ const signature = (hits: ReturnType<typeof buildDrumPattern>['hits']) =>
   hits.map(hit => `${hit.instrument}@${hit.time}`)
 
 describe('DrumPatternLibrary', () => {
-  it('uses deterministic foundation patterns for initial mode grooves', () => {
+  it('uses deterministic foundation patterns when a variant is requested', () => {
     const kit = getDrumKit(OrganismMode.Heat)
-    const first = signature(buildDrumPattern(kit, OrganismMode.Heat).hits)
-    const second = signature(buildDrumPattern(kit, OrganismMode.Heat).hits)
+    const first = signature(buildDrumPattern(kit, OrganismMode.Heat, 0).hits)
+    const second = signature(buildDrumPattern(kit, OrganismMode.Heat, 0).hits)
 
     expect(second).toEqual(first)
   })
 
-  it('defaults sub-genre generation to the first variant instead of random selection', () => {
-    const first = signature(buildSubGenrePattern('trap').hits)
-    const second = signature(buildSubGenrePattern('trap').hits)
+  it('uses deterministic sub-genre patterns when a variant is requested', () => {
+    const first = signature(buildSubGenrePattern('trap', 0).hits)
+    const second = signature(buildSubGenrePattern('trap', 0).hits)
 
     expect(second).toEqual(first)
   })
 
   it('anchors foundation grooves with kick and snare responsibilities', () => {
-    const hits = buildDrumPattern(getDrumKit(OrganismMode.Smoke), OrganismMode.Smoke).hits
+    const hits = buildDrumPattern(getDrumKit(OrganismMode.Smoke), OrganismMode.Smoke, 0).hits
 
     expect(hits).toContainEqual(expect.objectContaining({
       instrument: DrumInstrument.Kick,

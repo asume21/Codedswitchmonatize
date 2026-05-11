@@ -20,6 +20,7 @@ import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createNeumannBassSampler } from '../instruments/NeumannBassSampler'
 import {
   applyArticulation,
   DEFAULT_ARTICULATION_ID,
@@ -254,6 +255,7 @@ export class BassGenerator extends GeneratorBase {
     this.currentBehavior = BassBehavior.Breathe
     this.currentPocket   = 0
     this.hasStartedPlayback = false
+    this.lastRebuildTime = 0
     this.setOutputLevel(0)
   }
 
@@ -324,16 +326,16 @@ export class BassGenerator extends GeneratorBase {
     }
 
     this.isCurrentVoiceSampler = true
-    this.synth = createSoundfontSampler(
-      performer.samplerPreset,
-      performer.envelope,
-      performer.volume,
-    )
-    this.synth.connect(this.compressor)
+    // Use Neumann bass samples for all acoustic/electric modes — real recorded
+    // bass sounds dramatically better than General MIDI soundfonts.
+    const neumannSynth = createNeumannBassSampler()
+    neumannSynth.volume.value = performer.volume ?? 0
+    neumannSynth.connect(this.compressor)
+    this.synth = neumannSynth as unknown as LoadableSampler
     this.distortion.wet.rampTo(performer.id === 'bass-synth' ? 0.12 : 0, 0.1)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(`Bass performer: ${performer.name} (${this.currentMode})`)
+      console.debug(`Bass performer: ${performer.name} (${this.currentMode}) — Neumann sampler`)
     }
   }
 

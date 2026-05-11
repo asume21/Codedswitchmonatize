@@ -28,6 +28,11 @@ import {
   createDefaultMusicalState,
 } from './MusicalState'
 import {
+  PRODUCER_ARRANGEMENT_TOTAL_BARS,
+  type ProducerArrangementSlot,
+  getProducerArrangementSlot,
+} from './ProducerArrangement'
+import {
   getBassBehaviorFromSubGenre,
   shouldEnableSlide,
   getPortamentoTime,
@@ -35,34 +40,6 @@ import {
 } from '../generators/patterns/BassPatternLibrary'
 import { getMelodyBehavior } from '../generators/patterns/MelodyPatternLibrary'
 import type { ChordEvent } from '../generators/patterns/ChordProgressionBank'
-
-// ── Arrangement Template ──────────────────────────────────────────────
-// 32-bar cycle with per-instrument multipliers AND dropout flags.
-
-interface ArrangementSlot {
-  name: ArrangementSection
-  bars: number
-  drums:   number
-  bass:    number
-  melody:  number
-  chord:   number
-  texture: number
-  // Instrument dropout — which instruments should be silent for space
-  drumDropout:  boolean
-  bassDropout:  boolean
-  melodyDropout: boolean
-}
-
-const ARRANGEMENT: ArrangementSlot[] = [
-  { name: 'intro',     bars: 4, drums: 0.28, bass: 0.35, melody: 0.0, chord: 0.72, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: true },
-  { name: 'verse',     bars: 8, drums: 0.58, bass: 0.88, melody: 0.32, chord: 0.54, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 4, drums: 0.7, bass: 0.92, melody: 0.72, chord: 0.66, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 8, drums: 0.88, bass: 1.0, melody: 1.15, chord: 0.74, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 4, drums: 0.3, bass: 0.55, melody: 0.45, chord: 0.8, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 0.88, bass: 1.0, melody: 1.2, chord: 0.72, texture: 0, drumDropout: false, bassDropout: false, melodyDropout: false },
-]
-
-const ARRANGEMENT_TOTAL_BARS = ARRANGEMENT.reduce((sum, s) => sum + s.bars, 0)
 
 // ── Sub-genre classification from physics ─────────────────────────────
 
@@ -113,7 +90,7 @@ export class MusicalDirector {
 
   // ── Change listeners ────────────────────────────────────────────
   private subGenreChangeListeners: Array<(subGenre: HipHopSubGenre) => void> = []
-  private sectionChangeListeners: Array<(section: ArrangementSection, slot: ArrangementSlot) => void> = []
+  private sectionChangeListeners: Array<(section: ArrangementSection, slot: ProducerArrangementSlot) => void> = []
   private mutationListeners: Array<() => void> = []
 
   // ── Public API ──────────────────────────────────────────────────
@@ -144,6 +121,7 @@ export class MusicalDirector {
     this.state.density = physics.density
     this.state.voiceActive = physics.voiceActive
     this.state.flowDepth = organism.flowDepth
+    this.state.arrangementTotalBars = PRODUCER_ARRANGEMENT_TOTAL_BARS
 
     // ── Sub-genre classification ──────────────────────────────────
     // STORY MODE: If groove is locked or we're in Flow state, freeze the
@@ -183,17 +161,7 @@ export class MusicalDirector {
         )
       }
 
-      // Find current arrangement section
-      const cycleBar = currentBar % ARRANGEMENT_TOTAL_BARS
-      let accumulated = 0
-      let slot = ARRANGEMENT[0]
-      for (const s of ARRANGEMENT) {
-        if (cycleBar < accumulated + s.bars) {
-          slot = s
-          break
-        }
-        accumulated += s.bars
-      }
+      const { slot, sectionBar } = getProducerArrangementSlot(currentBar)
 
       if (slot.name !== this.state.section) {
         this.state.section = slot.name
@@ -223,8 +191,7 @@ export class MusicalDirector {
       this.state.melody.dropout = slot.melodyDropout
 
       // Fill request on last bar of each section
-      const barsIntoSection = cycleBar - accumulated
-      this.state.drums.fillRequested = (barsIntoSection === slot.bars - 1)
+      this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
     }
 
     // ── Per-engine directives ─────────────────────────────────────
@@ -352,7 +319,7 @@ export class MusicalDirector {
   }
 
   /** Subscribe to arrangement section changes. Returns unsubscribe function. */
-  onSectionChange(cb: (section: ArrangementSection, slot: ArrangementSlot) => void): () => void {
+  onSectionChange(cb: (section: ArrangementSection, slot: ProducerArrangementSlot) => void): () => void {
     this.sectionChangeListeners.push(cb)
     return () => {
       this.sectionChangeListeners = this.sectionChangeListeners.filter(c => c !== cb)
