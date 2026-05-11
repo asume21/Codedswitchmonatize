@@ -3,6 +3,8 @@
  * punch-in/out, latency compensation, and input monitoring.
  */
 
+import { getAudioContext, resumeAudioContext } from '@/lib/audioContext';
+
 export interface RecordingConfig {
   inputDeviceId?: string;
   sampleRate: number;
@@ -104,7 +106,8 @@ export async function getInputDevices(): Promise<MediaDeviceInfo[]> {
  */
 export async function measureLatency(): Promise<number> {
   if (!audioContext) {
-    audioContext = new AudioContext({ sampleRate: currentConfig.sampleRate });
+    audioContext = getAudioContext();
+    currentConfig.sampleRate = audioContext.sampleRate;
   }
   // Estimate based on buffer size and sample rate
   const bufferSize = 256;
@@ -128,8 +131,10 @@ export function setRecordingConfig(config: Partial<RecordingConfig>) {
  */
 export async function startMonitoring(): Promise<void> {
   if (!audioContext) {
-    audioContext = new AudioContext({ sampleRate: currentConfig.sampleRate });
+    audioContext = getAudioContext();
+    currentConfig.sampleRate = audioContext.sampleRate;
   }
+  await resumeAudioContext();
 
   const constraints: MediaStreamConstraints = {
     audio: {
@@ -181,8 +186,10 @@ export async function startRecording(
   if (config) setRecordingConfig(config);
 
   if (!audioContext) {
-    audioContext = new AudioContext({ sampleRate: currentConfig.sampleRate });
+    audioContext = getAudioContext();
+    currentConfig.sampleRate = audioContext.sampleRate;
   }
+  await resumeAudioContext();
 
   if (!mediaStream) {
     const constraints: MediaStreamConstraints = {
@@ -357,7 +364,8 @@ export function createComp(trackId: string, regions: CompRegion[]): CompRegion[]
  */
 export async function takeToWav(take: RecordingTake): Promise<Blob> {
   if (!audioContext) {
-    audioContext = new AudioContext({ sampleRate: currentConfig.sampleRate });
+    audioContext = getAudioContext();
+    currentConfig.sampleRate = audioContext.sampleRate;
   }
 
   const arrayBuffer = await take.audioBlob.arrayBuffer();
@@ -417,10 +425,8 @@ export function disposeRecording() {
     mediaStream.getTracks().forEach(t => t.stop());
     mediaStream = null;
   }
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
+  // Do not close the shared app AudioContext here. RecordingPanel does not own it.
+  audioContext = null;
   takes.forEach(t => URL.revokeObjectURL(t.audioUrl));
   takes = [];
   listeners = [];

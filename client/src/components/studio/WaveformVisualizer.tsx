@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Scissors, Copy, Clipboard, Volume2, Trash2, SlidersHorizontal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAudioContext } from '@/lib/audioContext';
 
 interface WaveformVisualizerProps {
   audioElement: HTMLAudioElement | null;
@@ -85,13 +86,8 @@ export default function WaveformVisualizer({
   useEffect(() => {
     if (!audioElement) return;
 
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioContextClass();
+    const ctx = getAudioContext();
     setAudioContext(ctx);
-
-    return () => {
-      ctx.close();
-    };
   }, [audioElement]);
 
   // Load audio data and create waveform

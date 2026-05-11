@@ -286,8 +286,6 @@ function normalizeBuffer(buffer: AudioBuffer): AudioBuffer {
       destData[i] = sourceData[i] * gain;
     }
   }
-  
-  ctx.close();
   return normalizedBuffer;
 }
 

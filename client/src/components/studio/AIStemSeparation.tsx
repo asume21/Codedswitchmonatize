@@ -210,11 +210,10 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
     }
 
     const audioContext = getAudioContext();
-    try {
-      const [vocalBufRaw, backingBufRaw] = await Promise.all([
-        audioContext.decodeAudioData(await vocalRes.arrayBuffer()),
-        audioContext.decodeAudioData(await backingRes.arrayBuffer()),
-      ]);
+    const [vocalBufRaw, backingBufRaw] = await Promise.all([
+      audioContext.decodeAudioData(await vocalRes.arrayBuffer()),
+      audioContext.decodeAudioData(await backingRes.arrayBuffer()),
+    ]);
 
       const sampleRate = 44100;
       const channels = 2;
@@ -247,18 +246,15 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
       vocalSource.connect(vocalGain).connect(offline.destination);
       vocalSource.start(0);
 
-      const rendered = await offline.startRendering();
-      const blob = audioBufferToWavBlob(rendered);
+    const rendered = await offline.startRendering();
+    const blob = audioBufferToWavBlob(rendered);
 
-      if (remixedObjectUrlRef.current) {
-        URL.revokeObjectURL(remixedObjectUrlRef.current);
-      }
-      const objectUrl = URL.createObjectURL(blob);
-      remixedObjectUrlRef.current = objectUrl;
-      return objectUrl;
-    } finally {
-      await audioContext.close();
+    if (remixedObjectUrlRef.current) {
+      URL.revokeObjectURL(remixedObjectUrlRef.current);
     }
+    const objectUrl = URL.createObjectURL(blob);
+    remixedObjectUrlRef.current = objectUrl;
+    return objectUrl;
   };
 
   const runCloneRemixMaster = async () => {

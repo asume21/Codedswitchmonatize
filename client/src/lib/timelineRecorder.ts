@@ -6,6 +6,7 @@
  */
 
 import { audioBufferToWav } from '@/lib/stemExport';
+import { getAudioContext, resumeAudioContext } from '@/lib/audioContext';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -137,8 +138,10 @@ export class TimelineRecorder {
     this.setState({ isPreparing: true, error: null });
 
     try {
-      // Create audio context
-      this.audioContext = new AudioContext({ sampleRate: this.sampleRate });
+      // Use the app-wide AudioContext so recording, Tone.Transport, and playback
+      // stay on one hardware clock.
+      this.audioContext = getAudioContext();
+      await resumeAudioContext();
       this.sampleRate = this.audioContext.sampleRate;
 
       // Get mic stream
@@ -356,10 +359,9 @@ export class TimelineRecorder {
       this.mediaStream.getTracks().forEach(t => t.stop());
       this.mediaStream = null;
     }
-    if (this.audioContext) {
-      this.audioContext.close().catch(() => {});
-      this.audioContext = null;
-    }
+    // Do not close the shared app AudioContext here. Other engines, including
+    // Tone.Transport and Organism, may still be using it.
+    this.audioContext = null;
   }
 
   dispose(): void {

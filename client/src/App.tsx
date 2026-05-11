@@ -228,7 +228,7 @@ function App() {
               <Route path="/activate"><ActivatePage /></Route>
               <Route path="/dashboard"><ProtectedRoute><Dashboard /></ProtectedRoute></Route>
               <Route path="/onboarding"><ProtectedRoute><OnboardingPage /></ProtectedRoute></Route>
-              <Route path="/pricing"><ProtectedRoute><PricingPage /></ProtectedRoute></Route>
+              <Route path="/pricing" component={PricingPage} />
               <Route path="/billing"><Redirect to="/pricing" /></Route>
               <Route path="/buy-credits"><Redirect to="/pricing" /></Route>
               <Route path="/credits"><Redirect to="/pricing" /></Route>
