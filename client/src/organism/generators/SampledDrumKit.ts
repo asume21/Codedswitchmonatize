@@ -28,39 +28,39 @@ const sampleUrl = (filenameOrUrl: string): string =>
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
-    kick: 'kick_808.wav',
-    snare: 'snare_808.wav',
+    kick:      'kick_808.wav',
+    snare:     'snare_._e808_sd-01.wav',
     hatClosed: 'hihat_cycdh_eleck01-cl01.wav',
-    hatOpen: 'hihat_cycdh_eleck01-op01.wav',
-    perc: 'percussion_perc-808.wav',
+    hatOpen:   'hihat_cycdh_eleck01-op01.wav',
+    perc:      'percussion_perc-808.wav',
   },
   [OrganismMode.Gravel]: {
-    kick: 'kick_acoustic01.wav',
-    snare: 'snare_acoustic01.wav',
+    kick:      'kick_acoustic01.wav',
+    snare:     'snare_._e808_sd-05.wav',
     hatClosed: 'hihat_cycdh_k1close_cl03.wav',
-    hatOpen: 'hihat_cycdh_k1close_op03.wav',
-    perc: 'percussion_cycdh_kurz08-perc03.wav',
+    hatOpen:   'hihat_cycdh_k1close_op03.wav',
+    perc:      'percussion_cycdh_kurz08-perc03.wav',
   },
   [OrganismMode.Smoke]: {
-    kick: 'kick_1985.wav',
-    snare: 'snare_cassette.wav',
+    kick:      'kick_1985.wav',
+    snare:     'snare_._e808_sd-08.wav',
     hatClosed: 'hihat_vinyl.wav',
-    hatOpen: 'hihat_cycdh_k2room_op02.wav',
-    perc: 'percussion_shaker-analog.wav',
+    hatOpen:   'hihat_cycdh_k2room_op02.wav',
+    perc:      'percussion_cycdh_kurz08-perc01.wav',
   },
   [OrganismMode.Ice]: {
-    kick: 'kick_low_rez.wav',
-    snare: 'snare_block.wav',
+    kick:      'kick_low_rez.wav',
+    snare:     'snare_._e808_sd-10.wav',
     hatClosed: 'hihat_micro.wav',
-    hatOpen: 'hihat_sizzle.wav',
-    perc: 'percussion_perc-metal.wav',
+    hatOpen:   'hihat_sizzle.wav',
+    perc:      'percussion_perc-metal.wav',
   },
   [OrganismMode.Glow]: {
-    kick: 'kick_classic.wav',
-    snare: 'snare_big.wav',
+    kick:      'kick_classic.wav',
+    snare:     'snare_._e808_sd-03.wav',
     hatClosed: 'hihat_acoustic_01.wav',
-    hatOpen: 'hihat_cycdh_k2room_op01.wav',
-    perc: 'percussion_perc-short.wav',
+    hatOpen:   'hihat_cycdh_k2room_op01.wav',
+    perc:      'percussion_cycdh_kurz08-perc08.wav',
   },
 }
 
@@ -159,8 +159,9 @@ export class SampledDrumKit {
     // through to the synth fallback so drums are never silent.
     if (this.slotErrored.has(slotKey)) return false
 
-    // Still loading — suppress synth to avoid a glitchy doubled hit at startup.
-    if (!slot.player.loaded) return true
+    // Still loading — let DrumGenerator use its synth fallback so first-click
+    // playback is audible instead of silently dropping the hit.
+    if (!slot.player.loaded) return false
 
     const shapedVelocity = Math.max(0, Math.min(1, velocity))
     try {

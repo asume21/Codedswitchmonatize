@@ -1360,7 +1360,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       stateMachine.setStateFloor(OState.Breathing)
       orchestr.primeFrame(syntheticPhysics, stateMachine.getCurrentState())
       if (preset.subGenre) {
-        orchestr.forceSubGenre(preset.subGenre)
+        orchestr.swapSubGenre(preset.subGenre, preset.bpm)
       }
       await waitForStartupParts()
 
@@ -1492,10 +1492,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       stateMachine.forceState(OState.Flow, syntheticPhysics)
       stateMachine.setStateFloor(OState.Breathing)
-      if (preset.subGenre) {
-        orchestr.forceSubGenre(preset.subGenre)
-      }
       orchestr.primeFrame(syntheticPhysics, stateMachine.getCurrentState())
+      if (preset.subGenre) {
+        orchestr.swapSubGenre(preset.subGenre, preset.bpm)
+      }
       await waitForStartupParts()
       await orchestr.start(preset.bpm, true)
       applyStablePlaybackDefaults()
@@ -2899,6 +2899,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   const setV2MasterGain = useCallback((value: number) => {
     v2PlayerRef.current?.setMasterGain(value)
+    const normalized = Math.max(0.001, value / 1.45)
+    mixRef.current?.setMasterGainDb(-2 + 20 * Math.log10(normalized))
   }, [])
 
   const value: OrganismContextValue = useMemo(() => ({

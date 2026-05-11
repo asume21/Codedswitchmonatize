@@ -364,7 +364,6 @@ export default function RecordingBooth() {
     quickBeatPlayerRef.current?.stop()
     quickBeatPlayerRef.current?.dispose()
     quickBeatPlayerRef.current = null
-    Tone.getTransport().stop()
     beatBusRef.current?.dispose(); beatBusRef.current = null
     setIsBeatPlaying(false)
   }, [])
@@ -400,8 +399,6 @@ export default function RecordingBooth() {
       },
     }).connect(bus)
     quickBeatPlayerRef.current = player
-
-    Tone.getTransport().bpm.value = beat.bpm
   }, [isBeatPlaying, stopQuickBeat, beatVolume, ensureBeatRecDest, toast])
 
   // ── My Songs ──────────────────────────────────────────────────────────────────
@@ -455,28 +452,20 @@ export default function RecordingBooth() {
   const isOrganismStarting = !!organism?.isStarting
 
   const handleOrganismPreset = async (presetId: string) => {
-    console.log('[RecordingBooth] handleOrganismPreset', {
-      presetId,
-      organism: !!organism,
-      isOrganismRunning,
-      isOrganismStarting,
-      error: organism?.error,
-    })
     if (!organism) {
       toast({ title: 'Organism unavailable', description: 'The AI beat engine is still initializing.', variant: 'destructive' })
       return
     }
     if (isOrganismStarting) return
     getAudioContext()
+    await resumeAudioContext()
     await Tone.start()
-    console.log('[RecordingBooth] Tone started, calling', isOrganismRunning ? 'swapPreset' : 'quickStart')
     if (isOrganismRunning) {
       await organism.swapPreset(presetId)
     } else {
       await organism.quickStart(presetId)
       setIsBeatPlaying(true)
     }
-    console.log('[RecordingBooth] after start: isRunning=', organism.isRunning, 'error=', organism.error)
   }
 
   const stopOrganism = () => { organism?.stop(); setIsBeatPlaying(false) }
