@@ -251,6 +251,7 @@ function InstrumentSelect({
 // ══════════════════════════════════════════════════════════════════════════════
 
 const RENDER_TRACK_DURATION_SECONDS = 120
+const RENDER_TRACK_POLL_TIMEOUT_MS = 10 * 60 * 1000
 
 export function OrganismCommandCenter() {
   useOrganismShortcuts()
@@ -525,10 +526,19 @@ export function OrganismCommandCenter() {
       const { jobId, prompt } = await res.json() as { jobId: string; prompt?: string }
       setRenderPrompt(prompt ?? null)
       setRenderState('generating')
+      const pollDeadline = Date.now() + RENDER_TRACK_POLL_TIMEOUT_MS
 
       const poll = setInterval(async () => {
+        if (Date.now() > pollDeadline) {
+          clearInterval(poll)
+          renderPollRef.current = null
+          setRenderState('error')
+          return
+        }
+
         try {
           const jr = await fetch(`/api/ai-music/job/${jobId}`)
+          if (!jr.ok) return
           const job = await jr.json() as {
             status: string
             output_url?: string

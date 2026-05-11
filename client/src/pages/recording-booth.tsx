@@ -297,6 +297,7 @@ export default function RecordingBooth() {
   const micChunksRef     = useRef<Blob[]>([])
   const startTimeRef     = useRef(0)
   const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null)
+  const countInTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // VU meter
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -450,6 +451,9 @@ export default function RecordingBooth() {
 
   const isOrganismRunning = !!organism?.isRunning
   const isOrganismStarting = !!organism?.isStarting
+  const activeOrganismPreset = organism?.activePresetId
+    ? organism.quickStartPresets.find(preset => preset.id === organism.activePresetId) ?? null
+    : null
 
   const handleOrganismPreset = async (presetId: string) => {
     if (!organism) {
@@ -582,26 +586,43 @@ export default function RecordingBooth() {
 
   const startRecord = useCallback(async () => {
     if (micPermission !== 'granted') { await requestMicPermission(); return }
+    if (beatSource === 'organism' && !isOrganismRunning) return
     if (countInBeats > 0) {
+      await resumeAudioContext()
       await Tone.start()
       const metro = new Tone.MetalSynth({ envelope: { attack: 0.001, decay: 0.04, release: 0.01 }, harmonicity: 5.1, modulationIndex: 16, resonance: 3000, octaves: 0.5 }).toDestination()
       metro.frequency.value = 1000; metro.volume.value = -6
       setCountingIn(true); setCountBeat(0)
       let b = 0
-      const interval = (60 / (selectedBeat?.bpm ?? 90)) * 1000
+      const countInBpm = beatSource === 'organism'
+        ? activeOrganismPreset?.bpm ?? 90
+        : selectedBeat?.bpm ?? 90
+      const interval = (60 / countInBpm) * 1000
+      if (countInTimerRef.current) clearInterval(countInTimerRef.current)
       const ct = setInterval(() => {
         b++; metro.triggerAttackRelease('C5', '32n'); setCountBeat(b)
-        if (b >= countInBeats) { clearInterval(ct); setCountingIn(false); metro.dispose(); void doRecord() }
+        if (b >= countInBeats) {
+          clearInterval(ct)
+          countInTimerRef.current = null
+          setCountingIn(false)
+          metro.dispose()
+          void doRecord()
+        }
       }, interval)
+      countInTimerRef.current = ct
     } else {
       void doRecord()
     }
-  }, [micPermission, countInBeats, selectedBeat, doRecord, requestMicPermission])
+  }, [micPermission, beatSource, isOrganismRunning, countInBeats, activeOrganismPreset, selectedBeat, doRecord, requestMicPermission])
 
   const stopRecord = useCallback(() => {
+    if (countInTimerRef.current) { clearInterval(countInTimerRef.current); countInTimerRef.current = null }
+    setCountingIn(false)
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-    beatRecorderRef.current?.stop(); beatRecorderRef.current = null
-    micRecorderRef.current?.stop(); micRecorderRef.current = null
+    if (beatRecorderRef.current?.state === 'recording') beatRecorderRef.current.stop()
+    beatRecorderRef.current = null
+    if (micRecorderRef.current?.state === 'recording') micRecorderRef.current.stop()
+    micRecorderRef.current = null
     setIsRecording(false); setElapsed(0)
   }, [])
 
@@ -718,6 +739,7 @@ export default function RecordingBooth() {
     stopSong()
     if (micRecorderRef.current?.state === 'recording') micRecorderRef.current.stop()
     if (beatRecorderRef.current?.state === 'recording') beatRecorderRef.current.stop()
+    if (countInTimerRef.current) clearInterval(countInTimerRef.current)
     micStreamRef.current?.getTracks().forEach(t => t.stop())
     stopVuMeter()
     if (timerRef.current) clearInterval(timerRef.current)
@@ -991,7 +1013,7 @@ export default function RecordingBooth() {
                         className={`px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${
                           countInBeats === n ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300' : 'border-white/10 text-white/30 hover:text-white/60'
                         }`}>
-                        {n === 0 ? 'Off' : '4 Bars'}
+                        {n === 0 ? 'Off' : '4 Beats'}
                       </button>
                     ))}
                   </div>
