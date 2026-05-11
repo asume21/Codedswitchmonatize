@@ -26,7 +26,7 @@ function createMockMIDIAccess(): MIDIAccess {
 let mockMidiAccess: MIDIAccess
 
 vi.stubGlobal('navigator', {
-  ...navigator,
+  ...(globalThis.navigator ?? {}),
   requestMIDIAccess: vi.fn().mockImplementation(async () => mockMidiAccess),
 })
 

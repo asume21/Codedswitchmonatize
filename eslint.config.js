@@ -210,6 +210,7 @@ export default [
       'external/**',
       'tools/**',
       'services/**',
+      'private/**',
       '.claude/**',
       '.windsurf/**',
       '.codacy/**',

@@ -83,7 +83,7 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSwing: number = 0.35
 
   // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
-  private lastRebuildTime: number = 0
+  private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 600
 
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
@@ -451,7 +451,7 @@ export class MelodyGenerator extends GeneratorBase {
       const startBehavior = to === OState.Flow ? MelodyBehavior.Lead : MelodyBehavior.Hint
       if (this.currentBehavior === MelodyBehavior.Rest || this.part === null) {
         this.currentBehavior = startBehavior
-        this.lastRebuildTime = 0 // clear throttle so rebuild goes through
+        this.lastRebuildTime = -Infinity // clear throttle so rebuild goes through
         this.rebuildPhrase(physics, {
           current: to,
           flowDepth: to === OState.Flow ? 0.5 : 0,
@@ -467,7 +467,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.currentBehavior = MelodyBehavior.Rest
     this.currentScale    = MODE_SCALES.glow
     this.hasStartedPlayback = false
-    this.lastRebuildTime = 0
+    this.lastRebuildTime = -Infinity
     this.sectionBehavior = null
     this.setOutputLevel(0)
   }

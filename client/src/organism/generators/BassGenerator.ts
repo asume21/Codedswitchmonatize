@@ -255,7 +255,7 @@ export class BassGenerator extends GeneratorBase {
     this.currentBehavior = BassBehavior.Breathe
     this.currentPocket   = 0
     this.hasStartedPlayback = false
-    this.lastRebuildTime = 0
+    this.lastRebuildTime = -Infinity
     this.setOutputLevel(0)
   }
 
@@ -371,7 +371,7 @@ export class BassGenerator extends GeneratorBase {
     }
   }
 
-  private lastRebuildTime: number = 0
+  private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
   private rebuildPart(physics?: PhysicsState): void {

@@ -211,7 +211,9 @@ export class SampledDrumKit {
 
   private async hydratePrivateKit(): Promise<void> {
     try {
-      const response = await fetch('/api/organism/kits')
+      if (typeof window === 'undefined' || !window.location?.origin) return
+
+      const response = await fetch(new URL('/api/organism/kits', window.location.origin).toString())
       if (!response.ok) return
 
       const data = await response.json() as PrivateKitResponse
