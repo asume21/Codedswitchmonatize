@@ -435,6 +435,7 @@ export function OrganismCommandCenter() {
   const [renderState, setRenderState] = useState<'idle' | 'booting' | 'generating' | 'done' | 'error'>('idle')
   const [renderAudioUrl, setRenderAudioUrl] = useState<string | null>(null)
   const [renderDuration, setRenderDuration] = useState<number | null>(null)
+  const [renderGenerationSeconds, setRenderGenerationSeconds] = useState<number | null>(null)
   const [renderPrompt, setRenderPrompt] = useState<string | null>(null)
   const [referenceMode, setReferenceMode] = useState<'live' | 'rendered'>('live')
   const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -481,6 +482,7 @@ export function OrganismCommandCenter() {
     setRenderState('booting')
     setRenderAudioUrl(null)
     setRenderDuration(null)
+    setRenderGenerationSeconds(null)
     setRenderPrompt(null)
 
     const genre   = currentVibe?.genre ?? activePreset?.genre ?? 'trap'
@@ -537,7 +539,7 @@ export function OrganismCommandCenter() {
             clearInterval(poll)
             renderPollRef.current = null
             setRenderAudioUrl(outputUrl)
-            setRenderDuration(job.duration_s ?? job.durationS ?? null)
+            setRenderGenerationSeconds(job.duration_s ?? job.durationS ?? null)
             setRenderState('done')
             setReferenceMode('rendered')
           } else if (job.status === 'error') {
@@ -956,12 +958,17 @@ export function OrganismCommandCenter() {
         }}>
           <span style={{ fontSize: 11, color: C.purple, fontWeight: 600, flexShrink: 0 }}>
             RENDERED{renderDuration ? ` · ${Math.round(renderDuration)}s` : ''}
+            {renderGenerationSeconds ? ` · made in ${Math.round(renderGenerationSeconds)}s` : ''}
           </span>
           <audio
             ref={renderAudioRef}
             controls
             src={renderAudioUrl}
             muted={referenceMode !== 'rendered'}
+            onLoadedMetadata={(event) => {
+              const duration = event.currentTarget.duration
+              if (Number.isFinite(duration)) setRenderDuration(duration)
+            }}
             style={{ flex: 1, height: 28, accentColor: C.purple, opacity: referenceMode === 'rendered' ? 1 : 0.55 }}
           />
           <a
@@ -977,7 +984,14 @@ export function OrganismCommandCenter() {
             ↓ WAV
           </a>
           <button
-            onClick={() => { setRenderState('idle'); setRenderAudioUrl(null); setRenderPrompt(null); setReferenceMode('live') }}
+            onClick={() => {
+              setRenderState('idle')
+              setRenderAudioUrl(null)
+              setRenderDuration(null)
+              setRenderGenerationSeconds(null)
+              setRenderPrompt(null)
+              setReferenceMode('live')
+            }}
             style={{ background: 'none', border: 'none', color: C.text3, cursor: 'pointer', fontSize: 14 }}
           >×</button>
         </div>
