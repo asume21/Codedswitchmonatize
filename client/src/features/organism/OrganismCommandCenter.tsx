@@ -250,6 +250,8 @@ function InstrumentSelect({
 //  ORGANISM COMMAND CENTER
 // ══════════════════════════════════════════════════════════════════════════════
 
+const RENDER_TRACK_DURATION_SECONDS = 120
+
 export function OrganismCommandCenter() {
   useOrganismShortcuts()
 
@@ -517,7 +519,7 @@ export function OrganismCommandCenter() {
       const res = await fetch('/api/ai-music/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: 30, inferStep: 25, extraHints }),
+        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: RENDER_TRACK_DURATION_SECONDS, inferStep: 25, extraHints }),
       })
       if (!res.ok) throw new Error(`Generate failed: ${res.status}`)
       const { jobId, prompt } = await res.json() as { jobId: string; prompt?: string }

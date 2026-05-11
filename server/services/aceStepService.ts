@@ -13,7 +13,7 @@
 
 const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
 const POLL_INTERVAL_MS = 1500
-const POLL_TIMEOUT_MS  = 180_000  // 3 min max wait
+const POLL_TIMEOUT_MS  = 600_000  // 10 min max wait for longer renders
 
 export interface AceStepRequest {
   prompt: string        // comma-separated tags: "trap, hip-hop, 808, dark, minor"
