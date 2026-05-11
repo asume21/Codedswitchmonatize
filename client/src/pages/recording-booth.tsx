@@ -15,7 +15,7 @@ import {
   CheckCircle2, Merge, AudioLines,
 } from 'lucide-react'
 import { useLocation } from 'wouter'
-import { getAudioContext } from '@/lib/audioContext'
+import { getAudioContext, resumeAudioContext } from '@/lib/audioContext'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,14 +124,41 @@ const QUICK_BEATS: QuickBeat[] = [
   },
 ]
 
-const ORGANISM_PRESETS = [
-  { id: 'ref-lucid-dreams-80', label: 'Lucid',       bpm: 80,  color: 'purple', icon: Sparkles },
-  { id: 'ref-dababy-140',      label: 'DaBaby',      bpm: 140, color: 'red',    icon: Flame },
-  { id: 'ref-violin-trap-130', label: 'Violin Trap', bpm: 130, color: 'amber',  icon: Layers },
-  { id: 'ref-weekend-110',     label: 'Weekend',     bpm: 110, color: 'blue',   icon: Snowflake },
-  { id: 'ref-alt-pop-120',     label: 'Ref 05',      bpm: 120, color: 'emerald', icon: AudioLines },
-  { id: 'ref-dark-pocket-96',  label: 'Ref 06',      bpm: 96,  color: 'violet', icon: Wind },
-] as const
+const PRESET_ICON_MAP: Record<string, React.ElementType> = {
+  'ref-lucid-dreams-80': Sparkles,
+  'ref-dababy-140': Flame,
+  'ref-violin-trap-130': Layers,
+  'ref-weekend-110': Snowflake,
+  'ref-alt-pop-120': AudioLines,
+  'ref-dark-pocket-96': Wind,
+  'trap-140': Flame,
+  'melodic-trap-136': Sparkles,
+  'lofi-85': Snowflake,
+  'boombap-90': Radio,
+  'drill-140': Zap,
+  'chill-75': Wind,
+  'funk-100': Music,
+  'cypher-90': Mic,
+  'storytelling-80': Layers,
+}
+
+const PRESET_COLOR_MAP: Record<string, AccentColor> = {
+  'ref-lucid-dreams-80': 'purple',
+  'ref-dababy-140': 'red',
+  'ref-violin-trap-130': 'amber',
+  'ref-weekend-110': 'blue',
+  'ref-alt-pop-120': 'emerald',
+  'ref-dark-pocket-96': 'violet',
+  'trap-140': 'red',
+  'melodic-trap-136': 'purple',
+  'lofi-85': 'blue',
+  'boombap-90': 'amber',
+  'drill-140': 'violet',
+  'chill-75': 'emerald',
+  'funk-100': 'amber',
+  'cypher-90': 'violet',
+  'storytelling-80': 'blue',
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -345,6 +372,7 @@ export default function RecordingBooth() {
   const playQuickBeat = useCallback(async (beat: QuickBeat) => {
     if (isBeatPlaying) await stopQuickBeat()
     getAudioContext()
+    await resumeAudioContext()
     await Tone.start()
 
     // Beat bus — routes synths to both speakers AND recording destination
@@ -424,20 +452,31 @@ export default function RecordingBooth() {
   // ── Organism ──────────────────────────────────────────────────────────────────
 
   const isOrganismRunning = !!organism?.isRunning
+  const isOrganismStarting = !!organism?.isStarting
 
   const handleOrganismPreset = async (presetId: string) => {
+    console.log('[RecordingBooth] handleOrganismPreset', {
+      presetId,
+      organism: !!organism,
+      isOrganismRunning,
+      isOrganismStarting,
+      error: organism?.error,
+    })
     if (!organism) {
       toast({ title: 'Organism unavailable', description: 'The AI beat engine is still initializing.', variant: 'destructive' })
       return
     }
+    if (isOrganismStarting) return
     getAudioContext()
     await Tone.start()
+    console.log('[RecordingBooth] Tone started, calling', isOrganismRunning ? 'swapPreset' : 'quickStart')
     if (isOrganismRunning) {
       await organism.swapPreset(presetId)
     } else {
       await organism.quickStart(presetId)
       setIsBeatPlaying(true)
     }
+    console.log('[RecordingBooth] after start: isRunning=', organism.isRunning, 'error=', organism.error)
   }
 
   const stopOrganism = () => { organism?.stop(); setIsBeatPlaying(false) }
@@ -831,19 +870,30 @@ export default function RecordingBooth() {
                   <Radio className={`h-4 w-4 text-cyan-400 ${isOrganismRunning ? 'animate-pulse' : ''}`} />
                   <span className="text-xs font-black uppercase tracking-widest text-cyan-400">Live AI Beat</span>
                 </div>
-                {isOrganismRunning && <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">Playing</Badge>}
+                {isOrganismStarting && <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] animate-pulse">Starting…</Badge>}
+                {isOrganismRunning && !isOrganismStarting && <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">Playing</Badge>}
+                {!organism && <Badge className="bg-white/10 text-white/40 border-white/10 text-[10px]">Booting…</Badge>}
               </div>
               <p className="text-[11px] text-white/40 px-1">
                 Pick a style — AI generates drums, bass &amp; melody in real time. No loops, all live.
               </p>
+              {organism?.error && (
+                <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-[11px] text-red-300 font-mono">
+                  Error: {organism.error}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                {ORGANISM_PRESETS.map(preset => {
+                {(organism?.quickStartPresets ?? []).map(preset => {
                   const isActive = isOrganismRunning && organism?.activePresetId === preset.id
-                  const PresetIcon = preset.icon
-                  const accent = ACCENT_STYLES[preset.color]
+                  const PresetIcon = PRESET_ICON_MAP[preset.id] ?? Radio
+                  const accent = ACCENT_STYLES[PRESET_COLOR_MAP[preset.id] ?? 'purple']
+                  const isThisStarting = isOrganismStarting && organism?.activePresetId === preset.id
                   return (
                     <button key={preset.id} onClick={() => handleOrganismPreset(preset.id)}
-                      className={`p-4 rounded-xl border text-left transition-all hover:scale-[1.02] ${
+                      disabled={isOrganismStarting}
+                      className={`p-4 rounded-xl border text-left transition-all ${
+                        isOrganismStarting ? 'opacity-60 cursor-wait' : 'hover:scale-[1.02]'
+                      } ${
                         isActive
                           ? accent.activeCard
                           : 'border-white/10 bg-white/[0.02] hover:border-white/20'
@@ -851,13 +901,14 @@ export default function RecordingBooth() {
                       <div className="flex items-start justify-between mb-2">
                         <PresetIcon className={`h-5 w-5 ${isActive ? accent.icon : 'text-white/30'}`} />
                         {isActive && <div className="flex gap-0.5">{[1,2,3].map(i => <div key={i} className={`w-1 ${accent.bar} rounded-full animate-bounce`} style={{ height: `${8+i*4}px`, animationDelay: `${i*100}ms` }} />)}</div>}
+                        {isThisStarting && <div className="h-3 w-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />}
                       </div>
                       <div className="font-black text-sm uppercase tracking-tight">{preset.label}</div>
                       <div className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? accent.text : 'text-white/40'}`}>
                         {preset.bpm} BPM · AI Live
                       </div>
                       <div className={`mt-2 text-[10px] font-black uppercase tracking-widest ${isActive ? accent.text : 'text-white/20'}`}>
-                        {isActive ? '● Live' : '▶ Start'}
+                        {isThisStarting ? '⟳ Starting' : isActive ? '● Live' : '▶ Start'}
                       </div>
                     </button>
                   )
@@ -868,6 +919,30 @@ export default function RecordingBooth() {
                   className="w-full bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25 font-black uppercase tracking-widest text-xs">
                   <Square className="h-3.5 w-3.5 mr-2" /> Stop Organism
                 </Button>
+              )}
+
+              {/* Generator mixer — shown when organism is running */}
+              {isOrganismRunning && organism && (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white/40">Generator Mix</p>
+                  {([
+                    { label: 'Drums',  value: organism.drumsVolume,  set: organism.setDrumsVolume,  color: '#f472b6' },
+                    { label: 'Bass',   value: organism.bassVolume,   set: organism.setBassVolume,   color: '#4ade80' },
+                    { label: 'Melody', value: organism.melodyVolume, set: organism.setMelodyVolume, color: '#38bdf8' },
+                    { label: 'Chords', value: organism.chordVolume,  set: organism.setChordVolume,  color: '#a78bfa' },
+                  ] as const).map(({ label, value, set, color }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider w-12 shrink-0" style={{ color }}>{label}</span>
+                      <Slider
+                        value={[Math.round(value * 100)]}
+                        onValueChange={([v]) => set(v / 100)}
+                        min={0} max={200} step={1}
+                        className="flex-1"
+                      />
+                      <span className="text-[10px] text-white/40 w-8 text-right">{Math.round(value * 100)}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}

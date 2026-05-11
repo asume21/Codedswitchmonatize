@@ -435,10 +435,16 @@ export function OrganismCommandCenter() {
   const [renderState, setRenderState] = useState<'idle' | 'booting' | 'generating' | 'done' | 'error'>('idle')
   const [renderAudioUrl, setRenderAudioUrl] = useState<string | null>(null)
   const [renderDuration, setRenderDuration] = useState<number | null>(null)
+  const [renderPrompt, setRenderPrompt] = useState<string | null>(null)
+  const [referenceMode, setReferenceMode] = useState<'live' | 'rendered'>('live')
   const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const renderAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Clean up poll on unmount
   useEffect(() => () => { if (renderPollRef.current) clearInterval(renderPollRef.current) }, [])
+  useEffect(() => {
+    if (referenceMode === 'live') renderAudioRef.current?.pause()
+  }, [referenceMode])
 
   const lyricsEndRef = useRef<HTMLDivElement>(null)
   const [shareCaption, setShareCaption] = useState('')
@@ -475,32 +481,65 @@ export function OrganismCommandCenter() {
     setRenderState('booting')
     setRenderAudioUrl(null)
     setRenderDuration(null)
+    setRenderPrompt(null)
 
     const genre   = currentVibe?.genre ?? activePreset?.genre ?? 'trap'
     const mood    = currentVibe?.mood  ?? 'dark'
     const section = v2Status?.section  ?? 'verse'
     const bpm     = currentBpm || 90
+    const musicalState = orchestrator?.getMusicalState()
+    const selfListen = (window as unknown as {
+      __organismSnapshot?: {
+        selfListen?: {
+          summary?: string | null
+          rmsDb?: number
+          peakDb?: number
+          spectralCentroidHz?: number
+          bandEnergy?: { sub: number; bass: number; lowMid: number; highMid: number; high: number }
+        } | null
+      }
+    }).__organismSnapshot?.selfListen
+
+    const extraHints = [
+      musicalState?.subGenre ? `Organism sub-genre: ${musicalState.subGenre}` : '',
+      musicalState?.currentChordLabel ? `Current chord: ${musicalState.currentChordLabel}` : '',
+      musicalState?.section ? `Arrangement section: ${musicalState.section}` : '',
+      `Beat target: reference-level hip-hop beat, clean 808 or bass, punchy kick, crisp snare, controlled hats, mix-ready headroom`,
+      selfListen?.summary ? `Live mix analysis: ${selfListen.summary}` : '',
+      selfListen?.rmsDb != null && selfListen?.peakDb != null
+        ? `Live levels: RMS ${selfListen.rmsDb.toFixed(1)} dBFS, peak ${selfListen.peakDb.toFixed(1)} dBFS`
+        : '',
+    ].filter(Boolean).join('\n')
 
     try {
       const res = await fetch('/api/ai-music/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: 30, inferStep: 25 }),
+        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: 30, inferStep: 25, extraHints }),
       })
       if (!res.ok) throw new Error(`Generate failed: ${res.status}`)
-      const { jobId } = await res.json() as { jobId: string }
+      const { jobId, prompt } = await res.json() as { jobId: string; prompt?: string }
+      setRenderPrompt(prompt ?? null)
       setRenderState('generating')
 
       const poll = setInterval(async () => {
         try {
           const jr = await fetch(`/api/ai-music/job/${jobId}`)
-          const job = await jr.json() as { status: string; output_url?: string; duration_s?: number }
-          if (job.status === 'done' && job.output_url) {
+          const job = await jr.json() as {
+            status: string
+            output_url?: string
+            outputUrl?: string
+            duration_s?: number
+            durationS?: number
+          }
+          const outputUrl = job.output_url ?? job.outputUrl
+          if (job.status === 'done' && outputUrl) {
             clearInterval(poll)
             renderPollRef.current = null
-            setRenderAudioUrl(job.output_url)
-            setRenderDuration(job.duration_s ?? null)
+            setRenderAudioUrl(outputUrl)
+            setRenderDuration(job.duration_s ?? job.durationS ?? null)
             setRenderState('done')
+            setReferenceMode('rendered')
           } else if (job.status === 'error') {
             clearInterval(poll)
             renderPollRef.current = null
@@ -512,7 +551,7 @@ export function OrganismCommandCenter() {
     } catch {
       setRenderState('error')
     }
-  }, [renderState, currentVibe, activePreset, v2Status, currentBpm])
+  }, [renderState, currentVibe, activePreset, v2Status, currentBpm, orchestrator])
 
   const handleShare = useCallback(async () => {
     const result = await shareSession(shareCaption)
@@ -731,7 +770,7 @@ export function OrganismCommandCenter() {
             border: v2Status.active ? '1px solid rgba(34,197,94,0.18)' : '1px solid rgba(255,255,255,0.08)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{ ...label11, color: v2Status.active ? C.green : C.text3 }}>Organism v2</span>
+              <span style={{ ...label11, color: v2Status.active ? C.green : C.text3 }}>Live Generator</span>
               <span style={{ fontSize: 10, color: v2Status.active ? C.green : C.text3, fontWeight: 800 }}>
                 {v2Status.active
                   ? `${v2Status.section ?? 'arrangement'} · bar ${v2Status.bar}/${v2Status.cycleBars} · ${v2Status.targetBpm} BPM`
@@ -739,12 +778,12 @@ export function OrganismCommandCenter() {
               </span>
               {v2Status.kitBpm && (
                 <span style={{ marginLeft: 'auto', fontSize: 10, color: C.text3 }}>
-                  kit {v2Status.kitBpm} BPM · rate {v2Status.playbackRate.toFixed(2)}x
+                  target {v2Status.kitBpm} BPM
                 </span>
               )}
             </div>
             <SliderRow
-              label="V2 Master"
+              label="Generator Master"
               value={v2Gain}
               onChange={handleV2Gain}
               min={0.35}
@@ -871,6 +910,40 @@ export function OrganismCommandCenter() {
         </button>
       </div>
 
+      {renderAudioUrl && (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          marginTop: 8,
+          padding: 3,
+          borderRadius: 7,
+          border: '1px solid rgba(148,163,184,0.16)',
+          background: 'rgba(15,23,42,0.55)',
+        }}>
+          {(['live', 'rendered'] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setReferenceMode(mode)}
+              style={{
+                border: 'none',
+                borderRadius: 5,
+                padding: '4px 9px',
+                background: referenceMode === mode ? 'rgba(167,139,250,0.18)' : 'transparent',
+                color: referenceMode === mode ? C.purple : C.text3,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              title={mode === 'live' ? 'Use the live Organism beat as your reference' : 'Use the rendered ACE-Step beat as your reference'}
+            >
+              {mode === 'live' ? 'Live Organism' : 'Rendered Ref'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Render result — audio player + download */}
       {renderState === 'done' && renderAudioUrl && (
         <div style={{
@@ -885,9 +958,11 @@ export function OrganismCommandCenter() {
             RENDERED{renderDuration ? ` · ${Math.round(renderDuration)}s` : ''}
           </span>
           <audio
+            ref={renderAudioRef}
             controls
             src={renderAudioUrl}
-            style={{ flex: 1, height: 28, accentColor: C.purple }}
+            muted={referenceMode !== 'rendered'}
+            style={{ flex: 1, height: 28, accentColor: C.purple, opacity: referenceMode === 'rendered' ? 1 : 0.55 }}
           />
           <a
             href={renderAudioUrl}
@@ -902,9 +977,14 @@ export function OrganismCommandCenter() {
             ↓ WAV
           </a>
           <button
-            onClick={() => { setRenderState('idle'); setRenderAudioUrl(null) }}
+            onClick={() => { setRenderState('idle'); setRenderAudioUrl(null); setRenderPrompt(null); setReferenceMode('live') }}
             style={{ background: 'none', border: 'none', color: C.text3, cursor: 'pointer', fontSize: 14 }}
           >×</button>
+        </div>
+      )}
+      {renderState === 'done' && renderPrompt && (
+        <div style={{ marginTop: 5, fontSize: 10, color: C.text3, lineHeight: 1.35 }}>
+          Ref prompt: {renderPrompt}
         </div>
       )}
 

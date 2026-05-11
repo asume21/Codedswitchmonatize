@@ -298,8 +298,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [isPatternLocked,  setIsPatternLocked]  = useState(false)
   const [hatDensity,       setHatDensityState]  = useState(0.55)
   const [kickVelocity,     setKickVelocityState]= useState(0.82)
+  const [drumsVolume,      setDrumsVolumeState] = useState(1.0)
   const [bassVolume,       setBassVolumeState]  = useState(1.25)
   const [melodyVolume,     setMelodyVolumeState]= useState(1.55)
+  const [chordVolume,      setChordVolumeState] = useState(1.0)
   const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
@@ -1260,7 +1262,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(`Unknown quick start preset: ${presetId}`)
       return
     }
-    if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current || !v2PlayerRef.current) {
+    console.log('[quickStart] refs:', {
+      input: !!inputRef.current,
+      orchestr: !!orchestrRef.current,
+      stateMach: !!stateMachRef.current,
+      physics: !!physicsRef.current,
+      isRunning: isRunningRef.current,
+      startInFlight: !!startInFlightRef.current,
+    })
+    if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current) {
+      console.error('[quickStart] Engines not initialized — aborting')
       setError('Engines not initialized')
       return
     }
@@ -1268,7 +1279,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr = orchestrRef.current
     const stateMachine = stateMachRef.current
     const physicsEngine = physicsRef.current
-    if (isRunningRef.current) return
+    if (isRunningRef.current) {
+      console.warn('[quickStart] already running — skipping')
+      return
+    }
     if (startInFlightRef.current) return startInFlightRef.current
 
     // Force-reset orchestrator running flag in case a prior session left it stuck
@@ -1351,7 +1365,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await waitForStartupParts()
 
       // Start v1 generators — real hip-hop drum samples + patterns from DrumPatternLibrary
+      console.log('[quickStart] calling orchestr.start', {
+        bpm: preset.bpm,
+        transportState: Tone.getTransport().state,
+        transportPos: Tone.getTransport().position,
+        ctxState: Tone.getContext().state,
+      })
       await orchestr.start(preset.bpm, true)
+      console.log('[quickStart] orchestr.start done — transport:', Tone.getTransport().state)
       if (startTokenRef.current !== token) {
         orchestr.stop()
         input.stop()
@@ -1433,25 +1454,70 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Hot path — live swap, no teardown
     const physics = physicsRef.current
     const orchestr = orchestrRef.current
-    const v2Player = v2PlayerRef.current
-    if (!physics || !orchestr || !v2Player) return
+    const stateMachine = stateMachRef.current
+    if (!physics || !orchestr || !stateMachine) return
 
     const endSwap = orgPhase('swapPreset', 100)
-    physics.lockMode(preset.mode)
-    orchestr.setBpm(preset.bpm)
-    useStudioStore.getState().setBpm(preset.bpm)
-    if (preset.subGenre) {
-      orchestr.forceSubGenre(preset.subGenre)
+    try {
+      await Tone.start()
+      physics.lockMode(preset.mode)
+      orchestr.setBpm(preset.bpm)
+      useStudioStore.getState().setBpm(preset.bpm)
+
+      const syntheticPhysics = {
+        ...preset.physics,
+        timestamp: performance.now(),
+        frameIndex: 0,
+      }
+
+      physics.processFrame({
+        rms:              syntheticPhysics.presence * 0.5,
+        rmsRaw:           syntheticPhysics.presence * 0.5,
+        pitch:            220,
+        pitchConfidence:  0.8,
+        pitchMidi:        57,
+        pitchCents:       0,
+        spectralCentroid: preset.mode === 'heat' || preset.mode === 'gravel' ? 3500 : 1800,
+        spectralFlux:     syntheticPhysics.bounce * 0.3,
+        hnr:              preset.mode === 'glow' || preset.mode === 'ice' ? 12 : 5,
+        onsetDetected:    true,
+        onsetStrength:    0.7,
+        onsetTimestamp:   performance.now(),
+        voiceActive:      false,
+        voiceConfidence:  0,
+        sampleRate:       44100,
+        timestamp:        performance.now(),
+        frameIndex:       0,
+      })
+
+      stateMachine.forceState(OState.Flow, syntheticPhysics)
+      stateMachine.setStateFloor(OState.Breathing)
+      if (preset.subGenre) {
+        orchestr.forceSubGenre(preset.subGenre)
+      }
+      orchestr.primeFrame(syntheticPhysics, stateMachine.getCurrentState())
+      await waitForStartupParts()
+      await orchestr.start(preset.bpm, true)
+      applyStablePlaybackDefaults()
+      Tone.getDestination().volume.value = 0
+      setV2Status({
+        active:       true,
+        presetId:     preset.id,
+        kitBpm:       preset.bpm,
+        targetBpm:    preset.bpm,
+        playbackRate: 1,
+        section:      'intro',
+        bar:          0,
+        cycleBars:    32,
+        stems:        [],
+      })
+      setActivePresetId(presetId)
+      endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
+    } catch (err) {
+      endSwap({ presetId, error: err instanceof Error ? err.message : String(err) })
+      setError(err instanceof Error ? err.message : 'Preset swap failed')
     }
-    orchestr.stop()
-    applyStablePlaybackDefaults()
-    Tone.getDestination().volume.value = 0
-    const nextV2Status = await v2Player.start(preset)
-    setV2Status(nextV2Status)
-    applyStablePlaybackDefaults()
-    setActivePresetId(presetId)
-    endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
-  }, [quickStart, scheduleSilentStartRecovery, applyStablePlaybackDefaults])
+  }, [quickStart, applyStablePlaybackDefaults, waitForStartupParts])
 
   /**
    * Natural Language Vibe Interpreter
@@ -2961,8 +3027,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Tweak controls
     hatDensity,
     kickVelocity,
+    drumsVolume,
     bassVolume,
     melodyVolume,
+    chordVolume,
     melodyFocusEnabled,
     setHatDensity: (v: number) => {
       setHatDensityState(v)
@@ -2972,6 +3040,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setKickVelocityState(v)
       orchestrRef.current?.setKickVelocityMultiplier(v)
     },
+    setDrumsVolume: (v: number) => {
+      setDrumsVolumeState(v)
+      // Convert 0-2 multiplier to dB offset from the default drum channel gain (0 dB)
+      const db = v <= 0 ? -60 : 20 * Math.log10(v)
+      mixRef.current?.setChannelGainDb('drum', db)
+    },
     setBassVolume: (v: number) => {
       setBassVolumeState(v)
       orchestrRef.current?.setBassVolumeMultiplier(v)
@@ -2979,6 +3053,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     setMelodyVolume: (v: number) => {
       setMelodyVolumeState(v)
       orchestrRef.current?.setMelodyVolumeMultiplier(v)
+    },
+    setChordVolume: (v: number) => {
+      setChordVolumeState(v)
+      // -5 dB is the chord channel default; this offsets from that baseline
+      mixRef.current?.setChannelGainDb('chord', -5 + 20 * Math.log10(Math.max(0.001, v)))
     },
     setMelodyFocusEnabled: (enabled: boolean) => {
       setMelodyFocusEnabledState(enabled)
@@ -3037,7 +3116,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
     latchMode, isPatternLocked,
-    hatDensity, kickVelocity, bassVolume, melodyVolume, melodyFocusEnabled, textureEnabled,
+    hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
