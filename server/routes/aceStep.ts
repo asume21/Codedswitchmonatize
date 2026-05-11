@@ -136,6 +136,7 @@ export function createAceStepRoutes(): Router {
         // Keep both shapes while older clients are still deployed.
         output_url: job.outputUrl,
         duration_s: job.durationS,
+        generation_s: job.generationS,
         job_id: job.jobId,
       })
     } catch (err: any) {

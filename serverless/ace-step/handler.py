@@ -5,10 +5,13 @@ import uuid
 from pathlib import Path
 
 import runpod
+import numpy as np
+import soundfile as sf
 
 PIPELINE = None
 OUTPUT_DIR = Path(os.getenv("ACE_STEP_OUTPUT_DIR", "/tmp/ace-step-output"))
 CHECKPOINT_DIR = os.getenv("ACE_STEP_CHECKPOINT_DIR", "/runpod-volume/checkpoints")
+EXTRA_GENERATION_SECONDS = float(os.getenv("ACE_STEP_EXTRA_GENERATION_SECONDS", "1.5"))
 
 
 def _as_bool(value: str, default: bool = False) -> bool:
@@ -38,6 +41,25 @@ def get_pipeline():
     return PIPELINE
 
 
+def normalize_wav_duration(path: Path, target_duration_s: float) -> float:
+    audio, sample_rate = sf.read(str(path), always_2d=True)
+    target_samples = max(1, int(round(target_duration_s * sample_rate)))
+    current_samples = audio.shape[0]
+
+    if current_samples > target_samples:
+        audio = audio[:target_samples]
+        fade_samples = min(int(sample_rate * 0.05), target_samples)
+        if fade_samples > 0:
+            fade = np.linspace(1.0, 0.0, fade_samples, dtype=audio.dtype)
+            audio[-fade_samples:] *= fade[:, None]
+    elif current_samples < target_samples:
+        pad = np.zeros((target_samples - current_samples, audio.shape[1]), dtype=audio.dtype)
+        audio = np.concatenate([audio, pad], axis=0)
+
+    sf.write(str(path), audio, sample_rate)
+    return audio.shape[0] / sample_rate
+
+
 def handler(event):
     payload = event.get("input") or {}
     prompt = payload.get("prompt")
@@ -53,10 +75,12 @@ def handler(event):
 
     out_path = OUTPUT_DIR / f"{job_id}.wav"
     t0 = time.time()
+    requested_duration = float(payload.get("audio_duration", 30.0))
+    generation_duration = requested_duration + EXTRA_GENERATION_SECONDS
 
     pipeline = get_pipeline()
     pipeline(
-        audio_duration=float(payload.get("audio_duration", 30.0)),
+        audio_duration=generation_duration,
         prompt=prompt,
         lyrics=payload.get("lyrics") or "",
         infer_step=int(payload.get("infer_step", 25)),
@@ -77,11 +101,13 @@ def handler(event):
         save_path=str(out_path),
     )
 
+    audio_duration = normalize_wav_duration(out_path, requested_duration)
     audio_bytes = out_path.read_bytes()
     return {
         "format": "wav",
         "seed": int(seed),
-        "duration_s": round(time.time() - t0, 2),
+        "duration_s": round(audio_duration, 2),
+        "generation_s": round(time.time() - t0, 2),
         "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
     }
 

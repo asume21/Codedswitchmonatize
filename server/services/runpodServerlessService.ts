@@ -21,6 +21,7 @@ interface RunPodStatusResponse extends RunPodRunResponse {
     audio_base64?: string
     format?: string
     duration_s?: number
+    generation_s?: number
     seed?: number
     error?: string
   }
@@ -114,6 +115,7 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
       outputPath,
       outputUrl: `/api/ai-music/audio/${filename}`,
       durationS: data.output?.duration_s ?? msToSeconds(data.executionTime),
+      generationS: data.output?.generation_s ?? msToSeconds(data.executionTime),
     }
   }
 
@@ -121,7 +123,7 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     jobId,
     status: mapped,
     error: data.output?.error ?? data.error,
-    durationS: msToSeconds(data.executionTime),
+    generationS: msToSeconds(data.executionTime),
   }
 }
 

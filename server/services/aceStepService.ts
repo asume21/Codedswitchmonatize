@@ -30,6 +30,7 @@ export interface AceStepJob {
   outputUrl?: string
   error?: string
   durationS?: number
+  generationS?: number
 }
 
 export async function isWorkerReady(): Promise<boolean> {
@@ -103,6 +104,7 @@ export async function pollJob(jobId: string): Promise<AceStepJob> {
     outputUrl:  data.output_url,
     error:      data.error,
     durationS:  data.duration_s,
+    generationS: data.duration_s,
   }
 }
 

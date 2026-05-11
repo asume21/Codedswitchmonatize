@@ -533,13 +533,16 @@ export function OrganismCommandCenter() {
             outputUrl?: string
             duration_s?: number
             durationS?: number
+            generation_s?: number
+            generationS?: number
           }
           const outputUrl = job.output_url ?? job.outputUrl
           if (job.status === 'done' && outputUrl) {
             clearInterval(poll)
             renderPollRef.current = null
             setRenderAudioUrl(outputUrl)
-            setRenderGenerationSeconds(job.duration_s ?? job.durationS ?? null)
+            setRenderGenerationSeconds(job.generation_s ?? job.generationS ?? null)
+            setRenderDuration(job.duration_s ?? job.durationS ?? null)
             setRenderState('done')
             setReferenceMode('rendered')
           } else if (job.status === 'error') {
