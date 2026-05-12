@@ -1,4 +1,5 @@
 export type AIProviderId =
+  | 'ace-step'
   | 'suno'
   | 'replicate-suno'
   | 'replicate-musicgen'
@@ -22,6 +23,19 @@ export interface ProviderCapability {
 }
 
 export const PROVIDER_CAPABILITIES: Record<AIProviderId, ProviderCapability> = {
+  'ace-step': {
+    id: 'ace-step',
+    label: 'ACE-Step',
+    estimatedLatency: '45-120s',
+    maxDuration: 120,
+    bpmRange: { min: 60, max: 180 },
+    maxVariations: 3,
+    maxSections: 1,
+    supportsStructuredSections: false,
+    supportsGuideMelody: false,
+    supportsNativeStems: false,
+    canGenerateAudio: true,
+  },
   suno: {
     id: 'suno',
     label: 'Suno',

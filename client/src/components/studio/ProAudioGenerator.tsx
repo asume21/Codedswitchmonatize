@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -20,7 +19,6 @@ import {
   Copy, Check, ChefHat, Lightbulb, Clock, Save, Edit3,
 } from 'lucide-react';
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
-import { CreditBadge } from '@/components/ui/CreditBadge';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 
 interface GenerationVariation {
@@ -204,7 +202,7 @@ export function ProAudioGenerator() {
   const [songDescription, setSongDescription] = useState('');
   const [genre, setGenre] = useState('');
   const [mood, setMood] = useState('');
-  const [aiProvider, setAiProvider] = useState('suno');
+  const aiProvider = 'ace-step';
   const [duration, setDuration] = useState([60]);
   const [bpm, setBpm] = useState([120]);
   const [key, setKey] = useState('C Major');
@@ -234,7 +232,7 @@ export function ProAudioGenerator() {
     brass: false,
   });
 
-  // Generated song state
+  // Generated reference beat state
   const [generatedSong, setGeneratedSong] = useState<GeneratedSong | null>(null);
   const [selectedVariation, setSelectedVariation] = useState(0);
   const [generationProgress, setGenerationProgress] = useState('');
@@ -261,16 +259,14 @@ export function ProAudioGenerator() {
   const isTextOnlyProvider = !providerCapability.canGenerateAudio;
   const providerLabel = providerCapability.label || aiProvider;
   const providerEst = providerCapability.estimatedLatency || '15-60s';
-  const isSunoProvider = aiProvider === 'suno' || aiProvider === 'replicate-suno';
-  const maxVariationsForProvider = isSunoProvider ? 2 : 4;
+  const maxVariationsForProvider = providerCapability.maxVariations || 1;
   const effectiveVariations = generateMultiple ? Math.min(3, maxVariationsForProvider) : Math.min(variations, maxVariationsForProvider);
   const getMaxDuration = useCallback(() => {
-    if (songStructure !== 'auto') return 300;
     return providerMaxSingle;
-  }, [songStructure, providerMaxSingle]);
-  const effectiveDuration = Math.min(duration[0], songStructure === 'auto' ? providerMaxSingle || 30 : 300);
+  }, [providerMaxSingle]);
+  const effectiveDuration = Math.min(duration[0], providerMaxSingle || 30);
   const effectiveBpm = Math.max(providerBpmRange.min || bpm[0], Math.min(providerBpmRange.max || bpm[0], bpm[0]));
-  const isDurationCapped = duration[0] > getMaxDuration() && songStructure === 'auto' && providerMaxSingle > 0;
+  const isDurationCapped = duration[0] > getMaxDuration() && providerMaxSingle > 0;
   const isBpmCapped = !isTextOnlyProvider && (bpm[0] < providerBpmRange.min || bpm[0] > providerBpmRange.max);
 
   const resolveEffectiveProvider = useCallback(() => {
@@ -279,10 +275,10 @@ export function ProAudioGenerator() {
       duration: duration[0],
       bpm: bpm[0],
       variations: effectiveVariations,
-      sectionCount: STRUCTURE_MAP[songStructure]?.length || 0,
-      requireGuideMelody: Boolean(melodyGuideUrl),
+      sectionCount: 0,
+      requireGuideMelody: false,
     });
-  }, [aiProvider, duration, bpm, effectiveVariations, songStructure, melodyGuideUrl]);
+  }, [aiProvider, duration, bpm, effectiveVariations]);
 
   const buildTakeCacheKey = useCallback((payload: {
     prompt: string;
@@ -426,10 +422,10 @@ export function ProAudioGenerator() {
     setInstruments(recipe.instruments as typeof instruments);
   }, []);
 
-  const generateMutation = useMutation({
+  const generateMutation = useMutation<GeneratedSong, Error>({
     mutationFn: async () => {
       if (isTextOnlyProvider) {
-        throw new Error(`${providerLabel} cannot generate audio. Pick an audio provider like Suno or MusicGen.`);
+        throw new Error(`${providerLabel} cannot generate audio.`);
       }
       if (!hasInstruments) {
         throw new Error('Select at least one instrument before generating.');
@@ -466,56 +462,123 @@ export function ProAudioGenerator() {
       setGenerationProgress(`Routing request to ${effectiveLabel} (est. ${estTime})...`);
       setSelectedVariation(0);
 
-      const payload: Record<string, any> = {
-        songDescription,
-        genre,
-        mood,
-        aiProvider: effectiveProvider,
-        duration: constrainedDuration ?? effectiveDuration,
-        bpm: constrainedBpm ?? effectiveBpm,
+      if (constrainedVariations > 1) {
+        setGenerationProgress(`${effectiveLabel}: rendering ${constrainedVariations} reference beat options (est. ${estTime})...`);
+      } else if (STRUCTURE_MAP[songStructure]) {
+        setGenerationProgress(`${effectiveLabel}: rendering a reference beat (est. ${estTime})...`);
+      } else {
+        setGenerationProgress(`${effectiveLabel}: rendering a reference beat (est. ${estTime})...`);
+      }
+
+      const selectedDuration = Math.max(10, Math.min(120, constrainedDuration ?? effectiveDuration));
+      const selectedBpm = constrainedBpm ?? effectiveBpm;
+      const selectedSeed = typeof seed === 'number' ? seed : undefined;
+      const instrumentalPrompt = [
+        songDescription.trim(),
+        genre ? `genre: ${genre}` : '',
+        mood ? `mood: ${mood}` : '',
+        style ? `style: ${style}` : '',
+        `${selectedBpm} BPM`,
         key,
-        style,
-        includeVocals,
-        instruments: selectedInstrumentsList,
-        seed: typeof seed === 'number' ? seed : undefined,
-        variations: constrainedVariations,
-        melodyUrl: melodyGuideUrl || undefined,
-        structure: STRUCTURE_MAP[songStructure] || undefined,
-        autoSeparateStems,
-        stemCount,
-        requireStems,
+        selectedInstrumentsList.length ? `instruments: ${selectedInstrumentsList.join(', ')}` : '',
+        'reference-level instrumental beat',
+        'professional hip-hop production',
+        'radio-ready mix',
+        'punchy drums',
+        'clean low end',
+        'wide stereo',
+        'no vocals, no singing, no rap vocal',
+      ].filter(Boolean).join(', ');
+
+      const signal = getAbortSignal();
+      const renderVariation = async (variationIndex: number) => {
+        const variationSeed = selectedSeed !== undefined ? selectedSeed + variationIndex : undefined;
+        setGenerationProgress(`${effectiveLabel}: rendering option ${variationIndex + 1}/${constrainedVariations} (${formatDuration(selectedDuration)})...`);
+        const submit = await apiRequest('POST', '/api/ai-music/generate', {
+          prompt: instrumentalPrompt,
+          genre: genre || 'Hip-Hop',
+          mood: mood || 'Focused',
+          bpm: selectedBpm,
+          section: 'verse',
+          extraHints: songDescription,
+          lyrics: '',
+          audioDuration: selectedDuration,
+          inferStep: 35,
+          seed: variationSeed,
+        }, { signal });
+
+        if (!submit.ok) {
+          let detail = 'ACE render failed';
+          try {
+            const body = await submit.json();
+            detail = body.message || body.error || detail;
+          } catch { /* response was not JSON */ }
+          throw new Error(`${providerLabel} (${submit.status}): ${detail}`);
+        }
+
+        const submitted = await submit.json() as { jobId?: string; job_id?: string; prompt?: string };
+        const jobId = submitted.jobId ?? submitted.job_id;
+        if (!jobId) throw new Error('ACE did not return a job id');
+
+        const deadline = Date.now() + 12 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise(resolve => window.setTimeout(resolve, 2500));
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          const poll = await fetch(`/api/ai-music/job/${jobId}`, { signal });
+          if (!poll.ok) continue;
+          const job = await poll.json() as {
+            status?: string;
+            outputUrl?: string;
+            output_url?: string;
+            durationS?: number;
+            duration_s?: number;
+            error?: string;
+          };
+          if (job.status === 'done') {
+            const audioUrl = job.outputUrl ?? job.output_url;
+            if (!audioUrl) throw new Error('ACE finished but returned no audio URL');
+            return {
+              audioUrl,
+              duration: job.durationS ?? job.duration_s ?? selectedDuration,
+              seed: variationSeed ?? Date.now() + variationIndex,
+            };
+          }
+          if (job.status === 'error') {
+            throw new Error(job.error || 'ACE render failed');
+          }
+        }
+        throw new Error('ACE render timed out');
       };
 
-      if (constrainedVariations > 1) {
-        setGenerationProgress(`${effectiveLabel}: generating ${constrainedVariations} variations (est. ${estTime})...`);
-      } else if (STRUCTURE_MAP[songStructure]) {
-        setGenerationProgress(`${effectiveLabel}: generating ${STRUCTURE_MAP[songStructure].length} sections (est. ${estTime})...`);
-      } else {
-        setGenerationProgress(`${effectiveLabel}: generating audio (est. ${estTime})...`);
+      const results = [];
+      for (let i = 0; i < constrainedVariations; i++) {
+        results.push(await renderVariation(i));
       }
 
-      const response = await apiRequest('POST', '/api/music/generate-complete', payload, {
-        signal: getAbortSignal(),
-      });
-
-      if (!response.ok) {
-        let detail = 'Failed to generate song';
-        let requestId: string | null = null;
-        let effectiveProvider: string | null = null;
-        try {
-          const errBody = await response.json();
-          detail = errBody.message || errBody.error || detail;
-          requestId = errBody.requestId || null;
-          effectiveProvider = errBody.effectiveProvider || errBody.provider || null;
-        } catch { /* response wasn't JSON */ }
-        const suffix = [
-          effectiveProvider ? `provider=${effectiveProvider}` : null,
-          requestId ? `requestId=${requestId}` : null,
-        ].filter(Boolean).join(' | ');
-        throw new Error(`${providerLabel} (${response.status}): ${detail}${suffix ? ` [${suffix}]` : ''}`);
-      }
-
-      return response.json();
+      const primary = results[0];
+      return {
+        success: true,
+        audioUrl: primary.audioUrl,
+        title: `${genre || 'Reference'} Beat`,
+        description: `${mood || 'Reference'} instrumental beat rendered by ACE-Step`,
+        genre: genre || 'Hip-Hop',
+        prompt: instrumentalPrompt,
+        provider: 'ACE-Step',
+        seed: primary.seed,
+        duration: primary.duration,
+        bpm: selectedBpm,
+        key,
+        variations: results.length > 1
+          ? results.map((result, index) => ({
+              audio_url: result.audioUrl,
+              seed: result.seed,
+              variation: index + 1,
+            }))
+          : undefined,
+        requestedProvider: aiProvider,
+        effectiveProvider: 'ace-step',
+        generationOutcome: 'success',
+      } as GeneratedSong;
     },
     onSuccess: (data) => {
       setGeneratedSong(data);
@@ -540,7 +603,7 @@ export function ProAudioGenerator() {
       const secCount = data.sections?.length || 0;
       const extra = varCount > 1 ? ` with ${varCount} variations` : secCount > 1 ? ` with ${secCount} sections` : '';
       toast({
-        title: 'Song Generated!',
+        title: 'Reference Beat Rendered',
         description: `Ready to play via ${data.provider || providerLabel}${extra}`,
       });
 
@@ -669,12 +732,12 @@ export function ProAudioGenerator() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${generatedSong.title || 'generated-song'}.wav`;
+      a.download = `${generatedSong.title || 'reference-beat'}.wav`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({ title: 'Download Started', description: 'Your song is downloading...' });
+      toast({ title: 'Download Started', description: 'Your reference beat is downloading...' });
     } catch (err: any) {
       toast({ title: 'Download Failed', description: err?.message || 'Could not download the audio file.', variant: 'destructive' });
     }
@@ -710,7 +773,7 @@ export function ProAudioGenerator() {
         throw new Error(detail);
       }
       setSavedToLibrary(true);
-      toast({ title: 'Saved to Library', description: 'Song added to your library.' });
+      toast({ title: 'Saved to Library', description: 'Reference beat added to your library.' });
     } catch (err: any) {
       toast({ title: 'Save Failed', description: err?.message || 'Could not save to library.', variant: 'destructive' });
     }
@@ -842,8 +905,8 @@ export function ProAudioGenerator() {
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Pro Audio Generator</h1>
-              <p className="text-muted-foreground mt-1">Pick a genre, mood, and length — we'll handle the rest.</p>
+              <h1 className="text-2xl font-bold">Reference Beat Generator</h1>
+              <p className="text-muted-foreground mt-1">Describe the beat — ACE-Step renders a polished instrumental reference. No vocals.</p>
             </div>
             <div className="flex gap-2 items-center">
               <Badge variant="secondary">{providerLabel}</Badge>
@@ -895,7 +958,7 @@ export function ProAudioGenerator() {
                     <AccordionContent className="space-y-5 pt-2">
                       {/* Song Description */}
                       <div>
-                        <Label className="mb-2 block font-medium">Describe your song</Label>
+                        <Label className="mb-2 block font-medium">Describe your reference beat</Label>
                         <Textarea
                           value={songDescription}
                           onChange={(e) => setSongDescription(e.target.value)}
@@ -908,7 +971,7 @@ export function ProAudioGenerator() {
                         </div>
                       </div>
 
-                      {/* Genre, Mood, Provider */}
+                      {/* Genre, Mood, Engine */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <Label className="mb-1.5 block text-sm">Genre</Label>
@@ -929,16 +992,11 @@ export function ProAudioGenerator() {
                           </Select>
                         </div>
                         <div>
-                          <Label className="mb-1.5 block text-sm">AI Provider</Label>
-                          <AIProviderSelector value={aiProvider} onValueChange={setAiProvider} feature="audio" />
-                          {isSunoProvider ? (
-                            <div className="mt-1.5 space-y-0.5">
-                              <p className="text-[10px] font-semibold text-amber-400">Premium: 125 credits per song (best quality, full vocals)</p>
-                              <p className="text-[10px] text-muted-foreground">Try <button type="button" className="underline text-cyan-400 hover:text-cyan-300" onClick={() => setAiProvider('replicate-musicgen')}>MusicGen</button> for beats &amp; instrumentals at only 5 credits each.</p>
-                            </div>
-                          ) : (
-                            <p className="text-[10px] text-emerald-400 mt-1">Budget-friendly: 5-10 credits per generation</p>
-                          )}
+                          <Label className="mb-1.5 block text-sm">Render Engine</Label>
+                          <div className="flex h-10 items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200">
+                            ACE-Step instrumental
+                          </div>
+                          <p className="text-[10px] text-emerald-400 mt-1">Reference beats only. No Suno vocals, no MusicGen fallback.</p>
                         </div>
                       </div>
 
@@ -948,7 +1006,7 @@ export function ProAudioGenerator() {
                           <Label className="mb-1.5 block text-sm">Duration ({formatDuration(duration[0])})</Label>
                           <Slider value={duration} onValueChange={setDuration} max={Math.max(providerMaxSingle, 30)} min={10} step={10} className="mt-2" />
                           {isDurationCapped && (
-                            <p className="text-[10px] text-yellow-400 mt-1">{providerLabel} max: {formatDuration(providerMaxSingle)}. Use Song Structure for longer.</p>
+                            <p className="text-[10px] text-yellow-400 mt-1">{providerLabel} max: {formatDuration(providerMaxSingle)} for one reference render.</p>
                           )}
                         </div>
                         <div>
@@ -1012,8 +1070,8 @@ export function ProAudioGenerator() {
                         <div>
                           <Label className="mb-1.5 block text-sm">Vocals</Label>
                           <div className="flex items-center gap-2 mt-2">
-                            <Switch checked={includeVocals} onCheckedChange={setIncludeVocals} />
-                            <span className="text-sm text-muted-foreground">{includeVocals ? 'Include vocals' : 'Instrumental only'}</span>
+                            <Switch checked={false} onCheckedChange={() => setIncludeVocals(false)} disabled />
+                            <span className="text-sm text-muted-foreground">Instrumental reference beats only</span>
                           </div>
                         </div>
                       </div>
@@ -1029,8 +1087,8 @@ export function ProAudioGenerator() {
                     <AccordionContent className="space-y-4 pt-2">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <Label className="mb-1.5 block text-sm">Song Structure</Label>
-                          <Select value={songStructure} onValueChange={setSongStructure}>
+                          <Label className="mb-1.5 block text-sm">Arrangement Structure</Label>
+                          <Select value={songStructure} onValueChange={setSongStructure} disabled>
                             <SelectTrigger><SelectValue placeholder="Auto" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="auto">Auto (single block)</SelectItem>
@@ -1039,7 +1097,7 @@ export function ProAudioGenerator() {
                               <SelectItem value="intro-verse-chorus-outro">Complete (9 sections)</SelectItem>
                             </SelectContent>
                           </Select>
-                          <p className="text-[10px] text-muted-foreground mt-1">Use sections to generate longer, structured songs.</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">ACE renders one instrumental block up to 2:00. Structure comes later in arrangement.</p>
                         </div>
                         <div>
                           <Label className="mb-1.5 block text-sm">Variations</Label>
@@ -1048,17 +1106,12 @@ export function ProAudioGenerator() {
                             <SelectContent>
                               <SelectItem value="1">1 (fastest)</SelectItem>
                               <SelectItem value="2">2 variations</SelectItem>
-                              <SelectItem value="3" disabled={aiProvider === 'suno'}>3 variations{aiProvider === 'suno' ? ' (MusicGen only)' : ''}</SelectItem>
-                              <SelectItem value="4" disabled={aiProvider === 'suno'}>4 variations{aiProvider === 'suno' ? ' (MusicGen only)' : ''}</SelectItem>
+                              <SelectItem value="3">3 variations</SelectItem>
+                              <SelectItem value="4" disabled>4 variations (disabled for ACE)</SelectItem>
                             </SelectContent>
                           </Select>
                           {generateMultiple && (
-                            <p className="text-[10px] text-muted-foreground mt-1">
-                              "Generate 3 options" is enabled{isSunoProvider ? ' (Suno max: 2 per request)' : ', so variations are locked to 3'}.
-                            </p>
-                          )}
-                          {aiProvider === 'suno' && variations > 2 && !generateMultiple && (
-                            <p className="text-[10px] text-amber-400 mt-1">Suno generates 2 per request. Switching to 2 variations.</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">"Generate 3 options" renders three ACE takes so you can pick the best.</p>
                           )}
                         </div>
                       </div>
@@ -1075,8 +1128,8 @@ export function ProAudioGenerator() {
                         </div>
                         <div>
                           <Label className="mb-1.5 block text-sm">Melody Guide URL</Label>
-                          <Input type="url" placeholder="https://... (audio file)" value={melodyGuideUrl} onChange={(e) => setMelodyGuideUrl(e.target.value)} />
-                          <p className="text-[10px] text-muted-foreground mt-1">Reference melody for conditioning (MusicGen melody-large).</p>
+                          <Input type="url" placeholder="Disabled for ACE-Step" value={melodyGuideUrl} onChange={(e) => setMelodyGuideUrl(e.target.value)} disabled />
+                          <p className="text-[10px] text-muted-foreground mt-1">ACE prompt rendering does not use guide melody URLs yet.</p>
                         </div>
                       </div>
 
@@ -1084,8 +1137,8 @@ export function ProAudioGenerator() {
                         <div className="space-y-2">
                           <Label className="mb-1.5 block text-sm">Stem Separation</Label>
                           <div className="flex items-center gap-2">
-                            <Switch checked={autoSeparateStems} onCheckedChange={setAutoSeparateStems} />
-                            <span className="text-sm text-muted-foreground">Run post-generation stem split</span>
+                            <Switch checked={false} onCheckedChange={() => setAutoSeparateStems(false)} disabled />
+                            <span className="text-sm text-muted-foreground">Stem split disabled for ACE references</span>
                           </div>
                           {autoSeparateStems && (
                             <Select value={String(stemCount)} onValueChange={(v) => setStemCount(Number(v) as 2 | 4)}>
@@ -1100,14 +1153,14 @@ export function ProAudioGenerator() {
                         <div className="space-y-2">
                           <Label className="mb-1.5 block text-sm">Stem Import</Label>
                           <div className="flex items-center gap-2">
-                            <Switch checked={autoImportStems} onCheckedChange={setAutoImportStems} disabled={!autoSeparateStems} />
+                            <Switch checked={false} onCheckedChange={() => setAutoImportStems(false)} disabled />
                             <span className="text-sm text-muted-foreground">Auto-import stems into Multi-Track</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Switch checked={requireStems} onCheckedChange={setRequireStems} disabled={!autoSeparateStems} />
+                            <Switch checked={false} onCheckedChange={() => setRequireStems(false)} disabled />
                             <span className="text-sm text-muted-foreground">Require stems (fail generation if unavailable)</span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground">Imports each returned stem as its own audio track.</p>
+                          <p className="text-[10px] text-muted-foreground">Use the mixer/mastering flow after the reference beat is rendered.</p>
                         </div>
                       </div>
                     </AccordionContent>
@@ -1120,7 +1173,7 @@ export function ProAudioGenerator() {
             {isTextOnlyProvider && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-400 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                <span><strong>{providerLabel}</strong> does not generate audio. Switch to Suno or MusicGen.</span>
+                <span><strong>{providerLabel}</strong> does not generate audio.</span>
               </div>
             )}
 
@@ -1207,8 +1260,7 @@ export function ProAudioGenerator() {
                 ) : (
                   <>
                     <Music className="mr-2 h-5 w-5" />
-                    {generateMultiple ? 'Generate 3 Options' : 'Generate Song'}
-                    <CreditBadge operation="SONG_GENERATION" variant="pill" className="ml-3" />
+                    {generateMultiple ? 'Render 3 ACE Options' : 'Render Reference Beat'}
                   </>
                 )}
               </Button>
