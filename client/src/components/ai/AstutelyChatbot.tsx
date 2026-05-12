@@ -43,6 +43,131 @@ interface AstutelyChatbotProps {
   onBeatGenerated?: (result: AstutelyResult) => void;
 }
 
+interface AstutelyBeatIntent {
+  userPrompt: string;
+  presetId: string;
+  genre: string;
+  mood: string;
+  bpm: number;
+  section: string;
+  melodyArticulation: string;
+  bassArticulation: string;
+  chordTechnique: string;
+  acePrompt: string;
+  summary: string;
+}
+
+function pickAstutelyBeatIntent(input: string, fallbackBpm: number): AstutelyBeatIntent {
+  const text = input.toLowerCase();
+  const bpmMatch = text.match(/(\d{2,3})\s*bpm/) || text.match(/(?:tempo|speed)\s*(?:to|at)?\s*(\d{2,3})/);
+  const parsedBpm = bpmMatch ? Number.parseInt(bpmMatch[1], 10) : NaN;
+  const explicitBpm = Number.isFinite(parsedBpm) ? Math.max(60, Math.min(180, parsedBpm)) : null;
+  const safeFallbackBpm = Math.max(60, Math.min(180, Math.round(fallbackBpm || 140)));
+
+  const has = (...words: string[]) => words.some(w => text.includes(w));
+  const instruments = [
+    has('violin', 'strings', 'orchestral') ? 'violin strings' : '',
+    has('piano', 'keys') ? 'piano keys' : '',
+    has('guitar') ? 'guitar' : '',
+    has('flute') ? 'flute' : '',
+    has('sax') ? 'saxophone' : '',
+    has('brass', 'trumpet', 'horn') ? 'brass' : '',
+    has('808') ? 'heavy 808 bass' : '',
+  ].filter(Boolean);
+
+  let presetId = 'trap-140';
+  let genre = 'trap';
+  let bpm = explicitBpm ?? safeFallbackBpm;
+
+  if (has('violin', 'orchestral', 'strings')) {
+    presetId = 'ref-violin-trap-130';
+    genre = 'orchestral trap';
+    bpm = explicitBpm ?? 130;
+  } else if (has('drill')) {
+    presetId = 'drill-140';
+    genre = 'drill';
+    bpm = explicitBpm ?? 144;
+  } else if (has('boom bap', 'boombap', 'old school')) {
+    presetId = 'boombap-90';
+    genre = 'boom bap';
+    bpm = explicitBpm ?? 90;
+  } else if (has('lofi', 'lo-fi', 'chill')) {
+    presetId = 'lofi-85';
+    genre = 'lo-fi hip-hop';
+    bpm = explicitBpm ?? 85;
+  } else if (has('r&b', 'rnb', 'soul', 'weeknd')) {
+    presetId = 'ref-weekend-110';
+    genre = 'r&b trap';
+    bpm = explicitBpm ?? 110;
+  } else if (has('afro', 'afrobeats')) {
+    presetId = 'ref-alt-pop-120';
+    genre = 'afrobeats';
+    bpm = explicitBpm ?? 112;
+  } else if (has('melodic', 'sad', 'emo')) {
+    presetId = 'ref-lucid-dreams-80';
+    genre = 'melodic emo trap';
+    bpm = explicitBpm ?? 80;
+  } else if (has('cypher', 'freestyle')) {
+    presetId = 'cypher-90';
+    genre = 'cypher freestyle';
+    bpm = explicitBpm ?? 90;
+  }
+
+  const mood = has('dark', 'evil', 'menacing') ? 'dark'
+    : has('sad', 'emo', 'melancholy') ? 'sad'
+    : has('aggressive', 'hard', 'rage') ? 'aggressive'
+    : has('smooth', 'r&b', 'rnb') ? 'smooth'
+    : has('chill', 'lofi', 'lo-fi') ? 'chill'
+    : 'focused';
+
+  const melodyArticulation = has('violin', 'strings', 'flute', 'sax', 'smooth', 'sad', 'r&b', 'rnb')
+    ? 'legato-slur'
+    : 'staccato-pop';
+  const bassArticulation = has('drill', 'trap', '808', 'rage', 'hard')
+    ? 'bass-octave-jump'
+    : 'bass-slide-up';
+  const chordTechnique = has('violin', 'strings', 'orchestral') ? 'strings-legato'
+    : has('piano', 'sad', 'story') ? 'piano-rolled-chord'
+    : has('guitar') ? 'guitar-arp-rolled'
+    : has('flute', 'sax') ? 'wind-legato'
+    : 'guitar-muted-stab';
+
+  const section = has('hook', 'chorus') ? 'hook'
+    : has('intro') ? 'intro'
+    : has('drop') ? 'drop'
+    : 'verse';
+
+  const aceTags = [
+    genre,
+    'hip-hop',
+    `${bpm} bpm`,
+    mood,
+    'minor key',
+    ...instruments,
+    has('808', 'trap', 'drill') ? 'punchy 808 bass' : 'warm bass',
+    has('drill') ? 'sliding 808' : '',
+    'hard kick',
+    'crisp hi-hats',
+    'radio-ready mix',
+    'wide stereo',
+    'professional beat',
+  ].filter(Boolean);
+
+  return {
+    userPrompt: input,
+    presetId,
+    genre,
+    mood,
+    bpm,
+    section,
+    melodyArticulation,
+    bassArticulation,
+    chordTechnique,
+    acePrompt: `${aceTags.join(', ')}. Producer direction: ${input}`,
+    summary: `${genre}, ${mood}, ${bpm} BPM${instruments.length ? `, ${instruments.join(', ')}` : ''}`,
+  };
+}
+
 // Project status for AI context
 interface ProjectStatus {
   trackCount: number;
@@ -150,7 +275,19 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyCh
   const currentKey = useStudioStore((s) => s.key);
   const currentUploadedSong = useStudioStore((s) => s.currentUploadedSong);
   // Astutely Core - organism controls routed through context
-  const { startOrganism, stopOrganism, captureOrganism, generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
+  const {
+    startOrganism,
+    stopOrganism,
+    captureOrganism,
+    generatePattern,
+    generateRealAudio,
+    playGeneratedAudio,
+    organismQuickStart,
+    organismSetBpm,
+    organismSetChordTechnique,
+    organismSetMelodyArticulation,
+    organismSetBassArticulation,
+  } = useAstutelyCore();
   
   // Fetch uploaded songs from library
   const { data: uploadedSongs = [] } = useQuery<any[]>({
@@ -275,6 +412,8 @@ Try: "play", "make a drill beat", or "analyze my project".`,
   const [organismSnapshotForUi, setOrganismSnapshotForUi] = useState<OrganismSnapshot | null>(() => readOrganismSnapshot());
   const lastOrganismCommandAtRef = useRef(0);
   const queuedOrganismCommandRef = useRef<number | null>(null);
+  const [lastAceIntent, setLastAceIntent] = useState<AstutelyBeatIntent | null>(null);
+  const [isAceRendering, setIsAceRendering] = useState(false);
   const performanceSafeMode = !!organismSnapshotForUi?.running || !!organismSnapshotForUi?.starting;
   const organismUiSummary = organismSnapshotForUi
     ? `${Math.round(organismSnapshotForUi.bpm)} BPM / ${organismSnapshotForUi.physics?.mode ?? 'warming'} / ${organismSnapshotForUi.physics?.voiceActive ? 'voice active' : 'voice waiting'}`
@@ -565,115 +704,22 @@ Try: "play", "make a drill beat", or "analyze my project".`,
     try {
       if (action === 'beat') {
         const status = getProjectStatus();
-        const randomStyles = [
-          'Travis Scott rage', 'The Weeknd dark', 'Drake smooth', 'Lo-fi chill',
-          'Future bass', 'Afrobeats bounce', 'Phonk drift', 'K-pop cute',
-          'Latin trap', 'Hyperpop glitch',
-        ];
-        const style = randomStyles[Math.floor(Math.random() * randomStyles.length)];
-        
-        // Generate MIDI pattern for tracks
-        const result = await generatePattern({ style });
-        const notes = astutelyToNotes(result);
-        
-        // Update BPM to match generated beat
-        handleSetTempo(result.bpm);
-        
-        if (onBeatGenerated) {
-          onBeatGenerated(result);
-        }
-
-        // PERSISTENCE: Save all 4 generated tracks to database
-        const trackTypes = ['drums', 'bass', 'chords', 'melody'];
-        for (const type of trackTypes) {
-          const typeNotes = notes.filter(n => n.trackType === type);
-          if (typeNotes.length > 0) {
-            const trackData: any = {
-              id: `ai-${type}-${Date.now()}`,
-              name: `Astutely ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-              kind: type === 'drums' ? 'beat' : 'midi',
-              lengthBars: 4,
-              startBar: 0,
-              payload: {
-                type: type === 'drums' ? 'beat' : 'midi',
-                notes: typeNotes,
-                bpm: result.bpm,
-                source: 'astutely',
-                color: type === 'drums' ? '#ef4444' : type === 'bass' ? '#f59e0b' : type === 'chords' ? '#8b5cf6' : '#3b82f6',
-                volume: 0.8,
-                pan: 0,
-              }
-            };
-            addTrack(trackData);
-            await saveTrackToServer(trackData);
-          }
-        }
-
-        window.dispatchEvent(new CustomEvent('astutely:generated', { 
-          detail: { notes, bpm: result.bpm } 
-        }));
-
-        // Also generate REAL AUDIO and play it immediately
-        let audioInfo = { provider: 'synth', audioUrl: '' };
-        try {
-          toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
-          const audioResult = await generateRealAudio(style, { bpm: result.bpm, key: result.key });
-          audioInfo = audioResult;
-          
-          // Play the generated audio immediately
-          try {
-            await playGeneratedAudio(audioResult.audioUrl);
-          } catch (playErr) {
-            console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
-          }
-          
-          // Also add as an audio track
-          const audioTrack: any = {
-            id: `ai-audio-${Date.now()}`,
-            name: `Astutely Audio (${style})`,
-            kind: 'audio',
-            lengthBars: Math.ceil(audioResult.duration / (60 / result.bpm) / 4),
-            startBar: 0,
-            payload: {
-              type: 'audio',
-              audioUrl: audioResult.audioUrl,
-              duration: audioResult.duration,
-              bpm: result.bpm,
-              source: 'astutely-audio',
-              provider: audioResult.provider,
-              color: '#10b981',
-              volume: 0.9,
-              pan: 0,
-            }
-          };
-          addTrack(audioTrack);
-          await saveTrackToServer(audioTrack);
-        } catch (audioError) {
-          console.warn('Audio generation failed, using synth preview:', audioError);
-        }
+        const intent = pickAstutelyBeatIntent('make a reference-level hip-hop beat', status.bpm);
+        applyBeatIntentToOrganism(intent);
 
         const assistantMessage: Message = {
           role: 'assistant',
-          content: `🔥 Beat generated!
+          content: `I started the Organism with a reference-level direction.
 
-**${result.style}** at **${result.bpm} BPM** in **${result.key}**
+**Direction:** ${intent.summary}
+**Live engine:** ${intent.presetId}
+**Playing style:** ${intent.chordTechnique}, ${intent.melodyArticulation}, ${intent.bassArticulation}
 
-${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}! Use the player below.` : '🎹 Playing synthesized preview'}
-
-Added to your project:
-• 🥁 Drums: ${notes.filter(n => n.trackType === 'drums').length} hits
-• 🎸 Bass: ${notes.filter(n => n.trackType === 'bass').length} notes
-• 🎹 Chords: ${notes.filter(n => n.trackType === 'chords').length} notes
-• 🎵 Melody: ${notes.filter(n => n.trackType === 'melody').length} notes
-${audioInfo.audioUrl ? '• 🔊 Audio Track: AI-generated audio' : ''}
-
-Your project now has **${status.trackCount + (audioInfo.audioUrl ? 5 : 4)} tracks**.`,
+Listen live and adjust the vibe. Say **"render this with ACE"** when you want the polished WAV.`,
           timestamp: new Date(),
-          audioUrl: audioInfo.audioUrl || undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
-        
-        toast({ title: '🔥 Beat Generated!', description: `${result.style} at ${result.bpm} BPM${audioInfo.audioUrl ? ' - Audio playing!' : ''}` });
+        toast({ title: 'Organism directed', description: intent.summary });
 
       } else if (action === 'play') {
         const state = handlePlayPause();
@@ -838,6 +884,74 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
     }
   };
 
+  const applyBeatIntentToOrganism = (intent: AstutelyBeatIntent) => {
+    organismQuickStart(intent.presetId);
+    window.setTimeout(() => {
+      organismSetBpm(intent.bpm);
+      organismSetChordTechnique(intent.chordTechnique);
+      organismSetMelodyArticulation(intent.melodyArticulation);
+      organismSetBassArticulation(intent.bassArticulation);
+    }, 900);
+    setLastAceIntent(intent);
+    useStudioStore.getState().setBpm(intent.bpm);
+    window.dispatchEvent(new CustomEvent('astutely:ace-intent-ready', { detail: intent }));
+  };
+
+  const renderAceIntent = async (intent: AstutelyBeatIntent): Promise<{ audioUrl: string; duration?: number; prompt: string }> => {
+    setIsAceRendering(true);
+    try {
+      const submit = await fetch('/api/ai-music/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: intent.acePrompt,
+          genre: intent.genre,
+          mood: intent.mood,
+          bpm: intent.bpm,
+          section: intent.section,
+          extraHints: intent.userPrompt,
+          lyrics: '',
+          audioDuration: 90,
+          inferStep: 35,
+        }),
+      });
+      if (!submit.ok) throw new Error(`ACE render failed: ${submit.status}`);
+      const submitted = await submit.json() as { jobId?: string; job_id?: string; prompt?: string };
+      const jobId = submitted.jobId ?? submitted.job_id;
+      if (!jobId) throw new Error('ACE did not return a job id');
+
+      const deadline = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise(r => window.setTimeout(r, 2500));
+        const poll = await fetch(`/api/ai-music/job/${jobId}`);
+        if (!poll.ok) continue;
+        const job = await poll.json() as {
+          status?: string;
+          outputUrl?: string;
+          output_url?: string;
+          durationS?: number;
+          duration_s?: number;
+          error?: string;
+        };
+        if (job.status === 'done') {
+          const audioUrl = job.outputUrl ?? job.output_url;
+          if (!audioUrl) throw new Error('ACE finished but returned no audio URL');
+          return {
+            audioUrl,
+            duration: job.durationS ?? job.duration_s,
+            prompt: submitted.prompt ?? intent.acePrompt,
+          };
+        }
+        if (job.status === 'error') {
+          throw new Error(job.error || 'ACE render failed');
+        }
+      }
+      throw new Error('ACE render timed out');
+    } finally {
+      setIsAceRendering(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -910,6 +1024,36 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+
+      const asksToRenderWithAce =
+        (lowerInput.includes('ace') || lowerInput.includes('render') || lowerInput.includes('final') || lowerInput.includes('bounce')) &&
+        (lowerInput.includes('beat') || lowerInput.includes('track') || lowerInput.includes('this') || lowerInput.includes('audio') || lowerInput.includes('song'));
+
+      if (asksToRenderWithAce) {
+        const intent = lastAceIntent ?? pickAstutelyBeatIntent(currentInput, status.bpm);
+        setLastAceIntent(intent);
+        const workingMessage: Message = {
+          role: 'assistant',
+          content: `Rendering this with ACE now: **${intent.summary}**. I’ll return the WAV when the job finishes.`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, workingMessage]);
+        toast({ title: 'ACE render started', description: intent.summary });
+
+        const rendered = await renderAceIntent(intent);
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `ACE render is ready.
+
+**${intent.summary}**
+${rendered.duration ? `Duration: ${Math.round(rendered.duration)}s\n` : ''}Use the player below to audition it or download the WAV.`,
+          timestamp: new Date(),
+          audioUrl: rendered.audioUrl,
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        toast({ title: 'ACE render ready', description: `${intent.genre} beat rendered` });
         return;
       }
       
@@ -1159,78 +1303,22 @@ Say "list songs" to see your uploaded songs.`,
           lowerInput.includes('piano') || lowerInput.includes('bass') || lowerInput.includes('synth') ||
           lowerInput.includes('strings') || lowerInput.includes('trumpet') || lowerInput.includes('sax') ||
           lowerInput.includes('harp') || lowerInput.includes('cello') || lowerInput.includes('orchestra')) {
-        // Map to a genre hint for the AI, but the REAL prompt is the user's full message
-        const style = lowerInput.includes('trap') ? 'Travis Scott rage' 
-          : lowerInput.includes('chill') || lowerInput.includes('lofi') || lowerInput.includes('lo-fi') ? 'Lo-fi chill'
-          : lowerInput.includes('pop') || lowerInput.includes('kpop') ? 'K-pop cute'
-          : lowerInput.includes('phonk') ? 'Phonk drift'
-          : lowerInput.includes('edm') || lowerInput.includes('future') ? 'Future bass'
-          : lowerInput.includes('afro') ? 'Afrobeats bounce'
-          : lowerInput.includes('latin') || lowerInput.includes('reggaeton') ? 'Latin trap'
-          : lowerInput.includes('hyper') ? 'Hyperpop glitch'
-          : lowerInput.includes('weeknd') || lowerInput.includes('dark') ? 'The Weeknd dark'
-          : lowerInput.includes('drill') ? 'Drill UK'
-          : lowerInput.includes('house') || lowerInput.includes('techno') ? 'House deep'
-          : lowerInput.includes('synth') && lowerInput.includes('wave') ? 'Synthwave retro'
-          : 'Drake smooth';
-          
-        // Pass the user's FULL message as the prompt — this is what the AI uses to pick instruments
-        const result = await generatePattern({
-          style,
-          prompt: currentInput,
-        });
-        const notes = astutelyToNotes(result);
-        
-        handleSetTempo(result.bpm);
-        
-        if (onBeatGenerated) {
-          onBeatGenerated(result);
-        }
-
-        window.dispatchEvent(new CustomEvent('astutely:generated', { 
-          detail: { notes, bpm: result.bpm } 
-        }));
-
-        // Also try to generate real audio via Suno/MusicGen
-        let audioInfo = { provider: 'synth', audioUrl: '' };
-        try {
-          toast({ title: '🎵 Generating audio...', description: 'Creating real audio with AI' });
-          const audioResult = await generateRealAudio(style, { 
-            prompt: currentInput, 
-            bpm: result.bpm, 
-            key: result.key 
-          });
-          audioInfo = audioResult;
-          try {
-            await playGeneratedAudio(audioResult.audioUrl);
-          } catch (playErr) {
-            console.warn('Autoplay blocked, audio player will be shown in chat:', playErr);
-          }
-        } catch (audioError) {
-          console.warn('Audio generation failed, using synth preview:', audioError);
-        }
-
-        const instrumentInfo = result.instruments 
-          ? `\n🎻 Instruments: ${[result.instruments.melody, result.instruments.chords, result.instruments.bass].filter(Boolean).join(', ')}`
-          : '';
+        const intent = pickAstutelyBeatIntent(currentInput, status.bpm);
+        applyBeatIntentToOrganism(intent);
 
         const assistantMessage: Message = {
           role: 'assistant',
-          content: `🔥 Created a **${result.style}** beat!
+          content: `I routed that into the Organism.
 
-**${result.bpm} BPM** in **${result.key}**${instrumentInfo}
-${audioInfo.audioUrl ? `🔊 **Real audio generated** via ${audioInfo.provider}! Use the player below.` : ''}
-• 🥁 ${notes.filter(n => n.trackType === 'drums').length} drum hits
-• 🎸 ${notes.filter(n => n.trackType === 'bass').length} bass notes
-• 🎹 ${notes.filter(n => n.trackType === 'chords').length} chord notes
-• 🎵 ${notes.filter(n => n.trackType === 'melody').length} melody notes
+**Direction:** ${intent.summary}
+**Live engine:** ${intent.presetId}
+**Playing style:** ${intent.chordTechnique}, ${intent.melodyArticulation}, ${intent.bassArticulation}
 
-Say "play" to hear it!`,
+The Organism should start playing the live/editable version now. Say **"render this with ACE"** when you want the polished WAV.`,
           timestamp: new Date(),
-          audioUrl: audioInfo.audioUrl || undefined,
         };
         setMessages(prev => [...prev, assistantMessage]);
-        toast({ title: '🔥 Beat Generated!', description: `${result.style} at ${result.bpm} BPM` });
+        toast({ title: 'Organism directed', description: intent.summary });
         return;
       }
 
@@ -1454,6 +1542,11 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
                   tracks={tracks}
                   addTrack={addTrack}
                   saveTrackToServer={saveTrackToServer}
+                  lastAceIntent={lastAceIntent}
+                  setLastAceIntent={setLastAceIntent}
+                  isAceRendering={isAceRendering}
+                  renderAceIntent={renderAceIntent}
+                  applyBeatIntentToOrganism={applyBeatIntentToOrganism}
                 />
               </div>
             )}
@@ -2016,6 +2109,11 @@ function AstutelyCreateContent({
   tracks,
   addTrack,
   saveTrackToServer,
+  lastAceIntent,
+  setLastAceIntent,
+  isAceRendering,
+  renderAceIntent,
+  applyBeatIntentToOrganism,
 }: {
   onBeatGenerated?: (result: AstutelyResult) => void;
   toast: ReturnType<typeof import('@/hooks/use-toast').useToast>['toast'];
@@ -2024,9 +2122,13 @@ function AstutelyCreateContent({
   tracks: any[];
   addTrack: (t: any) => void;
   saveTrackToServer: (t: any) => Promise<any>;
+  lastAceIntent: AstutelyBeatIntent | null;
+  setLastAceIntent: (intent: AstutelyBeatIntent | null) => void;
+  isAceRendering: boolean;
+  renderAceIntent: (intent: AstutelyBeatIntent) => Promise<{ audioUrl: string; duration?: number; prompt: string }>;
+  applyBeatIntentToOrganism: (intent: AstutelyBeatIntent) => void;
 }) {
   const { generatePattern, generateRealAudio, playGeneratedAudio } = useAstutelyCore();
-  const getDrumsAbortSignal = useAbortableRequest();
   const getMelodyAbortSignal = useAbortableRequest();
   const getLyricsAbortSignal = useAbortableRequest();
 
@@ -2046,8 +2148,6 @@ function AstutelyCreateContent({
   // ── Beat Generation state ─────────────────────────────────
   const [beatGenre, setBeatGenre] = useState('Hip-Hop');
   const [beatGroove, setBeatGroove] = useState('balanced');
-  const [beatProvider, setBeatProvider] = useState('astutely');
-
   // ── Melody Generation state ───────────────────────────────
   const [melodyStyle, setMelodyStyle] = useState('melodic');
   const [melodyProvider, setMelodyProvider] = useState('astutely');
@@ -2060,8 +2160,6 @@ function AstutelyCreateContent({
 
   // ── Full Audio state ──────────────────────────────────────
   const [audioPrompt, setAudioPrompt] = useState('');
-  const [audioStyleProvider, setAudioStyleProvider] = useState('suno');
-
   // ── Bass Generation state ─────────────────────────────────
   const [bassStyle, setBassStyle] = useState('808');
   const [bassProvider, setBassProvider] = useState('astutely');
@@ -2119,33 +2217,10 @@ function AstutelyCreateContent({
   // ═══════════════════════════════════════════════════════════
 
   const handleBeatGenerate = () => runWithProgress('beat', async () => {
-    const bars = 4;
-    const beatGridProvider = beatProvider === 'grok' || beatProvider === 'openai' ? beatProvider : undefined;
-    const response = await apiRequest('POST', '/api/ai/music/drums', {
-      bpm: transport.tempo || 120,
-      bars,
-      style: beatGenre.toLowerCase(),
-      grooveMode: beatGroove,
-      aiProvider: beatGridProvider,
-      generationSeed: Date.now() + Math.floor(Math.random() * 100000),
-      gridResolution: '1/16',
-    }, { signal: getDrumsAbortSignal() });
-    const data = await response.json();
-
-    // Store the grid in context so ProBeatMaker can pick it up
-    const grid = data?.data?.grid;
-    if (grid) {
-      useStudioStore.getState().setPendingBeatGrid({ grid, genre: beatGenre, groove: beatGroove, bpm: transport.tempo || 120 });
-    }
-
-    toast({ title: 'Beat Generated!', description: `${beatGenre} beat pattern created via AI` });
-
-    // Also generate real audio (don't auto-play — user can click play)
-    try {
-      const audioResult = await generateRealAudio(beatGenre, { bpm: transport.tempo || 120 });
-      setGeneratedAudioUrl(audioResult.audioUrl);
-      setAudioProvider(audioResult.provider);
-    } catch {}
+    const intent = pickAstutelyBeatIntent(`${beatGroove} ${beatGenre} beat`, transport.tempo || 120);
+    applyBeatIntentToOrganism(intent);
+    setLastAceIntent(intent);
+    toast({ title: 'Organism Directed', description: `${intent.summary}. Use ACE Render for the WAV.` });
   });
 
   const handleMelodyGenerate = () => runWithProgress('melody', async () => {
@@ -2191,15 +2266,14 @@ function AstutelyCreateContent({
   });
 
   const handleFullAudioGenerate = () => runWithProgress('audio', async () => {
-    const style = audioPrompt.trim() || `${beatGenre} instrumental`;
-    const audioResult = await generateRealAudio(style, {
-      prompt: audioPrompt.trim() || undefined,
-      bpm: transport.tempo || undefined,
-      key: currentKey || undefined,
-    });
-    setGeneratedAudioUrl(audioResult.audioUrl);
-    setAudioProvider(audioResult.provider);
-    toast({ title: 'Audio Ready!', description: `Generated by ${audioResult.provider}` });
+    const intent = audioPrompt.trim()
+      ? pickAstutelyBeatIntent(audioPrompt.trim(), transport.tempo || 120)
+      : lastAceIntent ?? pickAstutelyBeatIntent(`${beatGenre} instrumental`, transport.tempo || 120);
+    setLastAceIntent(intent);
+    const rendered = await renderAceIntent(intent);
+    setGeneratedAudioUrl(rendered.audioUrl);
+    setAudioProvider('ACE-Step');
+    toast({ title: 'ACE Audio Ready!', description: intent.summary });
   });
 
   const handleBassGenerate = () => runWithProgress('bass', async () => {
@@ -2285,7 +2359,7 @@ function AstutelyCreateContent({
     toast({ title: 'Vocal Melody Generated!', description: `${vocalMood} vocal melody added` });
   });
 
-  const isGenerating = activeGeneration !== null;
+  const isGenerating = activeGeneration !== null || isAceRendering;
 
   return (
     <>
@@ -2305,11 +2379,10 @@ function AstutelyCreateContent({
       )}
 
       {/* ═══ 1. BEAT GENERATION ═════════════════════════════ */}
-      <CreateCard title="Beat Generation" icon={Drum} color="purple" isOpen={!!openCards.beat} onToggle={() => toggleCard('beat')}>
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
-          <AIProviderSelector value={beatProvider} onValueChange={setBeatProvider} feature="beat" />
-        </div>
+      <CreateCard title="Organism Beat Direction" icon={Drum} color="purple" isOpen={!!openCards.beat} onToggle={() => toggleCard('beat')}>
+        <p className="text-[10px] text-white/45 leading-relaxed">
+          Astutely picks the Organism preset, BPM, and playing style. Render with ACE after the live beat feels right.
+        </p>
         <div className="flex gap-2">
           <Select value={beatGenre} onValueChange={setBeatGenre}>
             <SelectTrigger className="flex-1 h-9 bg-black/30 border-white/10 rounded-lg text-xs">
@@ -2335,7 +2408,7 @@ function AstutelyCreateContent({
           className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Drum className="w-4 h-4" />
-          {activeGeneration === 'beat' ? 'Generating...' : 'Generate Beat'}
+          {activeGeneration === 'beat' ? 'Directing...' : 'Send to Organism'}
         </button>
       </CreateCard>
 
@@ -2407,17 +2480,16 @@ function AstutelyCreateContent({
         </button>
       </CreateCard>
 
-      {/* ═══ 4. FULL AUDIO GENERATION ═══════════════════════ */}
-      <CreateCard title="Full Audio Generation" icon={Volume2} color="emerald" isOpen={!!openCards.audio} onToggle={() => toggleCard('audio')}>
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest">AI Provider</label>
-          <AIProviderSelector value={audioStyleProvider} onValueChange={setAudioStyleProvider} feature="audio" />
+      {/* ═══ 4. ACE AUDIO RENDER ════════════════════════════ */}
+      <CreateCard title="ACE Audio Render" icon={Volume2} color="emerald" isOpen={!!openCards.audio} onToggle={() => toggleCard('audio')}>
+        <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-200">
+          Engine: ACE-Step text-to-music
         </div>
         <input
           type="text"
           value={audioPrompt}
           onChange={(e) => setAudioPrompt(e.target.value)}
-          placeholder="Describe the audio (e.g. 'dark trap beat with 808s')"
+          placeholder="Describe the beat for ACE, or leave blank to render the last Organism direction"
           className="w-full p-2.5 bg-black/30 border border-white/10 rounded-lg text-white text-xs placeholder-white/30 focus:outline-none focus:border-emerald-400/50"
           disabled={isGenerating}
         />
@@ -2428,7 +2500,7 @@ function AstutelyCreateContent({
           className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl font-bold text-xs text-white hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Volume2 className="w-4 h-4" />
-          {activeGeneration === 'audio' ? 'Rendering...' : 'Generate Audio'}
+          {activeGeneration === 'audio' || isAceRendering ? 'Rendering ACE...' : 'Render with ACE'}
         </button>
       </CreateCard>
 
