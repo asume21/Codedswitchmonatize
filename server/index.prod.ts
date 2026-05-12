@@ -69,6 +69,24 @@ const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
+const referenceBeatsPath = [
+  path.resolve(process.cwd(), "audio", "reference-beats"),
+  path.resolve(process.cwd(), "..", "audio", "reference-beats"),
+].find((candidate) => fs.existsSync(candidate));
+
+if (referenceBeatsPath) {
+  app.use("/api/reference-beats", express.static(referenceBeatsPath, {
+    maxAge: "7d",
+    setHeaders: (res) => {
+      res.set("Cache-Control", "public, max-age=604800");
+      res.set("Accept-Ranges", "bytes");
+    },
+  }));
+  console.log(`📂 Reference beats served from: ${referenceBeatsPath}`);
+} else {
+  console.warn("⚠️ Reference beats path not found");
+}
+
 // Stripe webhook must receive the raw body for signature verification.
 // Mount this BEFORE json/urlencoded parsers.
 app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
@@ -193,27 +211,23 @@ app.use((req, res, next) => {
 
   // ── SEO: server-side 301 redirects for legacy routes ──
   const legacyRedirects: Record<string, string> = {
-    "/music-studio": "/studio",
-    "/song-uploader": "/studio",
-    "/beat-studio": "/studio",
-    "/melody-composer": "/studio",
-    "/unified-studio": "/studio",
-    "/daw-layout": "/studio",
-    "/flow": "/studio",
-    "/code-translator": "/studio",
-    "/codebeat-studio": "/studio",
-    "/mix-studio": "/studio",
-    "/pro-console": "/studio",
-    "/midi-controller": "/studio",
-    "/advanced-sequencer": "/studio",
-    "/wavetable-oscillator": "/studio",
-    "/pack-generator": "/studio",
-    "/song-structure": "/studio",
-    "/pro-audio": "/studio",
-    "/codebeat-studio-direct": "/studio",
-    "/piano-roll": "/studio",
-    "/granular-engine": "/studio",
-    "/mid-controller": "/studio",
+    "/music-studio": "/",
+    "/song-uploader": "/",
+    "/beat-studio": "/",
+    "/melody-composer": "/",
+    "/unified-studio": "/",
+    "/flow": "/",
+    "/code-translator": "/",
+    "/codebeat-studio": "/",
+    "/pro-console": "/",
+    "/midi-controller": "/",
+    "/advanced-sequencer": "/",
+    "/wavetable-oscillator": "/",
+    "/pack-generator": "/",
+    "/codebeat-studio-direct": "/",
+    "/piano-roll": "/",
+    "/granular-engine": "/",
+    "/mid-controller": "/",
   };
 
   app.use((req, res, next) => {

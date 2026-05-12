@@ -104,7 +104,7 @@ const QUICK_BEATS: QuickBeat[] = [
   },
   {
     id: 'violin-trap', name: 'Orchestral Trap', bpm: 130, style: 'Violin Trap', color: 'amber', icon: Layers,
-    url: '/api/reference-beats/Violin Trap HipHop Type Beat (2).wav',
+    url: '/api/reference-beats/Violin Trap HipHop Type Beat (2).mp3',
     organismPresetId: 'ref-violin-trap-130',
   },
   {
@@ -383,7 +383,7 @@ export default function RecordingBooth() {
     beatBusRef.current = bus
 
     const player = new Tone.Player({
-      url: beat.url,
+      url: encodeURI(beat.url),
       loop: true,
       onload: () => {
         player.volume.value = Tone.gainToDb(beatVolume)
