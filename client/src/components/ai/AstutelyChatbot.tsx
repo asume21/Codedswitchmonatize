@@ -923,7 +923,10 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
       const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise(r => window.setTimeout(r, 2500));
-        const poll = await fetch(`/api/ai-music/job/${jobId}`);
+        const poll = await fetch(`/api/ai-music/job/${jobId}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
         if (!poll.ok) continue;
         const job = await poll.json() as {
           status?: string;

@@ -537,7 +537,10 @@ export function OrganismCommandCenter() {
         }
 
         try {
-          const jr = await fetch(`/api/ai-music/job/${jobId}`)
+          const jr = await fetch(`/api/ai-music/job/${jobId}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+          })
           if (!jr.ok) return
           const job = await jr.json() as {
             status: string

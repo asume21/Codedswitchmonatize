@@ -129,6 +129,12 @@ export function createAceStepRoutes(): Router {
   // Poll job status — resets idle timer when job completes
   router.get('/job/:jobId', async (req: Request, res: Response) => {
     try {
+      res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+        'Surrogate-Control': 'no-store',
+      })
       const job = await pollJob(req.params.jobId)
       if (job.status === 'done' || job.status === 'error') jobCompleted()
       res.json({

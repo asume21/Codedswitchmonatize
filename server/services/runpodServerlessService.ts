@@ -19,6 +19,11 @@ interface RunPodRunResponse {
 interface RunPodStatusResponse extends RunPodRunResponse {
   output?: {
     audio_base64?: string
+    audio?: string
+    audio_url?: string
+    output_url?: string
+    file_url?: string
+    url?: string
     format?: string
     duration_s?: number
     generation_s?: number
@@ -103,17 +108,28 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     const format = data.output?.format === 'mp3' ? 'mp3' : 'wav'
     const filename = `${jobId}.${format}`
     const outputPath = path.join(OUTPUT_DIR, filename)
+    const audioBase64 = normalizeBase64(data.output?.audio_base64 ?? data.output?.audio)
+    const remoteAudioUrl = getRemoteAudioUrl(data.output)
 
-    if (data.output?.audio_base64 && !fs.existsSync(outputPath)) {
+    if (audioBase64 && !fs.existsSync(outputPath)) {
       fs.mkdirSync(OUTPUT_DIR, { recursive: true })
-      fs.writeFileSync(outputPath, Buffer.from(data.output.audio_base64, 'base64'))
+      fs.writeFileSync(outputPath, Buffer.from(audioBase64, 'base64'))
+    }
+
+    if (!audioBase64 && !remoteAudioUrl) {
+      return {
+        jobId,
+        status: 'error',
+        error: 'RunPod serverless completed but returned no audio payload.',
+        generationS: msToSeconds(data.executionTime),
+      }
     }
 
     return {
       jobId,
       status: 'done',
-      outputPath,
-      outputUrl: `/api/ai-music/audio/${filename}`,
+      outputPath: audioBase64 ? outputPath : undefined,
+      outputUrl: audioBase64 ? `/api/ai-music/audio/${filename}` : remoteAudioUrl,
       durationS: data.output?.duration_s ?? msToSeconds(data.executionTime),
       generationS: data.output?.generation_s ?? msToSeconds(data.executionTime),
     }
@@ -152,6 +168,19 @@ function mapStatus(status: RunPodStatus): AceStepJob['status'] {
 
 function msToSeconds(ms: number | undefined): number | undefined {
   return typeof ms === 'number' ? Math.round(ms / 10) / 100 : undefined
+}
+
+function getRemoteAudioUrl(output: RunPodStatusResponse['output']): string | undefined {
+  if (!output) return undefined
+  const url = output.audio_url ?? output.output_url ?? output.file_url ?? output.url
+  if (!url || !/^https?:\/\//i.test(url)) return undefined
+  return url
+}
+
+function normalizeBase64(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const match = value.match(/^data:audio\/[^;]+;base64,(.+)$/)
+  return match ? match[1] : value
 }
 
 function assertConfigured() {

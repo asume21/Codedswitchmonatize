@@ -524,7 +524,11 @@ export function ProAudioGenerator() {
         while (Date.now() < deadline) {
           await new Promise(resolve => window.setTimeout(resolve, 2500));
           if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-          const poll = await fetch(`/api/ai-music/job/${jobId}`, { signal });
+          const poll = await fetch(`/api/ai-music/job/${jobId}`, {
+            signal,
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+          });
           if (!poll.ok) continue;
           const job = await poll.json() as {
             status?: string;
