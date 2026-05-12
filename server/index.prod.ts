@@ -192,6 +192,7 @@ app.use((req, res, next) => {
     "/api/subscription-status",
     "/api/check-license",
     "/api/webhooks/stripe",
+    "/api/reference-beats",
     "/api/blog",
     "/api/social/feed/public",
     "/api/songs/public",
