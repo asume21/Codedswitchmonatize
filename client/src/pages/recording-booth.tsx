@@ -278,9 +278,11 @@ export default function RecordingBooth() {
   const [inputLevel, setInputLevel] = useState(0)
   const [isMixing, setIsMixing] = useState<string | null>(null)
 
-  // Quick Beat synths
-  const quickBeatPlayerRef = useRef<Tone.Player | null>(null)
-  const beatBusRef = useRef<Tone.Gain | null>(null)
+  // Quick Beat playback. Use native media playback for long MP3/M4A reference tracks,
+  // then route through Web Audio so the beat can still be captured while recording.
+  const quickBeatAudioRef = useRef<HTMLAudioElement | null>(null)
+  const quickBeatSrcRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const quickBeatGainRef = useRef<GainNode | null>(null)
 
   // Beat recording — captures what plays through speakers
   const beatRecDestRef  = useRef<MediaStreamAudioDestinationNode | null>(null)
@@ -362,10 +364,18 @@ export default function RecordingBooth() {
   // ── Quick Beats ───────────────────────────────────────────────────────────────
 
   const stopQuickBeat = useCallback(async () => {
-    quickBeatPlayerRef.current?.stop()
-    quickBeatPlayerRef.current?.dispose()
-    quickBeatPlayerRef.current = null
-    beatBusRef.current?.dispose(); beatBusRef.current = null
+    const el = quickBeatAudioRef.current
+    if (el) {
+      el.pause()
+      el.currentTime = 0
+      el.removeAttribute('src')
+      el.load()
+    }
+    quickBeatSrcRef.current?.disconnect()
+    quickBeatGainRef.current?.disconnect()
+    quickBeatAudioRef.current = null
+    quickBeatSrcRef.current = null
+    quickBeatGainRef.current = null
     setIsBeatPlaying(false)
   }, [])
 
@@ -375,31 +385,39 @@ export default function RecordingBooth() {
     await resumeAudioContext()
     await Tone.start()
 
-    // Beat bus — routes synths to both speakers AND recording destination
+    // Beat bus — routes the reference track to both speakers AND recording destination.
+    const rawAC = getAudioContext()
     const recDest = ensureBeatRecDest()
-    const bus = new Tone.Gain(1)
-    bus.toDestination()
-    bus.connect(recDest)
-    beatBusRef.current = bus
+    const audio = new Audio(encodeURI(beat.url))
+    audio.crossOrigin = 'anonymous'
+    audio.loop = true
+    audio.preload = 'auto'
+    audio.volume = beatVolume
 
-    const player = new Tone.Player({
-      url: encodeURI(beat.url),
-      loop: true,
-      onload: () => {
-        player.volume.value = Tone.gainToDb(beatVolume)
-        player.start()
-        setIsBeatPlaying(true)
-        setSelectedBeat(beat)
-      },
-      onerror: () => {
-        player.dispose()
-        if (quickBeatPlayerRef.current === player) quickBeatPlayerRef.current = null
-        beatBusRef.current?.dispose(); beatBusRef.current = null
-        setIsBeatPlaying(false)
-        toast({ title: 'Beat failed to load', description: beat.name, variant: 'destructive' })
-      },
-    }).connect(bus)
-    quickBeatPlayerRef.current = player
+    const source = rawAC.createMediaElementSource(audio)
+    const gain = rawAC.createGain()
+    gain.gain.value = beatVolume
+    source.connect(gain)
+    gain.connect(rawAC.destination)
+    gain.connect(recDest)
+
+    quickBeatAudioRef.current = audio
+    quickBeatSrcRef.current = source
+    quickBeatGainRef.current = gain
+    setSelectedBeat(beat)
+
+    audio.onerror = () => {
+      void stopQuickBeat()
+      toast({ title: 'Beat failed to load', description: beat.name, variant: 'destructive' })
+    }
+
+    try {
+      await audio.play()
+      if (quickBeatAudioRef.current === audio) setIsBeatPlaying(true)
+    } catch {
+      await stopQuickBeat()
+      toast({ title: 'Beat failed to play', description: beat.name, variant: 'destructive' })
+    }
   }, [isBeatPlaying, stopQuickBeat, beatVolume, ensureBeatRecDest, toast])
 
   // ── My Songs ──────────────────────────────────────────────────────────────────
@@ -487,9 +505,8 @@ export default function RecordingBooth() {
   // ── Volume sync ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (quickBeatPlayerRef.current) {
-      quickBeatPlayerRef.current.volume.value = Tone.gainToDb(beatVolume)
-    }
+    if (quickBeatAudioRef.current) quickBeatAudioRef.current.volume = beatVolume
+    if (quickBeatGainRef.current) quickBeatGainRef.current.gain.value = beatVolume
     if (audioElRef.current) {
       audioElRef.current.volume = beatVolume
     }
