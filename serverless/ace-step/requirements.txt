@@ -1,9 +1,6 @@
-numpy<2
-runpod>=1.7.9
-diffusers>=0.33.0
-transformers>=4.40.0
-accelerate>=0.30.0
-huggingface_hub[hf_transfer]>=0.25.0
-hf_transfer>=0.1.8
-soundfile>=0.12.1
-einops>=0.7.0
+# Managed by uv from /ace-step/pyproject.toml during Docker build.
+# This file is kept for reference only — not used in the build.
+#
+# Key runtime deps installed via uv sync:
+#   torch==2.10.0+cu128, transformers>=4.51.0, accelerate>=1.12.0,
+#   diffusers, soundfile, einops, nano-vllm (local), runpod>=1.7.9
