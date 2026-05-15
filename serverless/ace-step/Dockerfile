@@ -12,6 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     ACE_STEP_CPU_OFFLOAD=false \
     ACE_STEP_DEVICE=cuda
 
+# ── System deps ───────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common curl ca-certificates \
     && add-apt-repository ppa:deadsnakes/ppa \
@@ -20,31 +21,43 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg git libsndfile1 espeak-ng \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && update-alternatives --install /usr/bin/python  python  /usr/bin/python3.11 1 \
+    && python3.11 -m ensurepip --upgrade \
+    && python3.11 -m pip install --no-cache-dir --upgrade pip \
     && rm -rf /var/lib/apt/lists/*
 
-# uv manages Python packages and handles the local nano-vllm dependency
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
-
-# Clone ACE-Step 1.5 at latest stable tag
+# ── Clone ACE-Step 1.5 ────────────────────────────────────────────────────────
 RUN git clone --depth 1 --branch v0.1.7 \
     https://github.com/ace-step/ACE-Step-1.5.git /ace-step
 
-WORKDIR /ace-step
+# ── Step 1: nano-vllm from the bundled local path ────────────────────────────
+# pyproject.toml routes this to /ace-step/acestep/third_parts/nano-vllm via
+# [tool.uv.sources]; pip doesn't understand that so we pre-install it manually.
+RUN python3.11 -m pip install --no-cache-dir \
+    /ace-step/acestep/third_parts/nano-vllm
 
-# uv sync installs all deps including the local nano-vllm third-party package
-RUN uv sync --no-dev --python 3.11
+# ── Step 2: PyTorch from the cu128 wheel index ───────────────────────────────
+# All nvidia-* cuda companion packages live on this index, not on PyPI.
+RUN python3.11 -m pip install --no-cache-dir \
+    "torch==2.10.0+cu128" \
+    "torchaudio==2.10.0+cu128" \
+    "torchvision==0.25.0+cu128" \
+    --index-url https://download.pytorch.org/whl/cu128
 
-# Add RunPod SDK and HF transfer into the same venv
-RUN uv pip install \
+# ── Step 3: ACE-Step package + remaining deps ─────────────────────────────────
+# torch and nano-vllm are already satisfied; pip skips them.
+# --extra-index-url covers any remaining torch-adjacent packages.
+RUN python3.11 -m pip install --no-cache-dir \
+    /ace-step \
+    --extra-index-url https://download.pytorch.org/whl/cu128
+
+# ── Step 4: RunPod SDK + HF transfer ─────────────────────────────────────────
+RUN python3.11 -m pip install --no-cache-dir \
     "runpod>=1.7.9" \
     "huggingface_hub[hf_transfer]>=0.25.0" \
     "hf_transfer>=0.1.8" \
     "soundfile>=0.12.1"
 
-ENV PATH="/ace-step/.venv/bin:$PATH"
-
 COPY handler.py /app/handler.py
 
 WORKDIR /app
-CMD ["python", "-u", "/app/handler.py"]
+CMD ["python3.11", "-u", "/app/handler.py"]
