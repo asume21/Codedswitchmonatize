@@ -27,7 +27,10 @@ export function OrganismGuestPage() {
 
   return (
     <main className="relative h-screen bg-black">
-      <OrganismCommandCenter />
+      {/* On mobile, offset content so the fixed GuestTrialBanner (≈130px) doesn't cover it */}
+      <div className="h-full pt-[130px] md:pt-0">
+        <OrganismCommandCenter />
+      </div>
       <GuestTrialBanner organism={organism} />
       <TalkToOrganismCoach organism={organism} />
       <WowLiveConsole organism={organism} />
@@ -195,6 +198,9 @@ function WowLiveConsole({ organism }: { organism: LiveOrganism }) {
   const { physicsState } = useOrganismPhysics()
   const [micSignal, setMicSignal] = React.useState({ level: 0, fresh: false, active: false })
   const [masterVol, setMasterVol] = React.useState(100)
+  const [isMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+
+  if (isMobile) return null
 
   const handleVolumeChange = (val: number) => {
     setMasterVol(val)

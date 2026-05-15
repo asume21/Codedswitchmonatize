@@ -21,6 +21,7 @@ import { MasterBusPanel } from './MasterBusPanel';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useRenderCounter } from '@/lib/perf/useRenderCounter';
+import { useIsMobile } from '@/hooks/use-media-query';
 
 interface TrackChannel {
   id: string;
@@ -39,7 +40,11 @@ interface GlobalTransportBarProps {
 
 export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTransportBarProps) {
   useRenderCounter('GlobalTransportBar');
+  const isMobile = useIsMobile();
   const isInline = variant === 'inline';
+
+  // MobileStudioLayout provides its own transport bar — hide this one on mobile
+  if (isMobile && !isInline) return null;
   const currentPattern = useStudioStore((s) => s.currentPattern);
   const currentMelody = useStudioStore((s) => s.currentMelody);
   const currentTracks = useStudioStore((s) => s.currentTracks);
