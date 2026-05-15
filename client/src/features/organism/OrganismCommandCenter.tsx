@@ -500,6 +500,13 @@ export function OrganismCommandCenter() {
     if (referenceMode === 'live') renderAudioRef.current?.pause()
   }, [referenceMode])
 
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+
   const lyricsEndRef = useRef<HTMLDivElement>(null)
   const [shareCaption, setShareCaption] = useState('')
   const [shareConfirmed, setShareConfirmed] = useState(false)
@@ -1074,8 +1081,8 @@ export function OrganismCommandCenter() {
       <div style={{
         flex: 1,
         display: 'grid',
-        gridTemplateColumns: 'minmax(440px, 1fr) minmax(360px, 1fr)',
-        gap: 20,
+        gridTemplateColumns: isMobile ? '1fr' : 'minmax(440px, 1fr) minmax(360px, 1fr)',
+        gap: isMobile ? 0 : 20,
         alignItems: 'start',
       }}>
 
@@ -1230,7 +1237,7 @@ export function OrganismCommandCenter() {
             {!countingIn && (
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3,1fr)',
+                gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)',
                 gap: 5,
               }}>
                 {quickStartPresets.map(preset => {
