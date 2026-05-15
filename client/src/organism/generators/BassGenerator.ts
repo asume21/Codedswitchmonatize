@@ -378,10 +378,12 @@ export class BassGenerator extends GeneratorBase {
     const now = performance.now()
     if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
-    this.stopPart()
 
     const notes = this.generateNotes(physics ?? ({ density: 0.5 } as any))
-    if (notes.length === 0) return
+    if (notes.length === 0) {
+      this.stopPart()
+      return
+    }
 
     const events = notes.map(n => ({
       time: quantizeGridTime(n.time),
@@ -389,6 +391,23 @@ export class BassGenerator extends GeneratorBase {
       dur:  n.duration,
       vel:  n.velocity,
     }))
+
+    const startAt = getLivePartStart(this.hasStartedPlayback)
+
+    // Seamless handoff: keep the old Part playing until the new one starts.
+    const transport = Tone.getTransport()
+    const oldPart = this.part
+    if (oldPart) {
+      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+        oldPart.stop(startAt)
+        const msUntilStart = (startAt - Tone.getContext().currentTime) * 1000
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+      } else {
+        oldPart.stop()
+        oldPart.dispose()
+      }
+    }
+    this.part = null
 
     const LAY_BACK_SEC = 0.020
 
@@ -436,7 +455,7 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    this.part.start(getLivePartStart(this.hasStartedPlayback))
+    this.part.start(startAt)
     this.hasStartedPlayback = true
   }
 

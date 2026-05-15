@@ -517,9 +517,10 @@ export class MelodyGenerator extends GeneratorBase {
     if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
 
-    this.stopPart()
-
-    if (this.currentBehavior === MelodyBehavior.Rest) return
+    if (this.currentBehavior === MelodyBehavior.Rest) {
+      this.stopPart()
+      return
+    }
 
     const lengths = PHRASE_LENGTHS[this.currentBehavior]
     if (!lengths || lengths.length === 0) return
@@ -528,6 +529,25 @@ export class MelodyGenerator extends GeneratorBase {
     const notes        = this.generatePhrase(phraseLength, physics)
 
     if (notes.length === 0) return
+
+    const startAt = getLivePartStart(this.hasStartedPlayback)
+
+    // Seamless handoff: schedule old Part to stop exactly when the new one
+    // starts so there is no silence gap on section changes. If transport is
+    // not running (first build), stop the old part immediately.
+    const transport = Tone.getTransport()
+    const oldPart = this.part
+    if (oldPart) {
+      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+        oldPart.stop(startAt)
+        const msUntilStart = (startAt - Tone.getContext().currentTime) * 1000
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+      } else {
+        oldPart.stop()
+        oldPart.dispose()
+      }
+    }
+    this.part = null
 
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
@@ -574,7 +594,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${phraseLength}i`
-    this.part.start(getLivePartStart(this.hasStartedPlayback))
+    this.part.start(startAt)
     this.hasStartedPlayback = true
   }
 

@@ -393,9 +393,10 @@ export class ChordGenerator extends GeneratorBase {
     if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
 
-    this.stopPart()
-
-    if (this.currentBehavior === ChordBehavior.Silent || !this.currentProgression) return
+    if (this.currentBehavior === ChordBehavior.Silent || !this.currentProgression) {
+      this.stopPart()
+      return
+    }
 
     const prog = this.currentProgression
     const chordCount = prog.chords.length
@@ -480,6 +481,23 @@ export class ChordGenerator extends GeneratorBase {
       time: quantizeGridTime(event.time, loopBars),
     }))
 
+    const startAt = getLivePartStart(this.hasStartedPlayback)
+
+    // Seamless handoff: keep old Part playing until the new one starts.
+    const transport = Tone.getTransport()
+    const oldPart = this.part
+    if (oldPart) {
+      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+        oldPart.stop(startAt)
+        const msUntilStart = (startAt - Tone.getContext().currentTime) * 1000
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+      } else {
+        oldPart.stop()
+        oldPart.dispose()
+      }
+    }
+    this.part = null
+
     this.part = new Tone.Part((time, event: ChordPartEvent) => {
       if (event.chordIdx !== this.currentChordIndex) {
         this.currentChordIndex = event.chordIdx
@@ -530,7 +548,7 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    this.part.start(getLivePartStart(this.hasStartedPlayback))
+    this.part.start(startAt)
     this.hasStartedPlayback = true
 
     const firstChord = prog.chords[0]

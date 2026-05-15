@@ -331,7 +331,6 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private rebuildPart(hits: DrumHit[]): void {
-    this.stopPart()
     this.applyKitPreset()
     const quantizedHits = hits.map(h => ({
       ...h,
@@ -345,6 +344,27 @@ export class DrumGenerator extends GeneratorBase {
       velocity:   h.velocity,
     }))
 
+    const startAt = getLivePartStart(this.hasStartedPlayback)
+
+    // Seamless handoff: schedule the old Part to stop exactly when the new one
+    // starts, so there is no silence gap between section changes. If the
+    // transport is not running (or this is the very first build), stop
+    // immediately as there is nothing audible to preserve.
+    const transport = Tone.getTransport()
+    const oldPart = this.part
+    if (oldPart) {
+      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+        oldPart.stop(startAt)
+        const msUntilStart = (startAt - Tone.getContext().currentTime) * 1000
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+      } else {
+        oldPart.stop()
+        oldPart.dispose()
+      }
+      this.lastTriggerByVoice.clear()
+    }
+    this.part = null
+
     this.part = new Tone.Part((time, event) => {
       const vel = this.applyDynamics(event.instrument, event.velocity)
       this.triggerDrum(event.instrument, time, vel)
@@ -352,7 +372,6 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    const startAt = getLivePartStart(this.hasStartedPlayback)
     this.part.start(startAt)
     this.hasStartedPlayback = true
     orgLog('drum:part-started', {
