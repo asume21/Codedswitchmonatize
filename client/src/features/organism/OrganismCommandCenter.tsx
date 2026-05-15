@@ -253,6 +253,11 @@ function InstrumentSelect({
 const RENDER_TRACK_DURATION_SECONDS = 120
 const RENDER_TRACK_POLL_TIMEOUT_MS = 10 * 60 * 1000
 
+// Five Fingers of Death — 5 maximally-diverse presets, 24 seconds each
+const FFOD_PRESET_IDS = ['boombap-90', 'drill-140', 'lofi-85', 'trap-140', 'funk-100'] as const
+const FFOD_SECONDS_PER_FINGER = 24
+const FFOD_FINGER_LABELS = ['①', '②', '③', '④', '⑤']
+
 export function OrganismCommandCenter() {
   useOrganismShortcuts()
 
@@ -443,6 +448,51 @@ export function OrganismCommandCenter() {
   const [referenceMode, setReferenceMode] = useState<'live' | 'rendered'>('live')
   const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const renderAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // ── Five Fingers of Death ────────────────────────────────────────────────
+  const [ffodActive,   setFfodActive]   = useState(false)
+  const [ffodIndex,    setFfodIndex]    = useState(0)
+  const [ffodSecsLeft, setFfodSecsLeft] = useState(FFOD_SECONDS_PER_FINGER)
+  const ffodTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopFfod = useCallback(() => {
+    if (ffodTimerRef.current) clearInterval(ffodTimerRef.current)
+    ffodTimerRef.current = null
+    setFfodActive(false)
+    setFfodIndex(0)
+    setFfodSecsLeft(FFOD_SECONDS_PER_FINGER)
+  }, [])
+
+  const startFfod = useCallback(async () => {
+    stopFfod()
+    await swapPreset(FFOD_PRESET_IDS[0])
+    setFfodIndex(0)
+    setFfodSecsLeft(FFOD_SECONDS_PER_FINGER)
+    setFfodActive(true)
+  }, [swapPreset, stopFfod])
+
+  useEffect(() => {
+    if (!ffodActive) return
+    ffodTimerRef.current = setInterval(() => {
+      setFfodSecsLeft(prev => {
+        if (prev > 1) return prev - 1
+        setFfodIndex(idx => {
+          const next = idx + 1
+          if (next >= FFOD_PRESET_IDS.length) {
+            setFfodActive(false)
+            return 0
+          }
+          void swapPreset(FFOD_PRESET_IDS[next])
+          return next
+        })
+        return FFOD_SECONDS_PER_FINGER
+      })
+    }, 1000)
+    return () => { if (ffodTimerRef.current) clearInterval(ffodTimerRef.current) }
+  }, [ffodActive, swapPreset])
+
+  // Stop FFOD if organism is stopped externally
+  useEffect(() => { if (!isRunning && ffodActive) stopFfod() }, [isRunning, ffodActive, stopFfod])
 
   // Clean up poll on unmount
   useEffect(() => () => { if (renderPollRef.current) clearInterval(renderPollRef.current) }, [])
@@ -1124,12 +1174,32 @@ export function OrganismCommandCenter() {
 
           {/* Style picker */}
           <div style={{ padding: '10px 14px 8px', flexShrink: 0 }}>
-            <div style={{ ...label11, marginBottom: 8 }}>
-              Style
-              {isRunning && activePreset && (
-                <span style={{ fontSize: 10, color: C.accent, textTransform: 'none', marginLeft: 6, letterSpacing: 0, fontWeight: 500 }}>
-                  — tap to swap live
-                </span>
+            <div style={{ ...label11, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                Style
+                {isRunning && activePreset && !ffodActive && (
+                  <span style={{ fontSize: 10, color: C.accent, textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
+                    — tap to swap live
+                  </span>
+                )}
+              </span>
+              {isRunning && (
+                <button
+                  onClick={ffodActive ? stopFfod : startFfod}
+                  disabled={isStarting}
+                  title="Five Fingers of Death — cycles through 5 styles mid-session"
+                  style={{
+                    padding: '3px 9px', borderRadius: 6, fontSize: 10, fontWeight: 800,
+                    border: ffodActive ? '1px solid rgba(239,68,68,0.6)' : '1px solid rgba(249,115,22,0.35)',
+                    background: ffodActive ? 'rgba(239,68,68,0.15)' : 'rgba(249,115,22,0.08)',
+                    color: ffodActive ? '#ef4444' : '#fb923c',
+                    cursor: isStarting ? 'not-allowed' : 'pointer',
+                    letterSpacing: '0.03em',
+                    animation: ffodActive ? 'pulse 1.5s ease-in-out infinite' : 'none',
+                  }}
+                >
+                  {ffodActive ? '■ STOP' : '🖐 5 FINGERS'}
+                </button>
               )}
             </div>
 
@@ -1207,6 +1277,55 @@ export function OrganismCommandCenter() {
                     </button>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Five Fingers of Death panel */}
+            {ffodActive && (
+              <div style={{
+                marginTop: 8, padding: '10px 12px', borderRadius: 8,
+                border: '1px solid rgba(239,68,68,0.3)',
+                background: 'rgba(239,68,68,0.06)',
+              }}>
+                {/* Finger indicators */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {FFOD_FINGER_LABELS.map((label, i) => (
+                      <div key={i} style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: i === ffodIndex ? 16 : 13,
+                        border: i === ffodIndex ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
+                        background: i === ffodIndex ? 'rgba(239,68,68,0.2)' : i < ffodIndex ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        color: i === ffodIndex ? '#ef4444' : i < ffodIndex ? C.text3 : C.text2,
+                        transition: 'all 0.2s',
+                        fontWeight: i === ffodIndex ? 800 : 400,
+                      }}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', minWidth: 28, textAlign: 'right' }}>
+                    {ffodSecsLeft}s
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 2,
+                    background: 'linear-gradient(90deg, #ef4444, #f97316)',
+                    width: `${(ffodSecsLeft / FFOD_SECONDS_PER_FINGER) * 100}%`,
+                    transition: 'width 0.9s linear',
+                  }} />
+                </div>
+                {/* Current style label */}
+                <div style={{ marginTop: 6, fontSize: 10, color: C.text3, textAlign: 'center' }}>
+                  {quickStartPresets.find(p => p.id === FFOD_PRESET_IDS[ffodIndex])?.label ?? ''}
+                  {' · '}
+                  {quickStartPresets.find(p => p.id === FFOD_PRESET_IDS[ffodIndex])?.bpm ?? ''}
+                  {' BPM · next in '}
+                  <span style={{ color: ffodSecsLeft <= 5 ? '#ef4444' : C.text2, fontWeight: 600 }}>{ffodSecsLeft}s</span>
+                </div>
               </div>
             )}
 
