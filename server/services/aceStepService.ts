@@ -15,12 +15,21 @@ const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').
 const POLL_INTERVAL_MS = 1500
 const POLL_TIMEOUT_MS  = 600_000  // 10 min max wait for longer renders
 
+export type AceStepTaskType = 'text2music' | 'lego' | 'extract' | 'complete'
+
+export type AceStepTrackName =
+  | 'vocals' | 'backing_vocals' | 'drums' | 'bass' | 'guitar'
+  | 'keyboard' | 'percussion' | 'strings' | 'synth' | 'fx' | 'brass' | 'woodwinds'
+
 export interface AceStepRequest {
   prompt: string        // comma-separated tags: "trap, hip-hop, 808, dark, minor"
   lyrics?: string       // optional [verse]/[chorus] formatted lyrics
   audioDuration?: number // seconds (default 30)
   inferStep?: number    // 20=fast, 40=good, 60=best (default 25)
   seed?: number
+  taskType?: AceStepTaskType   // default: text2music
+  trackName?: AceStepTrackName // required for lego task
+  bpm?: number                 // optional tempo hint
 }
 
 export interface AceStepJob {
@@ -31,6 +40,8 @@ export interface AceStepJob {
   error?: string
   durationS?: number
   generationS?: number
+  taskType?: AceStepTaskType
+  trackName?: AceStepTrackName
 }
 
 export async function isWorkerReady(): Promise<boolean> {

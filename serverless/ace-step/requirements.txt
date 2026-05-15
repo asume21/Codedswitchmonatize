@@ -1,6 +1,9 @@
 numpy<2
 runpod>=1.7.9
 diffusers>=0.33.0
+transformers>=4.40.0
+accelerate>=0.30.0
 huggingface_hub[hf_transfer]>=0.25.0
 hf_transfer>=0.1.8
 soundfile>=0.12.1
+einops>=0.7.0

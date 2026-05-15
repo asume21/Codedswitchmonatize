@@ -10,7 +10,7 @@
 import { Router, Request, Response } from 'express'
 import path from 'path'
 import fs from 'fs'
-import { isWorkerReady, submitGeneration, pollJob, AceStepRequest } from '../services/aceStepService'
+import { isWorkerReady, submitGeneration, pollJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from '../services/aceStepService'
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
 import { makeAICall } from '../services/grok'
@@ -103,10 +103,18 @@ export function createAceStepRoutes(): Router {
         seed,
         extraHints,
         prompt: rawPrompt,
+        taskType,
+        trackName,
       } = req.body as {
         genre?: string; mood?: string; bpm?: number; section?: string
         lyrics?: string; audioDuration?: number; inferStep?: number
         seed?: number; extraHints?: string; prompt?: string
+        taskType?: AceStepTaskType; trackName?: AceStepTrackName
+      }
+
+      if (taskType === 'lego' && !trackName) {
+        res.status(400).json({ error: 'trackName is required when taskType is "lego"' })
+        return
       }
 
       const prompt = rawPrompt
@@ -116,10 +124,14 @@ export function createAceStepRoutes(): Router {
       // Wake the legacy pod if stopped. Serverless endpoints scale themselves.
       await ensureWorkerReady()
 
-      const jobReq: AceStepRequest = { prompt, lyrics, audioDuration, inferStep, seed }
+      const jobReq: AceStepRequest = {
+        prompt, lyrics, audioDuration, inferStep, seed,
+        taskType, trackName,
+        bpm: taskType === 'text2music' || !taskType ? bpm : undefined,
+      }
       const jobId = await submitGeneration(jobReq)
 
-      res.json({ jobId, prompt })
+      res.json({ jobId, prompt, taskType: taskType ?? 'text2music', trackName })
     } catch (err: any) {
       console.error('[aceStep] /generate error:', err)
       res.status(502).json({ error: err.message })
@@ -144,6 +156,8 @@ export function createAceStepRoutes(): Router {
         duration_s: job.durationS,
         generation_s: job.generationS,
         job_id: job.jobId,
+        task_type: job.taskType,
+        track_name: job.trackName,
       })
     } catch (err: any) {
       res.status(502).json({ error: err.message })

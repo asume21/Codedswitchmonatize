@@ -8,37 +8,48 @@ import runpod
 import numpy as np
 import soundfile as sf
 
-PIPELINE = None
+HANDLER = None
 OUTPUT_DIR = Path(os.getenv("ACE_STEP_OUTPUT_DIR", "/tmp/ace-step-output"))
 CHECKPOINT_DIR = os.getenv("ACE_STEP_CHECKPOINT_DIR", "/runpod-volume/checkpoints")
+MODEL_CONFIG = os.getenv("ACE_STEP_MODEL_CONFIG", "acestep-v15-base")
 EXTRA_GENERATION_SECONDS = float(os.getenv("ACE_STEP_EXTRA_GENERATION_SECONDS", "1.5"))
+DEVICE = os.getenv("ACE_STEP_DEVICE", "cuda")
+
+VALID_TRACK_NAMES = {
+    "vocals", "backing_vocals", "drums", "bass", "guitar",
+    "keyboard", "percussion", "strings", "synth", "fx", "brass", "woodwinds",
+}
 
 
-def _as_bool(value: str, default: bool = False) -> bool:
+def _as_bool(value, default=False):
     if value is None:
         return default
-    return value.lower() in {"1", "true", "yes", "on"}
+    return str(value).lower() in {"1", "true", "yes", "on"}
 
 
-def get_pipeline():
-    global PIPELINE
-    if PIPELINE is not None:
-        return PIPELINE
+def get_handler():
+    global HANDLER
+    if HANDLER is not None:
+        return HANDLER
 
-    from acestep.pipeline_ace_step import ACEStepPipeline
+    from acestep.acestep_v15_pipeline import AceStepHandler
 
-    cpu_offload = _as_bool(os.getenv("ACE_STEP_CPU_OFFLOAD", "false"))
+    offload = _as_bool(os.getenv("ACE_STEP_CPU_OFFLOAD", "false"))
     bf16 = _as_bool(os.getenv("ACE_STEP_BF16", "true"), True)
+
     Path(CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
 
-    print(f"[ace-step-serverless] loading checkpoint_dir={CHECKPOINT_DIR} cpu_offload={cpu_offload}")
-    PIPELINE = ACEStepPipeline(
-        checkpoint_dir=CHECKPOINT_DIR,
-        dtype="bfloat16" if bf16 else "float32",
-        cpu_offload=cpu_offload,
+    print(f"[ace-step] loading config={MODEL_CONFIG} device={DEVICE} offload={offload} bf16={bf16}")
+    HANDLER = AceStepHandler()
+    HANDLER.initialize_service(
+        project_root=CHECKPOINT_DIR,
+        config_path=MODEL_CONFIG,
+        device=DEVICE,
+        offload_to_cpu=offload,
+        torch_dtype="bfloat16" if bf16 else "float32",
     )
-    print("[ace-step-serverless] model loaded")
-    return PIPELINE
+    print("[ace-step] model loaded")
+    return HANDLER
 
 
 def normalize_wav_duration(path: Path, target_duration_s: float) -> float:
@@ -66,6 +77,15 @@ def handler(event):
     if not prompt:
         raise ValueError("Missing required input.prompt")
 
+    task_type = payload.get("task_type", "text2music")
+    track_name = payload.get("track_name") or None
+    bpm = payload.get("bpm") or None
+
+    if task_type == "lego" and track_name and track_name not in VALID_TRACK_NAMES:
+        raise ValueError(
+            f"Invalid track_name '{track_name}'. Must be one of: {sorted(VALID_TRACK_NAMES)}"
+        )
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     job_id = event.get("id") or uuid.uuid4().hex
@@ -78,12 +98,16 @@ def handler(event):
     requested_duration = float(payload.get("audio_duration", 30.0))
     generation_duration = requested_duration + EXTRA_GENERATION_SECONDS
 
-    pipeline = get_pipeline()
-    pipeline(
+    lyrics = payload.get("lyrics") or ""
+
+    ace = get_handler()
+    ace.service_generate(
+        captions=[prompt],
+        lyrics=[lyrics],
         audio_duration=generation_duration,
-        prompt=prompt,
-        lyrics=payload.get("lyrics") or "",
-        infer_step=int(payload.get("infer_step", 25)),
+        task_type=task_type,
+        track_name=track_name,
+        infer_steps=int(payload.get("infer_step", 25)),
         guidance_scale=float(payload.get("guidance_scale", 15.0)),
         scheduler_type=payload.get("scheduler_type", "euler"),
         cfg_type=payload.get("cfg_type", "apg"),
@@ -95,21 +119,28 @@ def handler(event):
         use_erg_tag=bool(payload.get("use_erg_tag", True)),
         use_erg_lyric=bool(payload.get("use_erg_lyric", bool(payload.get("lyrics")))),
         use_erg_diffusion=bool(payload.get("use_erg_diffusion", True)),
-        oss_steps=None,
-        guidance_scale_text=0.0,
-        guidance_scale_lyric=0.0,
+        bpm=int(bpm) if bpm is not None else None,
         save_path=str(out_path),
     )
 
+    if not out_path.exists():
+        raise RuntimeError(f"ACE-Step generation produced no output at {out_path}")
+
     audio_duration = normalize_wav_duration(out_path, requested_duration)
     audio_bytes = out_path.read_bytes()
-    return {
+
+    result = {
         "format": "wav",
         "seed": int(seed),
         "duration_s": round(audio_duration, 2),
         "generation_s": round(time.time() - t0, 2),
         "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
     }
+    if task_type != "text2music":
+        result["task_type"] = task_type
+    if track_name:
+        result["track_name"] = track_name
+    return result
 
 
 if __name__ == "__main__":
