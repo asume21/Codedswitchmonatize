@@ -311,6 +311,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   })
   const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
+  // Multi-take producer state
+  const [isProgressionLocked,   setIsProgressionLocked]   = useState(false)
+  const [recordingBarsTotal,     setRecordingBarsTotal]    = useState<number | null>(null)
+  const [recordingBarsElapsed,   setRecordingBarsElapsed]  = useState(0)
+  const recordingBarTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
   const [isRecording,      setIsRecording]      = useState(false)
   const [lastSavedSession, setLastSavedSession] = useState<SavedSession | null>(null)
@@ -1018,7 +1024,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     orchestr.setKickVelocityMultiplier(0.95)
     orchestr.setBassVolumeMultiplier(1.6)
     orchestr.setMelodyVolumeMultiplier(1.8)
-    orchestr.setChordVolumeMultiplier(0.75)
+    orchestr.setChordVolumeMultiplier(1.2)
+    setChordVolumeState(1.2)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
   }, [])
@@ -1589,10 +1596,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       useStudioStore.getState().setBpm(params.bpm)
       orchestr.forceSubGenre(params.subGenre as HipHopSubGenre)
       orchestr.regenerateAll()
-      
+
+      // Apply instrument assignments if the vibe text named specific instruments
+      const applyInstrument = (role: OrganismInstrumentRole, id: string | null | undefined) => {
+        if (id === undefined) return
+        const castId = id as InstrumentPerformerId | null
+        setInstrumentAssignments(prev => ({ ...prev, [role]: castId }))
+        orchestr.setInstrumentPerformer(role, castId)
+      }
+      applyInstrument('lead',  params.instrumentLead)
+      applyInstrument('bass',  params.instrumentBass)
+      applyInstrument('chord', params.instrumentChord)
+
       orgLog('interpretVibe:applied', {
         bpm: params.bpm, mode, subGenre: params.subGenre,
         confidence: params.confidence,
+        instruments: { lead: params.instrumentLead, bass: params.instrumentBass, chord: params.instrumentChord },
       })
     }
   }, [quickStart])
@@ -1707,7 +1726,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // stopRecording stops the tracks at end-of-session.
   const ownsVocalStreamRef = useRef(false)
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (externalMicStream?: MediaStream) => {
     if (isRecording) return
     const endPhase = orgPhase('recording:start', 500)
 
@@ -1720,15 +1739,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     vocalChunksRef.current = []
     beatChunksRef.current = []
 
-    // 1. Vocal recording — prefer to reuse the AudioAnalysisEngine's open mic
-    //    stream so we avoid opening a third competing audio session (Windows
-    //    drops one of the streams under contention, which makes the beat
-    //    "just stop" mid-freestyle).
+    // 1. Vocal recording — prefer to reuse an external stream (e.g. Recording
+    //    Booth already opened one) or the AudioAnalysisEngine's open mic stream
+    //    so we avoid opening a competing audio session (Windows drops one of the
+    //    streams under contention, which makes the beat "just stop" mid-freestyle).
     try {
-      let micStream: MediaStream | null = null
-      const analyzerInput = inputRef.current as unknown as { getStream?: () => MediaStream | null }
-      if (inputSource === 'mic' && typeof analyzerInput?.getStream === 'function') {
-        micStream = analyzerInput.getStream() ?? null
+      let micStream: MediaStream | null = externalMicStream ?? null
+
+      if (!micStream) {
+        const analyzerInput = inputRef.current as unknown as { getStream?: () => MediaStream | null }
+        if (inputSource === 'mic' && typeof analyzerInput?.getStream === 'function') {
+          micStream = analyzerInput.getStream() ?? null
+        }
       }
 
       if (micStream) {
@@ -1910,6 +1932,80 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     return session
   }, [])
+
+  const lockChordProgression = useCallback(() => {
+    orchestrRef.current?.lockChordProgression()
+    setIsProgressionLocked(true)
+  }, [])
+
+  const unlockChordProgression = useCallback(() => {
+    orchestrRef.current?.unlockChordProgression()
+    setIsProgressionLocked(false)
+  }, [])
+
+  /**
+   * Record for exactly N bars then auto-stop.
+   * Starts the organism if not running, locks the chord progression after the
+   * first bar (so all future takes share the same harmonic DNA), and resolves
+   * with the SavedSession when the recording finishes.
+   */
+  const recordForBars = useCallback(async (bars: number, label?: string): Promise<SavedSession | null> => {
+    const bpm = orchestrRef.current?.getBpm() ?? useStudioStore.getState().bpm ?? 90
+    const msPerBar = (60_000 / bpm) * 4  // 4 beats per bar
+    const durationMs = bars * msPerBar
+
+    if (!isRunningRef.current) {
+      const firstPreset = QUICK_START_PRESETS[0]
+      await quickStart(firstPreset.id)
+    }
+
+    setRecordingBarsTotal(bars)
+    setRecordingBarsElapsed(0)
+
+    await startRecording()
+
+    // Tick elapsed bars in real time for the progress display
+    const tickInterval = msPerBar
+    let elapsed = 0
+    if (recordingBarTimerRef.current) clearInterval(recordingBarTimerRef.current)
+    recordingBarTimerRef.current = setInterval(() => {
+      elapsed += 1
+      setRecordingBarsElapsed(elapsed)
+    }, tickInterval)
+
+    // Lock chord progression after take 1 so every subsequent take is harmonically compatible
+    if (!isProgressionLocked) {
+      setTimeout(() => { orchestrRef.current?.lockChordProgression(); setIsProgressionLocked(true) }, 200)
+    }
+
+    // Auto-stop after the requested duration
+    const session = await new Promise<SavedSession | null>(resolve => {
+      setTimeout(async () => {
+        if (recordingBarTimerRef.current) { clearInterval(recordingBarTimerRef.current); recordingBarTimerRef.current = null }
+        setRecordingBarsTotal(null)
+        setRecordingBarsElapsed(0)
+        const s = await stopRecording()
+        resolve(s)
+      }, durationMs)
+    })
+
+    // Emit a CustomEvent so the studio arrangement can receive the clip
+    if (session?.beatBlob) {
+      const audioUrl = URL.createObjectURL(session.beatBlob)
+      window.dispatchEvent(new CustomEvent('organism:take-ready', {
+        detail: {
+          audioUrl,
+          name:  label ?? `Take ${new Date().toLocaleTimeString()}`,
+          bpm,
+          bars,
+          durationMs: session.durationMs,
+          sessionId:  session.sessionId,
+        },
+      }))
+    }
+
+    return session
+  }, [quickStart, startRecording, stopRecording, isProgressionLocked])
 
   const downloadSession = useCallback((session: SavedSession) => {
     const timestamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, '-')
@@ -2987,6 +3083,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     savedSessions,
     downloadSession,
 
+    // Multi-take producer workflow
+    currentBpm: orchestrRef.current?.getBpm() ?? 90,
+    isProgressionLocked,
+    lockChordProgression,
+    unlockChordProgression,
+    recordForBars,
+    recordingBarsTotal,
+    recordingBarsElapsed,
+
     // Latch mode
     latchMode,
     setLatchMode: (enabled: boolean) => {
@@ -3044,22 +3149,24 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     },
     setDrumsVolume: (v: number) => {
       setDrumsVolumeState(v)
-      // Convert 0-2 multiplier to dB offset from the default drum channel gain (0 dB)
       const db = v <= 0 ? -60 : 20 * Math.log10(v)
       mixRef.current?.setChannelGainDb('drum', db)
+      orchestrRef.current?.setDrumEnabled(v > 0)
     },
     setBassVolume: (v: number) => {
       setBassVolumeState(v)
       orchestrRef.current?.setBassVolumeMultiplier(v)
+      orchestrRef.current?.setBassEnabled(v > 0)
     },
     setMelodyVolume: (v: number) => {
       setMelodyVolumeState(v)
       orchestrRef.current?.setMelodyVolumeMultiplier(v)
+      orchestrRef.current?.setMelodyEnabled(v > 0)
     },
     setChordVolume: (v: number) => {
       setChordVolumeState(v)
-      // -5 dB is the chord channel default; this offsets from that baseline
-      mixRef.current?.setChannelGainDb('chord', -5 + 20 * Math.log10(Math.max(0.001, v)))
+      mixRef.current?.setChannelGainDb('chord', 3 + 20 * Math.log10(Math.max(0.001, v)))
+      orchestrRef.current?.setChordEnabled(v > 0)
     },
     setMelodyFocusEnabled: (enabled: boolean) => {
       setMelodyFocusEnabledState(enabled)
@@ -3117,6 +3224,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     transcription, transcriptionEnabled,
     isRecording, startRecording, stopRecording,
     lastSavedSession, savedSessions, downloadSession,
+    isProgressionLocked,
+    lockChordProgression,
+    unlockChordProgression,
+    recordForBars,
+    recordingBarsTotal,
+    recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
     instrumentAssignments, setOrganismInstrument,

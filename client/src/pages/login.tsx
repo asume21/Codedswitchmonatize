@@ -6,12 +6,26 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Music, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type SubscriptionStatus } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+
+const SUBSCRIPTION_QUERY_KEY = ["/api/subscription-status"] as const;
+
+function getLoginErrorMessage(error: unknown): string {
+  if (error instanceof TypeError && error.message === "Failed to fetch") {
+    return "Could not reach the server. Make sure the API is running and try again.";
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "Invalid email or password";
+}
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { refresh } = useAuth();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -51,10 +65,23 @@ export default function Login() {
         localStorage.setItem('authUserId', data.userId);
       }
 
-      // Force AuthContext to re-fetch with the new token so the UI updates
-      // immediately — without this the query cache stays stale for 60s and
-      // the user appears logged-out until they manually refresh the page.
-      await refresh();
+      // Login succeeded. Seed auth immediately so a slow subscription refresh
+      // cannot turn a successful login into a "Login Failed" toast.
+      queryClient.setQueryData<SubscriptionStatus>(SUBSCRIPTION_QUERY_KEY, {
+        hasActiveSubscription:
+          data.user?.subscriptionTier === "pro" || data.user?.subscriptionStatus === "active",
+        tier: data.user?.subscriptionTier || "free",
+        monthlyUploads: data.user?.monthlyUploads || 0,
+        monthlyGenerations: data.user?.monthlyGenerations || 0,
+        lastUsageReset: data.user?.lastUsageReset,
+        isAuthenticated: true,
+      });
+
+      // Re-fetch exact subscription usage in the background. This must not
+      // decide whether the login itself succeeded.
+      void refresh().catch((refreshError) => {
+        console.warn("Post-login auth refresh failed:", refreshError);
+      });
 
       toast({
         title: "Welcome back!",
@@ -65,7 +92,7 @@ export default function Login() {
     } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: error.message || "Invalid email or password",
+        description: getLoginErrorMessage(error),
         variant: "destructive",
       });
     } finally {

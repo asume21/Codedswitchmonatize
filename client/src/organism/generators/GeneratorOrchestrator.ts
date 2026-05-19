@@ -235,12 +235,10 @@ export class GeneratorOrchestrator {
     }
     await Tone.start()
 
-    // Look-ahead controls scheduling latency — the time between a scheduled
-    // event and when it becomes audible. A high value (0.6s) hides main-thread
-    // jank but adds 600ms of silence before the first drum hit, which is
-    // unacceptable for live freestyle. 0.1s is tight but audible within a
-    // fraction of a beat, and modern machines don't need the wider window.
-    Tone.getContext().lookAhead = 0.1
+    // Look-ahead controls scheduling latency. 0.1s caused crackling when 5+
+    // generators run simultaneously on a busy dev-mode main thread. 0.25s is
+    // a safe middle ground: ~1/4 beat at 120 BPM, unnoticeable in live use.
+    Tone.getContext().lookAhead = 0.25
 
     // Start at 0 dB. The prior pre-mute-to-silence was hiding an initial
     // transient, but when the ramp was skipped it silently bricked audio.
@@ -333,6 +331,9 @@ export class GeneratorOrchestrator {
     this.melody.onStateTransition(state, this.lastPhysics)
   }
 
+  lockChordProgression(): void  { this.chord.lockProgression() }
+  unlockChordProgression(): void { this.chord.unlockProgression() }
+
   setInstrumentPerformer(
     role: 'lead' | 'bass' | 'chord',
     instrumentId: InstrumentPerformerId | null,
@@ -409,12 +410,12 @@ export class GeneratorOrchestrator {
 
   applyPerformerState(performer: import('../audio/types').PerformerState): void {
     // Feed performer features to melody/chord generators for intelligent dynamics
-    this.melody.setPerformerFeatures(
+    if (this.melodyEnabled) this.melody.setPerformerFeatures(
       performer.energy,
       performer.spectralBrightness,
       performer.syllabicRate,
     )
-    this.chord.setPerformerEnergy(performer.energy)
+    if (this.chordEnabled) this.chord.setPerformerEnergy(performer.energy)
 
     // Performer adjustments are computed as FRESH multipliers each frame —
     // they do NOT compound on top of stored multipliers.
@@ -601,6 +602,48 @@ export class GeneratorOrchestrator {
     if (output.melodyPitchOffsetSemitones != null) {
       this.setMelodyPitchOffset(output.melodyPitchOffsetSemitones)
     }
+  }
+
+  /** Enable or disable individual generators — disabled generators stop their
+   *  Tone.Part immediately and skip onStateTransition until re-enabled.
+   *  Re-enabling replays the current organism state so the generator restarts.
+   *  All methods are idempotent — calling with the same value twice is a no-op. */
+  private drumEnabled:   boolean = true
+  private bassEnabled:   boolean = true
+  private melodyEnabled: boolean = true
+  private chordEnabled:  boolean = true
+
+  private replayStateToGenerator(generator: { onStateTransition: (to: OState, physics: PhysicsState) => void }): void {
+    if (!this.lastPhysics || !this.lastOrganism) return
+    generator.onStateTransition(this.lastOrganism.current, this.lastPhysics)
+  }
+
+  setDrumEnabled(enabled: boolean): void {
+    if (this.drumEnabled === enabled) return
+    this.drumEnabled = enabled
+    this.drum.setEnabled(enabled)
+    if (enabled) this.replayStateToGenerator(this.drum)
+  }
+
+  setBassEnabled(enabled: boolean): void {
+    if (this.bassEnabled === enabled) return
+    this.bassEnabled = enabled
+    this.bass.setEnabled(enabled)
+    if (enabled) setTimeout(() => this.replayStateToGenerator(this.bass), 50)
+  }
+
+  setMelodyEnabled(enabled: boolean): void {
+    if (this.melodyEnabled === enabled) return
+    this.melodyEnabled = enabled
+    this.melody.setEnabled(enabled)
+    if (enabled) setTimeout(() => this.replayStateToGenerator(this.melody), 120)
+  }
+
+  setChordEnabled(enabled: boolean): void {
+    if (this.chordEnabled === enabled) return
+    this.chordEnabled = enabled
+    this.chord.setEnabled(enabled)
+    if (enabled) setTimeout(() => this.replayStateToGenerator(this.chord), 180)
   }
 
   /** Enable or disable the texture generator entirely. */
@@ -823,12 +866,13 @@ export class GeneratorOrchestrator {
     // Apply arrangement shaping from director state
     this.applyArrangement()
 
-    // Process all generators
-    this.drum.processFrame(physics, organism)
-    this.bass.processFrame(physics, organism)
-    this.melody.processFrame(physics, organism)
+    // Process only enabled generators — disabled ones have no Tone.Part
+    // and no scheduled notes, so running their frame logic wastes CPU.
+    if (this.drumEnabled)   this.drum.processFrame(physics, organism)
+    if (this.bassEnabled)   this.bass.processFrame(physics, organism)
+    if (this.melodyEnabled) this.melody.processFrame(physics, organism)
     this.texture.processFrame(physics, organism)
-    this.chord.processFrame(physics, organism)
+    if (this.chordEnabled)  this.chord.processFrame(physics, organism)
 
     // Density feedback loop: report generator activity levels to PhysicsEngine
     if (this.physicsEngineRef) {
@@ -866,6 +910,7 @@ export class GeneratorOrchestrator {
   private onSubGenreChange(subGenre: HipHopSubGenre): void {
     // Sync bass swing to new sub-genre
     setBassSwingFromSubGenre(subGenre)
+    this.bass.setSubGenre(subGenre)
 
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern
@@ -873,8 +918,7 @@ export class GeneratorOrchestrator {
     const drumPattern = buildSubGenrePattern(subGenre)
     this.drum.loadGeneratedPattern(drumPattern.hits, true)
 
-    // Bass will pick up new behavior from director state on next processFrame
-    // via getBassBehavior → rebuildPart, no explicit call needed
+    // Bass is rebuilt immediately above so the rhythm section changes as one.
 
     // Emit event for UI
     window.dispatchEvent(new CustomEvent('organism:subgenre-change', {

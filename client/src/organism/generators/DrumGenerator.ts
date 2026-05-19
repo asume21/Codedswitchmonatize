@@ -173,7 +173,21 @@ export class DrumGenerator extends GeneratorBase {
     this.setOutputLevel(this.activityLevel)
   }
 
+  private enabled: boolean = true
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) {
+      this.reset()
+    } else if (this.patternLocked && this.lockedHits.length > 0) {
+      // onStateTransition returns early when pattern is locked, so rebuild
+      // directly from the saved hits so the Part resumes immediately.
+      this.rebuildPart(this.lockedHits)
+    }
+  }
+
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()
       this.activityLevel = 0

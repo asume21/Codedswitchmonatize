@@ -2,7 +2,7 @@
  * ACE-Step routes — text-to-music generation
  *
  * GET  /api/ai-music/status          — ACE-Step worker health check
- * POST /api/ai-music/generate        — Ollama builds style prompt → ACE-Step job
+ * POST /api/ai-music/generate        — Ollama/local prompt tags → ACE-Step job
  * GET  /api/ai-music/job/:jobId      — poll job status
  * GET  /api/ai-music/audio/:filename — serve generated WAV
  */
@@ -13,61 +13,124 @@ import fs from 'fs'
 import { isWorkerReady, submitGeneration, pollJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from '../services/aceStepService'
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
-import { makeAICall } from '../services/grok'
+import { localAI } from '../services/localAI'
 
 const OUTPUT_DIR = path.resolve(process.cwd(), 'private', 'ace-step', 'output')
 const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
 
-// ── Prompt builder — Ollama/Grok generates ACE-Step style tags ────────────────
-async function buildAceStepPrompt(opts: {
+interface AcePromptOptions {
   genre: string
   mood: string
   bpm: number
   section: string
   extraHints?: string
-}): Promise<string> {
+}
+
+const cleanAceTag = (value: unknown) =>
+  String(value ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[^\w\s&'./+-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+
+const cleanAcePrompt = (value: unknown) =>
+  String(value ?? '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/["{}[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .split(',')
+    .map(cleanAceTag)
+    .filter(Boolean)
+    .slice(0, 18)
+    .join(', ')
+
+// ── Prompt builder — local deterministic ACE-Step style tags ─────────────────
+function buildDeterministicAceStepPrompt(opts: AcePromptOptions): string {
   const { genre, mood, bpm, section, extraHints = '' } = opts
 
-  const systemPrompt =
-    'You are an expert music producer. Given a genre, mood, tempo, and song section, ' +
-    'output a concise comma-separated list of style/mood tags that ACE-Step can use to generate music. ' +
-    'Focus on: genre tags, instrument tags, energy tags, tempo feel tags, mood tags. ' +
-    'Output ONLY the comma-separated tag list — no explanation, no JSON, no extra text. ' +
-    'Example: "trap, hip-hop, 808 bass, dark, minor, aggressive, heavy kick, vinyl hi-hats"'
+  const tagPresets: Record<string, string[]> = {
+    trap: ['trap', 'hip-hop', '808 bass', 'heavy kick', 'vinyl hi-hats', 'minor'],
+    'boom-bap': ['boom bap', 'hip-hop', 'jazz samples', 'kick snare', 'classic', 'vinyl crackle'],
+    'boom bap': ['boom bap', 'hip-hop', 'jazz samples', 'kick snare', 'classic', 'vinyl crackle'],
+    drill: ['uk drill', 'hip-hop', 'sliding 808', 'trap hi-hats', 'aggressive', 'cold'],
+    'r&b': ['r&b', 'soul', 'smooth', 'warm piano', 'bass guitar', 'lush groove'],
+    'r&b-soul': ['r&b', 'soul', 'smooth', 'warm piano', 'bass guitar', 'lush groove'],
+    afrobeats: ['afrobeats', 'african percussion', 'upbeat', 'warm bass', 'rhythmic', 'dance'],
+    afrobeat: ['afrobeat', 'african percussion', 'upbeat', 'warm bass', 'rhythmic', 'dance'],
+    'lo-fi': ['lo-fi hip-hop', 'dusty drums', 'warm keys', 'soft bass', 'laid back'],
+    'west-coast': ['west coast hip-hop', 'funk bass', 'laid back', 'bounce', 'clean drums'],
+    'dirty-south': ['dirty south hip-hop', '808 bass', 'clap snare', 'anthemic', 'heavy drums'],
+    phonk: ['phonk', 'cowbell melody', 'distorted 808', 'dark', 'driving drums'],
+    'jersey-club': ['jersey club', 'club kick', 'chopped rhythm', 'high energy', 'dance'],
+    bounce: ['bounce', 'new orleans rhythm', 'call and response', 'energetic', 'drums'],
+    reggaeton: ['reggaeton', 'dembow rhythm', 'latin percussion', 'warm bass', 'dance'],
+    chill: ['chill hip-hop', 'soft drums', 'warm keys', 'smooth bass', 'relaxed'],
+    'hip-hop': ['hip-hop', 'punchy drums', 'clean low end', 'wide stereo', 'instrumental'],
+  }
 
-  const userPrompt = [
-    `Genre: ${genre}`,
-    `Mood: ${mood}`,
-    `BPM: ${bpm}`,
-    `Section: ${section}`,
-    extraHints ? `Additional context: ${extraHints}` : '',
-    '',
-    'Generate the ACE-Step style tags:',
-  ].filter(Boolean).join('\n')
+  const genreKey = cleanAceTag(genre).toLowerCase()
+  const normalizedGenreKey = genreKey.replace(/\s+/g, '-')
+  const extraTags = extraHints
+    .split(/[,;\n]/)
+    .map(cleanAceTag)
+    .filter(Boolean)
+    .slice(0, 4)
+
+  const tags = [
+    ...(tagPresets[genreKey] ?? tagPresets[normalizedGenreKey] ?? [cleanAceTag(genre), 'hip-hop']),
+    cleanAceTag(mood),
+    `${Number.isFinite(bpm) ? Math.round(bpm) : 90} bpm`,
+    cleanAceTag(section),
+    'reference-level instrumental beat',
+    'professional mix',
+    'no vocals',
+    ...extraTags,
+  ].filter(Boolean)
+
+  return [...new Set(tags)].join(', ')
+}
+
+async function buildAceStepPrompt(opts: AcePromptOptions): Promise<string> {
+  const deterministicPrompt = buildDeterministicAceStepPrompt(opts)
+  const { genre, mood, bpm, section, extraHints = '' } = opts
 
   try {
-    const result = await makeAICall(
+    const content = await localAI.chat(
       [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        {
+          role: 'system',
+          content:
+            'You write concise ACE-Step text-to-music prompts. Return only comma-separated prompt tags. ' +
+            'No explanation, no JSON, no markdown. Focus on genre, drums, bass, instruments, energy, mix, and mood. ' +
+            'Do not include vocals unless the user explicitly asks for vocals.',
+        },
+        {
+          role: 'user',
+          content: [
+            `Genre: ${genre}`,
+            `Mood: ${mood}`,
+            `BPM: ${bpm}`,
+            `Section: ${section}`,
+            extraHints ? `Context: ${extraHints}` : '',
+            `Fallback tags to improve: ${deterministicPrompt}`,
+          ].filter(Boolean).join('\n'),
+        },
       ],
-      { maxTokens: 120, temperature: 0.7 },
+      { temperature: 0.45 },
     )
-    const tags = (result as any)?.choices?.[0]?.message?.content?.trim() ?? ''
-    if (tags.length > 5) return tags
+
+    const prompt = cleanAcePrompt(content)
+    if (prompt.length > 12) {
+      console.log('[aceStep] Built ACE prompt with local Ollama')
+      return prompt
+    }
   } catch (err) {
-    console.error('[aceStep] buildAceStepPrompt AI call failed:', err)
+    console.warn('[aceStep] Local Ollama prompt builder unavailable; using deterministic ACE tags:', err)
   }
 
-  // Deterministic fallback per sub-genre
-  const fallbacks: Record<string, string> = {
-    trap:       'trap, hip-hop, 808 bass, dark, minor, aggressive, heavy kick, vinyl hi-hats',
-    'boom-bap': 'boom bap, hip-hop, jazz samples, boom, kick snare, classic, 90s, vinyl crackle',
-    drill:      'uk drill, hip-hop, dark, minor, sliding 808, trap hi-hats, aggressive, cold',
-    'r&b-soul': 'r&b, soul, smooth, warm, piano, bass guitar, vocals, lush, groove',
-    afrobeats:  'afrobeats, african, percussion, upbeat, warm bass, rhythmic, dance, vibrant',
-  }
-  return fallbacks[genre.toLowerCase()] ?? `${genre}, hip-hop, ${mood}, ${bpm} bpm`
+  return deterministicPrompt
 }
 
 // ── Route factory ─────────────────────────────────────────────────────────────

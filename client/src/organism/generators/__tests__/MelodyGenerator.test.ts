@@ -5,6 +5,7 @@ import { OState } from '../../state/types'
 import type { OrganismState } from '../../state/types'
 import { GeneratorName, MelodyBehavior } from '../types'
 import { createToneMock, mockPartStart } from './__mocks__/toneMock'
+import * as Tone from 'tone'
 
 vi.mock('tone', () => createToneMock())
 
@@ -74,6 +75,32 @@ describe('MelodyGenerator', () => {
     gen.processFrame(physics, organism) // Frame 1: pending
     gen.processFrame(physics, organism) // Frame 2: committed + rebuild
     expect(mockPartStart).toHaveBeenCalled()
+  })
+
+  it('uses musical bar loop lengths instead of Tone tick loops', () => {
+    const physics = makePhysics({ voiceActive: false })
+
+    gen.onStateTransition(OState.Flow, physics)
+
+    const partMock = Tone.Part as unknown as {
+      mock: { instances: Array<{ loopEnd: string }> }
+    }
+    const part = partMock.mock.instances.at(-1)
+    expect(part?.loopEnd).toMatch(/m$/)
+    expect(part?.loopEnd).not.toMatch(/i$/)
+  })
+
+  it('fills lead phrases with repeated motifs instead of one short lick', () => {
+    const physics = makePhysics({ voiceActive: false })
+
+    gen.setInstrumentPerformer('piano')
+    gen.onStateTransition(OState.Flow, physics)
+
+    const partMock = Tone.Part as unknown as {
+      mock: { calls: Array<[unknown, Array<unknown>]> }
+    }
+    const events = partMock.mock.calls.at(-1)?.[1] ?? []
+    expect(events.length).toBeGreaterThan(3)
   })
 
   it('onStateTransition to DORMANT stops part and zeros activity', () => {

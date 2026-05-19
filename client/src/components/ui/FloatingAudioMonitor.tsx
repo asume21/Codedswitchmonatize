@@ -170,7 +170,7 @@ function OrganismMiniControls() {
         </button>
 
         <button
-          onClick={isRecording ? () => stopRecording() : startRecording}
+          onClick={isRecording ? () => stopRecording() : () => startRecording()}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] font-bold transition-colors ${
             isRecording
               ? 'bg-red-600/30 border border-red-500/50 text-red-200 hover:bg-red-600/40 animate-pulse'

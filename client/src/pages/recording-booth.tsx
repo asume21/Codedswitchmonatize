@@ -254,7 +254,7 @@ async function mixBlobsToWav(vocalBlob: Blob, beatBlob: Blob | null): Promise<Bl
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type BeatSource = 'quick-beats' | 'my-songs' | 'organism'
+type BeatSource = 'quick-beats' | 'my-songs' | 'organism' | 'upload'
 
 export default function RecordingBooth() {
   const [, setLocation] = useLocation()
@@ -278,11 +278,20 @@ export default function RecordingBooth() {
   const [inputLevel, setInputLevel] = useState(0)
   const [isMixing, setIsMixing] = useState<string | null>(null)
 
+  // Uploaded beat state
+  const [uploadedBeatUrl,  setUploadedBeatUrl]  = useState<string | null>(null)
+  const [uploadedBeatName, setUploadedBeatName] = useState('')
+
   // Quick Beat playback. Use native media playback for long MP3/M4A reference tracks,
   // then route through Web Audio so the beat can still be captured while recording.
   const quickBeatAudioRef = useRef<HTMLAudioElement | null>(null)
   const quickBeatSrcRef = useRef<MediaElementAudioSourceNode | null>(null)
   const quickBeatGainRef = useRef<GainNode | null>(null)
+
+  // Uploaded beat Web Audio nodes
+  const uploadedAudioRef = useRef<HTMLAudioElement | null>(null)
+  const uploadedSrcRef   = useRef<MediaElementAudioSourceNode | null>(null)
+  const uploadedGainRef  = useRef<GainNode | null>(null)
 
   // Beat recording — captures what plays through speakers
   const beatRecDestRef  = useRef<MediaStreamAudioDestinationNode | null>(null)
@@ -492,6 +501,61 @@ export default function RecordingBooth() {
 
   const stopOrganism = () => { organism?.stop(); setIsBeatPlaying(false) }
 
+  // ── Uploaded Beat ─────────────────────────────────────────────────────────────
+
+  const stopUploadedBeat = useCallback(() => {
+    if (uploadedAudioRef.current) { uploadedAudioRef.current.pause(); uploadedAudioRef.current.currentTime = 0 }
+    uploadedSrcRef.current?.disconnect()
+    uploadedGainRef.current?.disconnect()
+    uploadedAudioRef.current = null
+    uploadedSrcRef.current   = null
+    uploadedGainRef.current  = null
+    setIsBeatPlaying(false)
+  }, [])
+
+  const playUploadedBeat = useCallback(async (url: string) => {
+    stopUploadedBeat()
+    await resumeAudioContext()
+    await Tone.start()
+    const rawAC  = getAudioContext()
+    const recDest = ensureBeatRecDest()
+    const audio  = new Audio(url)
+    audio.loop   = true
+    audio.preload = 'auto'
+
+    const source = rawAC.createMediaElementSource(audio)
+    const gain   = rawAC.createGain()
+    gain.gain.value = beatVolume
+    source.connect(gain)
+    gain.connect(rawAC.destination)
+    gain.connect(recDest)
+
+    uploadedAudioRef.current = audio
+    uploadedSrcRef.current   = source
+    uploadedGainRef.current  = gain
+
+    try {
+      await audio.play()
+      if (uploadedAudioRef.current === audio) setIsBeatPlaying(true)
+    } catch {
+      stopUploadedBeat()
+      toast({ title: 'Beat failed to play', variant: 'destructive' })
+    }
+  }, [stopUploadedBeat, beatVolume, ensureBeatRecDest, toast])
+
+  const handleBeatFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (uploadedBeatUrl) URL.revokeObjectURL(uploadedBeatUrl)
+    const url = URL.createObjectURL(file)
+    setUploadedBeatUrl(url)
+    setUploadedBeatName(file.name.replace(/\.[^.]+$/, ''))
+    setBeatSource('upload')
+    void playUploadedBeat(url)
+    // Reset input so the same file can be re-selected
+    e.target.value = ''
+  }, [uploadedBeatUrl, playUploadedBeat])
+
   const generateAiBeatFromReference = async (beat: QuickBeat) => {
     if (isRecording) return
     await stopQuickBeat()
@@ -507,9 +571,8 @@ export default function RecordingBooth() {
   useEffect(() => {
     if (quickBeatAudioRef.current) quickBeatAudioRef.current.volume = beatVolume
     if (quickBeatGainRef.current) quickBeatGainRef.current.gain.value = beatVolume
-    if (audioElRef.current) {
-      audioElRef.current.volume = beatVolume
-    }
+    if (audioElRef.current) audioElRef.current.volume = beatVolume
+    if (uploadedGainRef.current) uploadedGainRef.current.gain.value = beatVolume
   }, [beatVolume])
 
   // ── Mic permission ────────────────────────────────────────────────────────────
@@ -553,9 +616,10 @@ export default function RecordingBooth() {
       beatRec.ondataavailable = e => { if (e.data.size > 0) beatChunksRef.current.push(e.data) }
     }
 
-    // If organism mode, also start organism's built-in recording
+    // If organism mode, start organism beat recording — pass our already-open
+    // mic stream so it doesn't open a second competing getUserMedia session.
     if (beatSource === 'organism' && organism?.startRecording) {
-      await organism.startRecording()
+      await organism.startRecording(micStream)
     }
 
     const captureStop = async () => {
@@ -604,6 +668,7 @@ export default function RecordingBooth() {
   const startRecord = useCallback(async () => {
     if (micPermission !== 'granted') { await requestMicPermission(); return }
     if (beatSource === 'organism' && !isOrganismRunning) return
+    if (beatSource === 'upload' && !uploadedBeatUrl) return
     if (countInBeats > 0) {
       await resumeAudioContext()
       await Tone.start()
@@ -744,6 +809,7 @@ export default function RecordingBooth() {
     if (isBeatPlaying) {
       if (beatSource === 'quick-beats') void stopQuickBeat()
       else if (beatSource === 'my-songs') stopSong()
+      else if (beatSource === 'upload') stopUploadedBeat()
       else stopOrganism()
     }
     setBeatSource(src)
@@ -754,6 +820,7 @@ export default function RecordingBooth() {
   useEffect(() => () => {
     void stopQuickBeat()
     stopSong()
+    stopUploadedBeat()
     if (micRecorderRef.current?.state === 'recording') micRecorderRef.current.stop()
     if (beatRecorderRef.current?.state === 'recording') beatRecorderRef.current.stop()
     if (countInTimerRef.current) clearInterval(countInTimerRef.current)
@@ -795,11 +862,12 @@ export default function RecordingBooth() {
         <div className="lg:col-span-3 space-y-4">
 
           {/* Source tabs */}
-          <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
+          <div className="flex gap-1 p-1 bg-white/5 rounded-xl border border-white/10 flex-wrap">
             {([
               { src: 'quick-beats' as const, label: 'Quick Beats', icon: Zap },
               { src: 'my-songs'    as const, label: 'My Songs',    icon: Music },
               { src: 'organism'    as const, label: 'Organism AI', icon: Radio },
+              { src: 'upload'      as const, label: 'Upload Beat', icon: AudioLines },
             ]).map(({ src, label, icon: Icon }) => (
               <button key={src} onClick={() => switchSource(src)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
@@ -970,6 +1038,53 @@ export default function RecordingBooth() {
                       <span className="text-[10px] text-white/40 w-8 text-right">{Math.round(value * 100)}</span>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload Beat */}
+          {beatSource === 'upload' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <AudioLines className="h-4 w-4 text-cyan-400" />
+                <span className="text-xs font-black uppercase tracking-widest text-cyan-400">Upload Your Beat</span>
+              </div>
+              <p className="text-[11px] text-white/40 px-1">
+                Upload any audio file (MP3, WAV, M4A). It will loop while you record.
+              </p>
+
+              <label className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-dashed border-white/20 hover:border-cyan-500/40 hover:bg-cyan-500/5 cursor-pointer transition-all">
+                <AudioLines className="h-8 w-8 text-white/30" />
+                <div className="text-center">
+                  <div className="text-sm font-bold text-white/70">
+                    {uploadedBeatName || 'Choose a beat file'}
+                  </div>
+                  <div className="text-[10px] text-white/30 mt-1">MP3 · WAV · M4A · OGG</div>
+                </div>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={handleBeatFileUpload}
+                />
+              </label>
+
+              {uploadedBeatUrl && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => isBeatPlaying ? stopUploadedBeat() : void playUploadedBeat(uploadedBeatUrl)}
+                    className="flex-1 border-white/20 text-white/70 hover:text-white"
+                  >
+                    {isBeatPlaying ? <><Square className="h-3.5 w-3.5 mr-2" />Stop</> : <><Play className="h-3.5 w-3.5 mr-2" />Preview</>}
+                  </Button>
+                  {isBeatPlaying && (
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
+                      Playing
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>

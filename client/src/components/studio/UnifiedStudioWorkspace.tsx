@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useStudioStore, type MusicalKey } from '@/stores/useStudioStore';
 import {
-  ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle, ExternalLink
+  ChevronDown, ChevronRight, ChevronLeft, Maximize2, Minimize2, Music, Sliders, Piano, Layers, Mic, Mic2, FileText, Wand2, Upload, Cable, RefreshCw, Settings, Workflow, Wrench, Play, Pause, Square, Repeat, ArrowLeft, Home, BookOpen, X, Circle, ExternalLink, Download, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -75,6 +75,7 @@ import WindowLauncher from './WindowLauncher';
 const StudioWindowRenderer = React.lazy(() => import('./StudioWindowRenderer'));
 import UndoRedoControls from './UndoRedoControls';
 import { useMasteringAnalyzer } from '@/hooks/useMasteringAnalyzer';
+import { bounceMaster } from '@/lib/freezeBounce';
 
 function TabLoadingFallback() {
   return (
@@ -1607,6 +1608,97 @@ export default function UnifiedStudioWorkspace() {
       window.removeEventListener('organism:snapshot-ready', handleSnapshotReady as EventListener);
     };
   }, [setTracks, toast]);
+
+  // Organism multi-take producer: receives a finished recording and adds it to the arrangement
+  useEffect(() => {
+    const handleTakeReady = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        audioUrl: string
+        name: string
+        bpm: number
+        bars: number
+        durationMs: number
+        sessionId: string
+      };
+
+      const newTrack: StudioTrack = {
+        id: `organism-take-${detail.sessionId || Date.now()}`,
+        name: detail.name || 'Organism Take',
+        kind: 'audio',
+        type: 'audio',
+        instrument: 'audio',
+        notes: [],
+        volume: 0.85,
+        pan: 0,
+        muted: false,
+        solo: false,
+        lengthBars: Math.max(1, detail.bars),
+        startBar: 0,
+        source: 'recording',
+        bpm: detail.bpm,
+        audioUrl: detail.audioUrl,
+        payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl, bpm: detail.bpm, source: 'recording' }),
+        color: '#38bdf8',
+        data: { sessionId: detail.sessionId },
+        sendA: -60,
+        sendB: -60,
+      };
+
+      setTracks((prev) => {
+        // Avoid duplicate if same sessionId already added
+        if (prev.some((t) => t.id === newTrack.id)) return prev;
+        return [...prev, newTrack];
+      });
+      setSelectedTrack(newTrack.id);
+
+      toast({
+        title: '🎛️ Take saved to Arrangement',
+        description: `"${newTrack.name}" — ${detail.bars} bars`,
+        onClick: () => setActiveView('arrangement'),
+      });
+    };
+
+    window.addEventListener('organism:take-ready', handleTakeReady as EventListener);
+    return () => {
+      window.removeEventListener('organism:take-ready', handleTakeReady as EventListener);
+    };
+  }, [setTracks, setSelectedTrack, toast]);
+
+  const [isBouncing, setIsBouncing] = useState(false);
+
+  const saveBeatMix = useCallback(async () => {
+    const audioTracks = (tracks as StudioTrack[]).filter(t => t.audioUrl);
+    if (audioTracks.length === 0) {
+      toast({ title: 'No audio tracks', description: 'Add audio clips to the arrangement first.' });
+      return;
+    }
+    setIsBouncing(true);
+    try {
+      const bpm = storeBpm || 90;
+      const maxBars = Math.max(...audioTracks.map(t => (t.startBar ?? 0) + (t.lengthBars ?? 8)));
+      const durationSeconds = Math.max(4, maxBars * (60 / bpm) * 4) + 1;
+      const { url, blob } = await bounceMaster(
+        audioTracks.map(t => ({
+          trackId: t.id,
+          audioUrl: t.audioUrl,
+          volume: t.volume ?? 0.8,
+          pan: t.pan ?? 0,
+          startTimeSeconds: (t.startBar ?? 0) * (60 / bpm) * 4,
+        })),
+        durationSeconds,
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `beat-mix-${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: '✓ Beat saved', description: `${audioTracks.length} tracks mixed to WAV — ready to upload to the Recording Booth` });
+    } catch (err) {
+      toast({ title: 'Bounce failed', description: String(err), variant: 'destructive' });
+    } finally {
+      setIsBouncing(false);
+    }
+  }, [tracks, storeBpm, toast]);
 
   const openEffectEditor = useCallback((tool: ToolType) => {
     if (!selectedTrack) {
@@ -4318,7 +4410,22 @@ export default function UnifiedStudioWorkspace() {
 
           {/* ARRANGEMENT VIEW — CodedSwitch DAW Timeline */}
           {activeView === 'arrangement' && (
-            <div className="flex-1 overflow-hidden pt-14">
+            <div className="flex-1 overflow-hidden pt-14 relative">
+              {(tracks as StudioTrack[]).some(t => t.audioUrl) && (
+                <div className="absolute top-0 right-3 z-20 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => void saveBeatMix()}
+                    disabled={isBouncing}
+                    className="h-8 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 text-xs font-bold gap-1.5"
+                  >
+                    {isBouncing
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Mixing…</>
+                      : <><Download className="h-3.5 w-3.5" />Save Beat</>
+                    }
+                  </Button>
+                </div>
+              )}
               <DawArrangementView
                 onOpenEditor={(trackId, view) => {
                   setSelectedTrack(trackId);

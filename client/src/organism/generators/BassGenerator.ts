@@ -7,11 +7,13 @@ import type { ScheduledNote } from './types'
 import {
   getBassBehavior,
   getBassFilterCutoff,
+  getBassBehaviorFromSubGenre,
   setBassSwing,
   buildBassNotes,
   shouldEnableSlide,
   getPortamentoTime,
 }                              from './patterns/BassPatternLibrary'
+import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, quantizeGridTime } from './CompositionClock'
 import type { ChordEvent }     from './patterns/ChordProgressionBank'
 import { getChordBassNote }    from './patterns/ChordProgressionBank'
@@ -61,6 +63,8 @@ export class BassGenerator extends GeneratorBase {
   // Physics cache
   private currentPocket: number = 0
   private currentMode: OrganismMode = OrganismMode.Glow
+  private currentOrganismState: OState = OState.Breathing
+  private currentSubGenre: HipHopSubGenre | null = null
   private lastFilterCutoff: number = 350
   private lastOutputGain: number = 0
 
@@ -95,6 +99,18 @@ export class BassGenerator extends GeneratorBase {
     this.explicitPerformerId = instrumentId
     this.applyBassPreset()
     if (this.lastOutputGain > 0) this.rebuildPart()
+  }
+
+  setSubGenre(subGenre: HipHopSubGenre): void {
+    this.currentSubGenre = subGenre
+    const nextBehavior = this.resolveBassBehavior(this.currentOrganismState)
+    if (nextBehavior !== this.currentBehavior) {
+      this.currentBehavior = nextBehavior
+      if (this.part || this.lastOutputGain > 0) {
+        this.lastRebuildTime = -Infinity
+        this.rebuildPart()
+      }
+    }
   }
 
   // ─── Dynamic Global Voices ──────────────────────────────────
@@ -174,6 +190,7 @@ export class BassGenerator extends GeneratorBase {
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     this.currentPocket = physics.pocket
     this.currentMode   = physics.mode
+    this.currentOrganismState = organism.current
 
     // Apply mode-default articulation unless explicitly overridden.
     const modeStr = physics.mode.toString()
@@ -182,7 +199,7 @@ export class BassGenerator extends GeneratorBase {
       this.lastModeForArticulation = modeStr
     }
 
-    const newBehavior = getBassBehavior(physics.mode, organism.current)
+    const newBehavior = this.resolveBassBehavior(organism.current)
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
@@ -213,7 +230,15 @@ export class BassGenerator extends GeneratorBase {
     this.lfoGain.gain.rampTo(lfoDepth, 0.5)
   }
 
+  private enabled: boolean = true
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) this.reset()
+  }
+
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()
       this.activityLevel = 0
@@ -229,8 +254,9 @@ export class BassGenerator extends GeneratorBase {
         this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
       }
       this.currentMode     = physics.mode
+      this.currentOrganismState = to
       setBassSwing(physics.mode.toString())
-      this.currentBehavior = getBassBehavior(physics.mode, to)
+      this.currentBehavior = this.resolveBassBehavior(to)
       this.applyBassPreset()
       this.rebuildPart(physics)
       return
@@ -243,8 +269,9 @@ export class BassGenerator extends GeneratorBase {
       this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
     }
     this.currentMode = physics.mode
+    this.currentOrganismState = to
     setBassSwing(physics.mode.toString()) 
-    this.currentBehavior = getBassBehavior(physics.mode, to)
+    this.currentBehavior = this.resolveBassBehavior(to)
     this.applyBassPreset()
     this.rebuildPart(physics)
   }
@@ -253,6 +280,8 @@ export class BassGenerator extends GeneratorBase {
     this.stopPart()
     this.activityLevel   = 0
     this.currentBehavior = BassBehavior.Breathe
+    this.currentOrganismState = OState.Breathing
+    this.currentSubGenre = null
     this.currentPocket   = 0
     this.hasStartedPlayback = false
     this.lastRebuildTime = -Infinity
@@ -373,6 +402,13 @@ export class BassGenerator extends GeneratorBase {
 
   private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
+
+  private resolveBassBehavior(organismState: OState): BassBehavior {
+    if (this.currentSubGenre) {
+      return getBassBehaviorFromSubGenre(this.currentSubGenre, organismState.toString())
+    }
+    return getBassBehavior(this.currentMode, organismState)
+  }
 
   private rebuildPart(physics?: PhysicsState): void {
     const now = performance.now()

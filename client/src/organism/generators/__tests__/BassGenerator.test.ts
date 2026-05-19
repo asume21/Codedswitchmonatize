@@ -67,6 +67,16 @@ describe('BassGenerator', () => {
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
   })
 
+  it('sub-genre changes rebuild the bass vocabulary', () => {
+    const physics = makePhysics({ mode: OrganismMode.Smoke })
+    gen.onStateTransition(OState.Breathing, physics)
+    vi.clearAllMocks()
+
+    gen.setSubGenre('trap')
+
+    expect(mockPartStart).toHaveBeenCalled()
+  })
+
   it('high pocket physics → filter cutoff drops', () => {
     const physics = makePhysics({ pocket: 0.9, mode: OrganismMode.Smoke })
     const organism = makeOrganism({ current: OState.Breathing })

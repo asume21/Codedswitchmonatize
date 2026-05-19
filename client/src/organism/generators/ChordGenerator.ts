@@ -61,6 +61,7 @@ export class ChordGenerator extends GeneratorBase {
   private currentProgression: ParsedProgression | null = null
   private currentChordIndex:  number = 0
   private currentBehavior:    ChordBehavior = ChordBehavior.Silent
+  private progressionLocked:  boolean = false
   private rootPitchClass:     number = 0     // synced from ScaleSnapEngine
   private currentMode:        string = 'glow'
   private currentSwing:       number = 0.35
@@ -289,7 +290,15 @@ export class ChordGenerator extends GeneratorBase {
     this.setOutputLevel(this.activityLevel)
   }
 
+  private enabled: boolean = true
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) this.reset()
+  }
+
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (!this.enabled) return
     this.currentMode = physics.mode.toString()
 
     if (to === OState.Dormant) {
@@ -300,11 +309,15 @@ export class ChordGenerator extends GeneratorBase {
     }
 
     if (to === OState.Awakening) {
-      this.currentProgression = pickProgression(this.currentMode)
-      this.currentChordIndex = 0
+      if (!this.progressionLocked) {
+        this.currentProgression = pickProgression(this.currentMode)
+        this.currentChordIndex = 0
+      }
       this.currentBehavior = ChordBehavior.Silent
       this.applyVoice(this.currentMode)
-      console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+      if (this.currentProgression) {
+        console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+      }
       return
     }
 
@@ -324,12 +337,24 @@ export class ChordGenerator extends GeneratorBase {
     this.stopPart()
     this.activityLevel = 0
     this.currentBehavior = ChordBehavior.Silent
-    this.currentProgression = null
-    this.currentChordIndex = 0
+    if (!this.progressionLocked) {
+      this.currentProgression = null
+      this.currentChordIndex = 0
+    }
     this.hasStartedPlayback = false
     this.lastRebuildTime = 0
     this.sectionTechniqueId = null
     this.setOutputLevel(0)
+  }
+
+  lockProgression(): void {
+    this.progressionLocked = true
+  }
+
+  unlockProgression(): void {
+    this.progressionLocked = false
+    this.currentProgression = null
+    this.currentChordIndex = 0
   }
 
   onChordChange(listener: (chord: ChordEvent, rootPitchClass: number) => void): () => void {
@@ -656,7 +681,7 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private setOutputLevel(level: number): void {
-    const shaped = level * this.arrangementMultiplier * Math.min(1.3, this.volumeMultiplier)
+    const shaped = level * this.arrangementMultiplier * Math.min(2.0, this.volumeMultiplier)
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
     const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return

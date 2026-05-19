@@ -24,6 +24,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const SUBSCRIPTION_QUERY_KEY = ["/api/subscription-status"] as const;
+const AUTH_CHECK_TIMEOUT_MS = 5_000;
 
 const UNAUTHENTICATED_FALLBACK: SubscriptionStatus = {
   hasActiveSubscription: false,
@@ -36,17 +37,32 @@ const UNAUTHENTICATED_FALLBACK: SubscriptionStatus = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery<SubscriptionStatus>({
+  const { data, isLoading } = useQuery<SubscriptionStatus>({
     queryKey: SUBSCRIPTION_QUERY_KEY,
     queryFn: async ({ signal }) => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       try {
-        const response = await apiRequest("GET", "/api/subscription-status", undefined, { signal });
+        // Keep each auth check bounded so transient failures can retry.
+        const timeout = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new ApiError(0, "Auth check timed out")),
+            AUTH_CHECK_TIMEOUT_MS,
+          );
+        });
+        const response = await Promise.race([
+          apiRequest("GET", "/api/subscription-status", undefined, { signal }),
+          timeout,
+        ]);
         return (await response.json()) as SubscriptionStatus;
       } catch (error) {
         if (error instanceof ApiError && error.isAuthError) {
           return UNAUTHENTICATED_FALLBACK;
         }
         throw error;
+      } finally {
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
       }
     },
     staleTime: 60_000,
@@ -57,13 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const subscription = isError ? UNAUTHENTICATED_FALLBACK : data;
+  const subscription = data;
 
   const status: AuthStatus = isLoading
     ? "loading"
-    : subscription?.isAuthenticated
+    : subscription?.isAuthenticated === true
       ? "authenticated"
-      : "unauthenticated";
+      : subscription?.isAuthenticated === false
+        ? "unauthenticated"
+        : "loading";
 
   const value = useMemo<AuthContextValue>(
     () => ({

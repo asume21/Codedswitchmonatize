@@ -205,31 +205,65 @@ function InstrumentSelect({
   role,
   value,
   onChange,
+  volume,
+  onVolumeChange,
+  volumeColor = C.cyan,
+  soloed = false,
+  onSolo,
 }: {
   label: string
   role: PerformerRole
   value: InstrumentPerformerId | null
   onChange: (id: InstrumentPerformerId | null) => void
+  volume?: number
+  onVolumeChange?: (v: number) => void
+  volumeColor?: string
+  soloed?: boolean
+  onSolo?: () => void
 }) {
   const options = INSTRUMENT_PERFORMERS.filter(profile => profile.roles.includes(role))
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 112, flex: '1 1 112px' }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: C.text3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        {label}
-      </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ flex: 1, fontSize: 10, fontWeight: 700, color: C.text3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {label}
+        </span>
+        {onSolo && (
+          <button
+            onClick={onSolo}
+            title={soloed ? 'Un-solo' : 'Solo this instrument'}
+            style={{
+              width: 20, height: 20, borderRadius: 4, fontSize: 9, fontWeight: 800,
+              border: `1px solid ${soloed ? C.amber : C.border2}`,
+              background: soloed ? C.amber : 'transparent',
+              color: soloed ? '#000' : C.text3,
+              cursor: 'pointer', lineHeight: 1, flexShrink: 0,
+            }}
+          >S</button>
+        )}
+        {volume !== undefined && onVolumeChange && (
+          <span style={{ fontSize: 10, color: C.text3, minWidth: 32, textAlign: 'right' }}>{volume.toFixed(2)}×</span>
+        )}
+      </div>
       <select
-        value={value ?? 'auto'}
+        value={volume === 0 ? 'off' : (value ?? 'auto')}
         onChange={event => {
           const next = event.currentTarget.value
-          onChange(next === 'auto' ? null : next as InstrumentPerformerId)
+          if (next === 'off') {
+            onVolumeChange?.(0)
+          } else {
+            // Restore volume when coming back from Off
+            if (volume === 0) onVolumeChange?.(1)
+            onChange(next === 'auto' ? null : next as InstrumentPerformerId)
+          }
         }}
         style={{
           width: '100%',
           height: 28,
           borderRadius: 6,
-          border: `0.5px solid ${C.border2}`,
+          border: `0.5px solid ${volume === 0 ? C.border2 : C.border2}`,
           background: C.bg2,
-          color: value ? C.cyan : C.text2,
+          color: volume === 0 ? '#666' : value ? C.cyan : C.text2,
           fontSize: 11,
           fontWeight: 700,
           padding: '0 8px',
@@ -237,12 +271,21 @@ function InstrumentSelect({
           cursor: 'pointer',
         }}
       >
+        <option value="off">Off</option>
         <option value="auto">Auto</option>
         {options.map(profile => (
           <option key={profile.id} value={profile.id}>{profile.name}</option>
         ))}
       </select>
-    </label>
+      {volume !== undefined && onVolumeChange && (
+        <input
+          type="range" min={0} max={2} step={0.05}
+          value={volume}
+          onChange={e => onVolumeChange(Number(e.currentTarget.value))}
+          style={{ width: '100%', accentColor: volumeColor, cursor: 'pointer' }}
+        />
+      )}
+    </div>
   )
 }
 
@@ -267,11 +310,16 @@ export function OrganismCommandCenter() {
     v2Status, setV2MasterGain,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     isRecording, startRecording, stopRecording,
+    currentBpm: contextBpm,
+    isProgressionLocked, lockChordProgression, unlockChordProgression,
+    recordForBars, recordingBarsTotal, recordingBarsElapsed,
     // Tweak controls
     hatDensity,   setHatDensity,
     kickVelocity, setKickVelocity,
+    drumsVolume,  setDrumsVolume,
     bassVolume,   setBassVolume,
     melodyVolume, setMelodyVolume,
+    chordVolume,  setChordVolume,
     melodyFocusEnabled, setMelodyFocusEnabled,
     instrumentAssignments, setOrganismInstrument,
     // Feature toggles
@@ -307,6 +355,64 @@ export function OrganismCommandCenter() {
   } = useOrganism()
 
   const { physicsState, organismState } = useOrganismPhysics()
+
+  // ── Producer / multi-take state ─────────────────────────────────────────
+  const [takeLabel,      setTakeLabel]      = useState('')
+  const [takeBars,       setTakeBars]       = useState(32)
+  const [pendingSession, setPendingSession] = useState<import('../organism/OrganismContext').SavedSession | null>(null)
+  const [takes,          setTakes]          = useState<Array<{
+    label: string; audioUrl: string; bars: number; bpm: number; sessionId: string
+  }>>([])
+
+  const handleRecordTake = useCallback(async () => {
+    const label = takeLabel.trim() || `Take ${takes.length + 1}`
+    // Apply any vibe text first if the user typed one
+    if (takeLabel.trim()) await interpretVibe(takeLabel.trim())
+    const session = await recordForBars(takeBars, label)
+    if (session?.beatBlob) {
+      const audioUrl = URL.createObjectURL(session.beatBlob)
+      setTakes(prev => [...prev, { label, audioUrl, bars: takeBars, bpm: contextBpm ?? 90, sessionId: session.sessionId }])
+      setPendingSession(session)
+    }
+    setTakeLabel('')
+  }, [takeLabel, takeBars, takes.length, interpretVibe, recordForBars, contextBpm])
+
+  const handleSendToArrangement = useCallback((take: { label: string; audioUrl: string; bars: number; bpm: number; sessionId: string }) => {
+    window.dispatchEvent(new CustomEvent('organism:take-ready', {
+      detail: { audioUrl: take.audioUrl, name: take.label, bpm: take.bpm, bars: take.bars, sessionId: take.sessionId },
+    }))
+  }, [])
+
+  const handleClearTakes = useCallback(() => {
+    setTakes([])
+    setPendingSession(null)
+    unlockChordProgression()
+  }, [unlockChordProgression])
+
+  // ── Solo state ───────────────────────────────────────────────────────────
+  type SoloRole = 'lead' | 'bass' | 'chord' | 'drums'
+  const [soloRole, setSoloRole] = useState<SoloRole | null>(null)
+  const savedVolumesRef = useRef({ melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume })
+
+  const handleSolo = useCallback((role: SoloRole) => {
+    if (soloRole === role) {
+      // Un-solo: restore saved values
+      setMelodyVolume(savedVolumesRef.current.melody)
+      setBassVolume(savedVolumesRef.current.bass)
+      setChordVolume(savedVolumesRef.current.chord)
+      setDrumsVolume(savedVolumesRef.current.drums)
+      setSoloRole(null)
+    } else {
+      // Save current, silence all except the soloed role
+      savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume }
+      setSoloRole(role)
+      setMelodyVolume(role === 'lead'  ? Math.max(melodyVolume, 1.0) : 0)
+      setBassVolume(  role === 'bass'  ? Math.max(bassVolume,   1.0) : 0)
+      setChordVolume( role === 'chord' ? Math.max(chordVolume,  1.0) : 0)
+      setDrumsVolume( role === 'drums' ? Math.max(drumsVolume,  1.0) : 0)
+    }
+  }, [soloRole, melodyVolume, bassVolume, chordVolume, drumsVolume,
+      setMelodyVolume, setBassVolume, setChordVolume, setDrumsVolume])
 
   // ── Voice command state ──────────────────────────────────────────────────
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -530,7 +636,7 @@ export function OrganismCommandCenter() {
   }, [activePresetId, quickStartPresets, swapPreset, start, isStarting])
 
   const flowDepth  = organismState?.flowDepth ?? 0
-  const currentBpm = Math.round(orchestrator?.getBpm() ?? studioBpm ?? activePreset?.bpm ?? 0)
+  const currentBpm = Math.round(contextBpm ?? orchestrator?.getBpm() ?? studioBpm ?? activePreset?.bpm ?? 0)
   const countingIn = countInBeat !== null
   const startLocked = isStarting || countingIn
 
@@ -757,7 +863,7 @@ export function OrganismCommandCenter() {
         <div style={{ position: 'relative' }}>
           <input
             type="text"
-            placeholder={'Say something like "I\'m having a bad day" or "Dark drill vibe"...'}
+            placeholder={'Try "play violin sad melody", "lo-fi piano chill", or "dark drill vibe"...'}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 interpretVibe(e.currentTarget.value)
@@ -777,7 +883,8 @@ export function OrganismCommandCenter() {
             {[
               { label: 'Bad Day', text: "I'm having a bad day, play something moody" },
               { label: 'Hype Me Up', text: 'Give me something high energy and aggressive' },
-              { label: 'Lofi Chill', text: 'Lo-fi chill beat for late night' },
+              { label: 'Lofi Chill', text: 'Lo-fi chill piano beat for late night' },
+              { label: 'Sad Violin', text: 'Play violin, slow and sad melody' },
             ].map(hint => (
               <button
                 key={hint.label}
@@ -1581,12 +1688,24 @@ export function OrganismCommandCenter() {
             borderBottom: `0.5px solid ${C.border}`,
             flexShrink: 0,
           }}>
-            <div style={{ ...label11, marginBottom: 10 }}>Beat Shape</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <span style={{ ...label11, flex: 1 }}>Drums</span>
+              <button
+                onClick={() => handleSolo('drums')}
+                title={soloRole === 'drums' ? 'Un-solo drums' : 'Solo drums'}
+                style={{
+                  width: 20, height: 20, borderRadius: 4, fontSize: 9, fontWeight: 800,
+                  border: `1px solid ${soloRole === 'drums' ? C.amber : C.border2}`,
+                  background: soloRole === 'drums' ? C.amber : 'transparent',
+                  color: soloRole === 'drums' ? '#000' : C.text3,
+                  cursor: 'pointer', lineHeight: 1,
+                }}
+              >S</button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <SliderRow label="Hat density"  value={hatDensity}   onChange={setHatDensity}   color={C.purple} />
               <SliderRow label="Kick vel."    value={kickVelocity} onChange={setKickVelocity} color='#f472b6' />
-              <SliderRow label="Bass vol."    value={bassVolume}   onChange={setBassVolume}   color={C.green} />
-              <SliderRow label="Melody vol."  value={melodyVolume} onChange={setMelodyVolume} color='#38bdf8' />
+              <SliderRow label="Drums vol."   value={drumsVolume}  onChange={setDrumsVolume}  color='#fb923c' />
             </div>
           </div>
 
@@ -1878,31 +1997,151 @@ export function OrganismCommandCenter() {
             </div>
           </div>
 
-          {/* Instrument assignment */}
+          {/* ── Multi-take Producer Studio ──────────────────────────── */}
+          <div style={{ padding: '10px 14px', borderBottom: `0.5px solid ${C.border}`, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <span style={{ ...label11, flex: 1 }}>Build a Track</span>
+              {isProgressionLocked && (
+                <span style={{ fontSize: 9, color: C.amber, border: `1px solid ${C.amber}`, borderRadius: 4, padding: '1px 5px' }}>
+                  KEY LOCKED
+                </span>
+              )}
+              {takes.length > 0 && (
+                <button onClick={handleClearTakes} title="Clear all takes and unlock key"
+                  style={{ fontSize: 9, color: C.text3, background: 'transparent', border: `1px solid ${C.border2}`, borderRadius: 4, padding: '1px 5px', cursor: 'pointer' }}>
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {/* Describe + bars picker */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <input
+                type="text"
+                value={takeLabel}
+                onChange={e => setTakeLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !isRecording) void handleRecordTake() }}
+                placeholder='e.g. "sad violin" or "upbeat guitar"'
+                style={{
+                  flex: 1, height: 30, borderRadius: 6, border: `0.5px solid ${C.border2}`,
+                  background: C.bg2, color: C.text, fontSize: 11, padding: '0 8px', outline: 'none',
+                }}
+              />
+              <select
+                value={takeBars}
+                onChange={e => setTakeBars(Number(e.currentTarget.value))}
+                style={{
+                  width: 68, height: 30, borderRadius: 6, border: `0.5px solid ${C.border2}`,
+                  background: C.bg2, color: C.text2, fontSize: 11, padding: '0 4px', outline: 'none', cursor: 'pointer',
+                }}
+              >
+                {[4, 8, 16, 32, 64].map(b => (
+                  <option key={b} value={b}>{b} bars</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Record button + progress */}
+            {isRecording && recordingBarsTotal !== null ? (
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 10, color: C.text3 }}>
+                  <span style={{ color: '#f87171', fontWeight: 700 }}>● REC</span>
+                  <span>{Math.min(recordingBarsElapsed, recordingBarsTotal)} / {recordingBarsTotal} bars</span>
+                </div>
+                <div style={{ height: 4, borderRadius: 2, background: C.border2 }}>
+                  <div style={{
+                    height: '100%', borderRadius: 2, background: '#f87171',
+                    width: `${Math.min(100, (recordingBarsElapsed / recordingBarsTotal) * 100)}%`,
+                    transition: 'width 0.4s linear',
+                  }} />
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => void handleRecordTake()}
+                disabled={isRecording}
+                style={{
+                  width: '100%', height: 32, borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: isRecording ? C.bg2 : 'rgba(239,68,68,0.15)',
+                  color: isRecording ? C.text3 : '#f87171',
+                  border: `1px solid ${isRecording ? C.border2 : 'rgba(239,68,68,0.4)'}`,
+                  cursor: isRecording ? 'not-allowed' : 'pointer',
+                  marginBottom: 6,
+                }}
+              >
+                {isRecording ? 'Recording…' : `Record ${takeBars} bars  (${Math.round((60 / (currentBpm || 90)) * 4 * takeBars)}s)`}
+              </button>
+            )}
+
+            {/* Takes list */}
+            {takes.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {takes.map((take, i) => (
+                  <div key={take.sessionId} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: C.bg2, borderRadius: 6, padding: '5px 8px',
+                    border: `0.5px solid ${C.border2}`,
+                  }}>
+                    <span style={{ fontSize: 9, color: C.text3, minWidth: 16 }}>{i + 1}</span>
+                    <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {take.label}
+                    </span>
+                    <span style={{ fontSize: 9, color: C.text3 }}>{take.bars}b</span>
+                    <audio controls src={take.audioUrl} style={{ height: 20, width: 80 }} />
+                    <button
+                      onClick={() => handleSendToArrangement(take)}
+                      title="Send this take to the Studio arrangement"
+                      style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                        background: 'rgba(6,182,212,0.15)', color: C.cyan, border: `1px solid ${C.cyan}`,
+                      }}
+                    >+ DAW</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Instrument assignment + per-role volume */}
           <div style={{
             padding: '8px 14px',
             borderBottom: `0.5px solid ${C.border}`,
             flexShrink: 0,
           }}>
             <div style={{ ...label11, marginBottom: 7 }}>Instruments</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <InstrumentSelect
-                label="Lead"
+                label="Lead (melody)"
                 role="lead"
                 value={instrumentAssignments.lead}
                 onChange={id => setOrganismInstrument('lead', id)}
+                volume={melodyVolume}
+                onVolumeChange={setMelodyVolume}
+                volumeColor='#38bdf8'
+                soloed={soloRole === 'lead'}
+                onSolo={() => handleSolo('lead')}
               />
               <InstrumentSelect
                 label="Bass"
                 role="bass"
                 value={instrumentAssignments.bass}
                 onChange={id => setOrganismInstrument('bass', id)}
+                volume={bassVolume}
+                onVolumeChange={setBassVolume}
+                volumeColor={C.green}
+                soloed={soloRole === 'bass'}
+                onSolo={() => handleSolo('bass')}
               />
               <InstrumentSelect
                 label="Chords"
                 role="chord"
                 value={instrumentAssignments.chord}
                 onChange={id => setOrganismInstrument('chord', id)}
+                volume={chordVolume}
+                onVolumeChange={setChordVolume}
+                volumeColor='#a78bfa'
+                soloed={soloRole === 'chord'}
+                onSolo={() => handleSolo('chord')}
               />
             </div>
           </div>

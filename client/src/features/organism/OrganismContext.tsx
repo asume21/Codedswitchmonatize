@@ -151,11 +151,21 @@ export interface OrganismContextValue {
 
   // Recording — captures everything for permanent save
   isRecording:       boolean
-  startRecording:    () => Promise<void>
+  startRecording:    (externalMicStream?: MediaStream) => Promise<void>
   stopRecording:     () => Promise<SavedSession | null>
   lastSavedSession:  SavedSession | null
   savedSessions:     SavedSession[]
   downloadSession:   (session: SavedSession) => void
+
+  // Multi-take producer workflow
+  currentBpm:            number
+  isProgressionLocked:   boolean
+  lockChordProgression:  () => void
+  unlockChordProgression: () => void
+  /** Record for exactly N bars then auto-stop. Resolves with the session when done. */
+  recordForBars:         (bars: number, label?: string) => Promise<SavedSession | null>
+  recordingBarsTotal:    number | null   // null when not in timed-record mode
+  recordingBarsElapsed:  number          // counts up while recording
 
   // Latch mode — keeps organism alive when MIDI keys are released
   latchMode:    boolean

@@ -437,7 +437,15 @@ export class MelodyGenerator extends GeneratorBase {
     this.vibrato.depth.rampTo(this.lastPerformerEnergy * 0.06, 0.4)
   }
 
+  private enabled: boolean = true
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) this.reset()
+  }
+
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (!this.enabled) return
     if (to === OState.Dormant || to === OState.Awakening) {
       this.stopPart()
       this.activityLevel = 0
@@ -525,7 +533,10 @@ export class MelodyGenerator extends GeneratorBase {
     const lengths = PHRASE_LENGTHS[this.currentBehavior]
     if (!lengths || lengths.length === 0) return
 
-    const phraseLength = lengths[Math.floor(Math.random() * lengths.length)]
+    const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
+    const phraseLength = this.currentBehavior === MelodyBehavior.Lead
+      ? Math.max(16, selectedLength)
+      : selectedLength
     const notes        = this.generatePhrase(phraseLength, physics)
 
     if (notes.length === 0) return
@@ -548,6 +559,8 @@ export class MelodyGenerator extends GeneratorBase {
       }
     }
     this.part = null
+
+    const loopBars = Math.max(1, Math.ceil(phraseLength / 16))
 
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
@@ -590,10 +603,10 @@ export class MelodyGenerator extends GeneratorBase {
         const t = Math.max(time + n.timeOffset, time - 0.02)
         voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
       }
-    }, notes.map(n => ({ time: quantizeGridTime(n.time, Math.ceil(phraseLength / 16)), note: n.pitch, dur: n.duration, vel: n.velocity })))
+    }, notes.map(n => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity })))
 
     this.part.loop    = true
-    this.part.loopEnd = `${phraseLength}i`
+    this.part.loopEnd = `${loopBars}m`
     this.part.start(startAt)
     this.hasStartedPlayback = true
   }
@@ -616,10 +629,6 @@ export class MelodyGenerator extends GeneratorBase {
       motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
     }
     
-    // Pick a motif shape deterministically
-    const motifIdx = chordSeed % motifBank.length
-    const motif = motifBank[motifIdx]
-
     // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
     const chordDegs: number[] = []
     if (this.currentChordTones.length > 0) {
@@ -727,12 +736,28 @@ export class MelodyGenerator extends GeneratorBase {
     }
 
     let cursor = 0
-    const restLen = isHint ? 8 : 4
+    let phraseIndex = 0
+    const restLen = isHint ? 6 : this.currentBehavior === MelodyBehavior.Respond ? 3 : 2
+    const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
-    // Render hook
-    let result = renderMotif(motif, cursor, 0)
-    notes.push(...result.out)
-    cursor = result.newCursor + restLen
+    while (cursor < length16ths && phraseIndex < maxIterations) {
+      const motifIdx = (chordSeed + phraseIndex) % motifBank.length
+      const motif = motifBank[motifIdx]
+      const transposeOct = this.currentBehavior === MelodyBehavior.Lead && phraseIndex % 4 === 3 ? 1 : 0
+      const result = renderMotif(motif, cursor, transposeOct)
+
+      notes.push(...result.out)
+
+      const nextCursor = result.newCursor + restLen
+      if (nextCursor <= cursor) break
+      cursor = nextCursor
+      phraseIndex += 1
+    }
+
+    if (this.currentBehavior === MelodyBehavior.Lead && notes.length <= 3 && length16ths >= 12) {
+      const answerMotif = motifBank[(chordSeed + 1) % motifBank.length]
+      notes.push(...renderMotif(answerMotif, Math.floor(length16ths / 2), 0).out)
+    }
 
     return notes
   }

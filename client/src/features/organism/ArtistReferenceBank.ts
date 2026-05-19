@@ -18,6 +18,10 @@ export interface VibeParams {
   density:        number
   interpretation: string
   confidence:     number
+  // Optional instrument overrides — null means "keep current / Auto"
+  instrumentLead?:  string | null
+  instrumentBass?:  string | null
+  instrumentChord?: string | null
 }
 
 // ── Artist reference map ───────────────────────────────────────────────────
@@ -235,7 +239,46 @@ export function interpretVibeRuleBased(text: string): VibeParams {
     }
   }
 
-  // 3. Stack mood modifiers
+  // 3. Instrument recognition — "play violin", "use piano", "sax melody", etc.
+  // Maps natural-language phrases to performer IDs (from InstrumentRegistry).
+  // "lead" role = melody voice; "bass" role = bass voice; "chord" role = pad/chord voice.
+  const INSTRUMENT_MAP: Array<{ keys: string[]; id: string; role: 'lead' | 'bass' | 'chord' }> = [
+    { keys: ['violin'],                                   id: 'violin',           role: 'lead'  },
+    { keys: ['cello'],                                    id: 'cello',            role: 'lead'  },
+    { keys: ['flute'],                                    id: 'flute',            role: 'lead'  },
+    { keys: ['clarinet'],                                 id: 'clarinet',         role: 'lead'  },
+    { keys: ['sax', 'saxophone', 'alto sax'],             id: 'sax',              role: 'lead'  },
+    { keys: ['trumpet', 'horn'],                          id: 'trumpet',          role: 'lead'  },
+    { keys: ['harp'],                                     id: 'harp',             role: 'lead'  },
+    { keys: ['sitar'],                                    id: 'sitar',            role: 'lead'  },
+    { keys: ['piano', 'grand piano', 'acoustic piano'],   id: 'piano',            role: 'lead'  },
+    { keys: ['rhodes', 'electric piano', 'rhodes piano'], id: 'rhodes',           role: 'lead'  },
+    { keys: ['nylon guitar', 'classical guitar', 'acoustic guitar'], id: 'guitar-nylon', role: 'lead' },
+    { keys: ['clean guitar', 'electric guitar'],          id: 'guitar-clean',     role: 'lead'  },
+    { keys: ['distortion guitar', 'dist guitar', 'rock guitar', 'metal guitar'], id: 'guitar-distorted', role: 'lead' },
+    { keys: ['strings', 'string ensemble', 'orchestra'],  id: 'strings',          role: 'chord' },
+    { keys: ['upright bass', 'stand up bass', 'double bass', 'acoustic bass'], id: 'bass-upright', role: 'bass' },
+    { keys: ['synth bass', '808 bass'],                   id: 'bass-synth',       role: 'bass'  },
+    { keys: ['electric bass', 'bass guitar', 'bass'],     id: 'bass-electric',    role: 'bass'  },
+  ]
+
+  let instrumentLead: string | null | undefined
+  let instrumentBass: string | null | undefined
+  let instrumentChord: string | null | undefined
+
+  for (const { keys, id, role } of INSTRUMENT_MAP) {
+    if (keys.some(k => normalized.includes(k))) {
+      if (role === 'lead'  && instrumentLead  === undefined) instrumentLead  = id
+      if (role === 'bass'  && instrumentBass  === undefined) instrumentBass  = id
+      if (role === 'chord' && instrumentChord === undefined) instrumentChord = id
+    }
+  }
+
+  if (instrumentLead  !== undefined) base.instrumentLead  = instrumentLead
+  if (instrumentBass  !== undefined) base.instrumentBass  = instrumentBass
+  if (instrumentChord !== undefined) base.instrumentChord = instrumentChord
+
+  // 4. Stack mood modifiers
   return applyMoodMods(normalized, base)
 }
 

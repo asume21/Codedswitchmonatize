@@ -24,12 +24,14 @@ export class LocalAIService {
   private baseUrl: string;
   private defaultModel: string;
   private isAvailable: boolean | null = null;
+  private lastAvailabilityCheckAt = 0;
+  private readonly availabilityRetryMs = 10_000;
 
   constructor(
     baseUrl: string = process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     defaultModel: string = process.env.OLLAMA_MODEL || 'llama3.2:3b',
   ) {
-    this.baseUrl = baseUrl;
+    this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
   }
 
@@ -37,6 +39,7 @@ export class LocalAIService {
    * Check if Ollama is running and available
    */
   async checkAvailability(): Promise<boolean> {
+    this.lastAvailabilityCheckAt = Date.now();
     try {
       const response = await fetch(`${this.baseUrl}/api/tags`, {
         method: 'GET',
@@ -168,7 +171,10 @@ export class LocalAIService {
     }
     
     if (this.isAvailable === false) {
-      throw new Error('Local AI not available');
+      const staleCheck = Date.now() - this.lastAvailabilityCheckAt > this.availabilityRetryMs;
+      if (!staleCheck || !(await this.checkAvailability())) {
+        throw new Error(`Local AI not available at ${this.baseUrl}`);
+      }
     }
 
     try {
@@ -207,6 +213,7 @@ export class LocalAIService {
     } catch (error) {
       console.warn('⚠️ Local AI chat failed:', error);
       this.isAvailable = false;
+      this.lastAvailabilityCheckAt = Date.now();
       throw error;
     }
   }
