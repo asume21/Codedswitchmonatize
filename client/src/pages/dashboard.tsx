@@ -115,7 +115,7 @@ export default function Dashboard() {
     { href: "/studio",               title: "Full Studio",       desc: "Beat maker, piano roll, mixer", icon: Music,         color: "bg-violet-600" },
     { href: "/lyric-lab",            title: "Lyric Lab",         desc: "Write & generate lyrics",       icon: Mic2,          color: "bg-orange-500" },
     { href: "/voice-convert",        title: "Voice Convert",     desc: "Transform vocals with AI",      icon: Mic,           color: "bg-blue-500"   },
-    { href: "/ai-assistant",         title: "AI Assistant",      desc: "Chat about music and code",     icon: MessageSquare, color: "bg-pink-500"   },
+    { href: "/studio/mix?modal=assistant", title: "AI Assistant",      desc: "Chat about music and code",     icon: MessageSquare, color: "bg-pink-500"   },
     { href: "/vulnerability-scanner",title: "Code Scanner",      desc: "Scan for vulnerabilities",      icon: Shield,        color: "bg-green-500"  },
     { href: "/sample-library",       title: "Sample Library",    desc: "Browse & use samples",          icon: Headphones,    color: "bg-teal-600"   },
     { href: "/pricing",              title: "Upgrade",           desc: "Unlock Pro features",           icon: ShoppingBag,   color: "bg-amber-500"  },
@@ -228,7 +228,7 @@ export default function Dashboard() {
             }}
           />
           <HeroCard
-            href="/ai-assistant"
+            href="/studio/mix?modal=assistant"
             label="AI Brain"
             title="Astutely"
             desc="Your creative director. Ask anything — beat ideas, song structures, lyric rewrites, music theory."

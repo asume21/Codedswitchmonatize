@@ -118,9 +118,9 @@ function validated(d: Partial<BeatSectionDirective>, section: string): BeatSecti
       hat: clamp(d.drums?.hat, 0.7),
       arrangement: clamp(d.drums?.arrangement, 0.8),
     },
-    bass: { volume: clamp(d.bass?.volume, 0.8) },
+    bass: { volume: Math.max(0.2, clamp(d.bass?.volume, 0.8)) },
     melody: {
-      volume: clamp(d.melody?.volume, 0.6),
+      volume: Math.max(0.2, clamp(d.melody?.volume, 0.6)),
       behavior: validBehaviors.includes(d.melody?.behavior as any) ? (d.melody!.behavior as BeatSectionDirective['melody']['behavior']) : 'hint',
       chordTechnique: validTechniques.includes(d.melody?.chordTechnique as any) ? (d.melody!.chordTechnique as BeatSectionDirective['melody']['chordTechnique']) : 'rolled',
     },

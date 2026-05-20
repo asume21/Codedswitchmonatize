@@ -283,16 +283,21 @@ export class DrumGenerator extends GeneratorBase {
   private lastRebuildTime: number = 0
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
-  /** Load an AI-generated pattern externally (Gap 2 — generative patterns). */
+  /** Load an AI-generated pattern externally (Gap 2 — generative patterns).
+   *  Honors `this.enabled` so MusicalDirector sub-genre changes and pattern
+   *  mutations cannot force-inject drums while the user has soloed them off. */
   loadGeneratedPattern(hits: DrumHit[], force = false): void {
+    if (!this.enabled) return
     const now = performance.now()
     if (!force && now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
     this.rebuildPart(hits)
   }
 
-  /** Immediate audition hit for voice/WOW interactions. */
+  /** Immediate audition hit for voice/WOW interactions. Disabled when the user
+   *  has soloed drums off — vocal WOW shots must not bypass the mute. */
   triggerImmediateHit(instrument: DrumInstrument, velocity = 0.75): void {
+    if (!this.enabled) return
     const time = Tone.now() + 0.018
     this.triggerDrum(instrument, time, Math.max(0.2, Math.min(1, velocity)))
   }
@@ -356,6 +361,10 @@ export class DrumGenerator extends GeneratorBase {
       time:       h.time,
       instrument: h.instrument,
       velocity:   h.velocity,
+      // Sub-step humanization offset in seconds. Applied at trigger time below
+      // (after BBS → seconds conversion by Tone.Part) so it survives
+      // quantizeGridTime, which only normalizes the BBS string itself.
+      microShift: h.microShift ?? 0,
     }))
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
@@ -381,7 +390,7 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const vel = this.applyDynamics(event.instrument, event.velocity)
-      this.triggerDrum(event.instrument, time, vel)
+      this.triggerDrum(event.instrument, time + (event.microShift ?? 0), vel)
     }, events)
 
     this.part.loop    = true

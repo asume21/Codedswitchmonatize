@@ -159,9 +159,14 @@ export class SampledDrumKit {
     // through to the synth fallback so drums are never silent.
     if (this.slotErrored.has(slotKey)) return false
 
-    // Still loading — let DrumGenerator use its synth fallback so first-click
-    // playback is audible instead of silently dropping the hit.
-    if (!slot.player.loaded) return false
+    // Still loading — claim the hit so DrumGenerator does NOT fall back to its
+    // MembraneSynth/NoiseSynth voices. We return true (sampler "owns" this hit)
+    // even though no audio fires; the alternative — synth fallback during the
+    // first 1-2 bars while WAVs stream in — produces a jarring timbre shift
+    // mid-loop once samples finish loading. A handful of silent hits during
+    // cold-start is preferable to "synth drummer → real kit" hand-off in
+    // the listener's ear.
+    if (!slot.player.loaded) return true
 
     const shapedVelocity = Math.max(0, Math.min(1, velocity))
     try {

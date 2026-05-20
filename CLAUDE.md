@@ -73,7 +73,17 @@ TrackStoreProvider must wrap TransportProvider because TransportProvider calls `
 - The Organism's `GeneratorOrchestrator` does NOT stop Tone.Transport — it only silences its generators. It will defensively start Transport if not already running.
 
 ### Studio UI (`client/src/components/studio/UnifiedStudioWorkspace.tsx`)
-Tab-based workspace. Tabs: Beat Maker, Melody/Piano Roll, Mixer, Lyrics, Code Translator, AI Assistant, Sample Library, Song Uploader. Each tab is a separate component.
+Workspace is consolidated into **4 core surfaces** (not a flat tab list):
+
+1. **MAKE** — live performance and voice (real-time capture/looping, vocal input).
+2. **MIX** — production canvas: Beat Maker, Piano Roll, Mixer.
+3. **SHARE** — Social Hub and user/artist profiles.
+4. **LIBRARY** — Sample Library and saved beats/projects.
+
+Each surface is a separate component. Legacy tab placements:
+- **Lyrics** — primary home is **MAKE** (live writing during performance); also mounted as a side-panel inside **MIX** for track-attached editing.
+- **Song Uploader** — moved into **LIBRARY**.
+- **Code Translator** and **AI Assistant** — removed as tabs entirely. Both are being rebuilt as **global overlays** triggered from the ⌘K Command Palette, available from any surface.
 
 ### Organism / AI Agent System (`client/src/features/organism/` + `client/src/organism/`)
 The "Organism" is the AI music generation agent. It orchestrates generators via `GeneratorOrchestrator.ts`. `OrganismProvider` / `OrganismContext` expose controls; `GlobalOrganismWrapper` keeps it alive across all routes.

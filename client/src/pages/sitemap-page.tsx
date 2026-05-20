@@ -32,7 +32,7 @@ export default function SitemapPage() {
       title: 'AI & Tools',
       description: 'AI-powered features and utilities',
       links: [
-        { href: '/ai-assistant', label: 'AI Assistant' },
+        { href: '/studio/mix?modal=assistant', label: 'AI Assistant' },
         { href: '/vulnerability-scanner', label: 'Vulnerability Scanner' },
       ],
     },

@@ -21,7 +21,7 @@ export const routes = {
   pianoRoll: '/piano-roll',
   arrangement: '/arrangement',
   effects: '/effects',
-  aiAssistant: '/ai-assistant',
+  aiAssistant: '/studio/mix?modal=assistant',
   codeToMusic: '/code-to-music',
   musicToCode: '/music-to-code',
 } as const;

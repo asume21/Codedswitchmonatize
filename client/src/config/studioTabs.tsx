@@ -206,7 +206,7 @@ export const STUDIO_TABS: StudioTabConfig[] = [
     shortName: "AI Assistant",
     icon: "fas fa-robot",
     description: "AI-powered music help & song uploads",
-    routes: ["/ai-assistant"],
+    routes: ["/studio/mix?modal=assistant"],
     requireAuth: true,
     component: withSuspense(AIAssistant),
   },

@@ -101,19 +101,20 @@ function OrganismAutoActivate() {
     if (!isActivated) activate();
   }, [isActivated, activate]);
 
-  // Still booting
-  if (!organism) {
-    return (
-      <div className="flex items-center justify-center h-full text-cyan-300">
-        <div className="text-center">
-          <Zap className="w-8 h-8 mx-auto mb-2 animate-pulse" />
-          <p className="text-sm font-semibold">Booting Organism engines...</p>
+  return (
+    <>
+      {!organism ? (
+        <div className="flex items-center justify-center h-full text-cyan-300">
+          <div className="text-center">
+            <Zap className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+            <p className="text-sm font-semibold">Booting Organism engines...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return <OrganismCommandCenter />;
+      ) : (
+        <OrganismCommandCenter />
+      )}
+    </>
+  );
 }
 
 // Workflow Configuration Types

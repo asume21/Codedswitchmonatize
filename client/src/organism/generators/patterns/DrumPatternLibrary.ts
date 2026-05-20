@@ -8,6 +8,7 @@
 //             phonk, jersey-club, bounce, reggaeton, afrobeat, chill
 
 import { DrumInstrument, type DrumHit } from '../types'
+import { humanizePattern } from '../groove'
 import type { OrganismMode } from '../../physics/types'
 import type { HipHopSubGenre, GrooveParams } from '../../state/MusicalState'
 
@@ -943,7 +944,9 @@ export function buildSubGenrePattern(subGenre: HipHopSubGenre, variantIndex?: nu
   const idx = variantIndex !== undefined
     ? ((variantIndex % variants.length) + variants.length) % variants.length
     : Math.floor(Math.random() * variants.length)
-  return { hits: variants[idx](), length: '4m' }
+  // humanizePattern preserves time strings (so deterministic-time tests still
+  // hold) and layers per-instrument groove on velocity + microShift.
+  return { hits: humanizePattern(variants[idx]()), length: '4m' }
 }
 
 // ── Legacy API (backward compatible) ──────────────────────────────────
@@ -959,7 +962,7 @@ export function buildDrumPattern(kit: DrumKit, mode?: OrganismMode | string, var
     ? ((variantIndex % variants.length) + variants.length) % variants.length
     : Math.floor(Math.random() * variants.length)
   const builder = variants[idx]
-  return { hits: builder(), length: '4m' }
+  return { hits: humanizePattern(builder()), length: '4m' }
 }
 
 /** Get the swing amount for a sub-genre */

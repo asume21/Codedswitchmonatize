@@ -97,6 +97,31 @@ export class MelodyGenerator extends GeneratorBase {
   private articulationOverridden: boolean = false
   private lastModeForArticulation: string = ''
 
+  // ── Emotional Intent ─────────────────────────────────────────────
+  // Layered on top of scale/mode selection. `null` is neutral (no overrides).
+  // 'sad' / 'melancholy': natural-minor bias, velocity clamped 0.4-0.6, legato.
+  // 'beautiful' / 'lush': chord-tone bias toward 7ths and 9ths, soft velocity.
+  // The orchestrator handles cross-generator routing (e.g. piano-rolled-chord
+  // technique for 'beautiful'); this field shapes single-note melody output.
+  static readonly NATURAL_MINOR: number[]  = [0, 2, 3, 5, 7, 8, 10]
+  static readonly HARMONIC_MINOR: number[] = [0, 2, 3, 5, 7, 8, 11]
+  private emotionalIntent: 'sad' | 'beautiful' | null = null
+
+  setEmotionalIntent(intent: 'sad' | 'beautiful' | null): void {
+    if (this.emotionalIntent === intent) return
+    this.emotionalIntent = intent
+    if (intent === 'sad') {
+      // Force natural minor against the current root so phrases inherit the
+      // melancholy tonality on the next rebuild.
+      this.currentScale = MelodyGenerator.NATURAL_MINOR
+    }
+    this.scaleDirty = true  // rebuild phrase on next behavior cycle
+  }
+
+  getEmotionalIntent(): 'sad' | 'beautiful' | null {
+    return this.emotionalIntent
+  }
+
   /** Set articulation. markAsOverride=true locks out mode-default auto-apply. */
   setArticulation(articulationId: string, markAsOverride: boolean = true): void {
     this.currentArticulationId = articulationId
@@ -225,12 +250,16 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.output = new Tone.Gain(1)
 
+    // Baseline lifted from -9 to -5 dB (~4 dB hotter, ~58% louder perceived).
+    // The lower trim left solo leads sounding thin once drums were muted, since
+    // there is no master compressor in the generator graph to make up gain.
+    // selfListenGainCorrection still clamps down to 0.6× if the full mix clips.
     this.synth = this.buildDefaultSynth()
-    this.synth.volume.value = -9
+    this.synth.volume.value = -5
 
     // Fallback synth — always connected, used when a sampler hasn't loaded yet
     this.fallbackSynth = this.buildDefaultSynth()
-    this.fallbackSynth.volume.value = -9
+    this.fallbackSynth.volume.value = -5
 
     // Vibrato — inline pitch modulation between synths and chorus. Depth is
     // ramped from setPerformerFeatures based on performer energy.
@@ -238,7 +267,10 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.4, wet: 0.3 })
 
-    this.dryBus     = new Tone.Gain(0.80)
+    // Dry bus lifted from 0.80 to 1.0 (+1.9 dB) so the unwet melody sits at
+    // unity through the wet/dry sum. Send levels unchanged — the wet returns
+    // come back through their own filters and have their own perceived loudness.
+    this.dryBus     = new Tone.Gain(1.0)
     this.delaySend  = new Tone.Gain(0.10)
     this.reverbSend = new Tone.Gain(0.08)
     this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })
@@ -644,6 +676,14 @@ export class MelodyGenerator extends GeneratorBase {
       chordDegs.push(0, 2, 4)
     }
 
+    // 'beautiful' intent: bias chord-tone selection toward 7ths (degree 6)
+    // and 9ths (degree 8 — i.e. the 2nd up an octave). These tensions are
+    // what give Maj7 / min9 voicings their lush character. We append rather
+    // than replace so the existing chord-tone framework is preserved.
+    if (this.emotionalIntent === 'beautiful') {
+      chordDegs.push(6, 8)
+    }
+
     const performer = this.currentPerformer
     const isBowedLead = performer?.family === 'bowed'
     const melodicOctave = isBowedLead
@@ -708,27 +748,50 @@ export class MelodyGenerator extends GeneratorBase {
 
         const pitch = degreeToPitch(degIndex, transposeOct)
         
-        const durStr = step.dur16ths <= 1 ? '16n'
-                     : step.dur16ths <= 2 ? '8n'
-                     : step.dur16ths <= 3 ? '8n.'
-                     : step.dur16ths <= 4 ? '4n'
-                     : step.dur16ths <= 6 ? '4n.'
-                     : '2n'
-        
+        // 'sad' intent: bump duration one notch toward legato (16n→8n,
+        // 8n→8n., 4n→4n.) so phrases breathe and ring out rather than chop.
+        // Other intents keep the natural rhythmic feel of the motif.
+        const sadLegato = this.emotionalIntent === 'sad'
+        const durStr = sadLegato
+          ? (step.dur16ths <= 1 ? '8n'
+            : step.dur16ths <= 2 ? '8n.'
+            : step.dur16ths <= 3 ? '4n'
+            : step.dur16ths <= 4 ? '4n.'
+            : step.dur16ths <= 6 ? '2n'
+            : '2n.')
+          : (step.dur16ths <= 1 ? '16n'
+            : step.dur16ths <= 2 ? '8n'
+            : step.dur16ths <= 3 ? '8n.'
+            : step.dur16ths <= 4 ? '4n'
+            : step.dur16ths <= 6 ? '4n.'
+            : '2n')
+
         const bar  = Math.floor(c / 16)
         const beat = Math.floor((c % 16) / 4)
         const sub  = c % 4
         const time = `${bar}:${beat}:${sub}`
-        
+
         const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
-        
+
         // Deterministic velocity seeded by position and energy
         const seed = (bar * 16) + (beat * 4) + sub
         const hash = Math.sin(seed * 9.87) * 1000
         const pseudoRand = hash - Math.floor(hash)
-        
-        const vel = Math.min(1, Math.max(0.15, (accentBase * this.lastPerformerEnergy) + (pseudoRand - 0.5) * 0.12))
-        
+
+        let vel = Math.min(1, Math.max(0.15, (accentBase * this.lastPerformerEnergy) + (pseudoRand - 0.5) * 0.12))
+
+        // Emotional-intent velocity shaping. Applied after the deterministic
+        // hash so the per-position pseudo-random texture is preserved, just
+        // mapped into a different dynamic range.
+        if (this.emotionalIntent === 'sad') {
+          // Clamp to [0.4, 0.6] for the soft, contained dynamics of a
+          // melancholy phrase. Width 0.2 keeps subtle accents alive.
+          vel = 0.4 + (pseudoRand * 0.2)
+        } else if (this.emotionalIntent === 'beautiful') {
+          // Lush ceiling at 0.7, floor at 0.45 — soft and singing, never harsh.
+          vel = 0.45 + (pseudoRand * 0.25)
+        }
+
         out.push({ pitch, duration: durStr, velocity: vel, time })
         c += step.dur16ths
       }
@@ -759,6 +822,49 @@ export class MelodyGenerator extends GeneratorBase {
       notes.push(...renderMotif(answerMotif, Math.floor(length16ths / 2), 0).out)
     }
 
+    // Safety net: if the generated phrase collapsed to a single pitch (motif
+    // step.index aligned with chordDegs[0] for every step, or chord-tone
+    // mapping returned only the root), fall back to a deterministic 4-bar
+    // minor contour. Without this guard the listener can hear the engine
+    // stuck on a single repeating note while the rest of the mix keeps moving.
+    const uniquePitches = new Set(notes.map(n => n.pitch))
+    if (uniquePitches.size <= 1) {
+      return this.defaultMinorContour(length16ths, melodicOctave)
+    }
+
+    return notes
+  }
+
+  /**
+   * Deterministic 4-bar (or shorter) minor contour:
+   *   root – ♭3 – 5 – ♭7 – 5 – ♭3 – root
+   * Used when the motif renderer collapses to a single repeated pitch.
+   * Always plays in natural minor relative to the current rootPitchClass so
+   * the contour fits with whatever harmony the chord generator is on.
+   */
+  private defaultMinorContour(length16ths: number, octave: number): ScheduledNote[] {
+    const minor = MelodyGenerator.NATURAL_MINOR    // [0, 2, 3, 5, 7, 8, 10]
+    const degreePattern = [0, 2, 4, 6, 4, 2, 0]    // 1-♭3-5-♭7-5-♭3-1
+    const notes: ScheduledNote[] = []
+    const stepSpacing = Math.max(4, Math.floor(length16ths / degreePattern.length))
+
+    for (let i = 0; i < degreePattern.length; i++) {
+      const c = i * stepSpacing
+      if (c >= length16ths) break
+      const deg = degreePattern[i]
+      const semitone = minor[deg % minor.length] + Math.floor(deg / minor.length) * 12
+      const midi = (octave * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
+      const pitch = Tone.Frequency(midi, 'midi').toNote()
+      const bar  = Math.floor(c / 16)
+      const beat = Math.floor((c % 16) / 4)
+      const sub  = c % 4
+      notes.push({
+        pitch,
+        duration: '4n',
+        velocity: this.emotionalIntent === 'sad' ? 0.5 : 0.6,
+        time: `${bar}:${beat}:${sub}`,
+      })
+    }
     return notes
   }
 

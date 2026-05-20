@@ -40,6 +40,7 @@ function makeCtx(overrides: Partial<OrganismContextValue> = {}): OrganismContext
     lockChordProgression: vi.fn(),
     unlockChordProgression: vi.fn(),
     recordForBars: vi.fn().mockResolvedValue(null),
+    cancelTakeRecording: vi.fn(),
     recordingBarsTotal: null,
     recordingBarsElapsed: 0,
     error: null,

@@ -54,6 +54,7 @@ import type { PerformerState }  from '../../organism/audio/types'
 import type { SelfListenReport } from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
 import { DrumInstrument, type DrumHit } from '../../organism/generators/types'
+import { humanize } from '../../organism/generators/groove'
 import { OState }                from '../../organism/state/types'
 import * as Tone from 'tone'
 import { useStudioStore } from '../../stores/useStudioStore'
@@ -315,10 +316,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [isProgressionLocked,   setIsProgressionLocked]   = useState(false)
   const [recordingBarsTotal,     setRecordingBarsTotal]    = useState<number | null>(null)
   const [recordingBarsElapsed,   setRecordingBarsElapsed]  = useState(0)
-  const recordingBarTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const recordingBarTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
+  const recordingAutoStopRef    = useRef<ReturnType<typeof setTimeout>  | null>(null)
+  const recordingAutoStopResolveRef = useRef<((s: SavedSession | null) => void) | null>(null)
 
   // Recording state — captures beat audio + vocal audio + MIDI + lyrics
   const [isRecording,      setIsRecording]      = useState(false)
+  // Ref kept in sync every render so async callbacks (stopRecording, stop) always
+  // see the latest value without stale-closure issues from useCallback([]) deps.
+  const isRecordingLiveRef = useRef(false)
+  isRecordingLiveRef.current = isRecording
   const [lastSavedSession, setLastSavedSession] = useState<SavedSession | null>(null)
   const [savedSessions,    setSavedSessions]    = useState<SavedSession[]>(() => {
     try {
@@ -672,22 +679,31 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (!current || onset.strength > current.strength) byStep.set(step, onset)
     })
 
+    // Humanization rules live in groove.ts so this Wow path and stock genre
+    // patterns from DrumPatternLibrary share one curve. Hits go through
+    // humanize() at construction; DrumGenerator's Tone.Part callback applies
+    // the resulting microShift in seconds against the BBS-quantized time.
     const hits: DrumHit[] = Array.from(byStep.entries())
       .sort(([a], [b]) => a - b)
-      .map(([step, onset]) => ({
-        instrument: drumInstrumentForWow(onset.instrument),
-        time: `0:${Math.floor(step / 4)}:${step % 4}`,
-        velocity: Math.max(0.35, Math.min(1, 0.46 + onset.strength * 0.5)),
-      }))
+      .map(([step, onset]) => {
+        const instrument = drumInstrumentForWow(onset.instrument)
+        const time = `0:${Math.floor(step / 4)}:${step % 4}`
+        const base = Math.max(0.35, Math.min(1, 0.46 + onset.strength * 0.5))
+        const { velocity, microShift } = humanize(instrument, time, base)
+        return { instrument, time, velocity, microShift }
+      })
 
     const hasHit = (instrument: DrumInstrument, time: string) =>
       hits.some(hit => hit.instrument === instrument && hit.time === time)
-    const addHit = (instrument: DrumInstrument, time: string, velocity: number) => {
-      if (!hasHit(instrument, time)) hits.push({ instrument, time, velocity })
+    const addHit = (instrument: DrumInstrument, time: string, base: number) => {
+      if (hasHit(instrument, time)) return
+      const { velocity, microShift } = humanize(instrument, time, base)
+      hits.push({ instrument, time, velocity, microShift })
     }
 
     // Keep the human rhythm, but add musical anchors so the response feels like
-    // a beat instead of a literal click track.
+    // a beat instead of a literal click track. Humanization is applied inside
+    // addHit, so each anchor inherits the same pocket/swing/variance rules.
     addHit(DrumInstrument.Kick, '0:0:0', 0.82)
     if (!hits.some(hit => hit.instrument === DrumInstrument.Kick && hit.time !== '0:0:0')) {
       addHit(DrumInstrument.Kick, '0:2:2', 0.58)
@@ -1014,18 +1030,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr = orchestrRef.current
     if (!orchestr) return
 
+    // Lock arrangement and groove for recording stability.
+    // Do NOT override volume multipliers — respect user's explicit "Off" settings.
     orchestr.setArrangementEnabled(true)
     orchestr.setGrooveLocked(true)
-    setHatDensityState(0.75)
-    setKickVelocityState(0.95)
-    setBassVolumeState(1.6)
-    setMelodyVolumeState(1.8)
-    orchestr.setHatDensityMultiplier(0.75)
-    orchestr.setKickVelocityMultiplier(0.95)
-    orchestr.setBassVolumeMultiplier(1.6)
-    orchestr.setMelodyVolumeMultiplier(1.8)
-    orchestr.setChordVolumeMultiplier(1.2)
-    setChordVolumeState(1.2)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
   }, [])
@@ -1154,11 +1162,30 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     startTokenRef.current += 1
     startInFlightRef.current = null
     setIsStarting(false)
+    // If any recording is in progress, clean it up before stopping generators.
+    if (isRecordingLiveRef.current) {
+      if (recordingAutoStopRef.current) {
+        clearTimeout(recordingAutoStopRef.current)
+        recordingAutoStopRef.current = null
+      }
+      const resolve = recordingAutoStopResolveRef.current
+      recordingAutoStopResolveRef.current = null
+      if (recordingBarTimerRef.current) {
+        clearInterval(recordingBarTimerRef.current)
+        recordingBarTimerRef.current = null
+      }
+      setRecordingBarsTotal(null)
+      setRecordingBarsElapsed(0)
+      // Stop the MediaRecorder so the recording finalises before generators die.
+      // Fire-and-forget — stop() is synchronous, we can't await here.
+      void stopRecording().then(s => resolve?.(s))
+    }
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     v2PlayerRef.current?.stop()
     setV2Status(ORGANISM_V2_INITIAL_STATUS)
     orchestrRef.current?.setGrooveLocked(false)
+    orchestrRef.current?.clearAIDirectives()
     orchestrRef.current?.stop()
     transcriberRef.current?.stop()
     if (wowPhraseTimerRef.current) {
@@ -1196,6 +1223,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
 
     window.dispatchEvent(new CustomEvent('organism:stopped'))
+  // stopRecording is stable ([] deps) so no dep entry needed — closure captures it by ref.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputSource])
 
   const captureSession = useCallback(async (): Promise<SessionDNA | null> => {
@@ -1760,6 +1789,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           audio: { echoCancellation: true, noiseSuppression: true },
         })
         ownsVocalStreamRef.current = true
+        // Re-assert AudioContext after getUserMedia — Windows suspends it due to audio session contention
+        try { await Tone.start() } catch { /* ignore */ }
       }
 
       vocalStreamRef.current = micStream
@@ -1808,7 +1839,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }, [isRecording, isRunning, start, inputSource])
 
   const stopRecording = useCallback(async (): Promise<SavedSession | null> => {
-    if (!isRecording) return null
+    if (!isRecordingLiveRef.current) return null
     const endPhase = orgPhase('recording:stop', 700)
 
     const durationMs = Date.now() - recordingStartRef.current
@@ -1978,9 +2009,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setTimeout(() => { orchestrRef.current?.lockChordProgression(); setIsProgressionLocked(true) }, 200)
     }
 
-    // Auto-stop after the requested duration
+    // Auto-stop after the requested duration (cancellable via cancelTakeRecording)
     const session = await new Promise<SavedSession | null>(resolve => {
-      setTimeout(async () => {
+      recordingAutoStopResolveRef.current = resolve
+      recordingAutoStopRef.current = setTimeout(async () => {
+        recordingAutoStopRef.current = null
+        recordingAutoStopResolveRef.current = null
         if (recordingBarTimerRef.current) { clearInterval(recordingBarTimerRef.current); recordingBarTimerRef.current = null }
         setRecordingBarsTotal(null)
         setRecordingBarsElapsed(0)
@@ -2006,6 +2040,27 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     return session
   }, [quickStart, startRecording, stopRecording, isProgressionLocked])
+
+  const cancelTakeRecording = useCallback(async () => {
+    if (!recordingAutoStopRef.current && !recordingAutoStopResolveRef.current) return
+    // Clear the auto-stop timer so it doesn't fire after we manually resolve
+    if (recordingAutoStopRef.current) {
+      clearTimeout(recordingAutoStopRef.current)
+      recordingAutoStopRef.current = null
+    }
+    const resolve = recordingAutoStopResolveRef.current
+    recordingAutoStopResolveRef.current = null
+    // Clean up bar ticker
+    if (recordingBarTimerRef.current) {
+      clearInterval(recordingBarTimerRef.current)
+      recordingBarTimerRef.current = null
+    }
+    setRecordingBarsTotal(null)
+    setRecordingBarsElapsed(0)
+    // Finalise recording — this gives us whatever audio was captured so far
+    const s = await stopRecording()
+    resolve?.(s)
+  }, [stopRecording])
 
   const downloadSession = useCallback((session: SavedSession) => {
     const timestamp = new Date(session.createdAt).toISOString().replace(/[:.]/g, '-')
@@ -2262,6 +2317,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // never needs to be recreated when isRunning/volume changes.
       const orch = orchestrRef.current
       if (!orch || !isRunningRef.current) return
+
+      // ── Emotional intent ────────────────────────────────────────────
+      // Direct routing for tonal commitments ("sad", "beautiful", etc.).
+      // Handled BEFORE mood-signal so a phrase like "beautiful" can't be
+      // absorbed by the legacy chill/lo-fi path via fuzzy match overlap.
+      // Calls into orchestrator.setEmotionalIntent which shapes melody
+      // scale + velocity + duration and chord technique together.
+      if (action.type === 'emotional-intent') {
+        orch.setEmotionalIntent(action.intent)
+        console.debug(`💭 Emotional intent: "${event.matchedPhrase}" → ${action.intent}`)
+        return
+      }
 
       // ── Ad-lib mood signals ─────────────────────────────────────────
       // Soft nudges from detected rapper phrases. Unlike commands, these
@@ -3089,6 +3156,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lockChordProgression,
     unlockChordProgression,
     recordForBars,
+    cancelTakeRecording,
     recordingBarsTotal,
     recordingBarsElapsed,
 
@@ -3228,6 +3296,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lockChordProgression,
     unlockChordProgression,
     recordForBars,
+    cancelTakeRecording,
     recordingBarsTotal,
     recordingBarsElapsed,
     latchMode, isPatternLocked,

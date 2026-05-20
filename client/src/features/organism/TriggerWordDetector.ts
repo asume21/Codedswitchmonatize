@@ -27,9 +27,20 @@ export interface TriggerMapping {
 }
 
 export type TriggerAction =
-  | { type: 'quick-start';  presetId: string }
-  | { type: 'command';      command: string; value?: string | number }
-  | { type: 'mood-signal';  mood: MoodSignal }
+  | { type: 'quick-start';      presetId: string }
+  | { type: 'command';          command: string; value?: string | number }
+  | { type: 'mood-signal';      mood: MoodSignal }
+  | { type: 'emotional-intent'; intent: EmotionalIntent }
+
+/**
+ * Discrete emotional categories the orchestrator can express musically.
+ * Routed through `orchestrator.setEmotionalIntent`, which shapes scale,
+ * velocity envelope, note duration, and chord technique together. Distinct
+ * from the softer 'mood-signal' nudge — emotional-intent is a deliberate
+ * tonal commitment that overrides mode-default voicing/articulation until
+ * cleared.
+ */
+export type EmotionalIntent = 'sad' | 'beautiful'
 
 /**
  * Which instruments to spotlight when the organism starts.
@@ -387,6 +398,19 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
   { phrases: ['swear', 'i swear', 'swear to god', 'deadass'],
     action: { type: 'mood-signal', mood: { energy: 0.65, intent: 'adlib' } }, cooldownMs: 5000 },
 
+  // ── EMOTIONAL INTENT — direct mood overrides ─────────────────────────
+  // These bypass the mood-signal energy/sub-genre nudge system and commit
+  // the entire melody+chord layer to an emotional tonality:
+  //   'sad'       → natural minor scale, velocity 0.4-0.6, legato durations
+  //   'beautiful' → rolled chords, 7th/9th tension bias, softer velocity
+  // Cooldown is generous (8s) because these are deliberate tonal choices,
+  // not micro-adjustments. Listed BEFORE the mood-signal block above so
+  // fuzzy matching picks them first when both could match.
+  { phrases: ['sad', 'melancholy', 'melancholic', 'somber', 'sorrowful'],
+    action: { type: 'emotional-intent', intent: 'sad' }, cooldownMs: 8000 },
+  { phrases: ['beautiful', 'lush', 'gorgeous', 'lovely', 'pretty'],
+    action: { type: 'emotional-intent', intent: 'beautiful' }, cooldownMs: 8000 },
+
   // ── Genre-specific ad-libs ───────────────────────────────────────────
   { phrases: ['west side', 'westside', 'west coast', 'g funk'],
     action: { type: 'mood-signal', mood: { energy: 0.7, preferredSubGenre: 'west-coast', intent: 'hype' } }, cooldownMs: 6000 },
@@ -579,8 +603,9 @@ export class TriggerWordDetector {
   }
 
   private actionKey(action: TriggerAction): string {
-    if (action.type === 'quick-start') return `qs:${action.presetId}`
-    if (action.type === 'mood-signal') return `mood:${action.mood.intent}`
+    if (action.type === 'quick-start')      return `qs:${action.presetId}`
+    if (action.type === 'mood-signal')      return `mood:${action.mood.intent}`
+    if (action.type === 'emotional-intent') return `emo:${action.intent}`
     return `cmd:${action.command}`
   }
 }

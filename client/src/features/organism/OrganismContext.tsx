@@ -164,6 +164,8 @@ export interface OrganismContextValue {
   unlockChordProgression: () => void
   /** Record for exactly N bars then auto-stop. Resolves with the session when done. */
   recordForBars:         (bars: number, label?: string) => Promise<SavedSession | null>
+  /** Cancel an in-progress recordForBars take early, finalises and emits the session. */
+  cancelTakeRecording:   () => void
   recordingBarsTotal:    number | null   // null when not in timed-record mode
   recordingBarsElapsed:  number          // counts up while recording
 

@@ -312,7 +312,7 @@ export function OrganismCommandCenter() {
     isRecording, startRecording, stopRecording,
     currentBpm: contextBpm,
     isProgressionLocked, lockChordProgression, unlockChordProgression,
-    recordForBars, recordingBarsTotal, recordingBarsElapsed,
+    recordForBars, cancelTakeRecording, recordingBarsTotal, recordingBarsElapsed,
     // Tweak controls
     hatDensity,   setHatDensity,
     kickVelocity, setKickVelocity,
@@ -2044,9 +2044,19 @@ export function OrganismCommandCenter() {
             {/* Record button + progress */}
             {isRecording && recordingBarsTotal !== null ? (
               <div style={{ marginBottom: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 10, color: C.text3 }}>
-                  <span style={{ color: '#f87171', fontWeight: 700 }}>● REC</span>
-                  <span>{Math.min(recordingBarsElapsed, recordingBarsTotal)} / {recordingBarsTotal} bars</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, color: '#f87171', fontWeight: 700 }}>● REC</span>
+                  <span style={{ fontSize: 10, color: C.text3 }}>{Math.min(recordingBarsElapsed, recordingBarsTotal)} / {recordingBarsTotal} bars</span>
+                  <button
+                    onClick={() => void cancelTakeRecording()}
+                    style={{
+                      height: 22, padding: '0 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                      background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)',
+                      color: '#f87171', cursor: 'pointer',
+                    }}
+                  >
+                    Stop Take
+                  </button>
                 </div>
                 <div style={{ height: 4, borderRadius: 2, background: C.border2 }}>
                   <div style={{

@@ -14,6 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { cn } from '@/lib/utils';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useQuery } from '@tanstack/react-query';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
@@ -41,6 +42,13 @@ interface Message {
 interface AstutelyChatbotProps {
   onClose?: () => void;
   onBeatGenerated?: (result: AstutelyResult) => void;
+  /**
+   * When true, render as a child of its parent (fills 100% × 100%) instead of
+   * a viewport-pinned floating panel. Used by the ⌘K AssistantOverlay so the
+   * Sheet positions the chatbot and the same React instance keeps owning the
+   * conversation state — no second message store, no sync.
+   */
+  embedded?: boolean;
 }
 
 interface AstutelyBeatIntent {
@@ -257,7 +265,7 @@ const quickActions = [
   { icon: Eye, label: 'Project Status', action: 'status', color: 'bg-blue-500/20 text-blue-400 border-blue-500/50' },
 ];
 
-export default function AstutelyChatbot({ onClose, onBeatGenerated }: AstutelyChatbotProps) {
+export default function AstutelyChatbot({ onClose, onBeatGenerated, embedded = false }: AstutelyChatbotProps) {
   // ═══════════════════════════════════════════════════════════════════════════
   // CENTRAL BRAIN CONNECTIONS - All contexts connected here
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1399,8 +1407,10 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
     }
   };
 
-  // Minimized state - floating button
-  if (isMinimized) {
+  // Minimized state - floating button. Skip entirely when embedded: the host
+  // (Sheet/Dialog) owns open/close, so a minimized chip would orphan itself
+  // outside the host container.
+  if (isMinimized && !embedded) {
     return (
       <div
         style={{
@@ -1413,7 +1423,7 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
         <Button
           onClick={() => setIsMinimized(false)}
           className="h-14 px-6 font-bold text-white shadow-2xl hover:scale-105 transition-all"
-          style={{ 
+          style={{
             background: 'linear-gradient(135deg, #F59E0B, #EF4444)',
             boxShadow: '0 0 30px rgba(245, 158, 11, 0.5)'
           }}
@@ -1427,17 +1437,21 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        width: `${panelSize.width}px`,
-        height: `${panelSize.height}px`,
-        zIndex: 9999,
-      }}
-      className={performanceSafeMode ? '' : 'animate-in fade-in zoom-in duration-300'}
+      style={
+        embedded
+          ? { width: '100%', height: '100%' }
+          : {
+              position: 'fixed',
+              left: `${position.x}px`,
+              top: `${position.y}px`,
+              width: `${panelSize.width}px`,
+              height: `${panelSize.height}px`,
+              zIndex: 9999,
+            }
+      }
+      className={embedded ? '' : (performanceSafeMode ? '' : 'animate-in fade-in zoom-in duration-300')}
     >
-      <div className="relative group">
+      <div className={cn('relative group', embedded && 'h-full')}>
         {/* Holographic Border Glow */}
         <div className={`absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 ${performanceSafeMode ? '' : 'animate-pulse'}`} />
         

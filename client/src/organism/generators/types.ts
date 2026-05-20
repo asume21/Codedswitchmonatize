@@ -36,6 +36,11 @@ export interface DrumHit {
   instrument: DrumInstrument
   time:       string
   velocity:   number
+  /** Optional per-strike micro-timing offset in seconds. Positive values lay
+   *  the hit back behind the grid (hip-hop pocket), negative values push it
+   *  ahead. Applied by DrumGenerator's Tone.Part callback as `time + microShift`,
+   *  bypassing quantizeGridTime so groove survives the BBS round-trip. */
+  microShift?: number
 }
 
 export enum DrumInstrument {

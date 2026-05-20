@@ -1,6 +1,5 @@
 import React, { Suspense, useEffect } from "react";
-import { Switch, Route } from "wouter";
-import { Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -49,9 +48,8 @@ import NotFound from "@/pages/not-found";
 const PricingPage = React.lazy(() => import("@/pages/pricing").catch(() => ({ default: () => <NotFound /> })));
 const OnboardingPage = React.lazy(() => import("@/pages/onboarding").catch(() => ({ default: () => <NotFound /> })));
 const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: () => <NotFound /> })));
-const UnifiedStudioWorkspace = React.lazy(() => import("@/components/studio/UnifiedStudioWorkspace").catch(() => ({ default: () => <NotFound /> })));
+const StudioShell = React.lazy(() => import("@/components/studio/StudioShell").catch(() => ({ default: () => <NotFound /> })));
 const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: () => <NotFound /> })));
-const AIAssistantPage = React.lazy(() => import("@/pages/ai-assistant").catch(() => ({ default: () => <NotFound /> })));
 const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: () => <NotFound /> })));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: () => <NotFound /> })));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: () => <NotFound /> })));
@@ -87,6 +85,17 @@ function LoadingFallback() {
     </div>
   );
 }
+
+// Redirect that forwards the incoming query string to the destination — used so
+// `/studio?modal=translator` redirects to `/studio/mix?modal=translator` instead
+// of dropping search params the way wouter's <Redirect> does.
+const RedirectPreservingQuery = ({ to }: { to: string }) => {
+  const [, setLocation] = useLocation();
+  React.useEffect(() => {
+    setLocation(to + window.location.search);
+  }, [to, setLocation]);
+  return null;
+};
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -274,32 +283,38 @@ function App() {
               <Route path="/developer">
                 <ProtectedRoute><DeveloperPage /></ProtectedRoute>
               </Route>
+              {/* /ai-assistant page route retired — AI Assistant is now a ⌘K overlay at
+                  /studio/mix?modal=assistant. Internal callsites in GlobalNav, dashboard,
+                  sitemap, studioTabs, and studioRouter all still point at /ai-assistant
+                  and ride this legacy redirect. Plain <Redirect> because the destination
+                  already carries a query string; if /ai-assistant ever needs to accept
+                  its own params (e.g. ?prefill=…), upgrade RedirectPreservingQuery to
+                  merge query strings via URLSearchParams. */}
               <Route path="/ai-assistant">
-                <ProtectedRoute>
-                  <AIMessageProvider>
-                    <AppLayout><AIAssistantPage /></AppLayout>
-                  </AIMessageProvider>
-                </ProtectedRoute>
+                <Redirect to="/studio/mix?modal=assistant" />
               </Route>
-              
+
               {/* ============================================
                   STUDIO - Single entry point for ALL music tools
-                  Heavy audio providers loaded ONLY here
+                  Heavy audio providers loaded ONLY here.
+                  StudioShell owns the 4-surface routing (MAKE/MIX/SHARE/LIBRARY);
+                  bare /studio redirects to the default MIX surface.
                   ============================================ */}
-              <Route path="/studio">
+              <Route path="/studio"><RedirectPreservingQuery to="/studio/mix" /></Route>
+              <Route path="/studio/:surface*">
                 <ProtectedRoute>
                   <StudioProviders>
                     <AIMessageProvider>
-                      <AppLayout><UnifiedStudioWorkspace /></AppLayout>
+                      <AppLayout><StudioShell /></AppLayout>
                     </AIMessageProvider>
                   </StudioProviders>
                 </ProtectedRoute>
               </Route>
 
-              {/* Lyric Lab / Organism — deep-links that land on a specific studio tab.
-                  Redirect is cheaper than remounting the full StudioProviders stack;
-                  UnifiedStudioWorkspace reads ?tab=… from the URL on mount. */}
-              <Route path="/lyric-lab"><Redirect to="/studio?tab=lyrics" /></Route>
+              {/* Legacy deep-links — redirect to the surface that now owns the feature.
+                  Lyrics moved to MAKE per CLAUDE.md; the side-panel inside MIX is a
+                  follow-up. */}
+              <Route path="/lyric-lab"><Redirect to="/studio/make" /></Route>
               <Route path="/organism"><OrganismGuestPage /></Route>
               <Route path="/recording-booth">
                 <ProtectedRoute><AppLayout><RecordingBoothPage /></AppLayout></ProtectedRoute>
@@ -323,7 +338,7 @@ function App() {
               <Route path="/melody-composer"><Redirect to="/" /></Route>
               <Route path="/unified-studio"><Redirect to="/" /></Route>
               <Route path="/flow"><Redirect to="/" /></Route>
-              <Route path="/code-translator"><Redirect to="/" /></Route>
+              <Route path="/code-translator"><Redirect to="/studio/mix?modal=translator" /></Route>
               <Route path="/codebeat-studio"><Redirect to="/" /></Route>
               <Route path="/pro-console"><Redirect to="/" /></Route>
               <Route path="/midi-controller"><Redirect to="/" /></Route>

@@ -165,7 +165,7 @@ export class GeneratorOrchestrator {
         },
       }))
 
-      if (!this.melodyOnlyMode && this.arrangementEnabled) {
+      if (!this.melodyOnlyMode && this.arrangementEnabled && this.drumEnabled) {
         const pattern = buildSubGenrePattern(this.director.getState().subGenre, this.director.getState().drums.variantIndex)
         this.drum.loadGeneratedPattern(pattern.hits, true)
       }
@@ -915,8 +915,13 @@ export class GeneratorOrchestrator {
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern
     // always wins even when called immediately after a state-transition rebuild.
-    const drumPattern = buildSubGenrePattern(subGenre)
-    this.drum.loadGeneratedPattern(drumPattern.hits, true)
+    // The drumEnabled gate ensures sub-genre changes can't resurrect drums the
+    // user has soloed off — DrumGenerator.loadGeneratedPattern enforces the
+    // same invariant, this is belt-and-suspenders.
+    if (this.drumEnabled) {
+      const drumPattern = buildSubGenrePattern(subGenre)
+      this.drum.loadGeneratedPattern(drumPattern.hits, true)
+    }
 
     // Bass is rebuilt immediately above so the rhythm section changes as one.
 
@@ -932,6 +937,8 @@ export class GeneratorOrchestrator {
    */
   private onPatternMutation(): void {
     if (!this.arrangementEnabled) return
+    // Solo-lock: pattern mutation must not resurrect disabled drums.
+    if (!this.drumEnabled) return
 
     // Mutate current drum pattern
     const state = this.director.getState()
@@ -1121,6 +1128,12 @@ export class GeneratorOrchestrator {
     })
   }
 
+  /** Discard all buffered AI section directives (call on stop/reset so stale overrides
+   *  from a previous session don't silence generators in the next session). */
+  clearAIDirectives(): void {
+    this.aiDirectiveOverrides.clear()
+  }
+
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */
   loadGeneratedDrumPattern(hits: import('./types').DrumHit[], force = false): void {
     this.drum.loadGeneratedPattern(hits, force)
@@ -1142,5 +1155,44 @@ export class GeneratorOrchestrator {
     this.melody.setRootAndScale(rootPitchClass, intervals)
     this.chord.setRootPitchClass(rootPitchClass)
     this.director.setScale(rootPitchClass, intervals)
+  }
+
+  /**
+   * Apply an emotional intent across the melody + chord layer. The melody
+   * generator handles its own scale/velocity/duration shaping; we route the
+   * chord technique here so 'beautiful' gets rolled chords without callers
+   * having to know about both subsystems.
+   *
+   *   'sad' / 'melancholy' → natural-minor melody, velocity 0.4-0.6, legato.
+   *   'beautiful' / 'lush' → rolled-chord chord technique, melody 7th/9th bias,
+   *                          softer velocity ceiling.
+   *   null                 → revert all overrides (chord technique reverts to
+   *                          its mode-default on the next section change).
+   */
+  setEmotionalIntent(intent: 'sad' | 'melancholy' | 'beautiful' | 'lush' | null): void {
+    // Normalize the user-facing vocabulary into the two internal categories.
+    const normalized: 'sad' | 'beautiful' | null =
+      intent === 'sad' || intent === 'melancholy' ? 'sad'
+      : intent === 'beautiful' || intent === 'lush' ? 'beautiful'
+      : null
+
+    this.melody.setEmotionalIntent(normalized)
+
+    if (normalized === 'beautiful') {
+      // Rolled piano chords + Maj7/min9 tensions are the signature of lush
+      // production. Override flag is true so the section-change auto-default
+      // does not stomp on this until the user explicitly clears intent.
+      this.chord.setTechnique('piano-rolled-chord')
+    } else if (normalized === null) {
+      // Let the per-section default chord technique take over again.
+      this.chord.resetTechniqueOverride()
+    }
+    // 'sad' intentionally does not force a chord technique — block chords
+    // under a minor-scale legato lead carry the mood without further gilding.
+  }
+
+  /** Read current emotional intent (null = neutral). */
+  getEmotionalIntent(): 'sad' | 'beautiful' | null {
+    return this.melody.getEmotionalIntent()
   }
 }
