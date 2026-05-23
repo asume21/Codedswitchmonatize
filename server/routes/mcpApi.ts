@@ -1,3 +1,20 @@
+/**
+ * MCP API Gateway — exposes CodedSwitch's audio-analysis backend as a paid MCP server.
+ *
+ * Consumers (Claude Desktop, Cursor, the `webear` MCP entry in .mcp.json, the
+ * music-theory-mcp plugin, etc.) authenticate with a bearer token and call
+ * tools like `analyze_audio` / `describe_audio`. Each call deducts credits
+ * from the owning user's balance (see WEBEAR_CREDIT_COSTS below).
+ *
+ * Two API-key prefixes share the same `webear_api_keys` table:
+ *   - `wbr_…` — issued from /developer (webear UI), used by the webear MCP
+ *   - `csk_…` — general CodedSwitch keys used by other MCP products
+ * Both currently resolve through `storage.getWebearKeyByValue()`. If/when csk_
+ * keys move to their own table, split the lookup in `/validate-key` below.
+ *
+ * Keys are revoked by re-generating from /developer — old keys 401 immediately.
+ */
+
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { spawn } from 'child_process';
@@ -6,10 +23,10 @@ import OpenAI from 'openai';
 import type { IStorage } from '../storage';
 import { getCreditService } from '../services/credits';
 
-// Credit costs for webear API calls
+// Credit costs per MCP tool call. `describe` invokes GPT-4o, so it costs more.
 const WEBEAR_CREDIT_COSTS = {
-  analyze: 1,   // pure signal analysis — cheap
-  describe: 2,  // OpenAI GPT-4o AI description — costs real money
+  analyze: 1,
+  describe: 2,
 } as const;
 
 export function createMcpApiRoutes(storage: IStorage): Router {

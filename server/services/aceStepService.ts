@@ -30,6 +30,7 @@ export interface AceStepRequest {
   taskType?: AceStepTaskType   // default: text2music
   trackName?: AceStepTrackName // required for lego task
   bpm?: number                 // optional tempo hint
+  instrumental?: boolean       // force instrumental mode
 }
 
 export interface AceStepJob {
@@ -42,6 +43,7 @@ export interface AceStepJob {
   generationS?: number
   taskType?: AceStepTaskType
   trackName?: AceStepTrackName
+  instrumental?: boolean
 }
 
 export async function isWorkerReady(): Promise<boolean> {
@@ -77,6 +79,7 @@ export async function submitGeneration(req: AceStepRequest): Promise<string> {
     use_erg_tag:      true,
     use_erg_lyric:    req.lyrics ? true : false,
     use_erg_diffusion: true,
+    instrumental:     true,
     seed:             req.seed ?? null,
   }
 

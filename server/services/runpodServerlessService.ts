@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import * as fs from 'fs'
+import * as path from 'path'
 import type { AceStepJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from './aceStepService'
 
 const RUNPOD_API_BASE = 'https://api.runpod.ai/v2'
@@ -30,6 +30,7 @@ interface RunPodStatusResponse extends RunPodRunResponse {
     seed?: number
     task_type?: AceStepTaskType
     track_name?: AceStepTrackName
+    instrumental?: boolean
     error?: string
   }
   executionTime?: number
@@ -63,6 +64,7 @@ export async function submitServerlessGeneration(req: AceStepRequest): Promise<s
       use_erg_tag: true,
       use_erg_lyric: req.lyrics ? true : false,
       use_erg_diffusion: true,
+      instrumental: true,
       seed: req.seed ?? null,
       task_type: req.taskType ?? 'text2music',
       ...(req.trackName && { track_name: req.trackName }),
@@ -139,6 +141,7 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
       generationS: data.output?.generation_s ?? msToSeconds(data.executionTime),
       taskType: data.output?.task_type,
       trackName: data.output?.track_name,
+      instrumental: data.output?.instrumental,
     }
   }
 

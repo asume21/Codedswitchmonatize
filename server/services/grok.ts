@@ -77,14 +77,33 @@ export async function performAIProviderSelfTest() {
   };
 }
 
-// Configure OpenAI client
+// Configure OpenAI client — wrapped with a "GPT-call detector" so any
+// chat.completions.create() emits a loud warning with caller stack.
+// Music routes should NOT touch this; this lets us see leaks at runtime.
+// Set ASSERT_NO_OPENAI=true to make every OpenAI call throw (use after the
+// music sweep is complete to lock in "no GPT in music paths" as an invariant).
 let openaiClient: OpenAI | null = null;
 if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
-  openaiClient = new OpenAI({
+  const rawClient = new OpenAI({
     apiKey: openaiApiKey,
     timeout: AI_TIMEOUT_MS
   });
-  console.log('✅ OpenAI client initialized');
+  const strict = String(process.env.ASSERT_NO_OPENAI || '').toLowerCase() === 'true';
+  const originalCreate = rawClient.chat.completions.create.bind(rawClient.chat.completions);
+  rawClient.chat.completions.create = ((...args: unknown[]) => {
+    const params = args[0] as { model?: string } | undefined;
+    const model = params?.model ?? 'unknown';
+    const stack = new Error().stack?.split('\n').slice(2, 6).join('\n') ?? '<no stack>';
+    const banner = `🚨 [GPT-CALL-DETECTOR] OpenAI chat.completions.create model=${model}`;
+    if (strict) {
+      console.error(`${banner} — ASSERT_NO_OPENAI is set, throwing.\n${stack}`);
+      throw new Error(`OpenAI call blocked (model=${model}) — ASSERT_NO_OPENAI=true`);
+    }
+    console.warn(`${banner}\n${stack}`);
+    return originalCreate(...(args as Parameters<typeof originalCreate>));
+  }) as typeof rawClient.chat.completions.create;
+  openaiClient = rawClient;
+  console.log('✅ OpenAI client initialized (with GPT-call detector — strict mode:', strict, ')');
 } else if (openaiApiKey) {
   console.warn(`⚠️ OPENAI_API_KEY present but doesn't start with 'sk-': ${openaiApiKey.substring(0, 8)}...`);
 }
@@ -219,11 +238,11 @@ export async function makeAICall(messages: any[], options: any = {}) {
     throw new Error("No AI providers configured (set OLLAMA_BASE_URL, XAI_API_KEY, or OPENAI_API_KEY)");
   }
 
-  // Build ordered fallback chain starting from preferred provider
+  // Build ordered fallback chain starting from preferred provider.
+  // OpenAI is intentionally NOT in the chain — user opted out of GPT fallback.
   const allProviders: Array<{ client: OpenAI; model: string; provider: AIProvider }> = [];
-  if (ollamaClient)  allProviders.push({ client: ollamaClient,  model: ollamaModel,    provider: 'ollama' });
-  if (grokClient)    allProviders.push({ client: grokClient,    model: 'grok-3',       provider: 'grok' });
-  if (openaiClient)  allProviders.push({ client: openaiClient,  model: 'gpt-4.1-mini', provider: 'openai' });
+  if (ollamaClient)  allProviders.push({ client: ollamaClient,  model: ollamaModel, provider: 'ollama' });
+  if (grokClient)    allProviders.push({ client: grokClient,    model: 'grok-3',    provider: 'grok' });
 
   // Start from the requested/preferred provider
   const startIdx = allProviders.findIndex(p => p.provider === preferred.provider);

@@ -84,13 +84,14 @@ export class LocalAIService {
   ): Promise<string> {
     const model = options.model || this.defaultModel;
     const maxRetries = options.maxRetries || 2;
-    
-    // Check availability if not already checked
-    if (this.isAvailable === null) {
+
+    // Recovery-aware availability gate: if previously marked unavailable but the
+    // 10s retry window has elapsed, re-check before giving up. Mirrors chat().
+    const stale = Date.now() - this.lastAvailabilityCheckAt > this.availabilityRetryMs;
+    if (this.isAvailable === null || (this.isAvailable === false && stale)) {
       await this.checkAvailability();
     }
-    
-    // If not available, throw error to trigger fallback
+
     if (this.isAvailable === false) {
       throw new Error('Local AI not available');
     }

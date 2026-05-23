@@ -393,21 +393,9 @@ ${urls
       }
 
       const XAI_API_KEY = process.env.XAI_API_KEY;
-      
+
       if (!XAI_API_KEY) {
-        // Fallback to OpenAI if no Grok key
-        const aiClient = getAIClient();
-        if (!aiClient) {
-          return res.status(503).json({ error: 'No AI provider configured' });
-        }
-        
-        const completion = await aiClient.chat.completions.create({
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        });
-        
-        return res.json({ response: completion.choices[0].message.content });
+        return res.status(503).json({ error: 'Grok (XAI_API_KEY) not configured' });
       }
 
       // Use Grok (xAI)
@@ -627,80 +615,46 @@ Return ONLY valid JSON:
   );
 
   // ============================================
-  // AI CHORD GENERATION ENDPOINT
-  // Secure server-side OpenAI integration
+  // CHORD GENERATION ENDPOINT — local, deterministic, instant.
+  // No GPT call. See server/services/chordEngine.ts.
   // ============================================
   app.post("/api/chords", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
       const { key = 'C', mood = 'happy', userId = 'anonymous' } = req.body;
-      
-      console.log(`🎵 AI Chord Generation: key=${key}, mood=${mood}`);
 
-      const prompt = `Generate a 4-chord progression in ${key} with a ${mood} vibe. 
-      Return ONLY valid JSON like this:
-      {"chords": ["C", "Am", "F", "G"], "progression": "I-vi-IV-V"}`;
+      console.log(`🎵 Local chord generation: key=${key}, mood=${mood}`);
 
-      // Use the existing AI client
-      const aiClient = getAIClient();
-      if (!aiClient) {
-        return res.status(500).json({ error: 'AI client not configured' });
-      }
+      const { generateChordProgression } = await import('./services/chordEngine');
+      const result = generateChordProgression(key, mood);
 
-      const completion = await aiClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 100,
-      });
-
-      const content = completion.choices[0]?.message?.content || '{}';
-      
-      // Parse the JSON response
-      let result;
-      try {
-        // Extract JSON from potential markdown code blocks
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-      } catch (parseError) {
-        console.error('Failed to parse AI response:', content);
-        result = { chords: ['C', 'Am', 'F', 'G'], progression: 'I-vi-IV-V' };
-      }
-
-      // Log to database (optional - will work once ai_sessions table is created)
-      // Run the migration SQL in Railway Postgres console first:
-      // CREATE TABLE IF NOT EXISTS ai_sessions (id SERIAL PRIMARY KEY, user_id TEXT, prompt TEXT, result JSONB, created_at TIMESTAMP DEFAULT NOW());
       try {
         const sessionUserId = req.userId || userId;
-        // Using raw SQL through drizzle's sql helper
         const { db } = await import('./db');
         const { sql: rawSql } = await import('drizzle-orm');
         await db.execute(rawSql`
-          INSERT INTO ai_sessions (user_id, prompt, result, created_at) 
-          VALUES (${sessionUserId}, ${prompt}, ${JSON.stringify(result)}::jsonb, NOW())
+          INSERT INTO ai_sessions (user_id, prompt, result, created_at)
+          VALUES (${sessionUserId}, ${`chords key=${key} mood=${mood}`}, ${JSON.stringify(result)}::jsonb, NOW())
         `);
       } catch (dbError) {
-        // Don't fail the request if logging fails (table might not exist yet)
         console.warn('AI session logging skipped:', (dbError as Error).message);
       }
 
-      console.log(`🎵 Generated chords: ${result.chords?.join(' - ')}`);
-      
-      res.json({ 
-        success: true, 
-        chords: result.chords || ['C', 'Am', 'F', 'G'],
-        progression: result.progression || 'I-vi-IV-V',
-        key,
-        mood
+      console.log(`🎵 Generated chords: ${result.chords.join(' - ')} (${result.progression})`);
+
+      res.json({
+        success: true,
+        chords: result.chords,
+        progression: result.progression,
+        key: result.key,
+        mood: result.mood,
       });
-      
     } catch (error) {
-      console.error('AI chord generation error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'AI chord generation failed — try again',
-        // Fallback chords so UI doesn't break
+      console.error('Chord generation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Chord generation failed',
         chords: ['C', 'Am', 'F', 'G'],
-        progression: 'I-vi-IV-V'
+        progression: 'I-vi-IV-V',
       });
     }
   });

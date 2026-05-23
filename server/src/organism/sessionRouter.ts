@@ -5,6 +5,24 @@ import { localAI } from "../../services/localAI";
 
 export const sessionRouter = Router();
 
+// Deterministic step-grid patterns per section. Used as a last-resort fallback
+// when both Ollama and Grok fail — keeps the Organism playing instead of halting.
+// Same shape as the AI JSON response so stepsToHits() works unchanged.
+const DETERMINISTIC_PATTERNS: Record<string, { kicks: number[]; snares: number[]; hats: number[]; percs: number[] }> = {
+  intro:     { kicks: [0, 8],                snares: [4, 12],           hats: [0, 2, 4, 6, 8, 10, 12, 14], percs: [] },
+  verse:     { kicks: [0, 7, 10],            snares: [4, 12],           hats: [0, 2, 4, 6, 8, 10, 12, 14], percs: [3] },
+  verse2:    { kicks: [0, 6, 10, 13],        snares: [4, 12],           hats: [0, 2, 4, 6, 8, 10, 12, 14], percs: [3, 11] },
+  build:     { kicks: [0, 4, 8, 12],         snares: [4, 12, 14, 15],   hats: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],   percs: [] },
+  drop:      { kicks: [0, 3, 8, 11],         snares: [4, 12],           hats: [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15],         percs: [6, 14] },
+  drop2:     { kicks: [0, 5, 8, 13],         snares: [4, 12, 14],       hats: [0, 2, 4, 6, 8, 10, 12, 14], percs: [3, 11] },
+  breakdown: { kicks: [0],                   snares: [8],               hats: [0, 4, 8, 12],                                     percs: [] },
+  outro:     { kicks: [0, 8],                snares: [4, 12],           hats: [0, 4, 8, 12],                                     percs: [] },
+};
+
+function deterministicPatternFor(section: string): { kicks: number[]; snares: number[]; hats: number[]; percs: number[] } {
+  return DETERMINISTIC_PATTERNS[section] ?? DETERMINISTIC_PATTERNS.verse;
+}
+
 // POST /api/organism/sessions
 sessionRouter.post("/", async (req, res) => {
   try {
@@ -96,8 +114,9 @@ Step indices 0–15 (16th-note grid, one bar).
       raw = response.choices?.[0]?.message?.content ?? "{}";
       console.log("[organism:generate-pattern] Used cloud AI (Grok-3 fallback)");
     } catch (cloudErr) {
-      console.error("[organism:generate-pattern] Both AI providers failed:", cloudErr);
-      return res.status(500).json({ error: "Pattern generation failed" });
+      console.error("[organism:generate-pattern] Both AI providers failed, using deterministic fallback:", cloudErr);
+      // Deterministic section-based pattern so the Organism doesn't halt.
+      raw = JSON.stringify(deterministicPatternFor(section));
     }
   }
 

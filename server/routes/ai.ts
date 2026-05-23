@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
-import { getAIClient, getAIProviderStatus, makeAICall } from "../services/grok";
-import { generateNextSectionDirective } from "../services/aiProducer";
+import { getAIProviderStatus, makeAICall } from "../services/grok";
+import { aceEngine } from "../services/aceEngine";
+import { generateChordProgression } from "../services/chordEngine";
 import { aiProviderManager } from "../services/aiProviderManager";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
@@ -21,21 +22,9 @@ export function createAIRoutes() {
       }
 
       const XAI_API_KEY = process.env.XAI_API_KEY;
-      
+
       if (!XAI_API_KEY) {
-        // Fallback to OpenAI if no Grok key
-        const aiClient = getAIClient();
-        if (!aiClient) {
-          return res.status(503).json({ error: 'No AI provider configured' });
-        }
-        
-        const completion = await aiClient.chat.completions.create({
-          model: 'gpt-4',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.7,
-        });
-        
-        return res.json({ response: completion.choices[0].message.content });
+        return res.status(503).json({ error: 'Grok (XAI_API_KEY) not configured' });
       }
 
       // Use Grok (xAI)
@@ -68,31 +57,40 @@ export function createAIRoutes() {
   // ============================================
   router.post("/next-section", async (req: Request, res: Response) => {
     try {
-      const { currentSection, nextSection, context } = req.body as {
-        currentSection: string
-        nextSection: string
-        context: {
-          subGenre: string
-          bpm: number
-          energy: number
-          barInCycle: number
-          totalBars: number
-          cycleCount: number
+      const body = req.body as {
+        section?: string
+        currentSection?: string
+        nextSection?: string
+        energy?: number
+        subGenre?: string
+        context?: {
+          subGenre?: string
+          bpm?: number
+          energy?: number
+          barInCycle?: number
+          totalBars?: number
+          cycleCount?: number
         }
       }
+      const section = body.section ?? body.nextSection
 
-      if (!currentSection || !nextSection) {
-        return res.status(400).json({ error: 'currentSection and nextSection are required' })
+      if (!section) {
+        return res.status(400).json({ error: 'section or nextSection is required' })
       }
 
-      const directive = await generateNextSectionDirective(currentSection, nextSection, context ?? {
-        subGenre: 'trap', bpm: 140, energy: 0.7, barInCycle: 0, totalBars: 32, cycleCount: 0
-      })
-
-      return res.json(directive)
+      const aceResult = await aceEngine.generateNextSection({
+        currentSection: section,
+        energy: body.energy ?? body.context?.energy,
+        subGenre: body.subGenre ?? body.context?.subGenre,
+        bpm: body.context?.bpm,
+        barInCycle: body.context?.barInCycle,
+        totalBars: body.context?.totalBars,
+        cycleCount: body.context?.cycleCount,
+      });
+      return res.json(aceResult);
     } catch (error) {
-      console.error('[/ai/next-section] error:', error)
-      return res.status(500).json({ error: 'Section generation failed' })
+      console.error("❌ [ACE COMPOSITION FAILURE] Local engine error:", error);
+      return res.status(500).json({ error: "Local composition engine failed" });
     }
   })
 
@@ -137,75 +135,43 @@ export function createAIRoutes() {
   });
 
   // ============================================
-  // AI CHORD GENERATION ENDPOINT
-  // Secure server-side OpenAI integration
+  // CHORD GENERATION ENDPOINT — local, deterministic, instant.
+  // No GPT call. Uses mood-mapped Roman numeral progressions realized in `key`.
   // ============================================
   router.post("/chords", requireAuth(), async (req: Request, res: Response) => {
     try {
       const { key = 'C', mood = 'happy', userId = 'anonymous' } = req.body;
-      
-      console.log(`🎵 AI Chord Generation: key=${key}, mood=${mood}`);
 
-      const prompt = `Generate a 4-chord progression in ${key} with a ${mood} vibe. 
-      Return ONLY valid JSON like this:
-      {"chords": ["C", "Am", "F", "G"], "progression": "I-vi-IV-V"}`;
+      console.log(`🎵 Local chord generation: key=${key}, mood=${mood}`);
 
-      // Use the existing AI client
-      const aiClient = getAIClient();
-      if (!aiClient) {
-        return res.status(500).json({ error: 'AI client not configured' });
-      }
+      const result = generateChordProgression(key, mood);
 
-      const completion = await aiClient.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 100,
-      });
-
-      const content = completion.choices[0]?.message?.content || '{}';
-      
-      // Parse the JSON response
-      let result;
-      try {
-        // Extract JSON from potential markdown code blocks
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        result = JSON.parse(jsonMatch ? jsonMatch[0] : content);
-      } catch (parseError) {
-        console.error('Failed to parse AI response:', content);
-        result = { chords: ['C', 'Am', 'F', 'G'], progression: 'I-vi-IV-V' };
-      }
-
-      // Log to database
       try {
         const sessionUserId = req.userId || userId;
         await db.execute(sql`
-          INSERT INTO ai_sessions (user_id, prompt, result, created_at) 
-          VALUES (${sessionUserId}, ${prompt}, ${JSON.stringify(result)}::jsonb, NOW())
+          INSERT INTO ai_sessions (user_id, prompt, result, created_at)
+          VALUES (${sessionUserId}, ${`chords key=${key} mood=${mood}`}, ${JSON.stringify(result)}::jsonb, NOW())
         `);
       } catch (dbError) {
-        // Don't fail the request if logging fails (table might not exist yet)
         console.warn('AI session logging skipped:', (dbError as Error).message);
       }
 
-      console.log(`🎵 Generated chords: ${result.chords?.join(' - ')}`);
-      
-      res.json({ 
-        success: true, 
-        chords: result.chords || ['C', 'Am', 'F', 'G'],
-        progression: result.progression || 'I-vi-IV-V',
-        key,
-        mood
+      console.log(`🎵 Generated chords: ${result.chords.join(' - ')} (${result.progression})`);
+
+      res.json({
+        success: true,
+        chords: result.chords,
+        progression: result.progression,
+        key: result.key,
+        mood: result.mood,
       });
-      
     } catch (error) {
-      console.error('AI chord generation error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'AI chord generation failed — try again',
-        // Fallback chords so UI doesn't break
+      console.error('Chord generation error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Chord generation failed',
         chords: ['C', 'Am', 'F', 'G'],
-        progression: 'I-vi-IV-V'
+        progression: 'I-vi-IV-V',
       });
     }
   });
