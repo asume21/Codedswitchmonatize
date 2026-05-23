@@ -426,7 +426,12 @@ export function disposeAudioDebugBridge(): void {
 
 export function initAudioDebugBridge(): void {
   connectSSE()
-  connectLocalSSE()
+  // The local audio-debug SSE talks to /api/audio-debug/events, which the
+  // server only mounts when NODE_ENV !== 'production'. In prod the path
+  // falls through to the SPA index.html → EventSource sees text/html and
+  // auto-reconnects every 3s, hammering the rate limiter. Gate strictly to
+  // dev so prod never opens the connection.
+  if (import.meta.env.DEV) connectLocalSSE()
 
   window.addEventListener('beforeunload', disposeAudioDebugBridge, { once: true })
 
