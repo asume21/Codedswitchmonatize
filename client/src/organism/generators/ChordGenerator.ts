@@ -27,7 +27,6 @@ import {
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
 } from '../performers'
-import { getConductor } from '../conductor/Conductor'
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -313,13 +312,9 @@ export class ChordGenerator extends GeneratorBase {
     }
 
     if (to === OState.Awakening) {
-      // Pull the key from the Conductor first so Roman-numeral progressions
-      // resolve against the same tonic bass/melody are using.
-      this.rootPitchClass = getConductor().getKeyPitchClass()
       if (!this.progressionLocked) {
         this.currentProgression = pickProgression(this.currentMode)
         this.currentChordIndex = 0
-        this.syncProgressionToConductor()
       }
       this.currentBehavior = ChordBehavior.Silent
       this.applyVoice(this.currentMode)
@@ -331,10 +326,8 @@ export class ChordGenerator extends GeneratorBase {
 
     if (to === OState.Breathing || to === OState.Flow) {
       if (!this.currentProgression) {
-        this.rootPitchClass = getConductor().getKeyPitchClass()
         this.currentProgression = pickProgression(this.currentMode)
         this.currentChordIndex = 0
-        this.syncProgressionToConductor()
         this.applyVoice(this.currentMode)
         console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
       }
@@ -395,51 +388,8 @@ export class ChordGenerator extends GeneratorBase {
   pickNewProgression(): void {
     this.currentProgression = pickProgression(this.currentMode)
     this.currentChordIndex = 0
-    this.syncProgressionToConductor()
     this.rebuildPart()
     console.debug(`🎹 New progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
-  }
-
-  // ── Phase 4 — Conductor sync ─────────────────────────────────────────
-  //
-  // ChordGenerator keeps picking from ChordProgressionBank (176 progressions)
-  // for variety, but pushes whatever it picked into the Conductor so the
-  // Conductor reflects what is actually sounding. Bass and Melody read from
-  // the Conductor — this is how they stay locked to the chord.
-
-  private static readonly NOTE_NAMES = [
-    'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
-  ]
-
-  // Map ChordEvent.intervals → chord symbol quality understood by Conductor's
-  // parseChord. Any interval set not in this table falls back to '' (triad).
-  private static readonly QUALITY_BY_INTERVALS: Record<string, string> = {
-    '0,4,7':       '',     '0,3,7':      'm',
-    '0,3,6':       'dim',  '0,4,8':      'aug',
-    '0,2,7':       'sus2', '0,5,7':      'sus4',
-    '0,4,7,10':    '7',    '0,4,7,11':   'maj7',
-    '0,3,7,10':    'm7',   '0,3,7,11':   'mMaj7',
-    '0,3,6,9':     'dim7', '0,3,6,10':   'm7b5',
-    '0,4,7,10,14': '9',    '0,4,7,11,14': 'maj9',
-    '0,3,7,10,14': 'm9',   '0,4,7,14':   'add9',
-    '0,4,7,9':     '6',    '0,3,7,9':    'm6',
-  }
-
-  private chordEventToSymbol(event: ChordEvent): string {
-    const root = (((this.rootPitchClass + event.rootOffset) % 12) + 12) % 12
-    const rootName = ChordGenerator.NOTE_NAMES[root]
-    const quality = ChordGenerator.QUALITY_BY_INTERVALS[event.intervals.join(',')] ?? ''
-    return rootName + quality
-  }
-
-  private syncProgressionToConductor(): void {
-    if (!this.currentProgression) return
-    const symbols = this.currentProgression.chords.map(c => this.chordEventToSymbol(c))
-    try {
-      getConductor().setProgression(symbols)
-    } catch (err) {
-      console.warn('[ChordGenerator] Conductor.setProgression rejected symbols:', symbols, err)
-    }
   }
 
   private getChordBehavior(organism: OrganismState): ChordBehavior {
@@ -584,11 +534,6 @@ export class ChordGenerator extends GeneratorBase {
           for (const listener of this.chordChangeListeners) {
             listener(chord, this.rootPitchClass)
           }
-          // Phase 4 — drive the Conductor in lockstep so bass/melody update
-          // via their Conductor subscriptions. Conductor's progression was
-          // sync'd from this same ChordGenerator's pick, so advanceChord()
-          // cycles to the same chord ChordGenerator just moved to.
-          try { getConductor().advanceChord() } catch { /* */ }
         }
       }
 
