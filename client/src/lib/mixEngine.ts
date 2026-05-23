@@ -94,11 +94,13 @@ class MixEngine {
       await this.audioContext.resume();
     }
 
-    // Create master chain: tracks -> masterGain -> limiter -> analyser -> destination
+    // Master chain: tracks -> masterGain -> limiter -> analyser -> SharedMasterBus
+    // Per-engine limiter is kept (it shapes the studio mix's own dynamics).
+    // SharedMasterBus adds a final safety limiter that catches the sum of all engines.
     this.masterGain = this.audioContext.createGain();
     this.masterGain.gain.value = this.masterVolume;
 
-    // Limiter (using compressor with aggressive settings)
+    // Brick-wall limiter for the studio mix (aggressive compressor settings).
     this.limiter = this.audioContext.createDynamicsCompressor();
     this.limiter.threshold.value = -1;
     this.limiter.knee.value = 0;
@@ -106,16 +108,17 @@ class MixEngine {
     this.limiter.attack.value = 0.001;
     this.limiter.release.value = 0.25;
 
-    // Analyser for metering
+    // Analyser for per-mix metering UI.
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 2048;
 
-    // Connect master chain
+    // Direct path to context.destination. SharedMasterBus removed until we can
+    // verify it doesn't drop signal in real browser playback.
     this.masterGain.connect(this.limiter);
     this.limiter.connect(this.analyser);
     this.analyser.connect(this.audioContext.destination);
 
-    console.log('🎛️ MixEngine initialized');
+    console.log('🎛️ MixEngine initialized → destination');
   }
 
   /**

@@ -1031,6 +1031,56 @@ export class GeneratorOrchestrator {
     this.regenerateAll()
   }
 
+  /**
+   * Producer-style arrangement flourishes fired on section entry.
+   *
+   *   build      → riser sweeps up over the section, peaks at the drop
+   *   drop       → cinematic impact hit (sub boom + cymbal splash) on bar 1
+   *   drop2      → second impact, slightly softer than the first
+   *   breakdown  → riser cancelled implicitly (its tail-off is < 200ms)
+   *   intro/verse → nothing, lets the groove breathe
+   *
+   * All timings derive from BPM so the riser climaxes precisely when the drop
+   * enters. Skipped in melodyOnlyMode (freestyle) where flourishes would compete
+   * with vocal performance, and skipped if the drum kit is soloed off.
+   */
+  private fireSectionFx(sectionName: string, bpm: number): void {
+    if (this.melodyOnlyMode) return
+    if (!this.arrangementEnabled) return
+
+    const beatSec = 60 / Math.max(40, bpm)
+    const barSec  = beatSec * 4   // assumes 4/4 — matches the rest of the engine
+
+    switch (sectionName) {
+      case 'build': {
+        // Build is 4 bars in PRODUCER_ARRANGEMENT; sweep across the whole thing.
+        if (this.textureEnabled) {
+          // If texture is off (default for hip-hop), enable just for the riser duration.
+          this.texture.triggerRiser(barSec * 4)
+        } else {
+          // Force-enable for the sweep, then auto-silence via the riser's own
+          // tail-off ramp (it returns to gain=0 ~150ms after peak).
+          this.texture.setEnabled(true)
+          this.texture.triggerRiser(barSec * 4)
+        }
+        break
+      }
+      case 'drop':
+      case 'drop2': {
+        // Schedule impact ~10ms after the bar boundary so the hit lands
+        // simultaneously with the first kick of the drop.
+        if (this.drumEnabled) {
+          const impactTime = Tone.now() + 0.01
+          const vel = sectionName === 'drop' ? 0.98 : 0.88
+          this.drum.triggerImpact(impactTime, vel)
+        }
+        break
+      }
+      // intro / verse / breakdown intentionally have no flourish — they're
+      // the negative space that makes the drops feel earned.
+    }
+  }
+
   /** Reads the current Transport bar and applies arrangement section multipliers. */
   private applyArrangement(): void {
     if (!this.arrangementEnabled || !this.running) return
@@ -1096,6 +1146,12 @@ export class GeneratorOrchestrator {
           this.chord.onSectionChange(section.name)
         }
       }, 160)
+
+      // ── Arrangement primitives ──────────────────────────────────
+      // Producer-style flourishes that turn the loop into a song.
+      // Routed through the existing drum/texture channels so they inherit
+      // the channel-strip EQ + compressor + the new MasterBus chain.
+      this.fireSectionFx(section.name, transport.bpm.value)
 
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {

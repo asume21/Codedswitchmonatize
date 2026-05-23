@@ -1,4 +1,9 @@
 // Section 06 — Master Bus
+//
+// Hip-hop-tuned mastering chain for the Organism's 5 channel strips. After
+// processing, the signal is routed into `SharedMasterBus` (the app-wide final
+// stage) instead of straight to `audioContext.destination`, so the studio's
+// uploaded-song playback and the Organism share the same final safety limiter.
 
 import * as Tone from 'tone'
 
@@ -8,11 +13,11 @@ export class MasterBus {
   private  lowShelf:   Tone.Filter
   private  midCut:     Tone.Filter
   private  highShelf:  Tone.Filter
-  private  hiCut:      Tone.Filter      // tames harsh MetalSynth / FM highs
+  private  hiCut:      Tone.Filter      // safety low-pass — never an audible cut
   private  compressor: Tone.Compressor
   private  saturator:  Tone.Distortion
   private  limiter:    Tone.Limiter
-  private  tapGain:    Tone.Gain      // dedicated pass-through for audio debug tap
+  private  tapGain:    Tone.Gain        // pass-through for the audio-debug tap
   private  analyser:   Tone.Analyser
 
   constructor(
@@ -23,33 +28,38 @@ export class MasterBus {
     this.input      = new Tone.Gain(1)
     this.masterGain = new Tone.Gain(Tone.dbToGain(gainDb))
 
-    // Hip-hop master EQ: sub bass cleanup, mud cut, air presence, gentle LP safety net
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 45,   gain: -12.0 }) // aggressively cut sub-45Hz rumble that eats headroom
-    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,  gain: -1.5, Q: 0.6 }) // gentle 200Hz mud scoop — was -3dB which killed bass warmth
-    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -1.5 }) // tame harsh hats/leads
-    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 12500, rolloff: -24 }) // keep the beat listenable on small speakers
+    // Hip-hop master EQ:
+    //   • cut sub-45Hz rumble (claws back headroom we never hear)
+    //   • narrow 200Hz mud notch (Q=2.0 — only the mud, not the warmth)
+    //   • -0.5dB high shelf (gentle digital-harshness tame, won't darken)
+    //   • LP at 18kHz (effectively bypassed for human hearing; safety only)
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 45,    gain: -12.0 })
+    this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,   gain: -1.5, Q: 2.0 })
+    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -0.5 })
+    this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 18000, rolloff: -24 })
 
-    // Glue compressor — fast attack so transients don't punch through
-    // and then trigger the limiter into a long duck.
+    // Glue compressor — fast attack catches transients before they hit the
+    // limiter, gentle ratio keeps the program "feel" intact.
     this.compressor = new Tone.Compressor({
       threshold: -18,
       ratio:     1.5,
-      attack:    0.008, // 8ms — catches transients before they reach limiter
-      release:   0.15,  // 150ms — quicker recovery
+      attack:    0.008,
+      release:   0.15,
       knee:      10,
     })
 
+    // Soft saturator — wet at 0.2× to add a hair of even-harmonic warmth
+    // without producing audible aliasing harmonics above Nyquist.
     this.saturator = new Tone.Distortion({
       distortion: saturationAmount,
-      wet:        saturationAmount * 0.5,
+      wet:        saturationAmount * 0.2,
     })
 
     this.limiter  = new Tone.Limiter(limiterThreshDb)
     this.tapGain  = new Tone.Gain(1)
     this.analyser = new Tone.Analyser('waveform', 256)
 
-    // Signal chain: input → gain → EQ → hiCut → compressor → saturator → limiter → tapGain → analyser → out
-    // tapGain is a plain Gain node used as the debug tap point — more reliable than tapping the Analyser
+    // Signal chain: input → gain → EQ → hiCut → comp → sat → limiter → tap → analyser → SharedMasterBus
     this.input.connect(this.masterGain)
     this.masterGain.connect(this.lowShelf)
     this.lowShelf.connect(this.midCut)
@@ -60,7 +70,14 @@ export class MasterBus {
     this.saturator.connect(this.limiter)
     this.limiter.connect(this.tapGain)
     this.tapGain.connect(this.analyser)
+    // Final hop: Tone's destination (audioContext.destination via Tone.js).
+    // We tried routing through SharedMasterBus and it broke Tone.Part scheduling
+    // for the Organism in a way we couldn't reproduce in tests. Until we have
+    // browser-side AudioParam inspection (audio-debug MCP), each engine masters
+    // itself and reaches the speakers directly.
     this.analyser.toDestination()
+
+    console.log('🎛️ Organism MasterBus → destination')
   }
 
   getMeter(): { peakDb: number; rmsDb: number } {

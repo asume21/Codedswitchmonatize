@@ -17,6 +17,15 @@ export class TextureGenerator extends GeneratorBase {
   private reverb:      Tone.Reverb
   private gain:        Tone.Gain
 
+  // ── Riser sub-chain ────────────────────────────────────────────────
+  // Separate noise + bandpass + gain so we can fire upward sweeps at section
+  // boundaries without disturbing the steady-state texture bed. Output joins
+  // `this.output` so it inherits the same channel-strip routing.
+  private riserNoise:  Tone.Noise
+  private riserFilter: Tone.Filter
+  private riserGain:   Tone.Gain
+  private riserStarted: boolean = false
+
   // Thinning state (responds to DensityComputer.thinningRequested)
   private thinningActive: boolean = false
   private noiseStarted:   boolean = false
@@ -45,8 +54,49 @@ export class TextureGenerator extends GeneratorBase {
     this.reverb.connect(this.gain)
     this.gain.connect(this.output)
 
+    // Riser sub-chain: white noise → resonant bandpass → gain → output.
+    // Starts silent; triggerRiser() opens the gain and sweeps the filter freq.
+    this.riserNoise  = new Tone.Noise('white')
+    this.riserFilter = new Tone.Filter({ type: 'bandpass', frequency: 200, Q: 3.5 })
+    this.riserGain   = new Tone.Gain(0)
+    this.riserNoise.connect(this.riserFilter)
+    this.riserFilter.connect(this.riserGain)
+    this.riserGain.connect(this.output)
+
     // Do NOT start noise here — defer until organism leaves Dormant
     // this.noiseSource.start()
+  }
+
+  /**
+   * Schedule a filter-sweep riser that peaks at `peakAt` (AudioContext time).
+   * Default behavior: start now, ramp up over `durationSec` so the peak lands
+   * `durationSec` from now. Used by GeneratorOrchestrator at the start of a
+   * `build` section so the noise sweep climaxes exactly when the `drop` enters.
+   *
+   * The riser tails off quickly after the peak so it doesn't smear the drop's
+   * impact hit. Safe to call repeatedly — the riser sub-chain is independent
+   * of the steady-state texture bed.
+   */
+  triggerRiser(durationSec: number, peakAt?: number): void {
+    if (!this.enabled) return
+    const startAt = Tone.now() + 0.02
+    const peak = peakAt ?? startAt + durationSec
+    // Start the noise source lazily — it runs forever after but is gated by
+    // riserGain, which sits at 0 except during sweeps.
+    if (!this.riserStarted) {
+      this.riserNoise.start()
+      this.riserStarted = true
+    }
+    // Filter freq: 200Hz → 8kHz exponential sweep into the drop.
+    this.riserFilter.frequency.cancelScheduledValues(startAt)
+    this.riserFilter.frequency.setValueAtTime(200, startAt)
+    this.riserFilter.frequency.exponentialRampToValueAtTime(8000, peak)
+    // Gain: silent → -10dB ramp to peak, then quick tail-off so the drop hits clean.
+    const peakGain = Math.pow(10, -10 / 20)  // -10 dB
+    this.riserGain.gain.cancelScheduledValues(startAt)
+    this.riserGain.gain.setValueAtTime(0, startAt)
+    this.riserGain.gain.linearRampToValueAtTime(peakGain, peak)
+    this.riserGain.gain.linearRampToValueAtTime(0, peak + 0.15)
   }
 
   setEnabled(enabled: boolean): void {
@@ -146,11 +196,15 @@ export class TextureGenerator extends GeneratorBase {
 
   dispose(): void {
     try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
+    try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()
     this.highpass.dispose()
     this.filter.dispose()
     this.reverb.dispose()
     this.gain.dispose()
+    this.riserNoise.dispose()
+    this.riserFilter.dispose()
+    this.riserGain.dispose()
     this.output.dispose()
   }
 }

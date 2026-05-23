@@ -1786,7 +1786,19 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         ownsVocalStreamRef.current = false  // shared — don't stop tracks in stopRecording
       } else {
         micStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
+          // All browser processing gates disabled for a treated tracking booth:
+          // echoCancellation / noiseSuppression can mistake quiet sustained notes
+          // or whispered vocals for "noise" and auto-mute them mid-take.
+          // autoGainControl ramps the input on silence and pumps loud transients
+          // — fine for video calls, fatal for vocal capture. The raw mic signal
+          // lands in MediaRecorder unaltered. Trade-off: room noise / HVAC /
+          // monitor bleed will also be captured, so this is right for a treated
+          // space, wrong for an open laptop in a coffee shop.
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
         })
         ownsVocalStreamRef.current = true
         // Re-assert AudioContext after getUserMedia — Windows suspends it due to audio session contention
@@ -1802,7 +1814,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         if (e.data.size > 0) vocalChunksRef.current.push(e.data)
       }
       vocalRecorderRef.current = vocalRecorder
-      vocalRecorder.start(200)
+      vocalRecorder.start(1000)
     } catch (err) {
       console.warn('[OrganismProvider] Vocal recording failed (mic access):', err)
       orgLog('recording:vocal-error', { error: String(err) }, 'warn')
@@ -1826,7 +1838,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         if (e.data.size > 0) beatChunksRef.current.push(e.data)
       }
       beatRecorderRef.current = beatRecorder
-      beatRecorder.start(200)
+      beatRecorder.start(1000)
     } catch (err) {
       console.warn('[OrganismProvider] Beat recording failed:', err)
       orgLog('recording:beat-error', { error: String(err) }, 'warn')
@@ -1905,13 +1917,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // Persist DNA to server so profile can learn from this session
     if (dna && userIdRef.current) {
-      fetch('/api/organism/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...dna, userId: userIdRef.current }),
-      })
-        .then(r => r.ok ? recomputeProfileRef.current() : null)
-        .catch(() => {}) // Non-blocking — local session still saved
+      void (async () => {
+        try {
+          const response = await fetch('/api/organism/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...dna, userId: userIdRef.current }),
+          })
+          if (!response.ok) {
+            if (response.status >= 500) throw new Error(`Session sync failed: ${response.status}`)
+            return
+          }
+          recomputeProfileRef.current()
+        } catch {
+          console.warn("⚠️ Session sync paused: Server Offline")
+        }
+      })()
     }
 
     // Persist session metadata to localStorage (blobs stay in memory)
@@ -3275,6 +3296,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Natural Language Vibe Interpreter
     interpretVibe,
     vibeInterpretation,
+
+    // Direct ref to the trigger detector so UI input handlers can pipe typed
+    // text through the same pipeline that voice transcription uses.
+    triggerDetectorRef,
+
     wowMoment,
     clearWowMomentLog,
   }), [

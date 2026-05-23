@@ -135,7 +135,10 @@ export class BassGenerator extends GeneratorBase {
     this.output     = new Tone.Gain(1)
     this.filter     = new Tone.Filter(350, 'lowpass')
     this.monoSub    = new Tone.Filter({ type: 'lowpass', frequency: 120, rolloff: -24 })
-    this.compressor = new Tone.Compressor({ threshold: -20, ratio: 6, attack: 0.005, release: 0.12 })
+    // Bass still needs compression for sustain consistency, but 6:1 was choking
+    // 808 sub fundamentals. -14/3:1 keeps low-end tight without flattening the
+    // pluck/attack envelope — the ChannelStrip comp picks up the rest.
+    this.compressor = new Tone.Compressor({ threshold: -14, ratio: 3, attack: 0.005, release: 0.12 })
     this.distortion = new Tone.Distortion({ distortion: 0.08, wet: 0.2 })
 
     // LFO for filter "wobble" / emotional oscillation

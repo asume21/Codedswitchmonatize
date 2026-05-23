@@ -54,9 +54,7 @@ export class CaptureEngine {
 
     this.callbacks.forEach(cb => cb(dna))
 
-    this.saveToServer(dna).catch(err =>
-      console.error('[CaptureEngine] Server save failed:', err)
-    )
+    void this.saveToServer(dna)
 
     return dna
   }
@@ -115,11 +113,18 @@ export class CaptureEngine {
   // ── Private ───────────────────────────────────────────────────────
 
   private async saveToServer(dna: SessionDNA): Promise<void> {
-    const response = await fetch('/api/organism/sessions', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(dna),
-    })
-    if (!response.ok) throw new Error(`Server save failed: ${response.status}`)
+    try {
+      const response = await fetch('/api/organism/sessions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(dna),
+      })
+      if (!response.ok) {
+        if (response.status >= 500) throw new Error(`Session sync failed: ${response.status}`)
+        return
+      }
+    } catch {
+      console.warn("⚠️ Session sync paused: Server Offline")
+    }
   }
 }

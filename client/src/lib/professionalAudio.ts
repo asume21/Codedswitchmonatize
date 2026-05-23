@@ -163,39 +163,40 @@ export class ProfessionalAudioEngine {
   
   private async createMasterBus(): Promise<void> {
     if (!this.audioContext) return;
-    
+
     // Master gain
     this.masterBus = this.audioContext.createGain();
     this.masterBus.gain.value = this.masterLevel;
-    
+
     // Master compressor (gentle program compression)
     this.masterCompressor = this.audioContext.createDynamicsCompressor();
-    this.masterCompressor.threshold.value = -18; // dB
-    this.masterCompressor.knee.value = 12; // Soft knee
-    this.masterCompressor.ratio.value = 3; // 3:1 ratio
-    this.masterCompressor.attack.value = 0.008; // 8ms attack
-    this.masterCompressor.release.value = 0.2; // 200ms release
-    
+    this.masterCompressor.threshold.value = -18;
+    this.masterCompressor.knee.value = 12;
+    this.masterCompressor.ratio.value = 3;
+    this.masterCompressor.attack.value = 0.008;
+    this.masterCompressor.release.value = 0.2;
+
     // Master limiter (brick wall limiting)
     this.masterLimiter = this.audioContext.createDynamicsCompressor();
-    this.masterLimiter.threshold.value = -1; // -1dB ceiling
-    this.masterLimiter.knee.value = 0; // Hard knee
-    this.masterLimiter.ratio.value = 20; // Hard limiting
-    this.masterLimiter.attack.value = 0.001; // 1ms attack
-    this.masterLimiter.release.value = 0.05; // 50ms release
-    
+    this.masterLimiter.threshold.value = -1;
+    this.masterLimiter.knee.value = 0;
+    this.masterLimiter.ratio.value = 20;
+    this.masterLimiter.attack.value = 0.001;
+    this.masterLimiter.release.value = 0.05;
+
     // Master analyzer
     this.masterAnalyzer = this.audioContext.createAnalyser();
     this.masterAnalyzer.fftSize = 2048;
     this.masterAnalyzer.smoothingTimeConstant = 0.8;
-    
+
     // Chain: masterBus -> compressor -> limiter -> analyzer -> destination
+    // SharedMasterBus removed from the audio path; see note in MasterBus.ts.
     this.masterBus.connect(this.masterCompressor);
     this.masterCompressor.connect(this.masterLimiter);
     this.masterLimiter.connect(this.masterAnalyzer);
     this.masterAnalyzer.connect(this.audioContext.destination);
-    
-    console.log('🎛️ Master bus created with professional processing chain');
+
+    console.log('🎛️ Master bus created → destination');
   }
   
   private async createDefaultSends(): Promise<void> {

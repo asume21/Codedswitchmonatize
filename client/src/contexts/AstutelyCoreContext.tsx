@@ -41,7 +41,13 @@ import {
   type AstutelyCompleteResult,
 } from '@/lib/astutelyEngine';
 import { renderAstutelyToStems, audioBufferToWav } from '@/lib/astutelyAudioRenderer';
-import { dispatchAstutelyCommand, dispatchAstutelyEvent } from '@/components/presence';
+
+// Living Glyph / Presence module removed — these no-op shims preserve the
+// 15+ existing call shapes inside music-generation paths so those code paths
+// stay textually identical. When a replacement notification surface lands
+// (toast / status pill / etc.), replace these shims with the new dispatcher.
+const dispatchAstutelyCommand = (_command: string, _detail?: Record<string, unknown>): void => {}
+const dispatchAstutelyEvent = (_name: string, _detail?: Record<string, unknown>): void => {}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES

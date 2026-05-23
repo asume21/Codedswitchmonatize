@@ -212,12 +212,23 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     tapNode = ctx.createMediaStreamDestination()
     tapContext = ctx
 
-    // Always tap via the native gain node — this is the most reliable path because
-    // it uses raw Web Audio connect() rather than Tone.js wrapping.  The organism-source
-    // path was previously short-circuiting here and producing silence.
+    // Always tap via the native gain node — this is the most reliable global path
+    // because it uses raw Web Audio connect() rather than Tone.js wrapping.
     gainNode.connect(tapNode)
     tapSource = gainNode
     log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
+
+    // The Organism mix bus registers before the first capture in normal use.
+    // Attach it when the tap is created too; otherwise it only connects when
+    // registerOrganismAudioDebugSource() happens after tapNode already exists.
+    if (organismSource) {
+      try {
+        organismSource.connect(tapNode as unknown as Tone.InputNode)
+        log('Tapped live Organism master output ✓')
+      } catch (e) {
+        log(`Could not attach live Organism master output: ${e}`)
+      }
+    }
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null

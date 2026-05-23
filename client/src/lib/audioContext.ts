@@ -1,4 +1,7 @@
 import * as Tone from 'tone';
+// SharedMasterBus is intentionally NOT installed at boot. It's bypassed in the
+// audio path right now (each engine routes to context.destination directly)
+// and constructing its nodes here would add unused audio-graph weight.
 
 /**
  * Global Audio Context Manager
@@ -23,7 +26,7 @@ export function getAudioContext(): AudioContext {
 
     // Force Tone.js to use OUR context (not its own default small-buffer one)
     Tone.setContext(new Tone.Context(sharedContext));
-    
+
     // Add error handling for audio context
     sharedContext.addEventListener('statechange', handleContextStateChange);
   }
@@ -81,7 +84,7 @@ export async function resumeAudioContext(): Promise<void> {
           await sharedContext.close();
         }
         
-        // Create new context
+        // Create new context.
         sharedContext = null;
         const newContext = getAudioContext();
         await newContext.resume();

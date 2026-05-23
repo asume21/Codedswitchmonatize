@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, type RefObject } from 'react'
 import type { AudioAnalysisEngine }    from '../../organism/analysis/AudioAnalysisEngine'
 import type { PhysicsEngine }          from '../../organism/physics/PhysicsEngine'
 import type { StateMachine }           from '../../organism/state/StateMachine'
@@ -21,6 +21,7 @@ import type { PerformerState }        from '../../organism/audio/types'
 import type { SelfListenReport }      from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
 import type { OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
+import type { TriggerWordDetector } from './TriggerWordDetector'
 
 /**
  * High-frequency physics context — updates at ~15fps as the organism runs.
@@ -235,6 +236,15 @@ export interface OrganismContextValue {
   interpretVibe:      (text: string) => Promise<void>
   /** Last interpretation result — null until first voice command. */
   vibeInterpretation: { text: string; result: string; confidence: number } | null
+
+  /**
+   * Direct ref to the running TriggerWordDetector. UI input handlers can call
+   * `triggerDetectorRef.current?.processText(text)` to feed typed prompts
+   * through the same trigger pipeline that voice transcription uses, so
+   * emotional-intent / mood-signal phrases land on the orchestrator before
+   * any downstream vibe-interpret or network call.
+   */
+  triggerDetectorRef: RefObject<TriggerWordDetector | null>
 
   // WOW moment — theatrical layer over existing mic/onset/generator plumbing.
   wowMoment: WowMomentState

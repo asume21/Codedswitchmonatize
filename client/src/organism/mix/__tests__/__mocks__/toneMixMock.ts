@@ -8,6 +8,7 @@ export const mockConnect = vi.fn().mockReturnThis()
 export const mockToDestination = vi.fn().mockReturnThis()
 
 export const mockDisconnect = vi.fn().mockReturnThis()
+export const mockChain = vi.fn().mockReturnThis()
 
 function makeDisposable() {
   return {
@@ -15,6 +16,7 @@ function makeDisposable() {
     connect: mockConnect,
     disconnect: mockDisconnect,
     toDestination: mockToDestination,
+    chain: mockChain,
   }
 }
 
@@ -54,5 +56,15 @@ export function createMixToneMock() {
       return Object.assign(this, makeDisposable())
     }),
     dbToGain: vi.fn().mockImplementation((db: number) => Math.pow(10, db / 20)),
+    // SharedMasterBus uses these to wire its chain into the hardware destination
+    // and to reroute Tone.Destination through itself. Tests only need them to
+    // exist and return chainable mock nodes.
+    getDestination: vi.fn().mockImplementation(() => ({
+      ...makeDisposable(),
+      volume: { value: 0, rampTo: mockGainRampTo },
+    })),
+    getContext: vi.fn().mockImplementation(() => ({
+      rawContext: { destination: makeDisposable() },
+    })),
   }
 }

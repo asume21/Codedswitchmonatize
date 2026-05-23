@@ -406,9 +406,38 @@ const ADLIB_TRIGGER_MAPPINGS: TriggerMapping[] = [
   // Cooldown is generous (8s) because these are deliberate tonal choices,
   // not micro-adjustments. Listed BEFORE the mood-signal block above so
   // fuzzy matching picks them first when both could match.
-  { phrases: ['sad', 'melancholy', 'melancholic', 'somber', 'sorrowful'],
+  // 'sad' bucket — anything that signals contained, soft, minor-key tonality.
+  // Mix of single words and multi-word phrases. Multi-word entries are added
+  // ONLY when no single-word trigger above would catch them as a substring
+  // (e.g. "broken heart" — no 'sad'/'tearful'/'wistful' inside it).
+  // The 8s cooldown prevents rapid re-fires when the word repeats in a verse.
+  { phrases: [
+      // single-word triggers
+      'sad', 'melancholy', 'melancholic', 'somber', 'sorrowful',
+      'emotional', 'heartfelt', 'wistful', 'tearful', 'touching',
+      'lonely', 'tender', 'fragile', 'aching', 'mournful',
+      // multi-word phrases (no overlap with single-word substrings above)
+      'broken heart', 'broken hearted', 'heart break',
+      'feeling blue', 'feeling down',
+      'in my feelings', 'in tears', 'missing you',
+      'rainy day', 'late at night',
+    ],
     action: { type: 'emotional-intent', intent: 'sad' }, cooldownMs: 8000 },
-  { phrases: ['beautiful', 'lush', 'gorgeous', 'lovely', 'pretty'],
+  // 'beautiful' bucket — anything that signals lush, expansive, tension-rich
+  // tonality. 'cinematic' / 'epic' / 'sweeping' / 'majestic' currently route
+  // here (rolled chords + 7th/9th tensions); a future split into a dedicated
+  // 'cinematic' intent could add wide reverb + slow attack on top.
+  { phrases: [
+      // single-word triggers
+      'beautiful', 'lush', 'gorgeous', 'lovely', 'pretty',
+      'cinematic', 'epic', 'sweeping', 'majestic',
+      'stunning', 'breathtaking', 'magical', 'ethereal', 'orchestral',
+      'dreamy', 'angelic',
+      // multi-word phrases (no overlap with single-word substrings above)
+      'movie score', 'film score', 'soundtrack feel',
+      'out of this world', 'over the top',
+      'larger than life', 'big sound', 'wall of sound',
+    ],
     action: { type: 'emotional-intent', intent: 'beautiful' }, cooldownMs: 8000 },
 
   // ── Genre-specific ad-libs ───────────────────────────────────────────

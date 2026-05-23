@@ -1,6 +1,17 @@
 import Soundfont from 'soundfont-player';
 import { getAudioContext } from './audioContext';
 
+/**
+ * Default destination for raw Web Audio nodes synthesized in this engine.
+ * Currently the AudioContext destination directly — SharedMasterBus was found
+ * to drop signal under live playback and is bypassed pending audio-debug MCP
+ * instrumentation. Callers may still pass an explicit `targetNode` (e.g. a
+ * mixer channel input) to override.
+ */
+function defaultDestination(): AudioNode {
+  return getAudioContext().destination;
+}
+
 const INSTRUMENT_LIBRARY = {
   // Direct General MIDI mappings (self-referencing for direct use)
   acoustic_grand_piano: 'acoustic_grand_piano',
@@ -192,8 +203,10 @@ export class RealisticAudioEngine {
 
   constructor() {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
-    // Periodic cleanup of finished nodes every 2 seconds
-    this.cleanupIntervalId = setInterval(() => this.cleanupFinishedNodes(), 2000);
+    // Cleanup every 500ms (was 2000ms). At trap hi-hat density (~24 hits/bar at
+    // 140 BPM = 56 hits/sec across kit + samples), 2s let dozens of finished
+    // OscillatorNodes accumulate between sweeps — measurable CPU + GC pressure.
+    this.cleanupIntervalId = setInterval(() => this.cleanupFinishedNodes(), 500);
     // Pre-allocate noise buffers once so drum hits don't create them on every trigger
     this.initNoiseBuffers();
   }
@@ -273,9 +286,11 @@ export class RealisticAudioEngine {
   private trackVoice(node: any, key: string) {
     if (!this.audioContext) return;
     
-    // If we're at max polyphony, steal oldest voice
-    if (this.totalActiveVoices >= this.maxPolyphony) {
-      this.stealOldestVoices(Math.ceil(this.maxPolyphony * 0.25)); // Remove 25% of voices
+    // Steal one voice at a time when over the cap. Stealing 25% (8 voices) at
+    // once produced audible chunks of silence — every voice-steal event killed
+    // a fistful of mid-decay notes. One-at-a-time keeps the steal inaudible.
+    while (this.totalActiveVoices >= this.maxPolyphony) {
+      this.stealOldestVoices(1);
     }
     
     this.voiceQueue.push({
@@ -452,7 +467,7 @@ export class RealisticAudioEngine {
 
       if (this.instruments[realInstrument]) {
         const noteName = `${note}${octave}`;
-        const destination = targetNode || this.audioContext.destination;
+        const destination = targetNode || defaultDestination();
 
         const playAt = when !== undefined ? when : this.audioContext.currentTime;
         const audioNode = this.instruments[realInstrument].play(
@@ -496,10 +511,10 @@ export class RealisticAudioEngine {
       }
 
       // Fallback to synthetic if soundfont fails or is missing
-      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination());
     } catch (error) {
       // Soundfont play failed, using synthetic fallback
-      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || this.audioContext.destination);
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination());
     }
   }
 
@@ -541,7 +556,7 @@ export class RealisticAudioEngine {
     }
 
     const currentTime = this.audioContext.currentTime;
-    const destination = targetNode || this.audioContext.destination;
+    const destination = targetNode || defaultDestination();
     
     try {
       // Recreate the professional drum synthesis here
@@ -635,7 +650,7 @@ export class RealisticAudioEngine {
       const gainNode = this.audioContext.createGain();
 
       oscillator.connect(gainNode);
-      gainNode.connect(destination || this.audioContext.destination);
+      gainNode.connect(destination || defaultDestination());
 
       oscillator.frequency.value = frequency;
       oscillator.type = 'sine'; // Simple sine wave for fallback
@@ -909,10 +924,10 @@ export class RealisticAudioEngine {
       // Connect
       snareNoise.connect(snareFilter);
       snareFilter.connect(snareGain);
-      snareGain.connect(destination || this.audioContext.destination);
+      snareGain.connect(destination || defaultDestination());
 
       snareTone.connect(snareToneGain);
-      snareToneGain.connect(destination || this.audioContext.destination);
+      snareToneGain.connect(destination || defaultDestination());
 
       snareNoise.start(currentTime);
       snareTone.start(currentTime);
@@ -953,7 +968,7 @@ export class RealisticAudioEngine {
       // Connect
       hihatNoise.connect(hihatFilter);
       hihatFilter.connect(hihatGain);
-      hihatGain.connect(destination || this.audioContext.destination);
+      hihatGain.connect(destination || defaultDestination());
 
       hihatNoise.start(currentTime);
     } catch (error) {
@@ -995,7 +1010,7 @@ export class RealisticAudioEngine {
       // Connect
       tomOsc.connect(tomFilter);
       tomFilter.connect(tomGain);
-      tomGain.connect(destination || this.audioContext.destination);
+      tomGain.connect(destination || defaultDestination());
 
       tomOsc.start(currentTime);
       tomOsc.stop(currentTime + decay);
@@ -1030,7 +1045,7 @@ export class RealisticAudioEngine {
 
       congaOsc.connect(congaFilter);
       congaFilter.connect(congaGain);
-      congaGain.connect(destination || this.audioContext.destination);
+      congaGain.connect(destination || defaultDestination());
 
       congaOsc.start(currentTime);
       congaOsc.stop(currentTime + duration);
@@ -1064,7 +1079,7 @@ export class RealisticAudioEngine {
 
       percNoise.connect(percFilter);
       percFilter.connect(percGain);
-      percGain.connect(destination || this.audioContext.destination);
+      percGain.connect(destination || defaultDestination());
 
       percNoise.start(currentTime);
     } catch (error) {
@@ -1106,7 +1121,7 @@ export class RealisticAudioEngine {
       rimTone.connect(toneGain);
       clickGain.connect(masterGain);
       toneGain.connect(masterGain);
-      masterGain.connect(destination || this.audioContext.destination);
+      masterGain.connect(destination || defaultDestination());
 
       rimClick.start(currentTime);
       rimTone.start(currentTime);
@@ -1148,7 +1163,7 @@ export class RealisticAudioEngine {
       // Connect
       openhatNoise.connect(openhatFilter);
       openhatFilter.connect(openhatGain);
-      openhatGain.connect(destination || this.audioContext.destination);
+      openhatGain.connect(destination || defaultDestination());
 
       openhatNoise.start(currentTime);
     } catch (error) {
@@ -1190,7 +1205,7 @@ export class RealisticAudioEngine {
       clapNoise.connect(clapFilter);
       clapFilter.connect(clapFilter2);
       clapFilter2.connect(clapGain);
-      clapGain.connect(destination || this.audioContext.destination);
+      clapGain.connect(destination || defaultDestination());
 
       clapNoise.start(currentTime);
     } catch (error) {
@@ -1226,7 +1241,7 @@ export class RealisticAudioEngine {
       // Connect
       crashNoise.connect(crashFilter);
       crashFilter.connect(crashGain);
-      crashGain.connect(destination || this.audioContext.destination);
+      crashGain.connect(destination || defaultDestination());
 
       crashNoise.start(currentTime);
     } catch (error) {
@@ -1263,7 +1278,7 @@ export class RealisticAudioEngine {
       // Connect
       bassOsc.connect(bassFilter);
       bassFilter.connect(bassGain);
-      bassGain.connect(destination || this.audioContext.destination);
+      bassGain.connect(destination || defaultDestination());
 
       bassOsc.start(currentTime);
       bassOsc.stop(currentTime + duration);
@@ -1314,7 +1329,7 @@ export class RealisticAudioEngine {
       gain1.connect(filter);
       gain2.connect(filter);
       filter.connect(masterGain);
-      masterGain.connect(destination || this.audioContext.destination);
+      masterGain.connect(destination || defaultDestination());
 
       osc1.start(currentTime);
       osc2.start(currentTime);
@@ -1371,7 +1386,7 @@ export class RealisticAudioEngine {
       rideTone.connect(toneGain);
       toneGain.connect(masterGain);
       
-      masterGain.connect(destination || this.audioContext.destination);
+      masterGain.connect(destination || defaultDestination());
 
       rideNoise.start(currentTime);
       rideTone.start(currentTime);
@@ -1408,7 +1423,7 @@ export class RealisticAudioEngine {
 
       fxNoise.connect(fxFilter);
       fxFilter.connect(fxGain);
-      fxGain.connect(destination || this.audioContext.destination);
+      fxGain.connect(destination || defaultDestination());
 
       fxNoise.start(currentTime);
     } catch (error) {
@@ -1459,7 +1474,7 @@ export class RealisticAudioEngine {
       oscGain.connect(foleyFilter);
       noiseGain.connect(foleyFilter);
       foleyFilter.connect(masterGain);
-      masterGain.connect(destination || this.audioContext.destination);
+      masterGain.connect(destination || defaultDestination());
 
       foleyOsc.start(currentTime);
       foleyNoise.start(currentTime);
@@ -1512,7 +1527,7 @@ export class RealisticAudioEngine {
       gain1.connect(masterGain);
       gain2.connect(masterGain);
       gain3.connect(masterGain);
-      masterGain.connect(destination || this.audioContext.destination);
+      masterGain.connect(destination || defaultDestination());
 
       bell1.start(currentTime);
       bell2.start(currentTime);
@@ -1551,7 +1566,7 @@ export class RealisticAudioEngine {
 
       vinylNoise.connect(vinylFilter);
       vinylFilter.connect(vinylGain);
-      vinylGain.connect(destination || this.audioContext.destination);
+      vinylGain.connect(destination || defaultDestination());
 
       vinylNoise.start(currentTime);
     } catch (error) {
@@ -1584,7 +1599,7 @@ export class RealisticAudioEngine {
 
       shakerNoise.connect(shakerFilter);
       shakerFilter.connect(shakerGain);
-      shakerGain.connect(destination || this.audioContext.destination);
+      shakerGain.connect(destination || defaultDestination());
 
       shakerNoise.start(currentTime);
     } catch (error) {

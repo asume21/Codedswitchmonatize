@@ -80,8 +80,11 @@ export class DrumGenerator extends GeneratorBase {
     super(GeneratorName.Drum)
 
     this.output     = new Tone.Gain(1)
-    // Lighter drum bus compression — master bus handles the glue
-    this.compressor = new Tone.Compressor({ threshold: -24, ratio: 2.4, attack: 0.012, release: 0.18 })
+    // Near-transparent drum bus comp. The signal already hits the ChannelStrip
+    // compressor and then the MasterBus glue comp — three compressors in series
+    // (was -24/2.4 here) was squashing kick/snare transients flat. -8 threshold,
+    // 1.4:1 ratio means this only catches the loudest peaks for safety.
+    this.compressor = new Tone.Compressor({ threshold: -8, ratio: 1.4, attack: 0.012, release: 0.18 })
     this.compressor.connect(this.output)
     this.sampleBus = new Tone.Gain(1.0)
     this.sampleBus.connect(this.compressor)
@@ -300,6 +303,37 @@ export class DrumGenerator extends GeneratorBase {
     if (!this.enabled) return
     const time = Tone.now() + 0.018
     this.triggerDrum(instrument, time, Math.max(0.2, Math.min(1, velocity)))
+  }
+
+  /**
+   * Section-impact hit — schedules a "drop boom" at the given AudioContext time.
+   * Layers a low sub-octave kick (G0, long decay) under a brief noise burst to
+   * give the entry into drop/drop2 sections the cinematic *thump* listeners
+   * associate with a real producer drop. Honors the mute (this.enabled) so a
+   * soloed-off kit can't be revived by section changes.
+   *
+   * @param time AudioContext.currentTime to schedule the hit at (default: next ~18ms)
+   * @param velocity 0-1, default 0.95 — drops should be loud
+   */
+  triggerImpact(time?: number, velocity = 0.95): void {
+    if (!this.enabled) return
+    const at = time ?? Tone.now() + 0.018
+    const vel = Math.max(0.5, Math.min(1, velocity))
+
+    // Sub boom — drop the kick an octave below the current preset and stretch
+    // its decay. We re-use kickSub rather than allocating a new voice so the
+    // hit goes through the existing kick → kickBus → compressor signal chain.
+    const subTime = this.clampTime('kickSub', at)
+    this.kickSub.triggerAttackRelease('G0', '2n', subTime, vel)
+    // Click layer for transient definition on small speakers.
+    this.triggerNoise('kickClick', this.kickClick, '16n', at, vel * 0.55)
+    // Hi-frequency splash — re-use the open-hat NoiseSynth via a longer release.
+    // It already routes through the high-pass filter so it reads as cymbal-like.
+    const hatTime = this.clampTime('hatOpen', at + 0.002)
+    this.hatOpen.triggerAttackRelease('4n', hatTime, vel * 0.7)
+
+    this.lastKickTime = subTime
+    if (this.onKickTrigger) this.onKickTrigger(subTime)
   }
 
   // ── Kit presets — deterministic per mode so the groove keeps one body ──
