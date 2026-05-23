@@ -1,0 +1,8 @@
+.git/
+node_modules/
+venv/
+.venv/
+__pycache__/
+.next/
+build/
+dist/

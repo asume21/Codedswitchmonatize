@@ -75,3 +75,8 @@ repo_tree*.txt
 audio/reference-beats/
 private/organism-kits/
 private/ace-step/
+private/ace-step-cache/
+private/tools/
+
+# Retired AI handoff doc — superseded by git log and .claude memory
+AI_HANDOFF.md
