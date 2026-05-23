@@ -117,7 +117,7 @@ export interface TextureDirective {
 // ── Arrangement Section ───────────────────────────────────────────────
 
 export type ArrangementSection =
-  | 'intro' | 'verse' | 'pre-chorus' | 'build'
+  | 'intro' | 'verse' | 'hook' | 'pre-chorus' | 'build'
   | 'drop' | 'breakdown' | 'verse2' | 'drop2' | 'bridge' | 'outro'
 
 // ── The Unified Musical State ─────────────────────────────────────────

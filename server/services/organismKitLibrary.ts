@@ -25,14 +25,26 @@ const DEFAULT_PRIVATE_KIT_ROOT =
     ? path.resolve("/data", "organism-kits")
     : path.resolve(process.cwd(), "private", "organism-kits"));
 
+// Like \b but treats underscore as a separator. Sample-pack filenames
+// commonly use snake_case (E808_BD-01.wav, MV1_SD_02.wav) where the
+// stock \b fails because underscore is a \w word-char — `\bBD\b` won't
+// match `_BD[` because `_` → `B` is word→word, no boundary.
+function sep(alt: string): RegExp {
+  return new RegExp(`(?<![A-Za-z0-9])(?:${alt})(?![A-Za-z0-9])`, 'i');
+}
+
+// Order matters: specific drum roles are checked BEFORE the generic
+// bass808 fallback so kit prefixes like "TR808 BD Bass Drum.wav" or
+// "E808_SD-01.wav" are tagged by their role keyword (BD → kick,
+// SD → snare) rather than swept into bass808 by the literal "808".
 const ROLE_PATTERNS: Array<[OrganismKitRole, RegExp]> = [
-  ["bass808", /\b(808|sub|bass)\b/i],
-  ["kick", /\b(kick|bd)\b/i],
-  ["snare", /\b(snare|sd)\b/i],
-  ["hat", /\b(hat|hihat|hi-hat|closed hat|open hat)\b/i],
-  ["perc", /\b(perc|percussion|clap|rim|snap|shaker|cowbell)\b/i],
-  ["tom", /\b(tom|fill)\b/i],
-  ["loop", /\b(loop|drumloop|toploop|groove)\b/i],
+  ["kick",    sep('kick|kicks|bd')],
+  ["snare",   sep('snare|snares|sd')],
+  ["hat",     sep('hat|hats|hihat|hihats|hi-hat|hi-hats|closed-hat|open-hat|ch|oh')],
+  ["perc",    sep('perc|percussion|clap|claps|rim|rimshot|snap|shaker|cowbell|cp|cb|rs|cl|ma')],
+  ["tom",     sep('tom|toms|fill|fills|lt|mt|ht|hc|mc|lc')],
+  ["loop",    sep('loop|loops|drumloop|toploop|groove|grooves')],
+  ["bass808", sep('808|sub|bass')],
 ];
 
 function walkWavs(root: string): string[] {
@@ -124,5 +136,5 @@ export function pickBestOrganismKit(preferredRoles: OrganismKitRole[] = ["kick",
       const sizeScore = Math.min(kit.samples.length, 100) / 10;
       return { kit, score: roleScore + sizeScore };
     })
-    .sort((a, b) => b.score - a.score)[0]?.kit ?? null;
+    .sort((a, b) => b.score - a.score || b.kit.samples.length - a.kit.samples.length)[0]?.kit ?? null;
 }
