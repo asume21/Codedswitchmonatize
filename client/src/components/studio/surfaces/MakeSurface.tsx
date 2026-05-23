@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 import StudioVocalRecorder, { type VocalTake } from '@/components/studio/StudioVocalRecorder';
-import { OrganismPage } from '@/features/organism/OrganismPage';
+import { OrganismCommandCenter } from '@/features/organism/OrganismCommandCenter';
 import {
   GlobalOrganismWrapper,
   useOrganismActivation,
@@ -118,7 +118,7 @@ export default function MakeSurface() {
           <div className="h-[calc(100%-2.5rem)] min-h-0">
             <GlobalOrganismWrapper>
               <OrganismProviderGate>
-                <OrganismPage />
+                <OrganismCommandCenter />
               </OrganismProviderGate>
             </GlobalOrganismWrapper>
           </div>

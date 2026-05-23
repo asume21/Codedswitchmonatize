@@ -175,7 +175,7 @@ export class ChordGenerator extends GeneratorBase {
     }, volume: -8, chorusWet: 0.3, reverbDecay: 1.5, modes: ['glow', 'smoke'] },
     { name: 'String Ensemble', type: 'Sampler', presetId: 'string_ensemble_1', options: {
       envelope: { attack: 0.4, release: 1.5 }
-    }, volume: -10, chorusWet: 0.4, reverbDecay: 2.0, modes: ['glow'] },
+    }, volume: -6, chorusWet: 0.4, reverbDecay: 2.0, modes: ['glow'] },
 
     // Guitars — fingerpicked, funk chunks, trap rock
     { name: 'Nylon Guitar', type: 'Sampler', presetId: 'acoustic_guitar_nylon', options: {
@@ -191,7 +191,7 @@ export class ChordGenerator extends GeneratorBase {
     // Bowed low strings — warm chord bed, jazz / cinematic
     { name: 'Cello', type: 'Sampler', presetId: 'cello', options: {
       envelope: { attack: 0.15, release: 1.2 }
-    }, volume: -10, chorusWet: 0.2, reverbDecay: 2.0, modes: ['smoke', 'gravel', 'glow'] },
+    }, volume: -6, chorusWet: 0.2, reverbDecay: 2.0, modes: ['smoke', 'gravel', 'glow'] },
 
     // Mallet — boom-bap / Madlib aesthetic, lo-fi stabs
     { name: 'Vibraphone', type: 'Sampler', presetId: 'vibraphone', options: {
@@ -245,8 +245,11 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
+    // 8 voices ran out under rolled-chord technique (4-note chord × 1.5s release
+    // × overlap into next chord = up to 16 simultaneous voices). Raised to 16 so
+    // sustained pads + rolled chords stop dropping notes mid-arpeggio.
     return new Tone.PolySynth(Tone.FMSynth, {
-      maxPolyphony: 8,
+      maxPolyphony: 16,
       harmonicity: 2,
       modulationIndex: 0.8,
       oscillator:    { type: 'sine' },

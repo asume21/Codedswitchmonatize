@@ -8,8 +8,8 @@
  */
 
 import { Router, Request, Response } from 'express'
-import path from 'path'
-import fs from 'fs'
+import * as path from 'path'
+import * as fs from 'fs'
 import { isWorkerReady, submitGeneration, pollJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from '../services/aceStepService'
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
@@ -78,18 +78,26 @@ function buildDeterministicAceStepPrompt(opts: AcePromptOptions): string {
     .filter(Boolean)
     .slice(0, 4)
 
+  const userStyleHint = cleanAceTag(extraHints)
+  const dynamicDescriptor = userStyleHint
+    ? `${userStyleHint} original instrumental beat`
+    : `${cleanAceTag(mood)} ${cleanAceTag(genre)} ${cleanAceTag(section)} original instrumental beat`
+
   const tags = [
     ...(tagPresets[genreKey] ?? tagPresets[normalizedGenreKey] ?? [cleanAceTag(genre), 'hip-hop']),
     cleanAceTag(mood),
     `${Number.isFinite(bpm) ? Math.round(bpm) : 90} bpm`,
     cleanAceTag(section),
-    'reference-level instrumental beat',
+    dynamicDescriptor,
+    'high fidelity',
+    'studio quality',
+    'mastered',
     'professional mix',
     'no vocals',
     ...extraTags,
   ].filter(Boolean)
 
-  return [...new Set(tags)].join(', ')
+  return Array.from(new Set(tags)).join(', ')
 }
 
 async function buildAceStepPrompt(opts: AcePromptOptions): Promise<string> {
@@ -184,12 +192,23 @@ export function createAceStepRoutes(): Router {
         ? rawPrompt
         : await buildAceStepPrompt({ genre, mood, bpm, section, extraHints })
 
+      console.log('[aceStep] /generate prompt:', {
+        source: rawPrompt ? 'rawPrompt' : 'builder',
+        genre,
+        mood,
+        bpm,
+        section,
+        extraHints: extraHints ?? null,
+        prompt,
+      })
+
       // Wake the legacy pod if stopped. Serverless endpoints scale themselves.
       await ensureWorkerReady()
 
       const jobReq: AceStepRequest = {
         prompt, lyrics, audioDuration, inferStep, seed,
         taskType, trackName,
+        instrumental: true,
         bpm: taskType === 'text2music' || !taskType ? bpm : undefined,
       }
       const jobId = await submitGeneration(jobReq)

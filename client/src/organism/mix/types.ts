@@ -55,7 +55,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 35, highShelfHz: 2000, highShelfGain: -6 },  // HP kills sub-rumble; roll off highs
     },
     melody: {
-      name: 'melody', pan: 0.15, gainDb: 3,
+      name: 'melody', pan: 0.15, gainDb: 5,
       compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
@@ -67,7 +67,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 400, highShelfHz: 6000, highShelfGain: -3 },  // HP at 400Hz kills hum; bandpass texture
     },
     chord: {
-      name: 'chord', pan: -0.10, gainDb: 3,
+      name: 'chord', pan: -0.10, gainDb: 5,
       compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
       compReleaseMs: 250, compKneeDb: 8,
       eq: { highpassHz: 200, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -2 },  // HP to avoid bass mud; scoop 500Hz; tame highs

@@ -42,9 +42,6 @@ import BeatLab from './BeatLab';
 import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 import { DawArrangementView } from './DawArrangementView';
 const MasterMultiTrackPlayer = React.lazy(() => import('./MasterMultiTrackPlayer'));
-import { OrganismPage } from '@/features/organism/OrganismPage';
-import { OrganismCommandCenter } from '@/features/organism/OrganismCommandCenter';
-import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 const AIMasteringCard = React.lazy(() => import('./AIMasteringCard'));
 const AIArrangementBuilder = React.lazy(() => import('./AIArrangementBuilder'));
 const AIVocalMelody = React.lazy(() => import('./AIVocalMelody'));
@@ -52,7 +49,6 @@ const AIStemSeparation = React.lazy(() => import('./AIStemSeparation'));
 const SpectrumAnalyzer = React.lazy(() => import('./SpectrumAnalyzer'));
 const ReferenceTrackAB = React.lazy(() => import('./ReferenceTrackAB'));
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { PresenceAmbientLight } from '@/components/presence';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Package } from 'lucide-react';
 import { useTransport } from '@/contexts/TransportContext';
@@ -88,38 +84,9 @@ function TabLoadingFallback() {
   );
 }
 
-/**
- * Auto-activates the global OrganismProvider when the user opens the Organism tab.
- * If already activated, renders OrganismPage immediately.
- */
-function OrganismAutoActivate() {
-  const { isActivated, activate } = useOrganismActivation();
-  const organism = useOrganismSafe();
-
-  // Auto-activate on mount if not yet booted
-  React.useEffect(() => {
-    if (!isActivated) activate();
-  }, [isActivated, activate]);
-
-  return (
-    <>
-      {!organism ? (
-        <div className="flex items-center justify-center h-full text-cyan-300">
-          <div className="text-center">
-            <Zap className="w-8 h-8 mx-auto mb-2 animate-pulse" />
-            <p className="text-sm font-semibold">Booting Organism engines...</p>
-          </div>
-        </div>
-      ) : (
-        <OrganismCommandCenter />
-      )}
-    </>
-  );
-}
-
 // Workflow Configuration Types
 interface WorkflowConfig {
-  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism';
+  activeView: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack';
   showAIAssistant: boolean;
   showMusicGen: boolean;
   showLyricsFocus?: boolean;
@@ -617,8 +584,8 @@ export default function UnifiedStudioWorkspace() {
   const [timelinePlayingTrack, setTimelinePlayingTrack] = useState<string | null>(null);
   const timelinePlayingTrackRef = useRef<string | null>(null);
   const [channelMeters, setChannelMeters] = useState<Record<string, { peak: number; rms: number }>>({});
-  const [activeView, setActiveViewRaw] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism'>(() => {
-    const valid = ['arrangement','piano-roll','mixer','ai-studio','lyrics','song-uploader','code-to-music','audio-tools','beat-lab','multitrack','organism'];
+  const [activeView, setActiveViewRaw] = useState<'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack'>(() => {
+    const valid = ['arrangement','piano-roll','mixer','ai-studio','lyrics','song-uploader','code-to-music','audio-tools','beat-lab','multitrack'];
     const params = new URLSearchParams(window.location.search);
     // ?popout=view — used when the user pops a tab out into its own window
     const popout = params.get('popout');
@@ -629,7 +596,7 @@ export default function UnifiedStudioWorkspace() {
     const saved = sessionStorage.getItem('studio:activeView');
     return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
   });
-  const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack' | 'organism') => {
+  const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack') => {
     sessionStorage.setItem('studio:activeView', v);
     // Sync URL so refresh/back-button/deep-link all work. Skip in popout mode — that's a separate-window concept.
     const url = new URL(window.location.href);
@@ -1080,9 +1047,6 @@ export default function UnifiedStudioWorkspace() {
         case 'audio-tools':
           setActiveView('audio-tools');
           break;
-        case 'organism':
-          setActiveView('organism');
-          break;
         case 'uploader':
         case 'song-uploader':
           setActiveView('song-uploader');
@@ -1132,7 +1096,7 @@ export default function UnifiedStudioWorkspace() {
           break;
         default:
           // Try direct match as activeView value
-          if (['arrangement', 'beat-lab', 'piano-roll', 'mixer', 'ai-studio', 'lyrics', 'song-uploader', 'code-to-music', 'audio-tools', 'multitrack', 'organism'].includes(detail)) {
+          if (['arrangement', 'beat-lab', 'piano-roll', 'mixer', 'ai-studio', 'lyrics', 'song-uploader', 'code-to-music', 'audio-tools', 'multitrack'].includes(detail)) {
             setActiveView(detail as any);
           }
           break;
@@ -3359,8 +3323,6 @@ export default function UnifiedStudioWorkspace() {
   return (
     <WindowManagerProvider>
     <div className="h-full w-full flex flex-col bg-black astutely-app astutely-scanlines astutely-grid-bg astutely-scrollbar overflow-visible">
-      {/* Presence-driven ambient light — syncs CSS vars to Living Glyph state */}
-      <PresenceAmbientLight />
       {/* Floating Window Renderer — renders all open draggable windows */}
       <React.Suspense fallback={null}>
         <StudioWindowRenderer
@@ -3489,10 +3451,6 @@ export default function UnifiedStudioWorkspace() {
                 <button onClick={menuAction(() => setActiveView('song-uploader'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>{activeView === 'song-uploader' ? '✓' : '  '} Upload</span>
                   <span className="text-xs text-cyan-400">F9</span>
-                </button>
-                <button onClick={menuAction(() => setActiveView('organism'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                  <span>{activeView === 'organism' ? '✓' : '  '} Organism</span>
-                  <span className="text-xs text-cyan-400">F10</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
                 <button onClick={menuAction(() => setInstrumentsExpanded(!instrumentsExpanded))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
@@ -4237,16 +4195,6 @@ export default function UnifiedStudioWorkspace() {
             <Upload className="w-3 h-3 mr-1" />
             Upload
           </Button>
-          <div className="w-px h-5 astutely-divider-green mx-1" />
-          <Button
-            variant={activeView === 'organism' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('organism')}
-            className={`h-8 px-3 text-xs ${activeView === 'organism' ? 'astutely-btn-green active' : 'astutely-btn-green'}`}
-          >
-            <Mic2 className="w-3 h-3 mr-1" />
-            Organism
-          </Button>
         </div>
 
         {/* Right Side - Compact Action Buttons & Volume */}
@@ -4608,12 +4556,6 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
 
-          {/* HIP-HOP ORGANISM — uses global OrganismProvider (activated on demand) */}
-          {activeView === 'organism' && (
-            <div className="flex-1 overflow-hidden bg-gray-900 h-full pt-14">
-              <OrganismAutoActivate />
-            </div>
-          )}
         </div>
 
         {/* Right Panel - Inspector */}

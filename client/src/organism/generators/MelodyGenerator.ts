@@ -115,7 +115,12 @@ export class MelodyGenerator extends GeneratorBase {
       // melancholy tonality on the next rebuild.
       this.currentScale = MelodyGenerator.NATURAL_MINOR
     }
-    this.scaleDirty = true  // rebuild phrase on next behavior cycle
+    this.scaleDirty = true                       // rebuild on next processFrame
+    this.lastRebuildTime = -Infinity             // clear 600ms throttle — user
+                                                 // emotional commits must take
+                                                 // effect immediately, not get
+                                                 // silently consumed by a recent
+                                                 // chord-change-triggered rebuild
   }
 
   getEmotionalIntent(): 'sad' | 'beautiful' | null {
@@ -184,10 +189,10 @@ export class MelodyGenerator extends GeneratorBase {
     // Bowed strings — solo violin (Drake/Alchemist soul), expressive cello
     { name: 'Solo Violin', type: 'Sampler', presetId: 'violin', options: {
       envelope: { attack: 0.08, release: 0.5 }
-    }, volume: -6, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'soulful', 'warm'] },
+    }, volume: -2, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'soulful', 'warm'] },
     { name: 'Cello Lead', type: 'Sampler', presetId: 'cello', options: {
       envelope: { attack: 0.1, release: 0.8 }
-    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.8, delayFeedback: 0.08, tags: ['acoustic', 'dark', 'soulful'] },
+    }, volume: -3, chorusWet: 0.2, reverbDecay: 1.8, delayFeedback: 0.08, tags: ['acoustic', 'dark', 'soulful'] },
 
     // Winds — Future Hendrix flute, jazz-rap clarinet, cinematic oboe
     { name: 'Flute', type: 'Sampler', presetId: 'flute', options: {
@@ -298,8 +303,10 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
+    // 6 voices dropped notes when ornaments (trill/grace) overlapped a sustained
+    // legato phrase. 12 covers the realistic worst case without bloating CPU.
     return new Tone.PolySynth(Tone.FMSynth, {
-      maxPolyphony: 6,
+      maxPolyphony: 12,
       harmonicity: 2,
       modulationIndex: 1.5,
       oscillator:    { type: 'sine' },
@@ -450,13 +457,17 @@ export class MelodyGenerator extends GeneratorBase {
       this.pendingBehaviorFrames = 0
     }
 
-    if (this.scaleDirty) {
-      this.scaleDirty = false
-      shouldRebuild = true
-    }
+    // Defer scaleDirty clear until rebuildPhrase reports success. Without this
+    // guard, the 600ms throttle inside rebuildPhrase can silently consume a
+    // user-initiated scale/intent change: scaleDirty gets cleared here, then
+    // rebuildPhrase early-returns due to throttle, and the signal is lost
+    // forever — the melody keeps playing the old scale's pre-baked notes.
+    const scaleWasDirty = this.scaleDirty
+    if (scaleWasDirty) shouldRebuild = true
 
     if (shouldRebuild) {
-      this.rebuildPhrase(physics, organism)
+      const rebuilt = this.rebuildPhrase(physics, organism)
+      if (rebuilt && scaleWasDirty) this.scaleDirty = false
     }
 
     const targetLevel = this.computeTargetLevel(organism, newBehavior)
@@ -552,18 +563,33 @@ export class MelodyGenerator extends GeneratorBase {
     }
   }
 
-  private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): void {
+  /**
+   * Build and schedule the next melodic phrase.
+   *
+   * Returns `true` if the rebuild executed (phrase committed, or intentional
+   * Rest stop). Returns `false` ONLY when the 600ms throttle blocked execution
+   * — `processFrame` uses this to preserve `scaleDirty` so user-initiated
+   * emotional/scale changes are not silently consumed by the throttle race.
+   *
+   * The seamless handoff (oldPart.stop(startAt) → new part.start(startAt))
+   * guarantees the previous Tone.Part is fully stopped and disposed before
+   * the new one fires its first event — there is no event overlay on a
+   * running buffer.
+   */
+  private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): boolean {
     const now = performance.now()
-    if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) return
+    if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) {
+      return false   // throttled — caller should preserve any pending dirty flags
+    }
     this.lastRebuildTime = now
 
     if (this.currentBehavior === MelodyBehavior.Rest) {
       this.stopPart()
-      return
+      return true    // intentional stop — dirty flags can be cleared
     }
 
     const lengths = PHRASE_LENGTHS[this.currentBehavior]
-    if (!lengths || lengths.length === 0) return
+    if (!lengths || lengths.length === 0) return true
 
     const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
     const phraseLength = this.currentBehavior === MelodyBehavior.Lead
@@ -571,7 +597,7 @@ export class MelodyGenerator extends GeneratorBase {
       : selectedLength
     const notes        = this.generatePhrase(phraseLength, physics)
 
-    if (notes.length === 0) return
+    if (notes.length === 0) return true
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -641,6 +667,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.part.loopEnd = `${loopBars}m`
     this.part.start(startAt)
     this.hasStartedPlayback = true
+    return true
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {

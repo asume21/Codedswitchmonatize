@@ -1,7 +1,9 @@
 /**
  * ORGANISM COMMAND CENTER
  *
- * Unified control panel that replaces OrganismPage.
+ * Canonical Organism control surface. Hosted inside MAKE (UnifiedStudioWorkspace)
+ * and re-used by the public /organism guest demo via OrganismGuestPage.
+ *
  * Everything in one place: style picker, beat shape controls,
  * flow meter, session controls, live lyrics, report card.
  *
@@ -345,6 +347,8 @@ export function OrganismCommandCenter() {
     // Vibe Interpreter
     interpretVibe,
     vibeInterpretation,
+    // Trigger detector — typed text feeds the same pipeline as voice transcription
+    triggerDetectorRef,
     // WOW moment
     wowMoment,
     clearWowMomentLog,
@@ -366,6 +370,13 @@ export function OrganismCommandCenter() {
 
   const handleRecordTake = useCallback(async () => {
     const label = takeLabel.trim() || `Take ${takes.length + 1}`
+    // Direct Patch: fire any emotional-intent / mood-signal triggers before the
+    // network round-trip to interpretVibe — typed words like "sad" or "beautiful"
+    // commit to the orchestrator synchronously so the recorded take inherits
+    // the right scale + chord technique from beat one.
+    if (triggerDetectorRef.current) {
+      await triggerDetectorRef.current.processText(takeLabel.trim())
+    }
     // Apply any vibe text first if the user typed one
     if (takeLabel.trim()) await interpretVibe(takeLabel.trim())
     const session = await recordForBars(takeBars, label)
@@ -864,9 +875,16 @@ export function OrganismCommandCenter() {
           <input
             type="text"
             placeholder={'Try "play violin sad melody", "lo-fi piano chill", or "dark drill vibe"...'}
-            onKeyDown={(e) => {
+            onKeyDown={async (e) => {
               if (e.key === 'Enter') {
-                interpretVibe(e.currentTarget.value)
+                const text = e.currentTarget.value
+                // Direct Patch: fire trigger detector on the typed text before
+                // the network call so emotional / mood phrases commit locally
+                // first. Detector is sync; await is harmless on the void return.
+                if (triggerDetectorRef.current) {
+                  await triggerDetectorRef.current.processText(text)
+                }
+                interpretVibe(text)
                 e.currentTarget.value = ''
               }
             }}
