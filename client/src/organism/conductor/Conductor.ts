@@ -250,6 +250,23 @@ export class Conductor {
     return this.scale
   }
 
+  /**
+   * Pitch class (0-11) of the tonal center. Generators that work in pitch
+   * classes (melody, chord-tone matching) read this instead of parsing
+   * `getKey()` themselves.
+   */
+  getKeyPitchClass(): number {
+    return NOTE_TO_SEMITONE[this.key] ?? 0
+  }
+
+  /**
+   * Relative semitone intervals of the active scale, e.g. natural minor
+   * returns [0, 2, 3, 5, 7, 8, 10]. Melody uses this as `currentScale`.
+   */
+  scaleIntervals(): number[] {
+    return [...SCALE_INTERVALS[this.scale]]
+  }
+
   /** Current index within the progression (0..progression.length - 1). */
   getChordIndex(): number {
     return this.chordIndex

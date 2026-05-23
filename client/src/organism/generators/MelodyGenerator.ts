@@ -31,6 +31,7 @@ import {
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
 } from '../performers'
+import { getConductor } from '../conductor/Conductor'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -58,8 +59,11 @@ export class MelodyGenerator extends GeneratorBase {
   private currentScale:    number[]       = MODE_SCALES.glow
   private scaleDirty:      boolean        = false // rebuild phrase on next behavior cycle
 
-  // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats
+  // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats.
+  // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
+  // external API stays as an override path.
   private currentChordTones: number[] = []
+  private unsubscribeConductor: (() => void) | null = null
 
   // Physics cache
   private currentPresence: number  = 0
@@ -304,6 +308,35 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.chorus.start()
     this.setOutputLevel(0)
+
+    // Phase 3 — lock to the Conductor. Initial key/scale/chord-tones come from
+    // the Conductor at construction (no rebuild needed — there is no part
+    // yet), and every chord change re-syncs them so melody picks idiomatic
+    // passing notes and lands chord tones on strong beats. The 'sad'
+    // emotional override still wins over the Conductor's scale — it's a
+    // deliberate user intent.
+    this.syncFromConductor(false)
+    this.unsubscribeConductor = getConductor().onChordChange(() => {
+      this.syncFromConductor(true)
+    })
+  }
+
+  private syncFromConductor(triggerRebuild: boolean): void {
+    const conductor = getConductor()
+    this.rootPitchClass = conductor.getKeyPitchClass()
+    if (this.emotionalIntent !== 'sad') {
+      this.currentScale = conductor.scaleIntervals()
+    }
+    // Conductor returns chord tones as MIDI notes (e.g. [60, 63, 67, 70] for
+    // Cm7). Melody matches in pitch classes (0-11), octave-invariant.
+    const tones = conductor.chordTones()
+    const pcs: number[] = []
+    for (const midi of tones) {
+      const pc = ((midi % 12) + 12) % 12
+      if (!pcs.includes(pc)) pcs.push(pc)
+    }
+    this.currentChordTones = pcs
+    if (triggerRebuild) this.scaleDirty = true
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
@@ -930,6 +963,10 @@ export class MelodyGenerator extends GeneratorBase {
 
   dispose(): void {
     this.stopPart()
+    if (this.unsubscribeConductor) {
+      this.unsubscribeConductor()
+      this.unsubscribeConductor = null
+    }
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
       this.pendingSynthDispose = null
