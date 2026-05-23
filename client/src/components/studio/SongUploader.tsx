@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAbortableRequest, isAbortError } from "@/hooks/use-abortable-request";
+import { useOrganismSafe } from "@/features/organism/GlobalOrganismWrapper";
 import { useStudioStore, getUploadedSongAudio, setUploadedSongAudio } from '@/stores/useStudioStore';
 import { AIMessageContext } from "@/contexts/AIMessageContext";
 import { useSongWorkSession, type SongIssue } from "@/contexts/SongWorkSessionContext";
@@ -34,6 +35,10 @@ interface UploadContext {
 }
 
 export default function SongUploader() {
+  // Organism trigger pipeline — Suno regeneration prompts (cover / extend /
+  // add-vocals / add-instrumental) all share `sunoPrompt`, so one patch on the
+  // confirm button covers all four input variants.
+  const organism = useOrganismSafe();
   const [uploadContext, setUploadContext] = useState<UploadContext>({});
   const [showAudioTools, setShowAudioTools] = useState(false);
   const [songAnalysis, setSongAnalysis] = useState<any>(null);
@@ -2297,6 +2302,12 @@ ${Array.isArray(analysis.instruments) ? analysis.instruments.join(', ') : analys
                 <Button
                   className="bg-gradient-to-r from-pink-600 to-purple-600"
                   onClick={() => {
+                    // Direct Patch: fire trigger detector on the prompt before
+                    // any Suno mutation kicks off. Covers all 4 prompt variants
+                    // since they share `sunoPrompt`.
+                    if (organism?.triggerDetectorRef.current && sunoPrompt) {
+                      organism.triggerDetectorRef.current.processText(sunoPrompt);
+                    }
                     if (sunoAction === 'cover' && sunoPrompt) {
                       processSunoCover(selectedSong, sunoPrompt);
                     } else if (sunoAction === 'extend') {

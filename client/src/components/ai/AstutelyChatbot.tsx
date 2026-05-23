@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useQuery } from '@tanstack/react-query';
 import { astutelyToNotes, type AstutelyResult } from '@/lib/astutelyEngine';
+import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useTransport } from '@/contexts/TransportContext';
@@ -272,6 +273,11 @@ export default function AstutelyChatbot({ onClose, onBeatGenerated, embedded = f
   
   // Track Store - knows all tracks in the project
   const { tracks, addTrack, saveTrackToServer } = useTrackStore();
+
+  // Organism trigger pipeline — same detector that handles voice transcription.
+  // Safe variant returns null if no OrganismProvider is mounted (e.g. chatbot
+  // rendered before Organism activation); the handler guards with `?.`.
+  const organism = useOrganismSafe();
   
   // Transport - controls playback (play/pause/stop, tempo, position)
   const transport = useTransport();
@@ -976,6 +982,15 @@ The melody is now in your Piano Roll. Say "play" to hear it!`,
     const currentInput = input;
     setInput('');
     setIsLoading(true);
+
+    // Direct Patch: any music-generating interface should feed typed text
+    // through the same trigger pipeline as voice transcription. Emotional /
+    // mood phrases ("sad violin", "beautiful lush") commit to the orchestrator
+    // before the LLM round-trip so the live engine reacts immediately, even
+    // if the model response is slow or never arrives.
+    if (organism?.triggerDetectorRef.current) {
+      await organism.triggerDetectorRef.current.processText(currentInput);
+    }
 
     try {
       // ═══════════════════════════════════════════════════════════════════════════

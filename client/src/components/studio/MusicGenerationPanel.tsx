@@ -13,6 +13,7 @@ import { realisticAudio } from '@/lib/realisticAudio';
 import { UpgradeModal, useLicenseGate } from '@/lib/LicenseGuard';
 import { astutelyToNotes, midiToNoteOctave } from '@/lib/astutelyEngine';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
+import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 function mapGenreToAstutelyStyle(genre: string): string {
   const map: Record<string, string> = {
@@ -171,6 +172,9 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
   const { toast } = useToast();
   const [showUpgrade, setShowUpgrade] = useState(false);
   const { requirePro, startUpgrade } = useLicenseGate();
+  // Organism trigger pipeline — generation prompts fire emotional/mood phrases
+  // through the live engine in parallel with the offline render.
+  const organism = useOrganismSafe();
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticSummary | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -303,6 +307,13 @@ export default function MusicGenerationPanel({ onMusicGenerated }: MusicGenerati
         variant: 'destructive',
       });
       return;
+    }
+
+    // Direct Patch: fire trigger detector on the prompt + genre combination
+    // before the offline render kicks off, so a running Organism mirrors the
+    // requested vibe in parallel with the rendered audio.
+    if (organism?.triggerDetectorRef.current) {
+      await organism.triggerDetectorRef.current.processText(`${genre} ${prompt}`);
     }
 
     setIsGenerating(true);

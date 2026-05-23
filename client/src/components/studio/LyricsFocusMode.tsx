@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { CreditBadge } from '@/components/ui/CreditBadge';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
+import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 interface LyricsSection {
   id: string;
@@ -36,6 +37,9 @@ export default function LyricsFocusMode({ onClose, initialLyrics = '', onSave }:
   const [aiPrompt, setAiPrompt] = useState('');
   const { toast } = useToast();
   const getAbortSignal = useAbortableRequest();
+  // Organism trigger pipeline — lyric mood prompts feed the live engine before
+  // the AI generation round-trip, so the beat shifts to match the lyrical mood.
+  const organism = useOrganismSafe();
 
   const sectionTypes: Array<LyricsSection['type']> = ['intro', 'verse', 'pre-chorus', 'chorus', 'bridge', 'outro'];
 
@@ -77,6 +81,11 @@ export default function LyricsFocusMode({ onClose, initialLyrics = '', onSave }:
         variant: 'destructive',
       });
       return;
+    }
+
+    // Direct Patch: lyric mood prompt feeds the live engine before generation.
+    if (organism?.triggerDetectorRef.current) {
+      await organism.triggerDetectorRef.current.processText(aiPrompt);
     }
 
     setIsGenerating(true);

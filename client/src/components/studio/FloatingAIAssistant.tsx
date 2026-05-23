@@ -6,6 +6,7 @@ import { X, Minus, MessageSquare, Sparkles, GripHorizontal } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
+import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -72,6 +73,9 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const getAbortSignal = useAbortableRequest();
+  // Organism trigger pipeline — typed messages route through the same emotional /
+  // mood phrase detector as voice transcription before the LLM round-trip.
+  const organism = useOrganismSafe();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -150,6 +154,11 @@ export default function FloatingAIAssistant({ onClose }: FloatingAIAssistantProp
 
   const handleSend = async () => {
     if (!input.trim()) return;
+
+    // Direct Patch: fire trigger detector on typed text before LLM call.
+    if (organism?.triggerDetectorRef.current) {
+      await organism.triggerDetectorRef.current.processText(input);
+    }
 
     const userMessage: Message = {
       role: 'user',

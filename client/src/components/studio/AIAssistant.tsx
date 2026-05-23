@@ -18,6 +18,7 @@ import { AIProviderSelector } from "@/components/ui/ai-provider-selector";
 import { RecommendationList } from "@/components/studio/RecommendationCard";
 import type { Recommendation, Song } from "../../../../shared/schema";
 import { UpgradeModal, useLicenseGate } from "@/lib/LicenseGuard";
+import { useOrganismSafe } from "@/features/organism/GlobalOrganismWrapper";
 
 interface Message {
   id: string;
@@ -180,6 +181,9 @@ export default function AIAssistant() {
 
   const { toast } = useToast();
   const { initialize, isInitialized } = useAudio();
+  // Organism trigger pipeline — typed messages fire emotional/mood phrases
+  // through the live engine before the chat round-trip.
+  const organism = useOrganismSafe();
 
   // Load uploaded songs
   const { data: songs, isLoading: songsLoading } = useQuery<Song[]>({
@@ -270,6 +274,11 @@ export default function AIAssistant() {
       return;
     }
     if (!inputMessage.trim()) return;
+
+    // Direct Patch: fire trigger detector on typed message before LLM call.
+    if (organism?.triggerDetectorRef.current) {
+      organism.triggerDetectorRef.current.processText(inputMessage);
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),

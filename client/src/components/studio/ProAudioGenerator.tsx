@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
+import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
 interface GenerationVariation {
   audio_url: string;
@@ -197,6 +198,9 @@ const KEYS = ['C Major', 'G Major', 'D Major', 'A Major', 'E Major', 'B Major', 
 export function ProAudioGenerator() {
   const { toast } = useToast();
   const getAbortSignal = useAbortableRequest();
+  // Organism trigger pipeline — generation prompts (description + genre + mood
+  // + style) feed the live engine in parallel with the offline ACE-Step render.
+  const organism = useOrganismSafe();
 
   // Form state
   const [songDescription, setSongDescription] = useState('');
@@ -1251,7 +1255,16 @@ export function ProAudioGenerator() {
             {/* Generate Button */}
             <div className="text-center space-y-3">
               <Button
-                onClick={() => generateMutation.mutate()}
+                onClick={() => {
+                  // Direct Patch: feed full prompt context (description + genre +
+                  // mood + style) to the trigger detector before kicking off the
+                  // offline render.
+                  if (organism?.triggerDetectorRef.current) {
+                    const promptCtx = [songDescription, genre, mood, style].filter(Boolean).join(' ');
+                    organism.triggerDetectorRef.current.processText(promptCtx);
+                  }
+                  generateMutation.mutate();
+                }}
                 disabled={generateMutation.isPending || !songDescription.trim() || isTextOnlyProvider || !hasInstruments}
                 size="lg"
                 className="min-w-72 h-12 text-base"
