@@ -12,7 +12,6 @@ import { AIMessageProvider } from "@/contexts/AIMessageContext";
 import { licenseGuard } from "@/lib/LicenseGuard";
 import { GlobalNav } from "@/components/layout/GlobalNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PresenceProvider, GlobalLivingGlyph } from "@/components/presence";
 import FloatingAudioMonitor from "@/components/ui/FloatingAudioMonitor";
 import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper";
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
@@ -115,35 +114,32 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function StudioProviders({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <PresenceProvider>
-        <TrackStoreProvider>
-          <TransportProvider>
-            <GlobalAudioProvider>
-              <InstrumentProvider>
-                <StemGenerationProvider>
-                  <AstutelyCoreProvider>
-                    <StudioSessionProvider>
-                      <SongWorkSessionProvider>
-                        <SessionDestinationProvider>
-                          <GlobalAudioPlayer />
-                          <GlobalLivingGlyph position="bottom-right" size={48} />
-                          {children}
-                          {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
-                          <GlobalTransportBar />
-                          {/* Press ? to see the keyboard-shortcuts cheatsheet */}
-                          <KeyboardShortcutsHelp />
-                          {/* First-run studio walkthrough (self-gated on localStorage) */}
-                          <OnboardingTour />
-                        </SessionDestinationProvider>
-                      </SongWorkSessionProvider>
-                    </StudioSessionProvider>
-                  </AstutelyCoreProvider>
-                </StemGenerationProvider>
-              </InstrumentProvider>
-            </GlobalAudioProvider>
-          </TransportProvider>
-        </TrackStoreProvider>
-      </PresenceProvider>
+      <TrackStoreProvider>
+        <TransportProvider>
+          <GlobalAudioProvider>
+            <InstrumentProvider>
+              <StemGenerationProvider>
+                <AstutelyCoreProvider>
+                  <StudioSessionProvider>
+                    <SongWorkSessionProvider>
+                      <SessionDestinationProvider>
+                        <GlobalAudioPlayer />
+                        {children}
+                        {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
+                        <GlobalTransportBar />
+                        {/* Press ? to see the keyboard-shortcuts cheatsheet */}
+                        <KeyboardShortcutsHelp />
+                        {/* First-run studio walkthrough (self-gated on localStorage) */}
+                        <OnboardingTour />
+                      </SessionDestinationProvider>
+                    </SongWorkSessionProvider>
+                  </StudioSessionProvider>
+                </AstutelyCoreProvider>
+              </StemGenerationProvider>
+            </InstrumentProvider>
+          </GlobalAudioProvider>
+        </TransportProvider>
+      </TrackStoreProvider>
     </Suspense>
   );
 }
