@@ -35,6 +35,7 @@ import {
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
 } from '../performers'
+import { getConductor } from '../conductor/Conductor'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -51,14 +52,17 @@ export class BassGenerator extends GeneratorBase {
   private lfo:        Tone.LFO
   private lfoGain:    Tone.Gain
 
-  // Musical state
-  private rootMidi:        number       = 36   
+  // Musical state — rootMidi is now sourced from the Conductor (Phase 2 wiring).
+  // The Conductor owns harmonic state; bass reads its root from it instead of
+  // picking randomly. setCurrentChord() remains as an external override path
+  // until Phase 4 folds ChordProgressionBank routing into Conductor.
+  private rootMidi:        number       = 36
   private currentBehavior: BassBehavior = BassBehavior.Breathe
 
-  private static readonly ROOT_POOL = [33, 36, 38, 40, 41, 43, 45, 48] 
+  private unsubscribeConductor: (() => void) | null = null
 
-  private chordRootPitchClass: number | null = null  
-  private tonicPitchClass: number = 0  
+  private chordRootPitchClass: number | null = null
+  private tonicPitchClass: number = 0
 
   // Physics cache
   private currentPocket: number = 0
@@ -188,6 +192,30 @@ export class BassGenerator extends GeneratorBase {
     this.fallbackSynth.connect(this.filter)
 
     this.setOutputLevel(0)
+
+    // Phase 2 — lock to the Conductor. Initial root comes from the Conductor's
+    // current chord, and we subscribe so any future advanceChord/setProgression
+    // call moves the bass with the harmony. Until the Orchestrator advances the
+    // Conductor on its bar tick, this just seeds a sensible starting root.
+    const conductor = getConductor()
+    this.rootMidi = this.bassRootFromMidi(conductor.currentChord().rootMidi)
+    this.unsubscribeConductor = conductor.onChordChange((chord) => {
+      const newRoot = this.bassRootFromMidi(chord.rootMidi)
+      if (newRoot === this.rootMidi) return
+      this.rootMidi = newRoot
+      this.chordRootPitchClass = chord.rootMidi % 12
+      if (this.lastOutputGain > 0) this.rebuildPart()
+    })
+  }
+
+  // Map a chord's root MIDI (Conductor parses at octave 4 → MIDI 60+) into the
+  // bass register MIDI 33-48. Drops by octaves rather than clamping so the
+  // pitch class is preserved.
+  private bassRootFromMidi(midi: number): number {
+    let root = midi
+    while (root > 48) root -= 12
+    while (root < 33) root += 12
+    return Math.max(33, Math.min(48, root))
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -250,11 +278,12 @@ export class BassGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      // If chord key is known, stay in key; otherwise pick from pool
+      // Chord-pinned root (legacy setCurrentChord override) wins; otherwise the
+      // Conductor is the source of truth — no more random pool.
       if (this.chordRootPitchClass !== null) {
         this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
       } else {
-        this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+        this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
       }
       this.currentMode     = physics.mode
       this.currentOrganismState = to
@@ -265,11 +294,12 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    // If chord key is known, stay in key; otherwise pick from pool
+    // Chord-pinned root (legacy setCurrentChord override) wins; otherwise the
+    // Conductor is the source of truth.
     if (this.chordRootPitchClass !== null) {
       this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
     } else {
-      this.rootMidi = BassGenerator.ROOT_POOL[Math.floor(Math.random() * BassGenerator.ROOT_POOL.length)]
+      this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
     }
     this.currentMode = physics.mode
     this.currentOrganismState = to
@@ -562,6 +592,10 @@ export class BassGenerator extends GeneratorBase {
 
   dispose(): void {
     this.stopPart()
+    if (this.unsubscribeConductor) {
+      this.unsubscribeConductor()
+      this.unsubscribeConductor = null
+    }
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
       this.pendingSynthDispose = null
