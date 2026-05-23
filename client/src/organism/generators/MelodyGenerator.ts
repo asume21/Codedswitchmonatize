@@ -186,13 +186,17 @@ export class MelodyGenerator extends GeneratorBase {
       envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
     }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3, tags: ['chill', 'ethereal'] },
 
-    // Bowed strings — solo violin (Drake/Alchemist soul), expressive cello
+    // Bowed strings — solo violin (Drake/Alchemist soul), expressive cello.
+    // Pro-violin envelope: longer bow-on-string attack (~200ms) + sustained
+    // 1.5s release tail = legato phrasing instead of staccato note-stabs.
+    // Higher chorusWet (~0.45) adds the lush ensemble shimmer real solo
+    // violins get in studio production via stereo doubling.
     { name: 'Solo Violin', type: 'Sampler', presetId: 'violin', options: {
-      envelope: { attack: 0.08, release: 0.5 }
-    }, volume: -2, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'soulful', 'warm'] },
+      envelope: { attack: 0.20, release: 1.5 }
+    }, volume: 1, chorusWet: 0.45, reverbDecay: 2.5, delayFeedback: 0.12, tags: ['acoustic', 'soulful', 'warm'] },
     { name: 'Cello Lead', type: 'Sampler', presetId: 'cello', options: {
-      envelope: { attack: 0.1, release: 0.8 }
-    }, volume: -3, chorusWet: 0.2, reverbDecay: 1.8, delayFeedback: 0.08, tags: ['acoustic', 'dark', 'soulful'] },
+      envelope: { attack: 0.22, release: 1.8 }
+    }, volume: 0, chorusWet: 0.40, reverbDecay: 2.8, delayFeedback: 0.10, tags: ['acoustic', 'dark', 'soulful'] },
 
     // Winds — Future Hendrix flute, jazz-rap clarinet, cinematic oboe
     { name: 'Flute', type: 'Sampler', presetId: 'flute', options: {
@@ -337,22 +341,23 @@ export class MelodyGenerator extends GeneratorBase {
 
   /**
    * Called by the orchestrator on each arrangement section change.
-   * Sets the melody behavior (density) appropriate for the section:
-   *   intro/breakdown → Rest (melody plays alone or drops out — drums carry the space)
-   *   verse           → Hint (short fills, leaves room for the rapper)
-   *   build/drop/drop2 → Lead (full phrase, melody is front and center)
+   * Sets the melody behavior (density) appropriate for the section.
+   *
+   * Previously verses forced Behavior.Hint ("sparse fills only — leaves
+   * space for the rapper") which was correct for rap-with-vocals but felt
+   * broken when the user is *not* actively rapping — melody just disappears.
+   *
+   * New approach: let getMelodyBehavior() decide for every section. It
+   * already responds to voice activity (drops density when the rapper is
+   * talking) and flow depth, so vocals get their space dynamically rather
+   * than via a blanket per-section override.
    *
    * The lead instrument DOES NOT change — it is the signature of the beat.
    */
-  onSectionChange(sectionName: string): void {
-    if (sectionName === 'verse') {
-      // Verse: sparse fills only — leaves space for the rapper
-      this.sectionBehavior = MelodyBehavior.Hint
-    } else {
-      // All other sections: let normal getMelodyBehavior() logic run
-      // (responds to voice activity, flow depth, physics mode)
-      this.sectionBehavior = null
-    }
+  onSectionChange(_sectionName: string): void {
+    // Let normal getMelodyBehavior() logic run for every section —
+    // responds to voice activity, flow depth, and physics mode.
+    this.sectionBehavior = null
   }
 
   /**
