@@ -134,10 +134,29 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     }
 
     if (!audioBase64 && !remoteAudioUrl) {
+      // Log + surface what the worker actually returned so we can find which
+      // field name it's using. Without this, "no audio payload" is a dead end.
+      const outputKeys = data.output ? Object.keys(data.output) : []
+      const outputPreview: Record<string, string> = {}
+      if (data.output) {
+        for (const key of outputKeys) {
+          const value = (data.output as Record<string, unknown>)[key]
+          if (typeof value === 'string') {
+            outputPreview[key] = value.length > 80 ? `${value.slice(0, 80)}... (${value.length} chars)` : value
+          } else if (value == null) {
+            outputPreview[key] = `${value}`
+          } else if (typeof value === 'object') {
+            outputPreview[key] = `${Array.isArray(value) ? 'array' : 'object'}(${Object.keys(value as object).length})`
+          } else {
+            outputPreview[key] = String(value)
+          }
+        }
+      }
+      console.error('[runpod-serverless] completed job has no recognized audio field. Output keys:', outputPreview)
       return {
         jobId,
         status: 'error',
-        error: 'RunPod serverless completed but returned no audio payload.',
+        error: `Worker completed but returned no audio. Response keys: [${outputKeys.join(', ') || '(none)'}]. Preview: ${JSON.stringify(outputPreview).slice(0, 300)}`,
         generationS: msToSeconds(data.executionTime),
       }
     }
