@@ -63,10 +63,6 @@ export class DrumGenerator extends GeneratorBase {
   // Sidechain callback — fired on every kick hit so the bass channel can duck
   private onKickTrigger: ((time: number) => void) | null = null
 
-  // Micro-timing humanization — keep the pocket tight first. Larger drift can
-  // make the synth kit sound like it is learning the beat during playback.
-  private readonly humanizeJitterMs: number = 3
-
   // Track last kick time for hat-on-kick ducking
   private lastKickTime: number = 0
   private lastOutputGain: number = 0
@@ -395,10 +391,10 @@ export class DrumGenerator extends GeneratorBase {
       time:       h.time,
       instrument: h.instrument,
       velocity:   h.velocity,
-      // Sub-step humanization offset in seconds. Applied at trigger time below
-      // (after BBS → seconds conversion by Tone.Part) so it survives
-      // quantizeGridTime, which only normalizes the BBS string itself.
-      microShift: h.microShift ?? 0,
+      // Timing is grid-locked here. Pattern swing is represented in the BBS
+      // time before quantization; runtime randomness made the full generator
+      // stack feel "almost together" instead of locked.
+      microShift: 0,
     }))
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
@@ -565,12 +561,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
-    // Micro-timing humanization: ghost notes (low vel) get more timing drift than
-    // downbeats (high vel) — mimics a real drummer who locks kicks/snares but floats ghosts
-    const isGhost = velocity < 0.4
-    const jitterRange = isGhost ? this.humanizeJitterMs : this.humanizeJitterMs * 0.3
-    const jitterSec = ((Math.random() * 2 - 1) * jitterRange) / 1000
-    const t = Math.max(0, time + jitterSec)
+    const t = Math.max(0, time)
 
     const sampledVoice = instrument === DrumInstrument.Hat && velocity > 0.55 ? 'sampleHatOpen' : `sample${instrument}`
     const sampledTime = this.clampTime(sampledVoice, t)

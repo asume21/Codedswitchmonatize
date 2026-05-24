@@ -2,12 +2,8 @@
 // from voice/MIDI input and stock genre presets from DrumPatternLibrary, so
 // both flavors share one hip-hop pocket rather than drifting apart over time.
 //
-// The humanize() rules are applied at pattern-build time, so the same micro-
-// timing offset repeats on every loop of the 4-bar Tone.Part. A future upgrade
-// would move per-strike randomization into DrumGenerator's Tone.Part callback
-// for true human-drummer variance per repetition — the type contract here
-// (microShift in seconds, applied via `time + microShift` in the callback)
-// supports either approach.
+// The humanize() rules are applied at pattern-build time. Timing stays locked
+// to the shared grid; human feel comes from velocity/accent only.
 
 import { DrumInstrument, type DrumHit } from './types'
 
@@ -17,8 +13,8 @@ import { DrumInstrument, type DrumHit } from './types'
  * strength, anchor preset, library swing/accent); humanize layers per-instrument
  * groove rules on top.
  *
- *   Snare: lay back +5–12ms, velocity 90–100% of base
- *   Hat:   sub 0/2 → 85–100% of base, sub 1/3 → 45–60% of base, ±3ms shuffle
+ *   Snare: velocity 90–100% of base
+ *   Hat:   sub 0/2 → 85–100% of base, sub 1/3 → 45–60% of base
  *   Kick:  grid-locked, velocity ±4% variance
  *   Perc / other: pass-through (no humanization)
  */
@@ -32,7 +28,6 @@ export function humanize(
     case DrumInstrument.Snare:
       return {
         velocity: clamp(base * (0.9 + Math.random() * 0.1)),
-        microShift: 0.005 + Math.random() * 0.007,
       }
     case DrumInstrument.Hat: {
       const sub = Math.round(Number(time.split(':')[2]) || 0)
@@ -42,7 +37,6 @@ export function humanize(
         : 0.45 + Math.random() * 0.15
       return {
         velocity: clamp(base * scale),
-        microShift: (Math.random() - 0.5) * 0.006,
       }
     }
     case DrumInstrument.Kick:

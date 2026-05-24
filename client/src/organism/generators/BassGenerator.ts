@@ -480,7 +480,12 @@ export class BassGenerator extends GeneratorBase {
     }
     this.part = null
 
-    const LAY_BACK_SEC = 0.020
+    // Bass used to sit 20ms behind the grid for hip-hop pocket feel, but
+    // when stacked against sampler/synth load-latency micro-jitter the
+    // cumulative offset read as "loose, not pocketed." Locked to zero so
+    // every generator fires on the same Transport tick. Per-genre lay-back
+    // can come back later as a deliberate per-subgenre setting.
+    const LAY_BACK_SEC = 0
 
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)

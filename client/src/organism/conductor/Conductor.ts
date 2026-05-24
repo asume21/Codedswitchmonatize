@@ -169,6 +169,42 @@ export interface ConductorOptions {
   scale?:    ScaleType    // optional override; defaults to sub-genre's preferred
 }
 
+export interface ConductorScoreContext {
+  bar?: number
+  bpm?: number
+  section?: string
+  energy?: number
+  density?: number
+  groove?: string
+  mood?: string
+}
+
+export interface ConductorScoreFrame {
+  bar: number
+  bpm: number
+  section: string
+  key: string
+  rootPitchClass: number
+  scale: ScaleType
+  scaleIntervals: number[]
+  subGenre: string
+  mood: string
+  chordIndex: number
+  currentChord: ParsedChord
+  nextChord: ParsedChord
+  progression: ParsedChord[]
+  energy: number
+  density: number
+  groove: string
+  aceStep: {
+    genre: string
+    mood: string
+    bpm: number
+    section: string
+    promptTags: string[]
+  }
+}
+
 export class Conductor {
   private key: string
   private subGenre: string
@@ -176,6 +212,15 @@ export class Conductor {
   private progression: ParsedChord[]
   private chordIndex = 0
   private chordChangeListeners: Array<(chord: ParsedChord) => void> = []
+  private scoreContext: Required<ConductorScoreContext> = {
+    bar: 0,
+    bpm: 90,
+    section: 'intro',
+    energy: 0,
+    density: 0,
+    groove: 'straight',
+    mood: 'focused',
+  }
 
   constructor(options: ConductorOptions = {}) {
     this.key = options.key ?? 'C'
@@ -272,7 +317,67 @@ export class Conductor {
     return this.chordIndex
   }
 
+  /** The current real-time score snapshot every band member should read. */
+  getScoreFrame(): ConductorScoreFrame {
+    return {
+      bar: this.scoreContext.bar,
+      bpm: this.scoreContext.bpm,
+      section: this.scoreContext.section,
+      key: this.key,
+      rootPitchClass: this.getKeyPitchClass(),
+      scale: this.scale,
+      scaleIntervals: this.scaleIntervals(),
+      subGenre: this.subGenre,
+      mood: this.scoreContext.mood,
+      chordIndex: this.chordIndex,
+      currentChord: this.currentChord(),
+      nextChord: this.nextChord(),
+      progression: this.getProgression(),
+      energy: this.scoreContext.energy,
+      density: this.scoreContext.density,
+      groove: this.scoreContext.groove,
+      aceStep: this.buildAceStepFrame(),
+    }
+  }
+
+  private buildAceStepFrame(): ConductorScoreFrame['aceStep'] {
+    const mood = this.scoreContext.mood
+    const tags = [
+      this.subGenre,
+      'hip-hop',
+      mood,
+      `${this.scoreContext.bpm} bpm`,
+      this.scoreContext.section,
+      this.scale,
+      this.scoreContext.groove,
+      'instrumental',
+      'studio quality',
+      'professional mix',
+      'no vocals',
+    ].filter(Boolean)
+
+    return {
+      genre: this.subGenre,
+      mood,
+      bpm: this.scoreContext.bpm,
+      section: this.scoreContext.section,
+      promptTags: Array.from(new Set(tags)),
+    }
+  }
+
   // ── Public write API — orchestrator drives these ─────────────────
+
+  /** Update non-harmonic score context from the arranger/orchestrator. */
+  updateScoreContext(context: ConductorScoreContext): void {
+    this.scoreContext = {
+      ...this.scoreContext,
+      ...context,
+      bar: context.bar == null ? this.scoreContext.bar : Math.max(0, Math.floor(context.bar)),
+      bpm: context.bpm == null ? this.scoreContext.bpm : Math.max(40, Math.min(220, Math.round(context.bpm))),
+      energy: context.energy == null ? this.scoreContext.energy : Math.max(0, Math.min(1, context.energy)),
+      density: context.density == null ? this.scoreContext.density : Math.max(0, Math.min(1, context.density)),
+    }
+  }
 
   /**
    * Move to the next chord in the progression. Typically called every

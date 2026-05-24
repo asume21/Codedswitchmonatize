@@ -26,6 +26,12 @@ describe('DrumPatternLibrary', () => {
     expect(second).toEqual(first)
   })
 
+  it('keeps generated hits grid-locked without runtime micro-shifts', () => {
+    const hits = buildSubGenrePattern('trap', 0).hits
+
+    expect(hits.every(hit => hit.microShift == null)).toBe(true)
+  })
+
   it('anchors foundation grooves with kick and snare responsibilities', () => {
     const hits = buildDrumPattern(getDrumKit(OrganismMode.Smoke), OrganismMode.Smoke, 0).hits
 

@@ -386,10 +386,32 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   pickNewProgression(): void {
-    this.currentProgression = pickProgression(this.currentMode)
+    this.currentProgression = this.pickProgressionWithVariation()
     this.currentChordIndex = 0
+    this.lastRebuildTime = -Infinity
     this.rebuildPart()
     console.debug(`🎹 New progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
+  }
+
+  private pickProgressionWithVariation(): ParsedProgression {
+    const currentSignature = this.currentProgression
+      ? this.progressionSignature(this.currentProgression)
+      : null
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const next = pickProgression(this.currentMode)
+      if (this.progressionSignature(next) !== currentSignature) {
+        return next
+      }
+    }
+
+    return pickProgression(this.currentMode)
+  }
+
+  private progressionSignature(progression: ParsedProgression): string {
+    return progression.chords
+      .map(chord => `${chord.rootOffset}:${chord.intervals.join('.')}`)
+      .join('|')
   }
 
   private getChordBehavior(organism: OrganismState): ChordBehavior {
@@ -598,6 +620,8 @@ export class ChordGenerator extends GeneratorBase {
    *   build/drop/drop2 → mode default (punchy stab or block chord)
    */
   onSectionChange(sectionName: string, aiTechnique?: string): void {
+    const shouldRotateProgression = !this.progressionLocked && this.currentProgression !== null
+
     if (aiTechnique) {
       // AI Director explicitly chose a technique — map its shorthand to technique IDs
       const techniqueMap: Record<string, string | null> = {
@@ -606,15 +630,17 @@ export class ChordGenerator extends GeneratorBase {
         stab:   null,  // null = mode default (punchy stab)
       }
       this.sectionTechniqueId = (aiTechnique in techniqueMap) ? techniqueMap[aiTechnique] : null
-      return
-    }
-    if (sectionName === 'intro' || sectionName === 'breakdown') {
+    } else if (sectionName === 'intro' || sectionName === 'breakdown') {
       this.sectionTechniqueId = 'piano-sustained-pad'
     } else if (sectionName === 'verse') {
       this.sectionTechniqueId = 'piano-rolled-chord'
     } else {
       // build / drop / drop2 — let mode default take over (punchy stab)
       this.sectionTechniqueId = null
+    }
+
+    if (shouldRotateProgression) {
+      this.pickNewProgression()
     }
   }
 

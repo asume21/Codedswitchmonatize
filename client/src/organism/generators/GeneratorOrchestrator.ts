@@ -19,6 +19,7 @@ import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibra
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
+import { getConductor } from '../conductor/Conductor'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -93,7 +94,7 @@ export class GeneratorOrchestrator {
   // AI Director overrides — keyed by section name, applied next time that section starts
   private aiDirectiveOverrides: Map<string, {
     drumsArrangement: number; bassVolume: number; melodyVolume: number; chordTechnique: string
-    hatDensity: number; kickPunch: number
+    hatDensity: number; kickPunch: number; energy: number; subGenre: HipHopSubGenre; groove: string
   }> = new Map()
 
   // Chord-awareness bridge: unsub stored for dispose()
@@ -1107,6 +1108,22 @@ export class GeneratorOrchestrator {
 
     // Merge AI directive if one was buffered for this section
     const aiOverride = this.aiDirectiveOverrides.get(section.name)
+    const musicalState = this.director.getState()
+    const scoreSubGenre = aiOverride?.subGenre ?? musicalState.subGenre
+    const scoreEnergy = aiOverride?.energy ?? musicalState.energy
+    const scoreGroove = aiOverride?.groove ?? scoreSubGenre
+
+    const conductor = getConductor()
+    conductor.setSubGenre(scoreSubGenre)
+    conductor.updateScoreContext({
+      bar: barNumber,
+      bpm: transport.bpm.value,
+      section: section.name,
+      energy: scoreEnergy,
+      density: musicalState.density,
+      groove: scoreGroove,
+      mood: scoreSubGenre,
+    })
 
     const drumsMultiplier = aiOverride ? aiOverride.drumsArrangement : section.drums
     const bassMultiplier  = aiOverride ? aiOverride.bassVolume        : section.bass
@@ -1174,6 +1191,7 @@ export class GeneratorOrchestrator {
    * The values are applied the next time applyArrangement() enters that section.
    */
   setNextSectionDirective(directive: import('../AIDirector').AIBeatDirective): void {
+    const subGenre = this.normalizeAceSubGenre(directive.subGenre)
     this.aiDirectiveOverrides.set(directive.section, {
       drumsArrangement: directive.drums.arrangement,
       bassVolume:       directive.bass.volume,
@@ -1181,7 +1199,16 @@ export class GeneratorOrchestrator {
       chordTechnique:   directive.melody.chordTechnique,
       hatDensity:       directive.drums.hat,
       kickPunch:        directive.drums.kick,
+      energy:           directive.energy,
+      subGenre,
+      groove:           directive.groove,
     })
+  }
+
+  private normalizeAceSubGenre(subGenre: import('../AIDirector').AIBeatDirective['subGenre']): HipHopSubGenre {
+    if (subGenre === 'afrobeats') return 'afrobeat'
+    if (subGenre === 'r&b-soul') return 'chill'
+    return subGenre
   }
 
   /** Discard all buffered AI section directives (call on stop/reset so stale overrides
