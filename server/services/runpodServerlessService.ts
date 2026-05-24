@@ -112,21 +112,15 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
   const mapped = mapStatus(data.status)
 
   if (mapped === 'done') {
-    const format = data.output?.format === 'mp3' ? 'mp3' : 'wav'
+    const format = (data.output as any)?.format === 'mp3' ? 'mp3' : 'wav'
     const filename = `${jobId}.${format}`
     const outputPath = path.join(OUTPUT_DIR, filename)
 
-    // The worker's "audio" field can be EITHER inline base64 OR a URL. The
-    // original code blindly base64-decoded whichever was set — when the
-    // worker returns a URL, Buffer.from(url, 'base64') produces garbage bytes
-    // that get saved as .wav, and the user plays "completely scrambled" noise.
-    // Detect the shape before decoding.
-    const audioField = data.output?.audio
-    const audioFieldIsUrl = typeof audioField === 'string' && /^https?:\/\//i.test(audioField)
-    const audioBase64 = normalizeBase64(
-      data.output?.audio_base64 ?? (audioFieldIsUrl ? undefined : audioField)
-    )
-    const remoteAudioUrl = audioFieldIsUrl ? audioField : getRemoteAudioUrl(data.output)
+    // RunPod-template authors use a zoo of field names. Cast a wide net so
+    // we don't need a new code change per worker template. resolveAudio()
+    // returns either inline base64 or a remote URL — whichever the worker
+    // chose to use.
+    const { audioBase64, remoteAudioUrl } = resolveAudio(data.output)
 
     if (audioBase64 && !fs.existsSync(outputPath)) {
       fs.mkdirSync(OUTPUT_DIR, { recursive: true })
@@ -214,6 +208,53 @@ function getRemoteAudioUrl(output: RunPodStatusResponse['output']): string | und
   const url = output.audio_url ?? output.output_url ?? output.file_url ?? output.url
   if (!url || !/^https?:\/\//i.test(url)) return undefined
   return url
+}
+
+// Common field names worker templates use for audio. Order doesn't matter
+// for correctness — a URL-looking value goes to remoteAudioUrl, otherwise
+// it's treated as base64.
+const AUDIO_FIELD_CANDIDATES = [
+  'audio_base64', 'audio', 'audio_data', 'audioData', 'audioBase64',
+  'b64', 'b64_audio', 'wav_base64', 'mp3_base64', 'data',
+  'audio_url', 'audioUrl', 'output_url', 'outputUrl',
+  'file_url', 'fileUrl', 'download_url', 'downloadUrl',
+  'url', 'audio_file', 'audioFile', 'result',
+] as const
+
+function pickAudio(obj: unknown): { audioBase64?: string; remoteAudioUrl?: string } {
+  if (!obj || typeof obj !== 'object') return {}
+  const record = obj as Record<string, unknown>
+
+  for (const key of AUDIO_FIELD_CANDIDATES) {
+    const value = record[key]
+    if (typeof value !== 'string' || value.length === 0) continue
+
+    if (/^https?:\/\//i.test(value)) {
+      return { remoteAudioUrl: value }
+    }
+    // Skip values that are too short to be audio (likely status flags)
+    if (value.length < 32) continue
+    const normalized = normalizeBase64(value)
+    if (normalized) return { audioBase64: normalized }
+  }
+  return {}
+}
+
+// Resolve audio from common worker response shapes, including a few nested
+// containers we've seen (output.result, output.data, output.output).
+function resolveAudio(output: unknown): { audioBase64?: string; remoteAudioUrl?: string } {
+  const top = pickAudio(output)
+  if (top.audioBase64 || top.remoteAudioUrl) return top
+
+  if (output && typeof output === 'object') {
+    const record = output as Record<string, unknown>
+    for (const container of ['result', 'data', 'output', 'payload']) {
+      const nested = pickAudio(record[container])
+      if (nested.audioBase64 || nested.remoteAudioUrl) return nested
+    }
+  }
+
+  return {}
 }
 
 function normalizeBase64(value: string | undefined): string | undefined {
