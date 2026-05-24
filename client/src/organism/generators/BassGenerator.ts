@@ -251,12 +251,14 @@ export class BassGenerator extends GeneratorBase {
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
 
-    // Update Modulation: Filter oscillation (wobble) increases with flow intensity.
-    // At deep flow, the bass starts to breathe and growl.
+    // Filter LFO — subtle "breathing" warmth as flow deepens. The original
+    // 6Hz × 200Hz depth was textbook dubstep wobble (the bass sounded like
+    // it was drowning at high flow). Capped to 1.5Hz × 35Hz — slow enough
+    // to feel like a breath, narrow enough to keep pitch perception intact.
     const flowIntensity = organism.flowDepth
-    const lfoRate = flowIntensity * 6 // 0 to 6Hz
-    const lfoDepth = flowIntensity * 200 // 0 to 200Hz sweep depth
-    
+    const lfoRate  = flowIntensity * 1.5   // 0 → 1.5 Hz (breath, not wobble)
+    const lfoDepth = flowIntensity * 35    // 0 → 35 Hz (warmth, not sweep)
+
     this.lfo.frequency.rampTo(lfoRate, 0.5)
     this.lfoGain.gain.rampTo(lfoDepth, 0.5)
   }
