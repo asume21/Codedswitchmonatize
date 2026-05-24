@@ -115,8 +115,18 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     const format = data.output?.format === 'mp3' ? 'mp3' : 'wav'
     const filename = `${jobId}.${format}`
     const outputPath = path.join(OUTPUT_DIR, filename)
-    const audioBase64 = normalizeBase64(data.output?.audio_base64 ?? data.output?.audio)
-    const remoteAudioUrl = getRemoteAudioUrl(data.output)
+
+    // The worker's "audio" field can be EITHER inline base64 OR a URL. The
+    // original code blindly base64-decoded whichever was set — when the
+    // worker returns a URL, Buffer.from(url, 'base64') produces garbage bytes
+    // that get saved as .wav, and the user plays "completely scrambled" noise.
+    // Detect the shape before decoding.
+    const audioField = data.output?.audio
+    const audioFieldIsUrl = typeof audioField === 'string' && /^https?:\/\//i.test(audioField)
+    const audioBase64 = normalizeBase64(
+      data.output?.audio_base64 ?? (audioFieldIsUrl ? undefined : audioField)
+    )
+    const remoteAudioUrl = audioFieldIsUrl ? audioField : getRemoteAudioUrl(data.output)
 
     if (audioBase64 && !fs.existsSync(outputPath)) {
       fs.mkdirSync(OUTPUT_DIR, { recursive: true })
