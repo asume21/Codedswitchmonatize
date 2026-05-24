@@ -562,6 +562,7 @@ export function OrganismCommandCenter() {
   const [renderDuration, setRenderDuration] = useState<number | null>(null)
   const [renderGenerationSeconds, setRenderGenerationSeconds] = useState<number | null>(null)
   const [renderPrompt, setRenderPrompt] = useState<string | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
   const [referenceMode, setReferenceMode] = useState<'live' | 'rendered'>('live')
   const renderPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const renderAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -661,6 +662,7 @@ export function OrganismCommandCenter() {
     setRenderDuration(null)
     setRenderGenerationSeconds(null)
     setRenderPrompt(null)
+    setRenderError(null)
 
     const genre   = currentVibe?.genre ?? activePreset?.genre ?? 'trap'
     const mood    = currentVibe?.mood  ?? 'dark'
@@ -696,16 +698,27 @@ export function OrganismCommandCenter() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ genre, mood, bpm, section, audioDuration: RENDER_TRACK_DURATION_SECONDS, inferStep: 25, extraHints }),
       })
-      if (!res.ok) throw new Error(`Generate failed: ${res.status}`)
+      if (!res.ok) {
+        // Server returned 4xx/5xx — surface the error body so the user can see
+        // what's wrong (RunPod not configured, pod offline, etc.) instead of
+        // staring at a spinning "Render" button forever.
+        const errBody = await res.text().catch(() => '')
+        console.error('[render] /generate failed', res.status, errBody)
+        setRenderError(`Render failed (${res.status}): ${errBody || res.statusText}`)
+        setRenderState('error')
+        return
+      }
       const { jobId, prompt } = await res.json() as { jobId: string; prompt?: string }
       setRenderPrompt(prompt ?? null)
       setRenderState('generating')
       const pollDeadline = Date.now() + RENDER_TRACK_POLL_TIMEOUT_MS
+      let consecutivePollErrors = 0
 
       const poll = setInterval(async () => {
         if (Date.now() > pollDeadline) {
           clearInterval(poll)
           renderPollRef.current = null
+          setRenderError(`Render timed out after ${Math.round(RENDER_TRACK_POLL_TIMEOUT_MS / 1000)}s waiting for worker.`)
           setRenderState('error')
           return
         }
@@ -715,7 +728,20 @@ export function OrganismCommandCenter() {
             cache: 'no-store',
             headers: { 'Cache-Control': 'no-cache' },
           })
-          if (!jr.ok) return
+          if (!jr.ok) {
+            // After 8 consecutive poll failures (~16s), assume the worker is
+            // unreachable rather than retrying forever and burning time.
+            consecutivePollErrors++
+            if (consecutivePollErrors >= 8) {
+              clearInterval(poll)
+              renderPollRef.current = null
+              const errBody = await jr.text().catch(() => '')
+              setRenderError(`Worker poll keeps failing (${jr.status}): ${errBody || jr.statusText}`)
+              setRenderState('error')
+            }
+            return
+          }
+          consecutivePollErrors = 0
           const job = await jr.json() as {
             status: string
             output_url?: string
@@ -724,6 +750,7 @@ export function OrganismCommandCenter() {
             durationS?: number
             generation_s?: number
             generationS?: number
+            error?: string
           }
           const outputUrl = job.output_url ?? job.outputUrl
           if (job.status === 'done' && outputUrl) {
@@ -737,12 +764,23 @@ export function OrganismCommandCenter() {
           } else if (job.status === 'error') {
             clearInterval(poll)
             renderPollRef.current = null
+            setRenderError(job.error ? `Worker error: ${job.error}` : 'Worker returned error with no detail.')
             setRenderState('error')
           }
-        } catch { /* keep polling */ }
+        } catch (err) {
+          consecutivePollErrors++
+          if (consecutivePollErrors >= 8) {
+            clearInterval(poll)
+            renderPollRef.current = null
+            setRenderError(`Worker poll network error: ${err instanceof Error ? err.message : String(err)}`)
+            setRenderState('error')
+          }
+        }
       }, 2000)
       renderPollRef.current = poll
-    } catch {
+    } catch (err) {
+      console.error('[render] handleRender threw', err)
+      setRenderError(err instanceof Error ? err.message : String(err))
       setRenderState('error')
     }
   }, [renderState, currentVibe, activePreset, v2Status, currentBpm, orchestrator])
@@ -1111,6 +1149,22 @@ export function OrganismCommandCenter() {
           {renderState === 'idle'       && 'Render Track'}
         </button>
       </div>
+
+      {renderState === 'error' && renderError && (
+        <div style={{
+          marginTop: 6,
+          padding: '6px 8px',
+          borderRadius: 5,
+          border: '1px solid rgba(251,191,36,0.35)',
+          background: 'rgba(251,191,36,0.06)',
+          color: '#fbbf24',
+          fontSize: 11,
+          maxWidth: 360,
+          wordBreak: 'break-word',
+        }}>
+          {renderError}
+        </div>
+      )}
 
       {renderAudioUrl && (
         <div style={{

@@ -145,19 +145,45 @@ async function buildAceStepPrompt(opts: AcePromptOptions): Promise<string> {
 export function createAceStepRoutes(): Router {
   const router = Router()
 
-  // Worker health
+  // Worker health — verbose diagnostics so failures are visible instead of
+  // turning into a spinning Render button. Reports env-var presence,
+  // backend type, pod liveness, and the actual /health response.
   router.get('/status', async (_req: Request, res: Response) => {
-    try {
-      const ready = await isWorkerReady()
-      res.json({
-        ready,
-        backend: isServerlessConfigured() ? 'runpod-serverless' : 'worker',
-        endpointId: getServerlessEndpointId(),
-        workerUrl: process.env.ACE_STEP_WORKER_URL ?? 'http://127.0.0.1:8008',
-      })
-    } catch (err: any) {
-      res.json({ ready: false, error: err.message })
+    const env = {
+      RUNPOD_API_KEY:                 Boolean(process.env.RUNPOD_API_KEY),
+      RUNPOD_POD_ID:                  process.env.RUNPOD_POD_ID || null,
+      RUNPOD_SERVERLESS_ENDPOINT_ID:  process.env.RUNPOD_SERVERLESS_ENDPOINT_ID || null,
+      ACE_STEP_WORKER_URL:            process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008 (default)',
     }
+    const backend = isServerlessConfigured() ? 'runpod-serverless'
+                  : (process.env.RUNPOD_API_KEY && process.env.RUNPOD_POD_ID) ? 'runpod-pod'
+                  : 'local-worker'
+
+    let ready = false
+    let healthDetail: string | null = null
+    try { ready = await isWorkerReady() } catch (err: any) { healthDetail = err.message }
+
+    // For the legacy pod path, also try a direct /health probe so the user can
+    // see what the worker says even if the dispatcher logic thinks it's down.
+    let directHealth: unknown = null
+    if (!isServerlessConfigured()) {
+      const workerUrl = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
+      try {
+        const r = await fetch(`${workerUrl}/health`, { signal: AbortSignal.timeout(4000) })
+        directHealth = { ok: r.ok, status: r.status, body: await r.json().catch(() => null) }
+      } catch (err: any) {
+        directHealth = { reachable: false, error: err.message }
+      }
+    }
+
+    res.json({
+      ready,
+      backend,
+      env,
+      endpointId: getServerlessEndpointId(),
+      directHealth,
+      healthDetail,
+    })
   })
 
   // Submit generation job
