@@ -82,6 +82,35 @@ def build_instruction(task_type: str, track_name: str | None) -> str:
 
 
 def handler(event):
+    # Top-level guard: convert any Python-side failure into an explicit raise
+    # with full type/message so it lands in RunPod's `error` field instead of
+    # a silent COMPLETED+null. SIGKILLs (OOM-killer, container reset) still
+    # escape this — but the [ace-step] log lines below let us see how far we
+    # got before death.
+    try:
+        return _run_generation(event)
+    except Exception as exc:
+        is_oom = (
+            "out of memory" in str(exc).lower()
+            or "CUDA out of memory" in str(exc)
+            or "CUBLAS" in str(exc).upper()
+        )
+        print(f"[ace-step] handler error: {type(exc).__name__}: {exc} (is_oom={is_oom})", flush=True)
+
+        if is_oom and not _as_bool(os.getenv("ACE_STEP_CPU_OFFLOAD"), default=False):
+            print("[ace-step] OOM detected; retrying once with cpu_offload=true", flush=True)
+            os.environ["ACE_STEP_CPU_OFFLOAD"] = "true"
+            global DIT_HANDLER
+            DIT_HANDLER = None  # force model re-init with offload enabled
+            try:
+                return _run_generation(event)
+            except Exception as exc2:
+                print(f"[ace-step] OOM retry also failed: {type(exc2).__name__}: {exc2}", flush=True)
+                raise RuntimeError(f"OOM retry failed: {type(exc2).__name__}: {exc2}") from exc2
+        raise
+
+
+def _run_generation(event):
     from acestep.inference import generate_music, GenerationParams, GenerationConfig
 
     payload = event.get("input") or {}
@@ -139,7 +168,9 @@ def handler(event):
         seeds=[seed],
     )
 
+    print(f"[ace-step] generating job={job_id} duration={generation_duration:.1f}s steps={infer_steps} seed={seed}", flush=True)
     ace = get_dit_handler()
+    print(f"[ace-step] model ready (after {time.time() - t0:.1f}s); starting inference", flush=True)
     result = generate_music(
         dit_handler=ace,
         llm_handler=None,
@@ -147,6 +178,7 @@ def handler(event):
         config=config,
         save_dir=str(OUTPUT_DIR),
     )
+    print(f"[ace-step] inference done (after {time.time() - t0:.1f}s); success={result.success}", flush=True)
 
     if not result.success or not result.audios:
         raise RuntimeError(result.error or "ACE-Step generation produced no audio")

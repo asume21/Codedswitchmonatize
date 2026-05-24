@@ -8,6 +8,18 @@ const OUTPUT_DIR = path.resolve(process.cwd(), 'private', 'ace-step', 'output')
 const apiKey = process.env.RUNPOD_API_KEY ?? ''
 const endpointId = process.env.RUNPOD_SERVERLESS_ENDPOINT_ID ?? ''
 
+// Worker process sometimes dies mid-generation (OOM kill on cold cold-starts),
+// leaving us with status=COMPLETED and output=null. We can't fix the worker
+// from here, but we can transparently re-submit once before the user sees
+// failure. Map keyed by the jobId we originally returned to the caller.
+const MAX_SILENT_FAILURE_RETRIES = 1
+interface JobMeta {
+  req: AceStepRequest
+  currentRunpodJobId: string
+  retriesUsed: number
+}
+const jobMeta = new Map<string, JobMeta>()
+
 type RunPodStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT'
 
 interface RunPodRunResponse {
@@ -46,6 +58,14 @@ export function getServerlessEndpointId(): string | null {
 }
 
 export async function submitServerlessGeneration(req: AceStepRequest): Promise<string> {
+  const jobId = await submitRunpodJob(req)
+  jobMeta.set(jobId, { req, currentRunpodJobId: jobId, retriesUsed: 0 })
+  return jobId
+}
+
+// Pure HTTP submit — no cache side effect. Used both for initial submission
+// and for silent-failure retries from pollServerlessJob.
+async function submitRunpodJob(req: AceStepRequest): Promise<string> {
   assertConfigured()
 
   const body = {
@@ -95,7 +115,12 @@ export async function submitServerlessGeneration(req: AceStepRequest): Promise<s
 export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
   assertConfigured()
 
-  const res = await fetch(`${RUNPOD_API_BASE}/${endpointId}/status/${encodeURIComponent(jobId)}`, {
+  // If we've silently re-submitted this job (worker died on the first run),
+  // poll the new RunPod jobId. The caller still sees the original jobId.
+  const meta = jobMeta.get(jobId)
+  const runpodJobId = meta?.currentRunpodJobId ?? jobId
+
+  const res = await fetch(`${RUNPOD_API_BASE}/${endpointId}/status/${encodeURIComponent(runpodJobId)}`, {
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Accept': 'application/json',
@@ -108,7 +133,15 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     throw new Error(`RunPod serverless status failed: ${res.status} ${text}`)
   }
 
-  const data = await res.json() as RunPodStatusResponse
+  // Read as text first so empty/no-audio errors can surface the raw body —
+  // makes "Response keys: [(none)]" failures self-diagnosing.
+  const rawText = await res.text()
+  let data: RunPodStatusResponse
+  try {
+    data = JSON.parse(rawText) as RunPodStatusResponse
+  } catch {
+    throw new Error(`RunPod serverless returned non-JSON for job ${runpodJobId} (first 400 chars): ${rawText.slice(0, 400)}`)
+  }
   const mapped = mapStatus(data.status)
 
   if (mapped === 'done') {
@@ -128,8 +161,26 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
     }
 
     if (!audioBase64 && !remoteAudioUrl) {
-      // Log + surface what the worker actually returned so we can find which
-      // field name it's using. Without this, "no audio payload" is a dead end.
+      // Silent worker death: status=COMPLETED but no audio. Most often this
+      // is a SIGKILL during cold-start model load. Re-submit once before
+      // surfacing failure — usually a warm worker handles the second attempt.
+      if (meta && meta.retriesUsed < MAX_SILENT_FAILURE_RETRIES) {
+        const newRunpodJobId = await submitRunpodJob(meta.req)
+        meta.currentRunpodJobId = newRunpodJobId
+        meta.retriesUsed += 1
+        console.warn(
+          `[runpod-serverless] silent failure on ${runpodJobId} ` +
+          `(execTime: ${data.executionTime ?? '?'}ms); resubmitted as ${newRunpodJobId} ` +
+          `(retry ${meta.retriesUsed}/${MAX_SILENT_FAILURE_RETRIES})`
+        )
+        return {
+          jobId,
+          status: 'running',
+          generationS: msToSeconds(data.executionTime),
+        }
+      }
+
+      // No more retries — surface the failure with the raw body for forensics.
       const outputKeys = data.output ? Object.keys(data.output) : []
       const outputPreview: Record<string, string> = {}
       if (data.output) {
@@ -146,15 +197,20 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
           }
         }
       }
-      console.error('[runpod-serverless] completed job has no recognized audio field. Output keys:', outputPreview)
+      console.error('[runpod-serverless] silent failure persisted after retries', {
+        jobId, runpodJobId, retriesUsed: meta?.retriesUsed ?? 0,
+        outputPreview, rawResponse: rawText.slice(0, 2000),
+      })
+      jobMeta.delete(jobId)
       return {
         jobId,
         status: 'error',
-        error: `Worker completed but returned no audio. Response keys: [${outputKeys.join(', ') || '(none)'}]. Preview: ${JSON.stringify(outputPreview).slice(0, 300)}`,
+        error: `Worker completed but returned no audio after ${(meta?.retriesUsed ?? 0) + 1} attempt(s). Response keys: [${outputKeys.join(', ') || '(none)'}]. Preview: ${JSON.stringify(outputPreview).slice(0, 200)}. Raw body (first 400 chars): ${rawText.slice(0, 400)}`,
         generationS: msToSeconds(data.executionTime),
       }
     }
 
+    jobMeta.delete(jobId)
     return {
       jobId,
       status: 'done',
@@ -166,6 +222,10 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
       trackName: data.output?.track_name,
       instrumental: data.output?.instrumental,
     }
+  }
+
+  if (mapped === 'error') {
+    jobMeta.delete(jobId)
   }
 
   return {
