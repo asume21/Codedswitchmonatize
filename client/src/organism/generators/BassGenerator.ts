@@ -60,6 +60,10 @@ export class BassGenerator extends GeneratorBase {
   private currentBehavior: BassBehavior = BassBehavior.Breathe
 
   private unsubscribeConductor: (() => void) | null = null
+  // Set by the Conductor's onChordChange listener; consumed on the next
+  // processFrame so rebuildPart never runs inside a Tone.js audio-thread
+  // callback (Phase 4 prep — matches Melody's scaleDirty pattern).
+  private conductorChordDirty: boolean = false
 
   private chordRootPitchClass: number | null = null
   private tonicPitchClass: number = 0
@@ -204,7 +208,10 @@ export class BassGenerator extends GeneratorBase {
       if (newRoot === this.rootMidi) return
       this.rootMidi = newRoot
       this.chordRootPitchClass = chord.rootMidi % 12
-      if (this.lastOutputGain > 0) this.rebuildPart()
+      // Defer rebuild to the next processFrame. Calling rebuildPart() here
+      // would run new Tone.Part(...).start() inside the audio-thread callback
+      // that fired this listener (Phase 4 attempt ea4e43e showed audible drift).
+      this.conductorChordDirty = true
     })
   }
 
@@ -234,6 +241,13 @@ export class BassGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
+      this.rebuildPart(physics)
+      // The behavior-change rebuild already used the latest rootMidi, so the
+      // pending conductor flag is satisfied — clearing avoids a redundant
+      // rebuild on the same frame.
+      this.conductorChordDirty = false
+    } else if (this.conductorChordDirty && this.lastOutputGain > 0) {
+      this.conductorChordDirty = false
       this.rebuildPart(physics)
     }
 

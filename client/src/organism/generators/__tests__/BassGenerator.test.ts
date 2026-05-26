@@ -9,6 +9,7 @@ import { createToneMock, mockPartStart, mockFilterFreqRampTo } from './__mocks__
 vi.mock('tone', () => createToneMock())
 
 import { BassGenerator } from '../BassGenerator'
+import { getConductor, resetConductor } from '../../conductor/Conductor'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ describe('BassGenerator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetConductor()
     gen = new BassGenerator()
   })
 
@@ -101,6 +103,32 @@ describe('BassGenerator', () => {
     const report = gen.getActivityReport(Date.now())
     expect(report.activityLevel).toBeGreaterThan(0.35)
     expect(report.activityLevel).toBeLessThan(0.65)
+  })
+
+  it('Conductor advanceChord defers rebuild — does NOT call Part.start inside the listener', () => {
+    // The Conductor listener fires synchronously inside advanceChord(). If
+    // rebuildPart() ran from there, Tone.Part.start() would execute on the
+    // audio thread (the bug from reverted commit ea4e43e). Phase 4 prep:
+    // listener only sets a dirty flag — rebuild happens on the next
+    // processFrame, off the audio callback.
+    const physics = makePhysics()
+    gen.onStateTransition(OState.Breathing, physics)
+    const organism = makeOrganism({ current: OState.Breathing, breathingWarmth: 1 })
+    for (let i = 0; i < 50; i++) gen.processFrame(physics, organism)
+
+    vi.clearAllMocks()
+    getConductor().advanceChord()
+
+    // The primary guarantee: zero Tone.Part.start() calls from the listener.
+    expect(mockPartStart).not.toHaveBeenCalled()
+    // The dirty flag is the deferred-work signal consumed on next frame.
+    expect((gen as any).conductorChordDirty).toBe(true)
+
+    gen.processFrame(physics, organism)
+    // Flag is consumed even when the rebuild throttle blocks the actual
+    // Tone.Part rebuild — the contract is that the listener never directly
+    // rebuilds, not that every frame rebuilds.
+    expect((gen as any).conductorChordDirty).toBe(false)
   })
 
   it('reset() zeros activity level and stops part', () => {
