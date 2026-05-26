@@ -15,7 +15,11 @@ import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
 import { localAI } from '../services/localAI'
 
-const OUTPUT_DIR = path.resolve(process.cwd(), 'private', 'ace-step', 'output')
+// Keep in sync with runpodServerlessService.OUTPUT_DIR — both point at the
+// same dir (Railway Volume in prod via ACE_STEP_OUTPUT_DIR, local in dev).
+const OUTPUT_DIR = process.env.ACE_STEP_OUTPUT_DIR
+  ? path.resolve(process.env.ACE_STEP_OUTPUT_DIR)
+  : path.resolve(process.cwd(), 'private', 'ace-step', 'output')
 const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
 
 interface AcePromptOptions {
@@ -228,8 +232,11 @@ export function createAceStepRoutes(): Router {
         prompt,
       })
 
-      // Wake the legacy pod if stopped. Serverless endpoints scale themselves.
-      await ensureWorkerReady()
+      // Wake the legacy pod if stopped. Serverless endpoints scale themselves,
+      // so we skip the pod-lifecycle GraphQL roundtrip when serverless is in use.
+      if (!isServerlessConfigured()) {
+        await ensureWorkerReady()
+      }
 
       const jobReq: AceStepRequest = {
         prompt, lyrics, audioDuration, inferStep, seed,

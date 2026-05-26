@@ -524,10 +524,17 @@ export function ProAudioGenerator() {
         const jobId = submitted.jobId ?? submitted.job_id;
         if (!jobId) throw new Error('ACE did not return a job id');
 
-        const deadline = Date.now() + 12 * 60 * 1000;
+        // 18-min deadline so a server-side silent-failure retry (two cold
+        // starts ≈ 8 min) still fits comfortably inside the wall clock.
+        const startTime = Date.now();
+        const deadline = startTime + 18 * 60 * 1000;
         while (Date.now() < deadline) {
           await new Promise(resolve => window.setTimeout(resolve, 2500));
           if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          const elapsedMin = Math.floor((Date.now() - startTime) / 60000);
+          if (elapsedMin >= 2) {
+            setGenerationProgress(`${effectiveLabel}: still rendering option ${variationIndex + 1}/${constrainedVariations} (cold start, ${elapsedMin}m elapsed)...`);
+          }
           const poll = await fetch(`/api/ai-music/job/${jobId}`, {
             signal,
             cache: 'no-store',

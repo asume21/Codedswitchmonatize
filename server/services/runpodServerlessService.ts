@@ -3,7 +3,11 @@ import * as path from 'path'
 import type { AceStepJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from './aceStepService'
 
 const RUNPOD_API_BASE = 'https://api.runpod.ai/v2'
-const OUTPUT_DIR = path.resolve(process.cwd(), 'private', 'ace-step', 'output')
+// Honor ACE_STEP_OUTPUT_DIR in prod (points at a Railway Volume mount path so
+// rendered audio survives redeploys). Falls back to the local dev path.
+const OUTPUT_DIR = process.env.ACE_STEP_OUTPUT_DIR
+  ? path.resolve(process.env.ACE_STEP_OUTPUT_DIR)
+  : path.resolve(process.cwd(), 'private', 'ace-step', 'output')
 
 const apiKey = process.env.RUNPOD_API_KEY ?? ''
 const endpointId = process.env.RUNPOD_SERVERLESS_ENDPOINT_ID ?? ''
@@ -176,6 +180,22 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
         return {
           jobId,
           status: 'running',
+          generationS: msToSeconds(data.executionTime),
+        }
+      }
+
+      // jobMeta is module-level — wiped on Railway redeploy. If we got
+      // here without meta, we can't safely resubmit (no cached request
+      // body), so surface an actionable error instead of pretending the
+      // retry budget was exhausted.
+      if (!meta) {
+        console.error('[runpod-serverless] silent failure with no cached meta — likely server restarted mid-render', {
+          jobId, runpodJobId, rawResponse: rawText.slice(0, 800),
+        })
+        return {
+          jobId,
+          status: 'error',
+          error: 'Worker completed but returned no audio, and the server restarted mid-render so the original request was lost. Click Render again — a fresh submit will work.',
           generationS: msToSeconds(data.executionTime),
         }
       }
