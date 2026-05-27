@@ -539,11 +539,21 @@ export class MelodyGenerator extends GeneratorBase {
     }
     if (to === OState.Breathing || to === OState.Flow) {
       this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
-      this.applyModeVoice(physics.mode.toString())
+      
+      // Only re-apply voice if the mode has changed to prevent glitchy 
+      // audio dropouts during rapid state transitions.
+      const newMode = physics.mode.toString()
+      if (newMode !== this.currentModeName || !this.synth) {
+        this.applyModeVoice(newMode)
+      }
+
       // Immediately build a phrase so melody plays from beat 1.
       // Without this, processFrame's debounce delays the first notes by 3+ frames.
       const startBehavior = to === OState.Flow ? MelodyBehavior.Lead : MelodyBehavior.Hint
-      if (this.currentBehavior === MelodyBehavior.Rest || this.part === null) {
+      
+      // Always clear throttle and rebuild if we are entering a behavior that 
+      // should produce sound, or if we are currently silent.
+      if (this.currentBehavior !== startBehavior || this.part === null) {
         this.currentBehavior = startBehavior
         this.lastRebuildTime = -Infinity // clear throttle so rebuild goes through
         this.rebuildPhrase(physics, {

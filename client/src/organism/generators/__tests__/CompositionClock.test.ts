@@ -22,7 +22,7 @@ describe('CompositionClock', () => {
     expect(quantizeGridTime('0:1:1.48')).toBe('0:1:1')
     expect(quantizeGridTime('0:1:1.51')).toBe('0:1:2')
     expect(quantizeGridTime('0:1:3.8')).toBe('0:2:0')
-    expect(quantizeGridTime('5:0:0', 4)).toBe('3:3:3')
+    expect(quantizeGridTime('5:0:0', 4)).toBe('1:0:0')
   })
 
   it('pre-rolls stopped parts from zero', () => {

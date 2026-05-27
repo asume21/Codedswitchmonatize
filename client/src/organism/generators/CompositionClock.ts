@@ -42,10 +42,11 @@ export function quantizeGridTime(time: string, loopBars = DEFAULT_PART_LOOP_BARS
   const rawBeat = Math.max(0, Number.parseInt(beatRaw ?? '0', 10) || 0)
   const sub = Math.max(0, Number.parseFloat(subRaw ?? '0') || 0)
   const step = Math.round(rawBar * STEPS_PER_BAR + rawBeat * 4 + sub)
-  const maxStep = Math.max(0, loopBars * STEPS_PER_BAR - 1)
-  const clampedStep = Math.max(0, Math.min(maxStep, step))
-  const bar = Math.floor(clampedStep / STEPS_PER_BAR)
-  const stepInBar = clampedStep % STEPS_PER_BAR
+  const loopSteps = loopBars * STEPS_PER_BAR
+  // Use modulo for clean wrapping within the loop instead of clamping
+  const wrappedStep = ((step % loopSteps) + loopSteps) % loopSteps
+  const bar = Math.floor(wrappedStep / STEPS_PER_BAR)
+  const stepInBar = wrappedStep % STEPS_PER_BAR
   return formatGridTime({
     bar,
     beat: Math.floor(stepInBar / 4),
