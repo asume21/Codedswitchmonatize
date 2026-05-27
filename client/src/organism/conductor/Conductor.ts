@@ -25,6 +25,11 @@ import {
   type ChordEvent,
   type ParsedProgression,
 } from '../generators/patterns/ChordProgressionBank'
+import {
+  chordFromRoman,
+  keyToPitchClass,
+  type ArrangementPlan,
+} from '@shared/arrangement'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -273,6 +278,13 @@ export class Conductor {
   // "lock progression" toggle so an Astutely / arrangement section change
   // can't pull the harmonic rug while a verse is being captured.
   private progressionLocked: boolean = false
+  // Phase 5: the active ArrangementPlan, if any. When set, the Conductor
+  // reads section progressions from `activePlan.sections[activeSectionIndex]`
+  // instead of the bank picker. Orchestrator's section-change handler calls
+  // `loadSection(nextIndex)` on each boundary; bank picker stays as the
+  // jam-mode fallback when `activePlan === null`.
+  private activePlan: ArrangementPlan | null = null
+  private activeSectionIndex: number = 0
 
   constructor(options: ConductorOptions = {}) {
     this.key = options.key ?? 'C'
@@ -547,6 +559,79 @@ export class Conductor {
     this.progressionVersion++
     const chord = this.currentChord()
     for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  // ── Phase 5: ArrangementPlan consumer ────────────────────────────
+
+  /**
+   * Load an ArrangementPlan. The Composer (Ollama / WebLLM / hand-written)
+   * is the only writer; Conductor and ACE-Step both read. Switches the
+   * Conductor out of jam mode — `pickNewProgression()` is no longer called
+   * on section change; the Orchestrator calls `loadSection(nextIndex)`
+   * instead. Bank picker remains for sessions that don't load a plan.
+   */
+  loadPlan(plan: ArrangementPlan): void {
+    this.activePlan = plan
+    this.activeSectionIndex = 0
+    this.key = plan.key
+    this.subGenre = plan.subGenre
+    this.scale = SUB_GENRE_SCALES[plan.subGenre] ?? this.scale
+    this.scoreContext.bpm = plan.bpm
+    this.scoreContext.mood = plan.mood
+    this.loadSection(0)
+  }
+
+  /**
+   * Load section `index` from the active plan — replaces the running
+   * progression with the section's Roman-numeral progression voiced
+   * against `plan.key`. Bumps progressionVersion so ChordGenerator
+   * rebuilds its Part on the next frame. No-op if no plan is loaded
+   * or the index is out of range.
+   */
+  loadSection(index: number): void {
+    if (!this.activePlan) return
+    if (index < 0 || index >= this.activePlan.sections.length) return
+    const section = this.activePlan.sections[index]
+    this.activeSectionIndex = index
+    const keyPC = keyToPitchClass(this.key)
+    // chordFromRoman returns the shared ParsedChord shape; the structural
+    // contract matches Conductor's internal ParsedChord (same fields), so
+    // the cast is safe — kept narrow to avoid leaking the shared type
+    // into the rest of Conductor's API surface.
+    this.progression = section.progression.map(
+      (numeral) => chordFromRoman(numeral, keyPC) as unknown as ParsedChord,
+    )
+    this.chordIndex = 0
+    this.progressionVersion++
+    // The bank picker should not run after a plan-driven load — if a
+    // future jam-mode switch occurs, clearPlan() resets this.
+    this.lastBankSignature = null
+    this.scoreContext.section = section.name
+    this.scoreContext.energy = section.energy
+    this.scoreContext.density = section.density
+    const chord = this.currentChord()
+    for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  /** Currently-loaded plan, or null if Conductor is in jam mode. */
+  getActivePlan(): ArrangementPlan | null {
+    return this.activePlan
+  }
+
+  /** Index of the section currently being played within `activePlan.sections`. */
+  getActiveSectionIndex(): number {
+    return this.activeSectionIndex
+  }
+
+  /**
+   * Drop the active plan and return to jam mode. Bank picker is in charge
+   * again the next time the Orchestrator's section-change handler fires.
+   * Keeps the currently-sounding progression playing until the next
+   * pickNewProgression() so audio doesn't glitch on the toggle.
+   */
+  clearPlan(): void {
+    this.activePlan = null
+    this.activeSectionIndex = 0
   }
 
   /**
