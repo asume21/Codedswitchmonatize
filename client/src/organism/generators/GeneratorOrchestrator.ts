@@ -20,6 +20,7 @@ import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import type { ArrangementPlan } from '@shared/arrangement'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -782,6 +783,41 @@ export class GeneratorOrchestrator {
     this.chord.pickNewProgression()
   }
 
+  // ── Phase 5: ArrangementPlan ─────────────────────────────────────
+  //
+  // The Composer (server/services/composer.ts via Ollama, or any future
+  // implementation of shared/arrangement.ts:Composer) writes a plan.
+  // The plan is then handed to the Conductor here, and to ACE-Step on
+  // the render endpoint. Both consume the same artifact so the live
+  // performance and the rendered preview can't drift apart musically.
+
+  /**
+   * Load an ArrangementPlan. Switches the live engine into plan mode —
+   * section transitions advance through `plan.sections` instead of
+   * picking from the 176-entry bank. Calling this mid-session is safe;
+   * the running progression continues until the next bar boundary, when
+   * the section-change handler loads section 0 of the new plan.
+   */
+  loadArrangementPlan(plan: ArrangementPlan): void {
+    getConductor().loadPlan(plan)
+    // Force the next applyArrangement tick to treat this as a section
+    // change so loadSection(0) actually fires through the bar-tick path
+    // (the Conductor already loaded section 0 inside loadPlan, but
+    // resetting lastArrangementSection ensures any plan-internal state
+    // the orchestrator wants to seed on section entry gets a clean run).
+    this.lastArrangementSection = ''
+  }
+
+  /** Drop the active plan and return to jam mode (bank picker). */
+  clearArrangementPlan(): void {
+    getConductor().clearPlan()
+  }
+
+  /** The currently-loaded plan, or null if the engine is in jam mode. */
+  getArrangementPlan(): ArrangementPlan | null {
+    return getConductor().getActivePlan()
+  }
+
   setChordVolumeMultiplier(multiplier: number): void {
     this.chord.applyVolumeMultiplier(Math.max(0, multiplier))
   }
@@ -1138,15 +1174,25 @@ export class GeneratorOrchestrator {
       mode: physicsMode,
     })
 
-    // Bar tick — advance the conductor's chord position, OR pick a fresh
-    // progression if the arrangement just entered a new section. Both
-    // paths fire onChordChange so Bass/Melody re-sync; doing only one
-    // avoids firing two chord-change events on the same bar.
-    // lastArrangementBar only moves when barNumber changes (guard above),
-    // so this runs exactly once per new bar.
+    // Bar tick — advance the conductor's chord position, OR rotate
+    // harmony if the arrangement just entered a new section. The rotation
+    // path branches on whether an ArrangementPlan is loaded:
+    //   - Plan mode: load the next plan section's progression. Conductor
+    //     reads `plan.sections[i].progression` as Roman numerals against
+    //     `plan.key`, so the live performance follows the same arrangement
+    //     ACE-Step rendered from the same plan.
+    //   - Jam mode: pick a fresh progression from the 176-entry bank.
+    // Either way, exactly one chord-change event fires on a section bar
+    // (no advance + pick double-fire).
     const sectionChanging = section.name !== this.lastArrangementSection
     if (sectionChanging) {
-      conductor.pickNewProgression()
+      const plan = conductor.getActivePlan()
+      if (plan) {
+        const nextIdx = (conductor.getActiveSectionIndex() + 1) % plan.sections.length
+        conductor.loadSection(nextIdx)
+      } else {
+        conductor.pickNewProgression()
+      }
     } else {
       conductor.advanceChord()
     }
