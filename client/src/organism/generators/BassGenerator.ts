@@ -15,8 +15,8 @@ import {
 }                              from './patterns/BassPatternLibrary'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, quantizeGridTime } from './CompositionClock'
-import type { ChordEvent }     from './patterns/ChordProgressionBank'
-import { getChordBassNote }    from './patterns/ChordProgressionBank'
+// ChordProgressionBank is no longer a direct dependency — Bass reads its
+// root via the Conductor's chord-change events (Phase 4).
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -294,13 +294,10 @@ export class BassGenerator extends GeneratorBase {
 
     if (to === OState.Awakening) {
       this.stopPart()
-      // Chord-pinned root (legacy setCurrentChord override) wins; otherwise the
-      // Conductor is the source of truth — no more random pool.
-      if (this.chordRootPitchClass !== null) {
-        this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
-      } else {
-        this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
-      }
+      // Phase 4: Conductor is the only chord source. The legacy setCurrentChord
+      // override path was removed when the Orchestrator's chord-bridge was
+      // replaced with a Conductor subscription.
+      this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
       this.currentMode     = physics.mode
       this.currentOrganismState = to
       setBassSwing(physics.mode.toString())
@@ -310,13 +307,7 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    // Chord-pinned root (legacy setCurrentChord override) wins; otherwise the
-    // Conductor is the source of truth.
-    if (this.chordRootPitchClass !== null) {
-      this.rootMidi = Math.max(33, Math.min(48, 3 * 12 + this.chordRootPitchClass))
-    } else {
-      this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
-    }
+    this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
     this.currentMode = physics.mode
     this.currentOrganismState = to
     setBassSwing(physics.mode.toString()) 
@@ -419,21 +410,10 @@ export class BassGenerator extends GeneratorBase {
 
   private volumeMultiplier: number = 1.0
 
-  setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
-    this.tonicPitchClass = rootPitchClass
-    const bassPC = getChordBassNote(chord, rootPitchClass)
-
-    const currentOctave = Math.floor(this.rootMidi / 12)
-    const newRoot = currentOctave * 12 + bassPC
-    const clamped = Math.max(33, Math.min(48, newRoot))
-
-    if (clamped !== this.rootMidi) {
-      this.rootMidi = clamped
-      this.chordRootPitchClass = bassPC
-      // Rebuild so the running Tone.Part immediately uses the new root
-      this.rebuildPart()
-    }
-  }
+  // setCurrentChord(chord, rootPC) was removed in Phase 4 — Conductor is the
+  // sole chord source. The orchestrator no longer bridges chord events from
+  // ChordGenerator; Bass reads its root via the conductor.onChordChange
+  // subscription in the constructor.
 
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)

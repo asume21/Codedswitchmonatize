@@ -12,8 +12,8 @@ import {
   HIP_HOP_MOTIFS,
   type MelodyMotif,
 }                             from './patterns/MelodyPatternLibrary'
-import type { ChordEvent }    from './patterns/ChordProgressionBank'
-import { getChordTones }      from './patterns/ChordProgressionBank'
+// ChordProgressionBank is no longer a direct dependency — Melody pulls
+// scale + chord-tones via the Conductor (Phase 4 wiring in constructor).
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
@@ -575,13 +575,9 @@ export class MelodyGenerator extends GeneratorBase {
     this.scaleDirty     = true
   }
 
-  setCurrentChord(chord: ChordEvent, rootPitchClass: number): void {
-    // Keep rootPitchClass in sync so buildPhrase generates notes in the right key
-    this.rootPitchClass = rootPitchClass
-    this.currentChordTones = getChordTones(chord, rootPitchClass)
-    // Dynamic harmonic flow: when chord changes, auto-rebuild phrase to match
-    this.scaleDirty = true
-  }
+  // setCurrentChord(chord, rootPC) was removed in Phase 4 — Conductor is the
+  // sole chord source. Melody reads its scale, key, and chord-tones via the
+  // conductor.onChordChange subscription in the constructor (syncFromConductor).
 
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)

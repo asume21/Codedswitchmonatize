@@ -114,16 +114,24 @@ export class GeneratorOrchestrator {
     this.chord   = new ChordGenerator()
     this.director = new MusicalDirector()
 
-    // Bridge chord changes to Bass, Melody, AND the Director.
-    // Deferred to the JS thread (setTimeout 0) because onChordChange fires from
-    // inside a Tone.Part callback — running bass/melody rebuilds synchronously
-    // there triggers Tone.js "accurate timing" warnings and potential crackling.
-    this.unsubChordBridge = this.chord.onChordChange((chord, rootPC) => {
-      setTimeout(() => {
-        this.bass.setCurrentChord(chord, rootPC)
-        this.melody.setCurrentChord(chord, rootPC)
-        this.director.setCurrentChord(chord, rootPC)
-      }, 0)
+    // Phase 4: Conductor is the chord source of truth. Bass + Melody self-
+    // subscribe to conductor.onChordChange in their constructors; the only
+    // consumer wired here is the Director, which still accepts the
+    // ChordEvent shape — we translate ParsedChord → ChordEvent at the
+    // boundary. The Conductor's chord-change events fire from the orchestrator's
+    // JS-thread bar tick (applyArrangement) and from setKey/setSubGenre paths,
+    // never from inside an audio-thread Tone.Part callback, so no setTimeout
+    // defer is needed.
+    const conductor = getConductor()
+    this.unsubChordBridge = conductor.onChordChange((parsed) => {
+      const keyPC = conductor.getKeyPitchClass()
+      const rootOffset = (((parsed.rootMidi - 60) - keyPC) % 12 + 12) % 12
+      const event: import('./patterns/ChordProgressionBank').ChordEvent = {
+        intervals:  parsed.intervals,
+        rootOffset,
+        label:      parsed.symbol,
+      }
+      this.director.setCurrentChord(event, keyPC)
     })
 
     // When director changes sub-genre, rebuild drum + bass patterns
@@ -1115,6 +1123,10 @@ export class GeneratorOrchestrator {
 
     const conductor = getConductor()
     conductor.setSubGenre(scoreSubGenre)
+    // OrganismMode drives the bank picker's mood scoring. Fall back to
+    // 'smoke' (neutral) if physics isn't seeded yet.
+    const physicsMode = this.lastPhysics ? this.lastPhysics.mode.toString() : 'smoke'
+    conductor.setMode(physicsMode)
     conductor.updateScoreContext({
       bar: barNumber,
       bpm: transport.bpm.value,
@@ -1123,7 +1135,21 @@ export class GeneratorOrchestrator {
       density: musicalState.density,
       groove: scoreGroove,
       mood: scoreSubGenre,
+      mode: physicsMode,
     })
+
+    // Bar tick — advance the conductor's chord position, OR pick a fresh
+    // progression if the arrangement just entered a new section. Both
+    // paths fire onChordChange so Bass/Melody re-sync; doing only one
+    // avoids firing two chord-change events on the same bar.
+    // lastArrangementBar only moves when barNumber changes (guard above),
+    // so this runs exactly once per new bar.
+    const sectionChanging = section.name !== this.lastArrangementSection
+    if (sectionChanging) {
+      conductor.pickNewProgression()
+    } else {
+      conductor.advanceChord()
+    }
 
     const drumsMultiplier = aiOverride ? aiOverride.drumsArrangement : section.drums
     const bassMultiplier  = aiOverride ? aiOverride.bassVolume        : section.bass
@@ -1238,6 +1264,11 @@ export class GeneratorOrchestrator {
     this.melody.setRootAndScale(rootPitchClass, intervals)
     this.chord.setRootPitchClass(rootPitchClass)
     this.director.setScale(rootPitchClass, intervals)
+    // Conductor must track the detected key too — before Phase 4 it stayed at
+    // its default 'C' regardless of vocal pitch, which meant bass and melody
+    // (which already read Conductor) were silently locked to C. Re-voices the
+    // active progression so harmony pitches up/down with the detected key.
+    getConductor().setKeyByPitchClass(rootPitchClass)
   }
 
   /**

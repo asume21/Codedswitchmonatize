@@ -13,10 +13,18 @@
 //   - MelodyGenerator.chordTones = conductor.chordTones()
 //   - ChordGenerator.voicing     = conductor.currentChord().pitches
 //
-// In Phase 1 (this commit), progressions come from a hardcoded library per
-// sub-genre. In Phase 5, Conductor will call a musicMind service (WebLLM
-// in-browser, Groq/Ollama as fallback) to generate progressions dynamically
-// — but the public API surface stays identical.
+// In Phase 4, Conductor picks progressions from the 176-progression bank
+// (ChordProgressionBank) via mood×mode scoring. The bank's Roman-numeral
+// data is converted directly to ParsedChord using the active key's pitch
+// class — no symbol-string round-trip. In Phase 5, Conductor will call a
+// musicMind service (WebLLM in-browser, Groq/Ollama as fallback) to
+// generate progressions dynamically — the public API surface stays identical.
+
+import {
+  pickProgression as pickProgressionFromBank,
+  type ChordEvent,
+  type ParsedProgression,
+} from '../generators/patterns/ChordProgressionBank'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -80,6 +88,31 @@ export function parseChord(symbol: string, rootOctave = 4): ParsedChord {
   const intervals = CHORD_INTERVALS[quality] ?? CHORD_INTERVALS['']
   const pitches = intervals.map((i) => rootMidi + i)
   return { symbol, root, quality, rootMidi, intervals, pitches }
+}
+
+// Direct ChordEvent → ParsedChord conversion. The bank's ChordEvent is
+// already pitch-class based (rootOffset + intervals + label), so we skip
+// the symbol-string round-trip parseChord() does. Always voiced at
+// octave 4 so existing voicing code (which drops by octaves to fit) keeps
+// the same baseline pitch.
+function chordEventToParsed(event: ChordEvent, keyPitchClass: number, octave = 4): ParsedChord {
+  const rootPC = (((keyPitchClass + event.rootOffset) % 12) + 12) % 12
+  const rootMidi = 12 * (octave + 1) + rootPC
+  return {
+    symbol:    event.label,
+    root:      NOTE_NAMES[rootPC],
+    quality:   '',  // not used by consumers — they read intervals/pitches
+    rootMidi,
+    intervals: event.intervals,
+    pitches:   event.intervals.map((i) => rootMidi + i),
+  }
+}
+
+// Stable signature for de-duping bank picks across attempts.
+function progressionSignature(prog: ParsedProgression): string {
+  return prog.chords
+    .map((c) => `${c.rootOffset}:${c.intervals.join('.')}`)
+    .join('|')
 }
 
 // ── Scales ──────────────────────────────────────────────────────────
@@ -177,6 +210,12 @@ export interface ConductorScoreContext {
   density?: number
   groove?: string
   mood?: string
+  /**
+   * OrganismMode string ('heat', 'gravel', 'smoke', 'ice', 'glow'). Drives
+   * the bank picker's mood→mode scoring. Distinct from `mood` — mood is a
+   * free-form descriptor; mode is the physics-engine category.
+   */
+  mode?: string
 }
 
 export interface ConductorScoreFrame {
@@ -220,7 +259,20 @@ export class Conductor {
     density: 0,
     groove: 'straight',
     mood: 'focused',
+    mode: 'smoke',
   }
+  // The last bank progression picked (so a re-pick can avoid repeating).
+  // null = the active progression came from DEFAULT_PROGRESSIONS, not the bank.
+  private lastBankSignature: string | null = null
+  // Monotonic counter — bumped every time the progression array is REPLACED
+  // (setProgression / setSubGenre / setKey / setKeyByPitchClass / pickNewProgression).
+  // advanceChord() does NOT bump it. Consumers (e.g. ChordGenerator) compare
+  // the cached value to know when to rebuild their Tone.Part.
+  private progressionVersion: number = 0
+  // When true, pickNewProgression() is a no-op. Used by the user-facing
+  // "lock progression" toggle so an Astutely / arrangement section change
+  // can't pull the harmonic rug while a verse is being captured.
+  private progressionLocked: boolean = false
 
   constructor(options: ConductorOptions = {}) {
     this.key = options.key ?? 'C'
@@ -234,6 +286,10 @@ export class Conductor {
   private buildProgression(): ParsedChord[] {
     const symbols = DEFAULT_PROGRESSIONS[this.subGenre]
                  ?? DEFAULT_PROGRESSIONS['hip-hop']
+    // The default-library path always clears the bank signature so a
+    // subsequent setKeyByPitchClass() rebuilds via the same library, not
+    // by re-voicing a stale bank progression.
+    this.lastBankSignature = null
     return symbols
       .map((symbol) => this.transposeToKey(symbol))
       .map((symbol) => parseChord(symbol))
@@ -315,6 +371,16 @@ export class Conductor {
   /** Current index within the progression (0..progression.length - 1). */
   getChordIndex(): number {
     return this.chordIndex
+  }
+
+  /**
+   * Monotonic version of the active progression. Bumps whenever the
+   * underlying progression array is replaced (pickNewProgression,
+   * setProgression, setKey, setSubGenre). Does NOT bump on advanceChord.
+   * Generators cache it to know when they need to rebuild scheduled parts.
+   */
+  getProgressionVersion(): number {
+    return this.progressionVersion
   }
 
   /** The current real-time score snapshot every band member should read. */
@@ -400,13 +466,92 @@ export class Conductor {
     this.scale = SUB_GENRE_SCALES[subGenre] ?? this.scale
     this.progression = this.buildProgression()
     this.chordIndex = 0
+    this.progressionVersion++
     const chord = this.currentChord()
     for (const cb of this.chordChangeListeners) cb(chord)
   }
 
   /**
-   * Switch key mid-session. Rare in live use — usually only happens once
-   * at session start based on detected vocal pitch or a key picker.
+   * Switch key to the given pitch class (0=C, 1=C#, … 11=B). Called by
+   * the Orchestrator's `setDetectedScale()` so the Conductor's harmony
+   * tracks the ScaleSnapEngine. Re-transposes the current progression
+   * (or, if it came from the bank, re-voices it for the new key) without
+   * picking a different one — pitch shifts in real time, no surprise
+   * progression change.
+   */
+  setKeyByPitchClass(pitchClass: number): void {
+    const newPC = ((pitchClass % 12) + 12) % 12
+    const newKey = NOTE_NAMES[newPC]
+    if (newKey === this.key) return
+    const oldKeyPC = this.getKeyPitchClass()
+    this.key = newKey
+    if (this.lastBankSignature !== null) {
+      // Re-voice the bank progression for the new key. ParsedChord was
+      // built at octave 4 (rootMidi = 60 + (oldKeyPC + rootOffset) % 12),
+      // so rootOffset = ((rootMidi - 60) - oldKeyPC) mod 12.
+      this.progression = this.progression.map((parsed) => {
+        const rootOffset = (((parsed.rootMidi - 60) - oldKeyPC) % 12 + 12) % 12
+        return chordEventToParsed(
+          { intervals: parsed.intervals, rootOffset, label: parsed.symbol },
+          newPC,
+        )
+      })
+    } else {
+      this.progression = this.buildProgression()
+    }
+    this.chordIndex = 0
+    this.progressionVersion++
+    const chord = this.currentChord()
+    for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  /**
+   * Switch active OrganismMode ('heat', 'gravel', 'smoke', 'ice', 'glow').
+   * Mode drives the picker's mood-matching when `pickNewProgression()`
+   * runs — separate from sub-genre, which selects the default fallback
+   * progression library.
+   */
+  setMode(mode: string): void {
+    if (this.scoreContext.mode === mode) return
+    this.scoreContext.mode = mode
+  }
+
+  /**
+   * Pick a fresh progression from the 176-entry bank, scored by current
+   * mode. Called by the Orchestrator on section change so harmony has
+   * variety across an arrangement. Falls back to the active progression
+   * if the bank returns nothing useful.
+   */
+  pickNewProgression(): void {
+    if (this.progressionLocked) return
+    const mode = this.scoreContext.mode || 'smoke'
+    const keyPC = this.getKeyPitchClass()
+    let chosen: ParsedProgression | null = null
+    const previousSignature = this.lastBankSignature
+    // Re-try up to 5 times so we don't immediately repeat the active progression.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = pickProgressionFromBank(mode)
+      const sig = progressionSignature(candidate)
+      if (sig !== previousSignature) {
+        chosen = candidate
+        this.lastBankSignature = sig
+        break
+      }
+    }
+    if (!chosen) {
+      chosen = pickProgressionFromBank(mode)
+      this.lastBankSignature = progressionSignature(chosen)
+    }
+    this.progression = chosen.chords.map((ev) => chordEventToParsed(ev, keyPC))
+    this.chordIndex = 0
+    this.progressionVersion++
+    const chord = this.currentChord()
+    for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  /**
+   * Switch key by symbol name (legacy). Prefer setKeyByPitchClass — that
+   * matches how ScaleSnapEngine reports detected pitch.
    */
   setKey(key: string): void {
     if (key === this.key) return
@@ -416,6 +561,7 @@ export class Conductor {
     this.key = key
     this.progression = this.buildProgression()
     this.chordIndex = 0
+    this.progressionVersion++
     const chord = this.currentChord()
     for (const cb of this.chordChangeListeners) cb(chord)
   }
@@ -427,8 +573,10 @@ export class Conductor {
    */
   setProgression(chordSymbols: string[]): void {
     if (chordSymbols.length === 0) return
+    this.lastBankSignature = null
     this.progression = chordSymbols.map((s) => parseChord(this.transposeToKey(s)))
     this.chordIndex = 0
+    this.progressionVersion++
     const chord = this.currentChord()
     for (const cb of this.chordChangeListeners) cb(chord)
   }
@@ -439,6 +587,24 @@ export class Conductor {
    */
   resetChordIndex(): void {
     this.chordIndex = 0
+  }
+
+  /**
+   * Lock the active progression so pickNewProgression() can't replace it.
+   * advanceChord() still rotates within the locked progression. Section
+   * changes that would otherwise pick fresh harmony will keep the same loop.
+   */
+  lockProgression(): void {
+    this.progressionLocked = true
+  }
+
+  /** Unlock — pickNewProgression() will work again on the next section change. */
+  unlockProgression(): void {
+    this.progressionLocked = false
+  }
+
+  isProgressionLocked(): boolean {
+    return this.progressionLocked
   }
 
   /** Subscribe to chord-change events. Returns an unsubscribe function. */

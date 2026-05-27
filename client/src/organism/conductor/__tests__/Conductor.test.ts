@@ -74,4 +74,64 @@ describe('Conductor', () => {
     expect(frame.currentChord.symbol).toBe('Ab')
     expect(frame.nextChord.symbol).toBe('Bb')
   })
+
+  describe('Phase 4 — bank picker + key tracking', () => {
+    it('bumps progressionVersion when picking a new bank progression', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      conductor.setMode('heat')
+      const before = conductor.getProgressionVersion()
+      conductor.pickNewProgression()
+      expect(conductor.getProgressionVersion()).toBeGreaterThan(before)
+    })
+
+    it('does NOT bump progressionVersion on advanceChord (only on replacement)', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      const before = conductor.getProgressionVersion()
+      conductor.advanceChord()
+      conductor.advanceChord()
+      expect(conductor.getProgressionVersion()).toBe(before)
+    })
+
+    it('honours progression lock — pickNewProgression is a no-op when locked', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      conductor.setMode('heat')
+      conductor.pickNewProgression()
+      const locked = conductor.getProgressionVersion()
+      conductor.lockProgression()
+      conductor.pickNewProgression()
+      expect(conductor.getProgressionVersion()).toBe(locked)
+      conductor.unlockProgression()
+      conductor.pickNewProgression()
+      expect(conductor.getProgressionVersion()).toBeGreaterThan(locked)
+    })
+
+    it('setKeyByPitchClass transposes the active progression', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      const cRoot = conductor.currentChord().rootMidi
+      conductor.setKeyByPitchClass(5)  // F
+      const fRoot = conductor.currentChord().rootMidi
+      expect(conductor.getKey()).toBe('F')
+      expect(((fRoot - cRoot) % 12 + 12) % 12).toBe(5)
+    })
+
+    it('setKeyByPitchClass re-voices a bank progression in the new key', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      conductor.setMode('smoke')
+      conductor.pickNewProgression()  // lastBankSignature is set
+      const beforeMidi = conductor.currentChord().rootMidi
+      conductor.setKeyByPitchClass(7)  // G
+      const afterMidi = conductor.currentChord().rootMidi
+      expect(((afterMidi - beforeMidi) % 12 + 12) % 12).toBe(7)
+    })
+
+    it('fires onChordChange listeners on advance and on pickNewProgression', () => {
+      const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+      conductor.setMode('heat')
+      let calls = 0
+      conductor.onChordChange(() => { calls++ })
+      conductor.advanceChord()
+      conductor.pickNewProgression()
+      expect(calls).toBe(2)
+    })
+  })
 })

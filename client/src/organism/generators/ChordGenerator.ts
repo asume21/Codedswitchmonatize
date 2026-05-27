@@ -11,12 +11,8 @@ import type { PhysicsState }  from '../physics/types'
 import { OrganismMode }       from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
-import {
-  pickProgression,
-  voiceChord,
-  type ParsedProgression,
-  type ChordEvent,
-} from './patterns/ChordProgressionBank'
+import { voiceChord, type ChordEvent } from './patterns/ChordProgressionBank'
+import { getConductor, type ParsedChord } from '../conductor/Conductor'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
@@ -57,13 +53,19 @@ export class ChordGenerator extends GeneratorBase {
   private part:    Tone.Part | null = null
   private hasStartedPlayback: boolean = false
 
-  // Musical state
-  private currentProgression: ParsedProgression | null = null
-  private currentChordIndex:  number = 0
+  // Musical state — Phase 4: Conductor owns the progression and chord index.
+  // ChordGenerator is a performer: reads conductor.currentChord() at render
+  // time and rebuilds its Part on every chord-change event (dirty-flag pattern,
+  // matches Bass/Melody). It no longer picks, rotates, or locks progressions.
   private currentBehavior:    ChordBehavior = ChordBehavior.Silent
-  private progressionLocked:  boolean = false
   private rootPitchClass:     number = 0     // synced from ScaleSnapEngine
   private currentMode:        string = 'glow'
+  private conductorChordDirty: boolean = false
+  private unsubscribeConductor: (() => void) | null = null
+  // Tracks the last progression-replacement we rendered. Compared against
+  // conductor.getProgressionVersion() on each chord-change event to decide
+  // whether the Part actually needs a rebuild (vs. a benign advance).
+  private lastProgressionVersion: number = -1
   private currentSwing:       number = 0.35
   private currentPerformer:   InstrumentPerformerProfile | null = null
   private explicitPerformerId: InstrumentPerformerId | null = null
@@ -102,7 +104,7 @@ export class ChordGenerator extends GeneratorBase {
     this.currentTechniqueId = techniqueId
     // Rebuild on next tick so new technique takes effect at the next chord
     this.lastRebuildTime = 0
-    if (this.currentProgression) this.rebuildPart()
+    this.rebuildPart()
   }
 
   /**
@@ -125,15 +127,13 @@ export class ChordGenerator extends GeneratorBase {
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
     this.explicitPerformerId = instrumentId
     this.applyVoice(this.currentMode)
-    if (this.currentProgression) this.rebuildPart()
+    this.rebuildPart()
   }
 
   // Tracked synth dispose timer
   private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
   private pendingOldSynth: Tone.PolySynth | LoadableSampler | null = null
   private lastOutputGain:   number = 0
-
-  private chordChangeListeners: Array<(chord: ChordEvent, rootPitchClass: number) => void> = []
 
   // ─── Dynamic Global Voices ──────────────────────────────────
   private static readonly GLOBAL_VOICES: Array<{
@@ -242,6 +242,16 @@ export class ChordGenerator extends GeneratorBase {
 
     this.chorus.start()
     this.setOutputLevel(0)
+
+    // Phase 4 — listen to Conductor for chord-change events. The Orchestrator
+    // calls conductor.advanceChord() on every bar tick and pickNewProgression()
+    // on section change. We just set a dirty flag; the actual Part rebuild
+    // happens on the next processFrame so we're never building Tone.Parts
+    // inside the audio-thread callback that fired the listener (the bug that
+    // killed Phase 4 attempt ea4e43e).
+    this.unsubscribeConductor = getConductor().onChordChange(() => {
+      this.conductorChordDirty = true
+    })
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
@@ -286,6 +296,14 @@ export class ChordGenerator extends GeneratorBase {
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
       this.rebuildPart()
+      this.conductorChordDirty = false
+    } else if (this.conductorChordDirty) {
+      // Conductor's chord changed (bar-tick advance OR pickNewProgression).
+      // Single-bar Part architecture means we always need to rebuild — the
+      // running Part loops the previous chord forever otherwise. Throttle in
+      // rebuildPart keeps this from going wild at extreme BPMs.
+      this.conductorChordDirty = false
+      this.rebuildPart()
     }
 
     const targetLevel = this.computeTargetLevel(organism)
@@ -312,25 +330,12 @@ export class ChordGenerator extends GeneratorBase {
     }
 
     if (to === OState.Awakening) {
-      if (!this.progressionLocked) {
-        this.currentProgression = pickProgression(this.currentMode)
-        this.currentChordIndex = 0
-      }
       this.currentBehavior = ChordBehavior.Silent
       this.applyVoice(this.currentMode)
-      if (this.currentProgression) {
-        console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
-      }
       return
     }
 
     if (to === OState.Breathing || to === OState.Flow) {
-      if (!this.currentProgression) {
-        this.currentProgression = pickProgression(this.currentMode)
-        this.currentChordIndex = 0
-        this.applyVoice(this.currentMode)
-        console.debug(`🎹 Chord progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
-      }
       this.currentBehavior = to === OState.Breathing ? ChordBehavior.Pad : ChordBehavior.Rhythm
       this.rebuildPart()
     }
@@ -340,36 +345,50 @@ export class ChordGenerator extends GeneratorBase {
     this.stopPart()
     this.activityLevel = 0
     this.currentBehavior = ChordBehavior.Silent
-    if (!this.progressionLocked) {
-      this.currentProgression = null
-      this.currentChordIndex = 0
-    }
     this.hasStartedPlayback = false
     this.lastRebuildTime = 0
     this.sectionTechniqueId = null
     this.setOutputLevel(0)
   }
 
+  /** Phase 4: lock/unlock live on the Conductor — these forward for backward
+   *  compatibility with the OrganismProvider toggle. */
   lockProgression(): void {
-    this.progressionLocked = true
+    getConductor().lockProgression()
   }
 
   unlockProgression(): void {
-    this.progressionLocked = false
-    this.currentProgression = null
-    this.currentChordIndex = 0
+    getConductor().unlockProgression()
   }
 
+  /**
+   * Subscribe to chord changes. Phase 4 delegates to the Conductor — the
+   * generator no longer owns its own listener list. We translate
+   * ParsedChord → ChordEvent so callers using the legacy shape don't break.
+   */
   onChordChange(listener: (chord: ChordEvent, rootPitchClass: number) => void): () => void {
-    this.chordChangeListeners.push(listener)
-    return () => {
-      this.chordChangeListeners = this.chordChangeListeners.filter(l => l !== listener)
-    }
+    const conductor = getConductor()
+    return conductor.onChordChange((parsed) => {
+      const keyPC = conductor.getKeyPitchClass()
+      const rootOffset = (((parsed.rootMidi - 60) - keyPC) % 12 + 12) % 12
+      listener(
+        { intervals: parsed.intervals, rootOffset, label: parsed.symbol },
+        keyPC,
+      )
+    })
   }
 
+  /** Translated read of the Conductor's current chord in ChordEvent shape. */
   getCurrentChord(): ChordEvent | null {
-    if (!this.currentProgression) return null
-    return this.currentProgression.chords[this.currentChordIndex] ?? null
+    const conductor = getConductor()
+    const parsed = conductor.currentChord()
+    if (!parsed) return null
+    const keyPC = conductor.getKeyPitchClass()
+    return {
+      intervals:  parsed.intervals,
+      rootOffset: (((parsed.rootMidi - 60) - keyPC) % 12 + 12) % 12,
+      label:      parsed.symbol,
+    }
   }
 
   getRootPitchClass(): number {
@@ -385,33 +404,15 @@ export class ChordGenerator extends GeneratorBase {
     this.setOutputLevel(this.activityLevel)
   }
 
+  /**
+   * Phase 4 — delegates to the Conductor. The Orchestrator already calls
+   * `conductor.pickNewProgression()` on section change, so this stays as a
+   * compatibility wrapper for OrganismProvider's manual "new progression"
+   * button. The dirty flag will cause our own Part to rebuild on the next
+   * frame via the chord-change listener we set up in the constructor.
+   */
   pickNewProgression(): void {
-    this.currentProgression = this.pickProgressionWithVariation()
-    this.currentChordIndex = 0
-    this.lastRebuildTime = -Infinity
-    this.rebuildPart()
-    console.debug(`🎹 New progression: ${this.currentProgression.chords.map(c => c.label).join(' → ')} (${this.currentProgression.moods.join(', ')})`)
-  }
-
-  private pickProgressionWithVariation(): ParsedProgression {
-    const currentSignature = this.currentProgression
-      ? this.progressionSignature(this.currentProgression)
-      : null
-
-    for (let attempt = 0; attempt < 6; attempt++) {
-      const next = pickProgression(this.currentMode)
-      if (this.progressionSignature(next) !== currentSignature) {
-        return next
-      }
-    }
-
-    return pickProgression(this.currentMode)
-  }
-
-  private progressionSignature(progression: ParsedProgression): string {
-    return progression.chords
-      .map(chord => `${chord.rootOffset}:${chord.intervals.join('.')}`)
-      .join('|')
+    getConductor().pickNewProgression()
   }
 
   private getChordBehavior(organism: OrganismState): ChordBehavior {
@@ -443,13 +444,36 @@ export class ChordGenerator extends GeneratorBase {
     if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
 
-    if (this.currentBehavior === ChordBehavior.Silent || !this.currentProgression) {
+    if (this.currentBehavior === ChordBehavior.Silent) {
       this.stopPart()
       return
     }
 
-    const prog = this.currentProgression
-    const chordCount = prog.chords.length
+    // Phase 4: render a single-bar loop for the Conductor's CURRENT chord.
+    // The Orchestrator advances the Conductor on every bar tick — generators
+    // play the chord they're told, no internal multi-bar scheduling. This
+    // keeps Pad locked to Bass and Melody (which are also chord-by-chord
+    // performers) regardless of progression length. The previous multi-bar
+    // render with `barsPerChord = floor(4/chordCount)` only happened to align
+    // for 4-chord progressions; 2/8-chord progressions drifted by one chord
+    // per bar relative to Bass.
+    const conductor = getConductor()
+    const parsedCurrent = conductor.currentChord()
+    const parsedNext    = conductor.nextChord()
+    if (!parsedCurrent) {
+      this.stopPart()
+      return
+    }
+    const keyPC = conductor.getKeyPitchClass()
+    const toEvent = (p: ParsedChord): ChordEvent => ({
+      intervals:  p.intervals,
+      rootOffset: (((p.rootMidi - 60) - keyPC) % 12 + 12) % 12,
+      label:      p.symbol,
+    })
+    const currentChord = toEvent(parsedCurrent)
+    const nextChord    = toEvent(parsedNext)
+    this.lastProgressionVersion = conductor.getProgressionVersion()
+    const voicingRootPC = keyPC
     const octave = MODE_OCTAVES[this.currentMode] ?? 4
 
     interface ChordPartEvent {
@@ -460,71 +484,37 @@ export class ChordGenerator extends GeneratorBase {
       chordIdx: number
     }
 
+    const midiNotes = voiceChord(currentChord, voicingRootPC, octave)
+    const noteStrings = midiNotes.map((m) => Tone.Frequency(m, 'midi').toNote())
+
     const events: ChordPartEvent[] = []
-    const barsPerChord = Math.max(1, Math.floor(4 / chordCount))
-    const totalBars = barsPerChord * chordCount
 
-    for (let ci = 0; ci < chordCount; ci++) {
-      const chord = prog.chords[ci]
-      const barStart = ci * barsPerChord
-      const midiNotes = voiceChord(chord, this.rootPitchClass, octave)
-      const noteStrings = midiNotes.map(m => Tone.Frequency(m, 'midi').toNote())
-
-      switch (this.currentBehavior) {
-        case ChordBehavior.Pad: {
-          const time = `${barStart}:0:0`
-          const dur = barsPerChord >= 2 ? `${barsPerChord}m` : '1m'
-          events.push({ time, notes: noteStrings, dur, vel: 0.55, chordIdx: ci })
-          break
-        }
-
-        case ChordBehavior.Rhythm: {
-          for (let b = 0; b < barsPerChord; b++) {
-            const bar = barStart + b
-            events.push({
-              time: `${bar}:0:0`, notes: noteStrings, dur: '2n',
-              vel: 0.58, chordIdx: ci,
-            })
-            events.push({
-              time: `${bar}:2:0`, notes: noteStrings, dur: '2n',
-              vel: 0.48, chordIdx: ci,
-            })
-          }
-          break
-        }
-
-        case ChordBehavior.Stab: {
-          for (let b = 0; b < barsPerChord; b++) {
-            const bar = barStart + b
-            events.push({
-              time: `${bar}:0:0`, notes: noteStrings, dur: '8n',
-              vel: 0.65, chordIdx: ci,
-            })
-            const swungSub = 2 + this.currentSwing
-            events.push({
-              time: `${bar}:1:${swungSub.toFixed(2)}`, notes: noteStrings, dur: '8n',
-              vel: 0.50, chordIdx: ci,
-            })
-            events.push({
-              time: `${bar}:2:0`, notes: noteStrings, dur: '8n',
-              vel: 0.58, chordIdx: ci,
-            })
-            if (b === barsPerChord - 1 && ci < chordCount - 1) {
-              const nextChord = prog.chords[ci + 1]
-              const nextMidi = voiceChord(nextChord, this.rootPitchClass, octave)
-              const nextNotes = nextMidi.map(m => Tone.Frequency(m, 'midi').toNote())
-              events.push({
-                time: `${bar}:3:${swungSub.toFixed(2)}`, notes: nextNotes, dur: '16n',
-                vel: 0.42, chordIdx: ci + 1,
-              })
-            }
-          }
-          break
-        }
+    switch (this.currentBehavior) {
+      case ChordBehavior.Pad: {
+        events.push({ time: '0:0:0', notes: noteStrings, dur: '1m', vel: 0.55, chordIdx: 0 })
+        break
+      }
+      case ChordBehavior.Rhythm: {
+        events.push({ time: '0:0:0', notes: noteStrings, dur: '2n', vel: 0.58, chordIdx: 0 })
+        events.push({ time: '0:2:0', notes: noteStrings, dur: '2n', vel: 0.48, chordIdx: 0 })
+        break
+      }
+      case ChordBehavior.Stab: {
+        const swungSub = 2 + this.currentSwing
+        events.push({ time: '0:0:0',                          notes: noteStrings, dur: '8n', vel: 0.65, chordIdx: 0 })
+        events.push({ time: `0:1:${swungSub.toFixed(2)}`,     notes: noteStrings, dur: '8n', vel: 0.50, chordIdx: 0 })
+        events.push({ time: '0:2:0',                          notes: noteStrings, dur: '8n', vel: 0.58, chordIdx: 0 })
+        // Pickup to the next chord — Conductor.nextChord() makes this work
+        // even though we only render one bar at a time. The pickup falls on
+        // the swung "and" of beat 4.
+        const nextMidi = voiceChord(nextChord, voicingRootPC, octave)
+        const nextNotes = nextMidi.map((m) => Tone.Frequency(m, 'midi').toNote())
+        events.push({ time: `0:3:${swungSub.toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
+        break
       }
     }
 
-    const loopBars = Math.min(totalBars, 8)
+    const loopBars = 1
 
     const quantizedEvents = events.map(event => ({
       ...event,
@@ -549,15 +539,9 @@ export class ChordGenerator extends GeneratorBase {
     this.part = null
 
     this.part = new Tone.Part((time, event: ChordPartEvent) => {
-      if (event.chordIdx !== this.currentChordIndex) {
-        this.currentChordIndex = event.chordIdx
-        const chord = prog.chords[this.currentChordIndex]
-        if (chord) {
-          for (const listener of this.chordChangeListeners) {
-            listener(chord, this.rootPitchClass)
-          }
-        }
-      }
+      // Phase 4: chord-change events come from the Conductor (driven by the
+      // Orchestrator's bar tick). The audio callback no longer writes to any
+      // shared state — it only renders sound.
 
       const vel = Math.min(1, Math.max(0.1, event.vel + (Math.random() - 0.5) * 0.08))
 
@@ -600,14 +584,6 @@ export class ChordGenerator extends GeneratorBase {
     this.part.loopEnd = `${loopBars}m`
     this.part.start(startAt)
     this.hasStartedPlayback = true
-
-    const firstChord = prog.chords[0]
-    if (firstChord) {
-      this.currentChordIndex = 0
-      for (const listener of this.chordChangeListeners) {
-        listener(firstChord, this.rootPitchClass)
-      }
-    }
   }
 
   /**
@@ -620,14 +596,19 @@ export class ChordGenerator extends GeneratorBase {
    *   build/drop/drop2 → mode default (punchy stab or block chord)
    */
   onSectionChange(sectionName: string, aiTechnique?: string): void {
-    const shouldRotateProgression = !this.progressionLocked && this.currentProgression !== null
-
+    // Phase 4: progression rotation moved to the Orchestrator (which calls
+    // conductor.pickNewProgression() on section boundaries — see
+    // GeneratorOrchestrator.applyArrangement). This method now only handles
+    // the playing TECHNIQUE per section — the chord instrument stays constant
+    // (it IS the beat's harmonic signature):
+    //   intro/breakdown → sustained pad
+    //   verse           → rolled chord
+    //   build/drop/drop2 → mode default (punchy stab)
     if (aiTechnique) {
-      // AI Director explicitly chose a technique — map its shorthand to technique IDs
       const techniqueMap: Record<string, string | null> = {
         pad:    'piano-sustained-pad',
         rolled: 'piano-rolled-chord',
-        stab:   null,  // null = mode default (punchy stab)
+        stab:   null,
       }
       this.sectionTechniqueId = (aiTechnique in techniqueMap) ? techniqueMap[aiTechnique] : null
     } else if (sectionName === 'intro' || sectionName === 'breakdown') {
@@ -635,12 +616,7 @@ export class ChordGenerator extends GeneratorBase {
     } else if (sectionName === 'verse') {
       this.sectionTechniqueId = 'piano-rolled-chord'
     } else {
-      // build / drop / drop2 — let mode default take over (punchy stab)
       this.sectionTechniqueId = null
-    }
-
-    if (shouldRotateProgression) {
-      this.pickNewProgression()
     }
   }
 
@@ -727,7 +703,8 @@ export class ChordGenerator extends GeneratorBase {
 
   dispose(): void {
     this.stopPart()
-    this.chordChangeListeners = []
+    this.unsubscribeConductor?.()
+    this.unsubscribeConductor = null
     if (this.pendingSynthDispose) {
       clearTimeout(this.pendingSynthDispose)
       this.pendingSynthDispose = null
