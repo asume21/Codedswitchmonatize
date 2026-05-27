@@ -126,7 +126,7 @@ export function buildLockNotes(rootMidi: number, density: number = 0.5): Schedul
   for (let bar = 0; bar < 4; bar++) {
     notes.push({ pitch: midiToNote(rootMidi + pent[0]), duration: mainDur, velocity: hv(0.85, bar, 0, 0), time: swingTime(bar, 0, 0) })
     notes.push({ pitch: midiToNote(rootMidi + pent[0]), duration: '16n', velocity: hv(0.55, bar, 0, 2), time: swingTime(bar, 0, 2) })
-    const deg2 = degrees[(bar * 2 + 1) % degrees.length]
+    const deg2 = pickFrom(degrees, bar * 2 + 1)
     notes.push({ pitch: midiToNote(rootMidi + pent[deg2]), duration: mainDur, velocity: hv(0.68, bar, 1, 2), time: swingTime(bar, 1, 2) })
     notes.push({ pitch: midiToNote(rootMidi + pent[0]), duration: mainDur, velocity: hv(0.80, bar, 2, 0), time: swingTime(bar, 2, 0) })
     const deg4 = degrees[(bar * 2) % degrees.length]
@@ -321,7 +321,7 @@ export function buildSlide808Notes(rootMidi: number, density: number = 0.5): Sch
     notes.push({ pitch: midiToNote(octDown), duration: mainDur, velocity: hv(0.98, bar, 0, 0), time: swingTime(bar, 0, 0) })
 
     // Beat 3: SLIDE to a different note — this is where portamento kicks in
-    const slideTarget = slideTargets[bar % slideTargets.length]
+    const slideTarget = pickFrom(slideTargets, bar)
     notes.push({ pitch: midiToNote(slideTarget), duration: '4n', velocity: hv(0.82, bar, 2, 0), time: swingTime(bar, 2, 0) })
 
     // "and" of 3: slide back toward root

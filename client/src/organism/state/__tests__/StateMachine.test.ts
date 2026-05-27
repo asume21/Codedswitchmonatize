@@ -166,6 +166,22 @@ describe('StateMachine', () => {
     expect(after30s.current).toBe(OState.Dormant)
   })
 
+  it('does not treat non-voice beat energy as silence', () => {
+    const machine = new StateMachine(DEFAULT_CONFIG)
+
+    forceFlowState(machine)
+
+    const state = runFrames(machine, 250, 0, {
+      voiceActive: false,
+      presence: 0.25,
+      bounce: 0.45,
+      beatDurationMs: 100,
+    })
+
+    expect(state.current).toBe(OState.Flow)
+    expect(state.silenceDurationMs).toBe(0)
+  })
+
   it('resets flowDepth on fallback and keeps cadenceLockAchieved', () => {
     const flowFallbackConfig = {
       ...DEFAULT_CONFIG,

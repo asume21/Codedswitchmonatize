@@ -767,37 +767,6 @@ export class MelodyGenerator extends GeneratorBase {
       return Tone.Frequency(midi, 'midi').toNote()
     }
 
-    if (isBowedLead) {
-      const phraseStep = this.currentBehavior === MelodyBehavior.Hint ? 8 : 6
-      const noteDur = this.currentBehavior === MelodyBehavior.Hint ? '2n' : '4n.'
-      const degrees = [
-        chordDegs[0] ?? 0,
-        chordDegs[1] ?? chordDegs[0] ?? 0,
-        chordDegs[2] ?? chordDegs[1] ?? chordDegs[0] ?? 0,
-        chordDegs[1] ?? chordDegs[0] ?? 0,
-      ]
-
-      let cursor = 0
-      let phraseIndex = 0
-      while (cursor < length16ths) {
-        const degIndex = degrees[phraseIndex % degrees.length]
-        const bar  = Math.floor(cursor / 16)
-        const beat = Math.floor((cursor % 16) / 4)
-        const sub  = cursor % 4
-        const velocity = this.currentBehavior === MelodyBehavior.Lead ? 0.66 : 0.50
-        notes.push({
-          pitch: degreeToPitch(degIndex),
-          duration: noteDur,
-          velocity,
-          time: `${bar}:${beat}:${sub}`,
-        })
-        cursor += phraseStep
-        phraseIndex += 1
-      }
-
-      return notes
-    }
-
     const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number) => {
       const out: ScheduledNote[] = []
       let c = cursorStart

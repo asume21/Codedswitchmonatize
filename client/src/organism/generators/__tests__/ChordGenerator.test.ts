@@ -19,6 +19,27 @@ function makePhysics(overrides: Partial<PhysicsState> = {}): PhysicsState {
   }
 }
 
+function makeOrganism(overrides: Partial<import('../../state/types').OrganismState> = {}): import('../../state/types').OrganismState {
+  return {
+    current: OState.Flow,
+    previous: OState.Breathing,
+    framesInState: 100,
+    msInState: 2300,
+    barsInState: 2,
+    awakeningProgress: 1,
+    breathingWarmth: 0.8,
+    flowDepth: 0.6,
+    syllabicDensity: 0,
+    cadenceLockBars: 0,
+    cadenceLockAchieved: true,
+    silenceDurationMs: 0,
+    lastTransitionPhysics: null,
+    timestamp: 1000,
+    frameIndex: 43,
+    ...overrides,
+  }
+}
+
 describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -56,5 +77,37 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
     expect(conductor.isProgressionLocked()).toBe(true)
     gen.unlockProgression()
     expect(conductor.isProgressionLocked()).toBe(false)
+  })
+
+  it('keeps conductor chord dirty until a throttled rebuild actually runs', () => {
+    const nowSpy = vi.spyOn(performance, 'now')
+    nowSpy.mockReturnValue(1000)
+
+    try {
+      const gen = new ChordGenerator()
+      const physics = makePhysics()
+      const organism = makeOrganism()
+      gen.onStateTransition(OState.Flow, physics)
+
+      nowSpy.mockReturnValue(1600)
+      gen.processFrame(physics, organism)
+
+      vi.clearAllMocks()
+      getConductor().advanceChord()
+      expect(mockPartStart).not.toHaveBeenCalled()
+      expect((gen as any).conductorChordDirty).toBe(true)
+
+      nowSpy.mockReturnValue(1601)
+      gen.processFrame(physics, organism)
+      expect(mockPartStart).not.toHaveBeenCalled()
+      expect((gen as any).conductorChordDirty).toBe(true)
+
+      nowSpy.mockReturnValue(2200)
+      gen.processFrame(physics, organism)
+      expect(mockPartStart).toHaveBeenCalled()
+      expect((gen as any).conductorChordDirty).toBe(false)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 })

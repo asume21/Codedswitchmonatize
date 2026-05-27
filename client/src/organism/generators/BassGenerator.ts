@@ -241,14 +241,14 @@ export class BassGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
-      this.rebuildPart(physics)
+      const rebuilt = this.rebuildPart(physics)
       // The behavior-change rebuild already used the latest rootMidi, so the
       // pending conductor flag is satisfied — clearing avoids a redundant
       // rebuild on the same frame.
-      this.conductorChordDirty = false
+      if (rebuilt) this.conductorChordDirty = false
     } else if (this.conductorChordDirty && this.lastOutputGain > 0) {
-      this.conductorChordDirty = false
-      this.rebuildPart(physics)
+      const rebuilt = this.rebuildPart(physics)
+      if (rebuilt) this.conductorChordDirty = false
     }
 
     // Only duck filter if we are using a MonoSynth (samplers bypass the filter entirely)
@@ -439,15 +439,15 @@ export class BassGenerator extends GeneratorBase {
     return getBassBehavior(this.currentMode, organismState)
   }
 
-  private rebuildPart(physics?: PhysicsState): void {
+  private rebuildPart(physics?: PhysicsState): boolean {
     const now = performance.now()
-    if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return
+    if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return false
     this.lastRebuildTime = now
 
     const notes = this.generateNotes(physics ?? ({ density: 0.5 } as any))
     if (notes.length === 0) {
       this.stopPart()
-      return
+      return true
     }
 
     const events = notes.map(n => ({
@@ -527,6 +527,7 @@ export class BassGenerator extends GeneratorBase {
     this.part.loopEnd   = '4m'
     this.part.start(startAt)
     this.hasStartedPlayback = true
+    return true
   }
 
   private generateNotes(physics: PhysicsState): ScheduledNote[] {

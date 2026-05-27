@@ -53,6 +53,19 @@ describe('AutoGenerateSource', () => {
     expect(typeof f.voiceActive).toBe('boolean')
   })
 
+  it('emits musical energy without faking a human voice', async () => {
+    const frames: AnalysisFrame[] = []
+    source.subscribe((frame) => frames.push(frame))
+
+    await source.start()
+    vi.advanceTimersByTime(100)
+
+    expect(frames.length).toBeGreaterThan(0)
+    expect(frames.every(frame => frame.voiceActive === false)).toBe(true)
+    expect(frames.every(frame => frame.voiceConfidence === 0)).toBe(true)
+    expect(frames.some(frame => frame.rms > 0.05)).toBe(true)
+  })
+
   it('getLastFrame() returns last emitted frame', async () => {
     await source.start()
     vi.advanceTimersByTime(50)

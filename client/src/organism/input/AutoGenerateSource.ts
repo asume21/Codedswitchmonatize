@@ -156,9 +156,11 @@ export class AutoGenerateSource implements InputSource {
       200, 8000,
     )
 
-    // Voice active when rms is above threshold
-    const voiceActive = rms > 0.05
-    const voiceConfidence = Math.min(1, rms * 3)
+    // Auto-generate is beat energy, not a human vocal. Marking this as voice
+    // made the melody generator think a rapper was always present, so it
+    // stayed in sparse backing mode and never took the lead.
+    const voiceActive = false
+    const voiceConfidence = 0
 
     const frame: AnalysisFrame = {
       timestamp: now,

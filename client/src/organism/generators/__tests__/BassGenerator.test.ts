@@ -105,30 +105,40 @@ describe('BassGenerator', () => {
     expect(report.activityLevel).toBeLessThan(0.65)
   })
 
-  it('Conductor advanceChord defers rebuild — does NOT call Part.start inside the listener', () => {
+  it('Conductor advanceChord defers rebuild and retries if throttled', () => {
     // The Conductor listener fires synchronously inside advanceChord(). If
     // rebuildPart() ran from there, Tone.Part.start() would execute on the
     // audio thread (the bug from reverted commit ea4e43e). Phase 4 prep:
     // listener only sets a dirty flag — rebuild happens on the next
     // processFrame, off the audio callback.
-    const physics = makePhysics()
-    gen.onStateTransition(OState.Breathing, physics)
-    const organism = makeOrganism({ current: OState.Breathing, breathingWarmth: 1 })
-    for (let i = 0; i < 50; i++) gen.processFrame(physics, organism)
+    const nowSpy = vi.spyOn(performance, 'now')
+    nowSpy.mockReturnValue(1000)
 
-    vi.clearAllMocks()
-    getConductor().advanceChord()
+    try {
+      const physics = makePhysics()
+      gen.onStateTransition(OState.Breathing, physics)
+      const organism = makeOrganism({ current: OState.Breathing, breathingWarmth: 1 })
 
-    // The primary guarantee: zero Tone.Part.start() calls from the listener.
-    expect(mockPartStart).not.toHaveBeenCalled()
-    // The dirty flag is the deferred-work signal consumed on next frame.
-    expect((gen as any).conductorChordDirty).toBe(true)
+      vi.clearAllMocks()
+      getConductor().advanceChord()
 
-    gen.processFrame(physics, organism)
-    // Flag is consumed even when the rebuild throttle blocks the actual
-    // Tone.Part rebuild — the contract is that the listener never directly
-    // rebuilds, not that every frame rebuilds.
-    expect((gen as any).conductorChordDirty).toBe(false)
+      // The primary guarantee: zero Tone.Part.start() calls from the listener.
+      expect(mockPartStart).not.toHaveBeenCalled()
+      // The dirty flag is the deferred-work signal consumed on a later frame.
+      expect((gen as any).conductorChordDirty).toBe(true)
+
+      nowSpy.mockReturnValue(1001)
+      gen.processFrame(physics, organism)
+      expect(mockPartStart).not.toHaveBeenCalled()
+      expect((gen as any).conductorChordDirty).toBe(true)
+
+      nowSpy.mockReturnValue(1600)
+      gen.processFrame(physics, organism)
+      expect(mockPartStart).toHaveBeenCalled()
+      expect((gen as any).conductorChordDirty).toBe(false)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 
   it('reset() zeros activity level and stops part', () => {

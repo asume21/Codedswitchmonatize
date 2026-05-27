@@ -103,7 +103,7 @@ export class ChordGenerator extends GeneratorBase {
     if (this.currentTechniqueId === techniqueId) return
     this.currentTechniqueId = techniqueId
     // Rebuild on next tick so new technique takes effect at the next chord
-    this.lastRebuildTime = 0
+    this.lastRebuildTime = -Infinity
     this.rebuildPart()
   }
 
@@ -295,15 +295,15 @@ export class ChordGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
-      this.rebuildPart()
-      this.conductorChordDirty = false
+      const rebuilt = this.rebuildPart()
+      if (rebuilt) this.conductorChordDirty = false
     } else if (this.conductorChordDirty) {
       // Conductor's chord changed (bar-tick advance OR pickNewProgression).
       // Single-bar Part architecture means we always need to rebuild — the
       // running Part loops the previous chord forever otherwise. Throttle in
       // rebuildPart keeps this from going wild at extreme BPMs.
-      this.conductorChordDirty = false
-      this.rebuildPart()
+      const rebuilt = this.rebuildPart()
+      if (rebuilt) this.conductorChordDirty = false
     }
 
     const targetLevel = this.computeTargetLevel(organism)
@@ -346,7 +346,7 @@ export class ChordGenerator extends GeneratorBase {
     this.activityLevel = 0
     this.currentBehavior = ChordBehavior.Silent
     this.hasStartedPlayback = false
-    this.lastRebuildTime = 0
+    this.lastRebuildTime = -Infinity
     this.sectionTechniqueId = null
     this.setOutputLevel(0)
   }
@@ -436,17 +436,17 @@ export class ChordGenerator extends GeneratorBase {
     }
   }
 
-  private lastRebuildTime: number = 0
+  private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
-  private rebuildPart(): void {
+  private rebuildPart(): boolean {
     const now = performance.now()
-    if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return
+    if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return false
     this.lastRebuildTime = now
 
     if (this.currentBehavior === ChordBehavior.Silent) {
       this.stopPart()
-      return
+      return true
     }
 
     // Phase 4: render a single-bar loop for the Conductor's CURRENT chord.
@@ -462,7 +462,7 @@ export class ChordGenerator extends GeneratorBase {
     const parsedNext    = conductor.nextChord()
     if (!parsedCurrent) {
       this.stopPart()
-      return
+      return true
     }
     const keyPC = conductor.getKeyPitchClass()
     const toEvent = (p: ParsedChord): ChordEvent => ({
@@ -584,6 +584,7 @@ export class ChordGenerator extends GeneratorBase {
     this.part.loopEnd = `${loopBars}m`
     this.part.start(startAt)
     this.hasStartedPlayback = true
+    return true
   }
 
   /**

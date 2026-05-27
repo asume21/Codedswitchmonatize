@@ -404,6 +404,7 @@ export function OrganismCommandCenter() {
   type SoloRole = 'lead' | 'bass' | 'chord' | 'drums'
   const [soloRole, setSoloRole] = useState<SoloRole | null>(null)
   const savedVolumesRef = useRef({ melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume })
+  const savedMelodyFocusRef = useRef(melodyFocusEnabled)
 
   const handleSolo = useCallback((role: SoloRole) => {
     if (soloRole === role) {
@@ -412,18 +413,22 @@ export function OrganismCommandCenter() {
       setBassVolume(savedVolumesRef.current.bass)
       setChordVolume(savedVolumesRef.current.chord)
       setDrumsVolume(savedVolumesRef.current.drums)
+      setMelodyFocusEnabled(savedMelodyFocusRef.current)
       setSoloRole(null)
     } else {
       // Save current, silence all except the soloed role
       savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume }
+      savedMelodyFocusRef.current = melodyFocusEnabled
       setSoloRole(role)
       setMelodyVolume(role === 'lead'  ? Math.max(melodyVolume, 1.0) : 0)
       setBassVolume(  role === 'bass'  ? Math.max(bassVolume,   1.0) : 0)
       setChordVolume( role === 'chord' ? Math.max(chordVolume,  1.0) : 0)
       setDrumsVolume( role === 'drums' ? Math.max(drumsVolume,  1.0) : 0)
+      setMelodyFocusEnabled(role === 'lead')
     }
   }, [soloRole, melodyVolume, bassVolume, chordVolume, drumsVolume,
-      setMelodyVolume, setBassVolume, setChordVolume, setDrumsVolume])
+      melodyFocusEnabled, setMelodyVolume, setBassVolume, setChordVolume,
+      setDrumsVolume, setMelodyFocusEnabled])
 
   // ── Voice command state ──────────────────────────────────────────────────
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)

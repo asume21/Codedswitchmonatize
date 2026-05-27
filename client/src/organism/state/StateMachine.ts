@@ -119,7 +119,11 @@ export class StateMachine {
   private updateSilenceTracking(physics: PhysicsState, now: number): void {
     const deltaMs = this.frameDeltaMs(now)
 
-    if (physics.voiceActive) {
+    const nonVoiceActivity = !physics.voiceActive && (
+      physics.presence >= 0.05 || physics.bounce >= 0.3
+    )
+
+    if (physics.voiceActive || nonVoiceActivity) {
       this.state.silenceDurationMs = 0
     } else {
       this.state.silenceDurationMs += deltaMs

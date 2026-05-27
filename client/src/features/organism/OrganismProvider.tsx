@@ -1272,8 +1272,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       onsetDetected: true,
       onsetStrength: 0.75,
       onsetTimestamp: now,
-      voiceActive: true,
-      voiceConfidence: 0.85,
+        voiceActive: false,
+        voiceConfidence: 0,
     }
 
     physicsRef.current.processFrame(startupFrame)
