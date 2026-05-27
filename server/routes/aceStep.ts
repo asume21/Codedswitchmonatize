@@ -2,6 +2,7 @@
  * ACE-Step routes — text-to-music generation
  *
  * GET  /api/ai-music/status          — ACE-Step worker health check
+ * POST /api/ai-music/compose         — Composer → ArrangementPlan (Phase 5)
  * POST /api/ai-music/generate        — Ollama/local prompt tags → ACE-Step job
  * GET  /api/ai-music/job/:jobId      — poll job status
  * GET  /api/ai-music/audio/:filename — serve generated WAV
@@ -14,6 +15,8 @@ import { isWorkerReady, submitGeneration, pollJob, AceStepRequest, AceStepTaskTy
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
 import { localAI } from '../services/localAI'
+import { composer } from '../services/composer'
+import type { ArrangementPlan, ComposerInput } from '../../shared/arrangement'
 
 // Keep in sync with runpodServerlessService.OUTPUT_DIR — both point at the
 // same dir (Railway Volume in prod via ACE_STEP_OUTPUT_DIR, local in dev).
@@ -188,6 +191,33 @@ export function createAceStepRoutes(): Router {
       directHealth,
       healthDetail,
     })
+  })
+
+  // Compose an ArrangementPlan — the artifact ACE-Step renders and the
+  // live engine performs from. Single source of truth: when the client
+  // both renders this plan AND hands it to the live engine, the audio
+  // preview and the live performance share the same key/progressions
+  // /section structure. Falls back to a deterministic plan if Ollama
+  // is unavailable (mirrors /generate's prompt-builder fallback).
+  router.post('/compose', async (req: Request, res: Response) => {
+    try {
+      const input: ComposerInput = {
+        prompt:       typeof req.body?.prompt === 'string'    ? req.body.prompt    : undefined,
+        key:          typeof req.body?.key === 'string'       ? req.body.key       : undefined,
+        bpm:          typeof req.body?.bpm === 'number'       ? req.body.bpm       : undefined,
+        subGenre:     typeof req.body?.subGenre === 'string'  ? req.body.subGenre  : undefined,
+        mood:         typeof req.body?.mood === 'string'      ? req.body.mood      : undefined,
+        sectionCount: typeof req.body?.sectionCount === 'number' ? req.body.sectionCount : undefined,
+      }
+      const plan: ArrangementPlan = await composer.compose(input)
+      res.json({ plan })
+    } catch (err: any) {
+      // composer.compose never throws (deterministic fallback is always
+      // available), but defensively wrap so an unexpected fault doesn't
+      // bring down the worker process.
+      console.error('[aceStep] /compose error:', err)
+      res.status(500).json({ error: err?.message ?? 'compose failed' })
+    }
   })
 
   // Submit generation job
