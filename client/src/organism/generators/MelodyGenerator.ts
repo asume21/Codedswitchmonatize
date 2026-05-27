@@ -722,8 +722,9 @@ export class MelodyGenerator extends GeneratorBase {
       ? this.lastPerformerEnergy
       : Math.max(0.75, this.lastPerformerEnergy)
 
-    // CALL & RESPONSE: Deterministic selection based on chord root
-    const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0)) % 10
+    // CALL & RESPONSE: Deterministic selection based on chord root and absolute bar
+    const currentBar = getConductor().getScoreFrame().bar
+    const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar) % 10
     
     let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
     if (!this.voiceActive) {

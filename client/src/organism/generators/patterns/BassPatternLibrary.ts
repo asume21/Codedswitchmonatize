@@ -129,7 +129,7 @@ export function buildLockNotes(rootMidi: number, density: number = 0.5): Schedul
     const deg2 = pickFrom(degrees, bar * 2 + 1)
     notes.push({ pitch: midiToNote(rootMidi + pent[deg2]), duration: mainDur, velocity: hv(0.68, bar, 1, 2), time: swingTime(bar, 1, 2) })
     notes.push({ pitch: midiToNote(rootMidi + pent[0]), duration: mainDur, velocity: hv(0.80, bar, 2, 0), time: swingTime(bar, 2, 0) })
-    const deg4 = degrees[(bar * 2) % degrees.length]
+    const deg4 = pickFrom(degrees, bar * 2)
     notes.push({ pitch: midiToNote(rootMidi + pent[deg4]), duration: mainDur, velocity: hv(0.65, bar, 3, 0), time: swingTime(bar, 3, 0) })
     if (bar < 3) {
       notes.push({ pitch: midiToNote(rootMidi + pent[1]), duration: '16n', velocity: hv(0.50, bar, 3, 2), time: swingTime(bar, 3, 2) })
@@ -370,7 +370,7 @@ export function buildWestCoastNotes(rootMidi: number, density: number = 0.5): Sc
     // Beat 3: octave down root for weight
     notes.push({ pitch: midiToNote(octDown), duration: '8n', velocity: hv(0.82, bar, 2, 0), time: swingTime(bar, 2, 0) })
     // "and" of 3: pentatonic climb
-    const deg = pent[(bar + 1) % pent.length]
+    const deg = pickFrom(pent, bar + 1)
     notes.push({ pitch: midiToNote(rootMidi + deg), duration: '16n', velocity: hv(0.58, bar, 2, 2), time: swingTime(bar, 2, 2) })
 
     // Beat 4: approach note to next bar's root
