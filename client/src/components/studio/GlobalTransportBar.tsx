@@ -43,8 +43,9 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const isMobile = useIsMobile();
   const isInline = variant === 'inline';
 
-  // MobileStudioLayout provides its own transport bar — hide this one on mobile
-  if (isMobile && !isInline) return null;
+  // MobileStudioLayout provides its own transport bar. Keep the return after
+  // all hooks so hook order stays stable when the media query changes.
+  const hideOnMobile = isMobile && !isInline;
   const currentPattern = useStudioStore((s) => s.currentPattern);
   const currentMelody = useStudioStore((s) => s.currentMelody);
   const currentTracks = useStudioStore((s) => s.currentTracks);
@@ -354,6 +355,9 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     (currentUploadedSong) ||
     (storeTracks && storeTracks.length > 0) ||
     true; // Always enable play - Piano Roll handles its own playback
+
+  // Safe to return now: every hook above has run unconditionally.
+  if (hideOnMobile) return null;
 
   const containerClasses = cn(
     "bg-gray-900/95 backdrop-blur-md border-gray-700 transition-all duration-300",
