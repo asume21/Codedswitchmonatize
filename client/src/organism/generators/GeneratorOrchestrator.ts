@@ -1227,7 +1227,13 @@ export class GeneratorOrchestrator {
 
       // Shift melody density and chord technique per section.
       // Staggered so Part rebuilds don't collide on the audio thread.
-      setTimeout(() => this.melody.onSectionChange(section.name), 80)
+      setTimeout(() => {
+        if (aiOverride?.melodyBehavior) {
+          this.melody.onSectionChange(section.name, aiOverride.melodyBehavior as any)
+        } else {
+          this.melody.onSectionChange(section.name)
+        }
+      }, 80)
       setTimeout(() => {
         if (aiOverride?.chordTechnique) {
           this.chord.onSectionChange(section.name, aiOverride.chordTechnique)

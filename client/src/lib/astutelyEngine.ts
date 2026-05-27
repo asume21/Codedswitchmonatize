@@ -419,10 +419,11 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
     }
   }
   
-  // MELODY — truly random walk using scale degrees (not hardcoded patterns)
+    // MELODY — truly random walk using scale degrees (not hardcoded patterns)
   for (let bar = 0; bar < 4; bar++) {
     const densityRoll = rng();
-    const notesInBar = densityRoll > 0.6 ? Math.floor(4 + rng() * 3) : (densityRoll > 0.25 ? Math.floor(7 + rng() * 4) : Math.floor(11 + rng() * 4));
+    // INCREASED DENSITY for more melodic movement
+    const notesInBar = densityRoll > 0.4 ? Math.floor(6 + rng() * 5) : (densityRoll > 0.1 ? Math.floor(10 + rng() * 6) : Math.floor(14 + rng() * 2));
     const availableSteps = Array.from({ length: 16 }, (_, i) => i);
     const chosenSteps: number[] = [];
     for (let n = 0; n < Math.min(notesInBar, 16); n++) {
@@ -437,16 +438,17 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
     for (const step of chosenSteps) {
       const globalStep = bar * 16 + step;
       const moveRoll = rng();
-      if (moveRoll > 0.7) currentDegree = Math.min(currentDegree + 2, scale.length - 1);
-      else if (moveRoll > 0.45) currentDegree = Math.min(currentDegree + 1, scale.length - 1);
-      else if (moveRoll > 0.2) currentDegree = Math.max(currentDegree - 1, 0);
-      else if (moveRoll > 0.05) currentDegree = Math.max(currentDegree - 2, 0);
+      // INCREASED PITCH RANGE by allowing larger jumps (up to +/- 3 degrees)
+      if (moveRoll > 0.8) currentDegree = Math.min(currentDegree + 3, scale.length - 1);
+      else if (moveRoll > 0.6) currentDegree = Math.min(currentDegree + 2, scale.length - 1);
+      else if (moveRoll > 0.4) currentDegree = Math.min(currentDegree - 2, 0);
+      else if (moveRoll > 0.2) currentDegree = Math.max(currentDegree - 3, 0);
 
       const scaleNote = scale[currentDegree % scale.length];
       const octaveShift = Math.floor(currentDegree / scale.length) * 12;
-      const octaveBoost = rng() > 0.8 ? 12 : 0;
+      const octaveBoost = rng() > 0.6 ? 12 : 0; // Increased chance of octave jumps
       const midiNote = rootNote + 12 + scaleNote + octaveShift + octaveBoost;
-      const dur = rng() > 0.6 ? 1 : (rng() > 0.3 ? 2 : 4);
+      const dur = rng() > 0.7 ? 1 : (rng() > 0.4 ? 2 : 4);
       result.melody.push({ step: globalStep, note: midiNote, duration: dur });
     }
   }

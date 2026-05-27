@@ -25,7 +25,9 @@ export function getAudioContext(): AudioContext {
     });
 
     // Force Tone.js to use OUR context (not its own default small-buffer one)
-    Tone.setContext(new Tone.Context(sharedContext));
+    const toneContext = new Tone.Context(sharedContext);
+    toneContext.lookAhead = 0.1; // Increase lookAhead as requested
+    Tone.setContext(toneContext);
 
     // Add error handling for audio context
     sharedContext.addEventListener('statechange', handleContextStateChange);

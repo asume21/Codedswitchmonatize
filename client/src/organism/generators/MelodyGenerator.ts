@@ -392,10 +392,19 @@ export class MelodyGenerator extends GeneratorBase {
    *
    * The lead instrument DOES NOT change — it is the signature of the beat.
    */
-  onSectionChange(_sectionName: string): void {
-    // Let normal getMelodyBehavior() logic run for every section —
-    // responds to voice activity, flow depth, and physics mode.
-    this.sectionBehavior = null
+  onSectionChange(_sectionName: string, behaviorOverride?: MelodyBehavior): void {
+    if (behaviorOverride) {
+      this.sectionBehavior = behaviorOverride
+    } else {
+      // Let normal getMelodyBehavior() logic run for every section —
+      // responds to voice activity, flow depth, and physics mode.
+      this.sectionBehavior = null
+    }
+    
+    // Force a fresh phrase rebuild on every section change so the melody
+    // doesn't loop the same phrase across the whole arrangement.
+    this.scaleDirty = true
+    this.lastRebuildTime = -Infinity // bypass throttle for section changes
   }
 
   /**

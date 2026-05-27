@@ -1127,6 +1127,9 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     // 4. Update state
     setActiveGenreState(plan.genre);
 
+    // FIX: Ensure AudioContext resumes after loading new configuration
+    resumeAudioContext().catch(console.error);
+
     dispatchAstutelyEvent('genre-enforced', { genreId, genre: plan.genre.label });
   }, []);
 
