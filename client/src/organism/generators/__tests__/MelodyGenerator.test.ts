@@ -103,6 +103,29 @@ describe('MelodyGenerator', () => {
     expect(events.length).toBeGreaterThan(3)
   })
 
+  it('boosts selected lead sampler gain so melody stays audible in the full mix', () => {
+    gen.setInstrumentPerformer('piano')
+
+    const samplerMock = Tone.Sampler as unknown as {
+      mock: { calls: Array<[Record<string, unknown>]> }
+    }
+    const options = samplerMock.mock.calls.at(-1)?.[0]
+    expect(options?.volume).toBe(-2)
+  })
+
+  it('keeps no-vocal lead phrase velocities above background level', () => {
+    const physics = makePhysics({ voiceActive: false })
+
+    gen.setInstrumentPerformer('piano')
+    gen.onStateTransition(OState.Flow, physics)
+
+    const partMock = Tone.Part as unknown as {
+      mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+    }
+    const events = partMock.mock.calls.at(-1)?.[1] ?? []
+    expect(Math.max(...events.map(event => event.vel))).toBeGreaterThan(0.5)
+  })
+
   it('onStateTransition to DORMANT stops part and zeros activity', () => {
     const physics = makePhysics()
     gen.onStateTransition(OState.Breathing, physics)

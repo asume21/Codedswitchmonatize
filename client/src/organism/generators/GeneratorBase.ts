@@ -16,7 +16,7 @@ export abstract class GeneratorBase {
 
   /** Called by the orchestrator's arrangement logic to shape section dynamics. */
   applyArrangementMultiplier(multiplier: number): void {
-    this.arrangementMultiplier = Math.max(0, Math.min(1, multiplier))
+    this.arrangementMultiplier = Math.max(0, Math.min(1.5, multiplier))
   }
 
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void

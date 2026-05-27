@@ -89,6 +89,7 @@ export class MelodyGenerator extends GeneratorBase {
   // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
   private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 600
+  private static readonly LEAD_GAIN_BOOST_DB = 5
 
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
   private pendingBehavior: MelodyBehavior | null = null
@@ -268,11 +269,11 @@ export class MelodyGenerator extends GeneratorBase {
     // there is no master compressor in the generator graph to make up gain.
     // selfListenGainCorrection still clamps down to 0.6× if the full mix clips.
     this.synth = this.buildDefaultSynth()
-    this.synth.volume.value = -5
+    this.synth.volume.value = this.boostLeadGainDb(-5)
 
     // Fallback synth — always connected, used when a sampler hasn't loaded yet
     this.fallbackSynth = this.buildDefaultSynth()
-    this.fallbackSynth.volume.value = -5
+    this.fallbackSynth.volume.value = this.boostLeadGainDb(-5)
 
     // Vibrato — inline pitch modulation between synths and chorus. Depth is
     // ramped from setPerformerFeatures based on performer energy.
@@ -351,6 +352,10 @@ export class MelodyGenerator extends GeneratorBase {
       envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
       modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
     } as any)
+  }
+
+  private boostLeadGainDb(db: number): number {
+    return Math.min(2, db + MelodyGenerator.LEAD_GAIN_BOOST_DB)
   }
 
   private lastPerformerEnergy: number = 0.5
@@ -441,7 +446,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.synth = createSoundfontSampler(
       performer.samplerPreset,
       performer.envelope,
-      performer.volume,
+      this.boostLeadGainDb(performer.volume),
     )
     this.synth.connect(this.vibrato)
     this.chorus.wet.rampTo(performer.family === 'wind' || performer.family === 'bowed' ? 0.28 : 0.18, 0.5)
@@ -713,6 +718,9 @@ export class MelodyGenerator extends GeneratorBase {
     const octave  = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
     
     const isHint  = this.currentBehavior === MelodyBehavior.Hint
+    const velocityEnergy = this.voiceActive
+      ? this.lastPerformerEnergy
+      : Math.max(0.75, this.lastPerformerEnergy)
 
     // CALL & RESPONSE: Deterministic selection based on chord root
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0)) % 10
@@ -776,7 +784,7 @@ export class MelodyGenerator extends GeneratorBase {
         const bar  = Math.floor(cursor / 16)
         const beat = Math.floor((cursor % 16) / 4)
         const sub  = cursor % 4
-        const velocity = this.currentBehavior === MelodyBehavior.Lead ? 0.58 : 0.42
+        const velocity = this.currentBehavior === MelodyBehavior.Lead ? 0.66 : 0.50
         notes.push({
           pitch: degreeToPitch(degIndex),
           duration: noteDur,
@@ -839,7 +847,7 @@ export class MelodyGenerator extends GeneratorBase {
         const hash = Math.sin(seed * 9.87) * 1000
         const pseudoRand = hash - Math.floor(hash)
 
-        let vel = Math.min(1, Math.max(0.15, (accentBase * this.lastPerformerEnergy) + (pseudoRand - 0.5) * 0.12))
+        let vel = Math.min(1, Math.max(0.22, (accentBase * velocityEnergy) + (pseudoRand - 0.5) * 0.12))
 
         // Emotional-intent velocity shaping. Applied after the deterministic
         // hash so the per-position pseudo-random texture is preserved, just
