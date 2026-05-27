@@ -190,6 +190,11 @@ export class LocalAIService {
           model,
           messages,
           stream: false,
+          // `format: 'json'` makes Ollama enforce JSON output at the
+          // sampler level — eliminates markdown fences and stray prose.
+          // Composer (server/services/composer.ts) relies on this for
+          // ArrangementPlan generation.
+          ...(options.format ? { format: options.format } : {}),
           options: {
             temperature: options.temperature || 0.7,
           }
