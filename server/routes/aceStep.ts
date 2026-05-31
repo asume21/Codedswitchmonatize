@@ -208,6 +208,12 @@ export function createAceStepRoutes(): Router {
         subGenre:     typeof req.body?.subGenre === 'string'  ? req.body.subGenre  : undefined,
         mood:         typeof req.body?.mood === 'string'      ? req.body.mood      : undefined,
         sectionCount: typeof req.body?.sectionCount === 'number' ? req.body.sectionCount : undefined,
+        allowedTemplateIds: Array.isArray(req.body?.allowedTemplateIds)
+          ? req.body.allowedTemplateIds.filter((id: unknown): id is string => typeof id === 'string')
+          : undefined,
+        allowedStyleIds: Array.isArray(req.body?.allowedStyleIds)
+          ? req.body.allowedStyleIds.filter((id: unknown): id is string => typeof id === 'string')
+          : undefined,
       }
       const plan: ArrangementPlan = await composer.compose(input)
       res.json({ plan })

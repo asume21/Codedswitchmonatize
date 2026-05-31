@@ -25,6 +25,12 @@ import {
   type Composer,
   type ComposerInput,
 } from '../../shared/arrangement'
+import {
+  STYLE_PRESETS,
+  pickStylePreset,
+  getStylePreset,
+} from '../../shared/stylePresets'
+import { ARRANGEMENT_TEMPLATE_CATALOG } from '../../shared/arrangementTemplates'
 import { localAI } from './localAI'
 
 // ── Defaults / fallback library ──────────────────────────────────────
@@ -60,12 +66,21 @@ const DEFAULT_SECTION_SKELETON: Array<{
   energy: number
   density: number
 }> = [
-  { name: 'intro',     bars: 4, energy: 0.30, density: 0.20 },
-  { name: 'verse',     bars: 8, energy: 0.55, density: 0.50 },
-  { name: 'build',     bars: 4, energy: 0.75, density: 0.70 },
-  { name: 'drop',      bars: 8, energy: 0.90, density: 0.85 },
-  { name: 'breakdown', bars: 4, energy: 0.45, density: 0.35 },
-  { name: 'drop2',     bars: 4, energy: 0.92, density: 0.88 },
+  // 18-bar skeleton with explicit section intent (matches client-side
+  // ProducerArrangement). First drop hits at bar 6 (~12s at 80 BPM).
+  // Section intent:
+  //   intro     — chords + melody + bass set the mood, drums OUT
+  //   verse     — drums drop, full band
+  //   build     — tension rising into the drop
+  //   drop      — full force
+  //   breakdown — drums OUT, sparse, gives the next drop weight
+  //   drop2     — return to drop energy
+  { name: 'intro',     bars: 2, energy: 0.30, density: 0.05 },  // density low → drums out
+  { name: 'verse',     bars: 4, energy: 0.60, density: 0.55 },
+  { name: 'build',     bars: 2, energy: 0.80, density: 0.75 },
+  { name: 'drop',      bars: 4, energy: 0.95, density: 0.90 },
+  { name: 'breakdown', bars: 2, energy: 0.45, density: 0.05 },  // density low → drums out
+  { name: 'drop2',     bars: 4, energy: 0.95, density: 0.92 },
 ]
 
 // Sensible defaults when ComposerInput leaves a field unset.
@@ -98,13 +113,43 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
   const progression = DEFAULT_PROGRESSIONS[defaults.subGenre]
                     ?? DEFAULT_PROGRESSIONS['hip-hop']
 
-  const sections: ArrangementSection[] = DEFAULT_SECTION_SKELETON.map((slot) => ({
-    name:        slot.name,
-    bars:        slot.bars,
-    progression: [...progression],
-    energy:      slot.energy,
-    density:     slot.density,
-  }))
+  // Filter the StylePreset bank to allowed ids if the caller supplied a
+  // whitelist (UI lock). Empty allowedStyleIds = use the full bank.
+  const allowedStyles = input.allowedStyleIds && input.allowedStyleIds.length > 0
+    ? STYLE_PRESETS.filter(s => input.allowedStyleIds!.includes(s.id))
+    : STYLE_PRESETS
+  const stylePool = allowedStyles.length > 0 ? allowedStyles : STYLE_PRESETS
+
+  const sections: ArrangementSection[] = DEFAULT_SECTION_SKELETON.map((slot) => {
+    // Pick a curated style from the allowed pool. When the UI hasn't locked
+    // anything, this scores all bank entries; when locked, scoring runs over
+    // the filtered subset.
+    const style = pickStylePreset({
+      energy:   slot.energy,
+      mood:     defaults.mood,
+      subGenre: defaults.subGenre,
+      candidates: stylePool,
+    })
+    return {
+      name:        slot.name,
+      bars:        slot.bars,
+      progression: [...progression],
+      energy:      slot.energy,
+      density:     slot.density,
+      style:       style?.id,
+    }
+  })
+
+  // Pick the structural template. When the caller locked one (UI), use that;
+  // otherwise pick a random one from the allowed range. Deterministic picker
+  // — randomness within range so the same preset doesn't always produce the
+  // same form.
+  const allowedTemplateIds = input.allowedTemplateIds && input.allowedTemplateIds.length > 0
+    ? input.allowedTemplateIds.filter(id => ARRANGEMENT_TEMPLATE_CATALOG.some(t => t.id === id))
+    : ARRANGEMENT_TEMPLATE_CATALOG.map(t => t.id)
+  const templateId = allowedTemplateIds.length > 0
+    ? allowedTemplateIds[Math.floor(Math.random() * allowedTemplateIds.length)]
+    : 'classic'
 
   const acePrompt = [
     defaults.subGenre,
@@ -122,6 +167,7 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
     bpm: defaults.bpm,
     subGenre: defaults.subGenre,
     mood: defaults.mood,
+    templateId,
     sections,
     acePrompt,
   }
@@ -129,24 +175,49 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
 
 // ── Ollama-backed composer ───────────────────────────────────────────
 
-const COMPOSER_SYSTEM_PROMPT = `You are a hip-hop arrangement composer. You output a JSON ArrangementPlan that describes a complete song's structure — key, BPM, sub-genre, mood, and a list of sections (intro/verse/build/drop/breakdown/drop2/outro). Each section has bars, a Roman-numeral chord progression against the plan's key, energy 0..1, and density 0..1.
+/** Build the system prompt fresh on each call so the catalog (styles +
+ *  templates) stays in sync with the source-of-truth banks. Cheaper to
+ *  build than to remember to refresh a const when the banks change. */
+function buildComposerSystemPrompt(opts: {
+  allowedTemplateIds: string[]
+  allowedStyleIds:    string[]
+}): string {
+  const templateMenu = ARRANGEMENT_TEMPLATE_CATALOG
+    .filter(t => opts.allowedTemplateIds.includes(t.id))
+    .map(t => `  - "${t.id}" — ${t.description}`)
+    .join('\n')
+
+  const styleMenu = STYLE_PRESETS
+    .filter(s => opts.allowedStyleIds.includes(s.id))
+    .map(s => `  - "${s.id}" — ${s.label}: drums=${s.drumPattern}, chord=${s.chordTechnique}, bass=${s.bassArticulation}, melody=${s.melodyArticulation}; suits ${s.fitsMood.join('/')} mood at energy ${s.fitsEnergy.min}-${s.fitsEnergy.max}`)
+    .join('\n')
+
+  return `You are a hip-hop arrangement composer. You output a JSON ArrangementPlan that describes a complete song's structure — key, BPM, sub-genre, mood, a STRUCTURAL TEMPLATE, and a list of sections. Each section names its STYLE (a curated combination of techniques the band plays).
 
 Rules:
 - Return ONLY a JSON object — no markdown fences, no commentary.
-- Roman numerals: I/i for tonic, ii/II for supertonic, … VII/vii for leading tone. Lowercase = minor quality, uppercase = major. Suffixes allowed: m7, maj7, 7, sus2, sus4, dim, dim7, 9, maj9, m9, add9, 6. Accidentals: bIII, #IV.
+- Roman numerals: I/i for tonic, ii/II for supertonic, … VII/vii for leading tone. Lowercase = minor, uppercase = major. Suffixes: m7, maj7, 7, sus2, sus4, dim, dim7, 9, maj9, m9, add9, 6. Accidentals: bIII, #IV.
 - Sub-genre is one of: boom-bap, lo-fi, trap, drill, r&b, soul, chill, west-coast, dirty-south, phonk, afrobeat, jersey-club, bounce, reggaeton, hip-hop.
 - bars per section: 4, 8, or 16.
 - Sections must flow musically — intro/verse light, build rising, drop hardest, breakdown low, drop2 reprise.
-- Include an acePrompt: 8–14 comma-separated tags describing instruments, drums, bass, mix vibe, mood, and BPM. Used by the audio renderer.
+- Include an acePrompt: 8–14 comma-separated tags for the audio renderer.
+
+STRUCTURAL TEMPLATES — pick ONE id for plan.templateId based on the song's overall character:
+${templateMenu}
+
+STYLES — pick ONE id for each section.style based on the section's energy and the song's mood. A style is a curated combination of (drum pattern + chord technique + bass articulation + melody articulation) that musically fits together:
+${styleMenu}
 
 JSON shape:
 { "id": "string", "key": "C", "bpm": 90, "subGenre": "boom-bap", "mood": "nostalgic",
+  "templateId": "classic",
   "acePrompt": "boom bap, dusty drums, jazz piano, 90 bpm, mellow, no vocals",
   "sections": [
-    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.3, "density": 0.2 },
+    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.3, "density": 0.2, "style": "lofi-warm" },
     ...
   ]
 }`
+}
 
 /**
  * Ask Ollama for an ArrangementPlan via the JSON-format chat endpoint.
@@ -156,9 +227,18 @@ JSON shape:
  */
 async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan> {
   const scaffold = buildDeterministicPlan(input)
-  // Pass the scaffold to the LLM as a "improve on this" seed — keeps the
-  // model on-rails when the user prompt is sparse and gives it a concrete
-  // target to refine when the prompt is detailed.
+  // Build the system prompt with the catalog of templates + styles the
+  // composer is allowed to pick from. When the UI hasn't locked anything,
+  // both catalogs are fully exposed; when locked, the menu shrinks to the
+  // allowed subset so Ollama can't pick outside the user's chosen range.
+  const allowedTemplateIds = input.allowedTemplateIds && input.allowedTemplateIds.length > 0
+    ? input.allowedTemplateIds
+    : ARRANGEMENT_TEMPLATE_CATALOG.map(t => t.id)
+  const allowedStyleIds = input.allowedStyleIds && input.allowedStyleIds.length > 0
+    ? input.allowedStyleIds
+    : STYLE_PRESETS.map(s => s.id)
+
+  const systemPrompt = buildComposerSystemPrompt({ allowedTemplateIds, allowedStyleIds })
   const userMessage = [
     input.prompt ? `User intent: ${input.prompt}` : '',
     input.sectionCount ? `Target section count: ${input.sectionCount}` : '',
@@ -169,7 +249,7 @@ async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan>
   try {
     const raw = await localAI.chat(
       [
-        { role: 'system', content: COMPOSER_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user',   content: userMessage },
       ],
       { format: 'json', temperature: 0.55 },
@@ -178,6 +258,23 @@ async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan>
     // Always assign a server-side ID even if the model emitted one — the
     // ID has to be unique across sessions, and we can't trust LLM output.
     parsed.id = scaffold.id
+    // Defensive validation: reject any templateId or section styleId not
+    // in the allowed pool. Ollama sometimes hallucinates ids that "sound
+    // right" — clamp to the menu it was given.
+    if (!parsed.templateId || !allowedTemplateIds.includes(parsed.templateId)) {
+      console.warn(`[composer] Ollama picked unknown templateId "${parsed.templateId}"; falling back to "${scaffold.templateId}"`)
+      parsed.templateId = scaffold.templateId
+    }
+    if (Array.isArray(parsed.sections)) {
+      for (let i = 0; i < parsed.sections.length; i++) {
+        const section = parsed.sections[i]
+        if (section && typeof section === 'object' && (!section.style || !allowedStyleIds.includes(section.style))) {
+          const fallbackStyle = scaffold.sections[i]?.style ?? allowedStyleIds[0]
+          console.warn(`[composer] Ollama picked unknown style "${section.style}" for section "${section.name}"; falling back to "${fallbackStyle}"`)
+          section.style = fallbackStyle
+        }
+      }
+    }
     const problem = validateArrangementPlan(parsed)
     if (problem) {
       console.warn(`[composer] Ollama plan rejected: ${problem}. Falling back to deterministic plan.`)

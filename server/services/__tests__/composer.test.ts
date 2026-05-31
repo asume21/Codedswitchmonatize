@@ -35,6 +35,25 @@ describe('composeDeterministic', () => {
     expect(plan.bpm).toBe(72)
   })
 
+  it('honours locked template and style pools', () => {
+    const allowedStyleIds = ['lofi-warm', 'cloud-floaty']
+    const plan = composeDeterministic({
+      subGenre: 'chill',
+      mood: 'cool',
+      bpm: 85,
+      allowedTemplateIds: ['lofi-loop'],
+      allowedStyleIds,
+    })
+
+    expect(plan.templateId).toBe('lofi-loop')
+    expect(plan.subGenre).toBe('chill')
+    expect(validateArrangementPlan(plan)).toBeNull()
+    for (const section of plan.sections) {
+      expect(section.style).toBeDefined()
+      expect(allowedStyleIds).toContain(section.style)
+    }
+  })
+
   it('every plan has a unique id and a non-empty acePrompt', () => {
     const a = composeDeterministic({})
     const b = composeDeterministic({})
