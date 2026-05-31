@@ -1386,14 +1386,28 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr = orchestrRef.current
     const stateMachine = stateMachRef.current
     const physicsEngine = physicsRef.current
-    if (isRunningRef.current) {
-      console.warn('[quickStart] already running — skipping')
+    // Robust re-entry guard against the "double-start → total silence" bug.
+    // isRunningRef is derived from React state (see the isRunningRef.current =
+    // isRunning line) and can be transiently clobbered to false by an unrelated
+    // re-render — the provider re-renders constantly from physics/meter updates.
+    // So we ALSO trust the orchestrator's own `running` flag (set imperatively in
+    // start()/stop(), never lies). Without this, a 2nd quickStart fired right
+    // after the 1st (e.g. the Astutely bridge after a UI click) would fall
+    // through to the orchestr.stop() below and tear down the just-started
+    // session, leaving generators alive-but-silenced.
+    if (startInFlightRef.current) {
+      console.warn('[quickStart] ignored — a start is already in flight')
+      return startInFlightRef.current
+    }
+    if (isRunningRef.current || orchestr.isRunning()) {
+      console.warn('[quickStart] ignored — organism already running (use swapPreset for a live change)')
       return
     }
-    if (startInFlightRef.current) return startInFlightRef.current
 
     // Force-reset orchestrator running flag in case a prior session left it stuck
-    // (e.g. globalAudioKillSwitch fired, page navigation, or a crashed start attempt)
+    // (e.g. globalAudioKillSwitch fired, page navigation, or a crashed start attempt).
+    // Safe here: the guard above already returned if a session is actually running,
+    // so this only clears a stale flag on a genuine cold start.
     if (orchestrRef.current) {
       orchestrRef.current.stop()
     }
@@ -1575,8 +1589,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       return
     }
 
-    // Cold path — not running yet, full quickStart
-    if (!isRunningRef.current) {
+    // Cold path — not running yet, full quickStart. Trust the orchestrator's
+    // running flag too: isRunningRef can be momentarily clobbered to false by a
+    // re-render, which would otherwise route a LIVE swap down the cold quickStart
+    // path and tear the beat down (the double-start silence). If the orchestrator
+    // is actually running, fall through to the hot swap instead.
+    if (!isRunningRef.current && !orchestrRef.current?.isRunning()) {
       await quickStart(presetId)
       return
     }

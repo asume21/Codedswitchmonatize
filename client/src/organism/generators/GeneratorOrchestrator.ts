@@ -393,6 +393,16 @@ export class GeneratorOrchestrator {
     return Tone.getTransport().bpm.value
   }
 
+  /**
+   * True while this orchestrator considers itself started. Set imperatively in
+   * start()/stop(), so unlike the provider's React-derived isRunningRef it is
+   * never transiently clobbered by an unrelated re-render. Used as the reliable
+   * re-entry guard for quickStart/swapPreset to prevent a destructive double-start.
+   */
+  isRunning(): boolean {
+    return this.running
+  }
+
   /** Force all generators to rebuild their patterns with current physics. */
   regenerateAll(): void {
     if (!this.lastPhysics) return
