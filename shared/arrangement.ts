@@ -39,6 +39,12 @@ export interface ArrangementSection {
   /** Optional sub-genre override for this section only (e.g. a chill verse
    *  inside a drill track). Falls back to `plan.subGenre` when absent. */
   groove?: string
+  /** Optional StylePreset id — the curated combination of chord technique,
+   *  bass articulation, melody articulation, and drum pattern that the
+   *  band uses for this section. When absent, generators fall back to
+   *  their mode-default articulations. See client/src/organism/styles/
+   *  StylePresets.ts for the bank. */
+  style?: string
 }
 
 export interface ArrangementPlan {
@@ -52,6 +58,11 @@ export interface ArrangementPlan {
   subGenre: string
   /** Free-form mood descriptor — 'melancholic', 'triumphant', 'dark', etc. */
   mood: string
+  /** ArrangementTemplate id (e.g. 'classic', 'dropfirst', 'lofi-loop') —
+   *  the STRUCTURAL form of the song. Composer picks this within the
+   *  preset's defaults; client calls setActiveArrangementTemplate on load.
+   *  Optional for backward compat with old plans; absent = 'classic'. */
+  templateId?: string
   /** Ordered list of sections that make up the song. */
   sections: ArrangementSection[]
   /**
@@ -74,6 +85,14 @@ export interface ComposerInput {
   mood?: string
   /** Hard target — exactly this many sections. Composer may add/drop to fit. */
   sectionCount?: number
+  /** Templates the composer is allowed to pick from. When absent, all
+   *  templates are fair game. When the UI locks a template, send a one-
+   *  item array. */
+  allowedTemplateIds?: string[]
+  /** StylePresets the composer is allowed to pick from per section. Same
+   *  semantics as allowedTemplateIds — empty = all allowed, one-item =
+   *  locked, multi = pick within range. */
+  allowedStyleIds?: string[]
 }
 
 export interface Composer {
