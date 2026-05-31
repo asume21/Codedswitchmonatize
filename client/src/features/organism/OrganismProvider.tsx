@@ -1037,6 +1037,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           texture: output.texture.activityLevel,
         } : null,
         channelDb,
+        // DIAGNOSTIC: raw generator output-node gain + arrangement multiplier.
+        // gain≈0 → silence is inside the generator; gain>0 with channelDb −inf
+        // → silence is the channel strip / wiring downstream of the generator.
+        gainReport: orchestr?.getGainReport() ?? null,
         masterDb: masterMeter ? {
           rms:  Number.isFinite(masterMeter.rmsDb)  ? masterMeter.rmsDb.toFixed(1)  : '-inf',
           peak: Number.isFinite(masterMeter.peakDb) ? masterMeter.peakDb.toFixed(1) : '-inf',
@@ -1362,6 +1366,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(`Unknown quick start preset: ${presetId}`)
       return
     }
+    // DIAGNOSTIC: stack trace reveals WHO triggered this quickStart (UI click /
+    // Astutely bridge / voice / FFOD), so we can see what fires the 2nd call.
+    console.trace(`[quickStart] CALLED presetId=${presetId} running=${isRunningRef.current} inFlight=${!!startInFlightRef.current}`)
     console.log('[quickStart] refs:', {
       input: !!inputRef.current,
       orchestr: !!orchestrRef.current,

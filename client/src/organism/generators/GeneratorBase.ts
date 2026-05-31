@@ -19,6 +19,12 @@ export abstract class GeneratorBase {
     this.arrangementMultiplier = Math.max(0, Math.min(1.5, multiplier))
   }
 
+  /** DIAGNOSTIC (read-only): current arrangement multiplier, so __orgDebug can
+   *  localize silence (gen output zeroed by a multiplier vs. a dead channel). */
+  getArrangementMultiplier(): number {
+    return this.arrangementMultiplier
+  }
+
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void
   abstract onStateTransition(to: OState, physics: PhysicsState): void
   abstract reset(): void
