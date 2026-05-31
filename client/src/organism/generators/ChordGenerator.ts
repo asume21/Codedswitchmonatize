@@ -572,11 +572,14 @@ export class ChordGenerator extends GeneratorBase {
         const scheduled = technique.schedule(playableNotes, ctx)
         for (const n of scheduled) {
           const noteVel = Math.min(1, Math.max(0.05, n.velocity * vel / 0.6))
-          voice.triggerAttackRelease(n.note, n.duration, time + n.timeOffset, noteVel)
+          // Clamp to ≥0: the first event of a freshly-started Part can compute
+          // a float-negative absolute time (e.g. -1.6e-11), which Tone rejects
+          // with "value must be within [0, Infinity]" and silences the voice.
+          voice.triggerAttackRelease(n.note, n.duration, Math.max(0, time + n.timeOffset), noteVel)
         }
       } else {
         // Legacy block-chord path: fire all notes simultaneously
-        voice.triggerAttackRelease(playableNotes, event.dur, time, vel)
+        voice.triggerAttackRelease(playableNotes, event.dur, Math.max(0, time), vel)
       }
     }, quantizedEvents)
 

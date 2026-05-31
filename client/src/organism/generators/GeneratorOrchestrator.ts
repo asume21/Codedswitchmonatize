@@ -11,16 +11,18 @@ import type { StateMachine }   from '../state/StateMachine'
 import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
-import type { GeneratorOutput } from './types'
+import type { GeneratorOutput, MelodyBehavior } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
-import { PRODUCER_ARRANGEMENT_TOTAL_BARS, getProducerArrangementSlot } from '../state/ProducerArrangement'
+import { getProducerArrangementTotalBars, getProducerArrangementSlot } from '../state/ProducerArrangement'
 import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import type { ArrangementPlan } from '@shared/arrangement'
+import { getStylePreset } from '@shared/stylePresets'
+import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -87,19 +89,22 @@ export class GeneratorOrchestrator {
   //
   // Total cycle: 32 bars, then repeats.
 
-  private arrangementTotalBars: number = PRODUCER_ARRANGEMENT_TOTAL_BARS
+  private get arrangementTotalBars(): number { return getProducerArrangementTotalBars() }
   private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
+  private lastPlanSectionLoadBar: number = -1
 
   // AI Director overrides — keyed by section name, applied next time that section starts
   private aiDirectiveOverrides: Map<string, {
-    drumsArrangement: number; bassVolume: number; melodyVolume: number; chordTechnique: string
+    drumsArrangement: number; bassVolume: number; melodyVolume: number; melodyBehavior?: MelodyBehavior; chordTechnique: string
     hatDensity: number; kickPunch: number; energy: number; subGenre: HipHopSubGenre; groove: string
   }> = new Map()
 
   // Chord-awareness bridge: unsub stored for dispose()
   private unsubChordBridge: (() => void) | null = null
+  // Style-change bridge (composer → conductor → generators)
+  private unsubStyle: (() => void) | null = null
 
   // ── Musical Director — unified brain ──────────────────────────────
   private director: MusicalDirector
@@ -124,6 +129,43 @@ export class GeneratorOrchestrator {
     // never from inside an audio-thread Tone.Part callback, so no setTimeout
     // defer is needed.
     const conductor = getConductor()
+
+    // Subscribe to style changes from the Conductor. When the composer's
+    // plan section carries a `style` field, the Conductor broadcasts the
+    // StylePreset id; we apply each slot to the relevant generator. This
+    // is what makes the composer's per-section style choice actually reach
+    // the band — without this listener, generators stay on their
+    // mode-defaults regardless of what the composer wrote.
+    this.unsubStyle = conductor.onStyleChange((styleId) => {
+      if (!styleId) return
+      const preset = getStylePreset(styleId)
+      if (!preset) {
+        orgLog('style:unknown', { styleId }, 'warn')
+        return
+      }
+      orgLog('style:apply', {
+        styleId:     preset.id,
+        drumPattern: preset.drumPattern,
+        chord:       preset.chordTechnique,
+        bass:        preset.bassArticulation,
+        melody:      preset.melodyArticulation,
+      })
+      this.setChordTechnique(preset.chordTechnique)
+      this.setBassArticulation(preset.bassArticulation)
+      this.setMelodyArticulation(preset.melodyArticulation)
+      // Drum pattern is keyed by HipHopSubGenre — swap it through the
+      // director so drum + groove + arrangement stay in lock-step. But ONLY
+      // fire the swap when the drum pattern actually changes; calling
+      // forceSubGenre with the current value still triggers a Tone.Part
+      // rebuild which collides with the section's own rebuild and creates
+      // a brief audio gap right at the section boundary ("sound dies on
+      // the pocket"). Idempotency check fixes it cleanly.
+      const currentSubGenre = this.director.getState().subGenre
+      if (preset.drumPattern !== currentSubGenre) {
+        this.director.forceSubGenre(preset.drumPattern as HipHopSubGenre)
+      }
+    })
+
     this.unsubChordBridge = conductor.onChordChange((parsed) => {
       const keyPC = conductor.getKeyPitchClass()
       const rootOffset = (((parsed.rootMidi - 60) - keyPC) % 12 + 12) % 12
@@ -154,6 +196,9 @@ export class GeneratorOrchestrator {
 
     // When director changes section, dispatch event for AI pattern generation
     this.unsubDirectorSection = this.director.onSectionChange((section, slot) => {
+      const transport = Tone.getTransport()
+      const position = transport.position as string
+      const barNumber = parseInt(position.split(':')[0], 10) || 0
       orgLog('arrangement:section', {
         section,
         bars: slot.bars,
@@ -164,19 +209,38 @@ export class GeneratorOrchestrator {
         drumDropout: slot.drumDropout,
         bassDropout: slot.bassDropout,
         melodyDropout: slot.melodyDropout,
-        bpm: Tone.getTransport().bpm.value,
+        bpm: transport.bpm.value,
       })
+
+      const conductor = getConductor()
+      const subGenreBeforePlanLoad = this.director.getState().subGenre
+      let planStyleRebuiltDrums = false
+
+      // In plan mode, the Conductor owns section intent. Load the next plan
+      // section before the section-listener drum rebuild so the rebuild uses
+      // the new style's drumPattern. If that style change already forced a
+      // sub-genre swap, the sub-genre listener rebuilt drums and this listener
+      // skips its redundant rebuild.
+      const plan = conductor.getActivePlan()
+      if (plan) {
+        const nextIdx = (conductor.getActiveSectionIndex() + 1) % plan.sections.length
+        conductor.loadSection(nextIdx)
+        this.lastPlanSectionLoadBar = barNumber
+        planStyleRebuiltDrums = this.director.getState().subGenre !== subGenreBeforePlanLoad
+      }
+
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {
           section,
           subGenre: this.director.getState().subGenre,
           physics: this.lastPhysics,
-          bpm: Tone.getTransport().bpm.value,
+          bpm: transport.bpm.value,
         },
       }))
 
-      if (!this.melodyOnlyMode && this.arrangementEnabled && this.drumEnabled) {
-        const pattern = buildSubGenrePattern(this.director.getState().subGenre, this.director.getState().drums.variantIndex)
+      if (!planStyleRebuiltDrums && !this.melodyOnlyMode && this.arrangementEnabled && this.drumEnabled) {
+        const state = this.director.getState()
+        const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
         this.drum.loadGeneratedPattern(pattern.hits, true)
       }
     })
@@ -239,7 +303,11 @@ export class GeneratorOrchestrator {
         dest.volume.value = 0
       }
       if (startTransport && transport.state !== 'started') {
-        transport.start()
+        await requestTransportStart()
+        if ((Tone.getTransport().state as string) !== 'started') {
+          Tone.getTransport().start()
+        }
+        this.startedTransport = true
       }
       return
     }
@@ -264,20 +332,32 @@ export class GeneratorOrchestrator {
       return
     }
 
-    // Organism owns Tone.Transport only for its own live generator clock. It
-    // must start after the initial parts are built, otherwise rebuilt parts can
-    // miss the first grid and bunch events into the next audible tick.
+    // Request a Transport start through the controller — TransportContext, if
+    // mounted, owns Tone.Transport and will route through its own play() so the
+    // studio store stays in sync. When no owner is registered (e.g. /organism
+    // guest page with no TransportProvider), the controller falls back to
+    // Tone.Transport.start() directly.
     if (transport.state !== 'started') {
-      transport.start()
+      await requestTransportStart()
+      if ((Tone.getTransport().state as string) !== 'started') {
+        Tone.getTransport().start()
+      }
+      this.startedTransport = true
     }
     this.running = true
   }
 
+  /**
+   * True if THIS orchestrator was the one to start Transport. Stop only
+   * requests a Transport stop when this is true, so stopping the Organism
+   * doesn't kill a studio playback session that started Transport first.
+   */
+  private startedTransport: boolean = false
+
   stop(): void {
-    // Do NOT call Transport.stop() — TransportContext owns the Transport
-    // lifecycle. Stopping Transport here would kill studio playback (piano
-    // roll, beat maker) if the user stops the Organism mid-session.
     this.running = false
+    // Silence all generators immediately — continuous sources like the pink
+    // noise in TextureGenerator keep producing audio after Transport stops.
     // Silence all generators immediately — continuous sources like the pink
     // noise in TextureGenerator keep producing audio after Transport stops.
     this.texture.reset()
@@ -285,6 +365,16 @@ export class GeneratorOrchestrator {
     this.bass.reset()
     this.melody.reset()
     this.chord.reset()
+
+    // Single-owner contract: if Organism started Transport, Organism stops it.
+    // Without this, generators go silent but Tone.Transport keeps ticking and
+    // any leftover scheduled events (Tone.Parts, scheduleRepeat) keep firing
+    // in the background — which is exactly what the user described as "I hit
+    // stop but the transport kept on going."
+    if (this.startedTransport) {
+      requestTransportStop()
+      this.startedTransport = false
+    }
   }
 
   /**
@@ -371,6 +461,7 @@ export class GeneratorOrchestrator {
     this.unsubOrganism?.()
     this.unsubTransition?.()
     this.unsubChordBridge?.()
+    this.unsubStyle?.()
     this.unsubDirectorSubGenre?.()
     this.unsubDirectorSection?.()
     this.unsubDirectorMutation?.()
@@ -378,6 +469,7 @@ export class GeneratorOrchestrator {
     this.unsubOrganism   = null
     this.unsubTransition = null
     this.unsubChordBridge = null
+    this.unsubStyle = null
     this.unsubDirectorSubGenre = null
     this.unsubDirectorSection  = null
     this.unsubDirectorMutation = null
@@ -714,6 +806,7 @@ export class GeneratorOrchestrator {
     // Force applyArrangement to re-evaluate on next bar so multipliers
     // converge to the current section.
     this.lastArrangementBar = -1
+    this.lastPlanSectionLoadBar = -1
   }
 
   isMelodyOnly(): boolean { return this.melodyOnlyMode }
@@ -806,6 +899,7 @@ export class GeneratorOrchestrator {
     // resetting lastArrangementSection ensures any plan-internal state
     // the orchestrator wants to seed on section entry gets a clean run).
     this.lastArrangementSection = ''
+    this.lastPlanSectionLoadBar = -1
   }
 
   /** Drop the active plan and return to jam mode (bank picker). */
@@ -840,7 +934,8 @@ export class GeneratorOrchestrator {
   /**
    * Set melody articulation. Transforms each single-note melody event.
    * Available: 'none' (default), 'legato-slur', 'staccato-pop',
-   * 'grace-flick', 'trill-ornament'.
+   * 'grace-flick', 'trill-ornament', 'scoop-up', 'fall-off',
+   * 'double-tap', 'octave-echo', 'delayed-echo'.
    */
   setMelodyArticulation(articulationId: string): void {
     this.melody.setArticulation(articulationId)
@@ -857,7 +952,9 @@ export class GeneratorOrchestrator {
   /**
    * Set bass articulation. Transforms each single-note bass event.
    * Available: 'none' (default), 'bass-slide-up', 'bass-ghost-note',
-   * 'bass-octave-jump', 'bass-walking-step'.
+   * 'bass-octave-jump', 'bass-walking-step', 'bass-pickup',
+   * 'bass-muted-pulse', 'bass-octave-walk', 'bass-drop-slide',
+   * 'bass-dub-sustain'.
    */
   setBassArticulation(articulationId: string): void {
     this.bass.setArticulation(articulationId)
@@ -944,6 +1041,9 @@ export class GeneratorOrchestrator {
 
     // Emit unified musical state for Astutely bridge
     this.emitMusicalState()
+
+    // Live vitals for the on-screen debug HUD (OrganismDebugOverlay).
+    this.emitDebugSnapshot(physics, organism, now)
   }
 
   // ── Director event handlers ────────────────────────────────────────
@@ -964,7 +1064,7 @@ export class GeneratorOrchestrator {
     // user has soloed off — DrumGenerator.loadGeneratedPattern enforces the
     // same invariant, this is belt-and-suspenders.
     if (this.drumEnabled) {
-      const drumPattern = buildSubGenrePattern(subGenre)
+      const drumPattern = buildSubGenrePattern(subGenre, this.director.getState().drums.variantIndex)
       this.drum.loadGeneratedPattern(drumPattern.hits, true)
     }
 
@@ -1026,6 +1126,52 @@ export class GeneratorOrchestrator {
     }))
   }
 
+  private debugFrameCounter = 0
+  /**
+   * Emit a live vitals snapshot for the on-screen debug HUD. Throttled to
+   * ~4Hz. Lets us watch state / presence / bounce / generator levels in real
+   * time so we can SEE why the engine winds down to silence — the state
+   * machine drops toward Dormant when (no voice && presence < 0.05 && bounce
+   * < 0.3), and Dormant/Awakening makes generators stopPart().
+   */
+  private emitDebugSnapshot(physics: PhysicsState, organism: OrganismState, now: number): void {
+    // DEV-only and self-throttled — zero cost in production, ~4Hz in dev.
+    if (!import.meta.env.DEV) return
+    this.debugFrameCounter++
+    if (this.debugFrameCounter % 4 !== 0) return
+    const transport = Tone.getTransport()
+    const bar = parseInt((transport.position as string).split(':')[0], 10) || 0
+    window.dispatchEvent(new CustomEvent('organism:debug', {
+      detail: {
+        state:       organism.current,
+        running:     this.running,
+        transport:   transport.state,
+        bar,
+        mode:        physics.mode.toString(),
+        subGenre:    this.director.getState().subGenre,
+        section:     this.lastArrangementSection || 'none',
+        presence:    physics.presence,
+        bounce:      physics.bounce,
+        density:     physics.density,
+        voiceActive: physics.voiceActive,
+        flowDepth:   organism.flowDepth,
+        // destVol is Tone's master destination volume in dB. -Infinity here =
+        // global mute → nothing plays regardless of the mix.
+        destVol:     Tone.getDestination().volume.value,
+        // `out` is each generator's ACTUAL output-node gain (linear). If `lvl`
+        // (activity) is high but `out` is ~0, a multiplier (arrangement/volume)
+        // is zeroing the signal before it reaches the mixer — that's the silence.
+        gens: {
+          drum:    { on: this.drumEnabled,    lvl: this.drum.getActivityReport(now).activityLevel,    out: this.drum.output.gain.value },
+          bass:    { on: this.bassEnabled,    lvl: this.bass.getActivityReport(now).activityLevel,    out: this.bass.output.gain.value },
+          melody:  { on: this.melodyEnabled,  lvl: this.melody.getActivityReport(now).activityLevel,  out: this.melody.output.gain.value },
+          chord:   { on: this.chordEnabled,   lvl: this.chord.getActivityReport(now).activityLevel,   out: this.chord.output.gain.value },
+          texture: { on: this.textureEnabled, lvl: this.texture.getActivityReport(now).activityLevel, out: this.texture.output.gain.value },
+        },
+      },
+    }))
+  }
+
   /** Get the current unified musical state from the director */
   getMusicalState(): Readonly<MusicalState> {
     return this.director.getState()
@@ -1054,6 +1200,7 @@ export class GeneratorOrchestrator {
       this.chord.applyArrangementMultiplier(1.0)
       this.lastArrangementBar = -1
       this.lastArrangementSection = ''
+      this.lastPlanSectionLoadBar = -1
     }
   }
 
@@ -1098,15 +1245,15 @@ export class GeneratorOrchestrator {
 
     switch (sectionName) {
       case 'build': {
-        // Build is 4 bars in PRODUCER_ARRANGEMENT; sweep across the whole thing.
+        // Build is 2 bars now (was 4) — sweep duration must match so the
+        // riser peak lands on the drop entry, not in the middle of the drop.
+        // Without this fix, the wind sound bleeds into the first half of the
+        // drop and "fires off in the middle of the beat."
         if (this.textureEnabled) {
-          // If texture is off (default for hip-hop), enable just for the riser duration.
-          this.texture.triggerRiser(barSec * 4)
+          this.texture.triggerRiser(barSec * 2)
         } else {
-          // Force-enable for the sweep, then auto-silence via the riser's own
-          // tail-off ramp (it returns to gain=0 ~150ms after peak).
           this.texture.setEnabled(true)
-          this.texture.triggerRiser(barSec * 4)
+          this.texture.triggerRiser(barSec * 2)
         }
         break
       }
@@ -1188,8 +1335,11 @@ export class GeneratorOrchestrator {
     if (sectionChanging) {
       const plan = conductor.getActivePlan()
       if (plan) {
-        const nextIdx = (conductor.getActiveSectionIndex() + 1) % plan.sections.length
-        conductor.loadSection(nextIdx)
+        if (this.lastPlanSectionLoadBar !== barNumber) {
+          const nextIdx = (conductor.getActiveSectionIndex() + 1) % plan.sections.length
+          conductor.loadSection(nextIdx)
+          this.lastPlanSectionLoadBar = barNumber
+        }
       } else {
         conductor.pickNewProgression()
       }
@@ -1274,6 +1424,7 @@ export class GeneratorOrchestrator {
       drumsArrangement: directive.drums.arrangement,
       bassVolume:       directive.bass.volume,
       melodyVolume:     directive.melody.volume,
+      melodyBehavior:   directive.melody.behavior as MelodyBehavior,
       chordTechnique:   directive.melody.chordTechnique,
       hatDensity:       directive.drums.hat,
       kickPunch:        directive.drums.kick,

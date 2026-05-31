@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { MusicalDirector } from '../MusicalDirector'
+import { setActiveArrangementTemplate } from '../ProducerArrangement'
 import { OrganismMode } from '../../physics/types'
 import type { PhysicsState } from '../../physics/types'
 import { OState } from '../types'
@@ -46,6 +47,10 @@ function makeOrganism(overrides: Partial<OrganismState> = {}): OrganismState {
 }
 
 describe('MusicalDirector arrangement masks', () => {
+  beforeEach(() => {
+    setActiveArrangementTemplate('classic')
+  })
+
   it('starts with a sparse audible intro, then adds verse and drop layers by section', () => {
     const director = new MusicalDirector()
     const physics = makePhysics()
@@ -63,7 +68,7 @@ describe('MusicalDirector arrangement masks', () => {
     expect(director.getState().bass.dropout).toBe(false)
     expect(director.getState().melody.dropout).toBe(false)
 
-    director.update(physics, makeOrganism({ current: OState.Flow, flowDepth: 1 }), 16)
+    director.update(physics, makeOrganism({ current: OState.Flow, flowDepth: 1 }), 8)
     expect(director.getState().section).toBe('drop')
     expect(director.getState().drums.dropout).toBe(false)
     expect(director.getState().bass.dropout).toBe(false)

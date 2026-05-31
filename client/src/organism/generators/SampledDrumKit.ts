@@ -105,10 +105,26 @@ export class SampledDrumKit {
 
   setMode(mode: OrganismMode): void {
     if (this.currentMode === mode) return
+    const prevMode = this.currentMode
+    this.currentMode = mode
+
+    // If the private kit (TR-808) is hydrated, every "mode" plays the SAME
+    // samples — only the velocity/filter shaping per mode differs. Reusing
+    // the existing Tone.Player slots avoids the 200-500ms silent-hit window
+    // that you'd otherwise get every time the user clicks a preset that
+    // changes mode (Heat for trap, Ice for cloud, etc). Without this reuse
+    // path, switching preset → setMode → disposeVoices → recreate → wait
+    // for cache hits = audibly broken first 1-2 bars of the new preset.
+    //
+    // We still rebuild if the private kit isn't ready yet (cold-start before
+    // /api/organism/kits resolves) — those modes do use different bundled
+    // sample files, so dispose+recreate is necessary there.
+    const reuseSlots = this.privateKitDefinition !== null && prevMode !== null
+    if (reuseSlots) return
+
     this.disposeVoices()
     this.slotErrored.clear()
     this.warnedVoices.clear()
-    this.currentMode = mode
 
     const definition = this.privateKitDefinition ?? KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
     for (const [voice, filename] of Object.entries(definition) as [SampleVoice, string][]) {

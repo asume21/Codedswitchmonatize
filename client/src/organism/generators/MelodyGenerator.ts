@@ -59,6 +59,13 @@ export class MelodyGenerator extends GeneratorBase {
   private currentScale:    number[]       = MODE_SCALES.glow
   private scaleDirty:      boolean        = false // rebuild phrase on next behavior cycle
 
+  // Periodic phrase refresh — without this, the Tone.Part loop plays the same
+  // motif indefinitely whenever behavior and section sit still (most of the
+  // time on the guest demo). A scheduled repeat flips phraseDirty every
+  // PHRASE_REFRESH_BARS so processFrame regenerates fresh notes on cadence.
+  private phraseDirty:          boolean = false
+  private phraseRefreshEventId: number | null = null
+
   // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats.
   // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
   // external API stays as an override path.
@@ -90,6 +97,10 @@ export class MelodyGenerator extends GeneratorBase {
   private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 600
   private static readonly LEAD_GAIN_BOOST_DB = 5
+  // Refresh the phrase every N bars while playing. 2 bars feels musical: short
+  // motifs cycle once before regenerating; long motifs (Lead at 16 sixteenths)
+  // get fresh material right at the natural breath point.
+  private static readonly PHRASE_REFRESH_BARS = 2
 
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
   private pendingBehavior: MelodyBehavior | null = null
@@ -514,12 +525,15 @@ export class MelodyGenerator extends GeneratorBase {
     // user-initiated scale/intent change: scaleDirty gets cleared here, then
     // rebuildPhrase early-returns due to throttle, and the signal is lost
     // forever — the melody keeps playing the old scale's pre-baked notes.
-    const scaleWasDirty = this.scaleDirty
-    if (scaleWasDirty) shouldRebuild = true
+    const scaleWasDirty  = this.scaleDirty
+    const phraseWasDirty = this.phraseDirty
+    if (scaleWasDirty)  shouldRebuild = true
+    if (phraseWasDirty) shouldRebuild = true
 
     if (shouldRebuild) {
       const rebuilt = this.rebuildPhrase(physics, organism)
-      if (rebuilt && scaleWasDirty) this.scaleDirty = false
+      if (rebuilt && scaleWasDirty)  this.scaleDirty  = false
+      if (rebuilt && phraseWasDirty) this.phraseDirty = false
     }
 
     const targetLevel = this.computeTargetLevel(organism, newBehavior)
@@ -688,7 +702,7 @@ export class MelodyGenerator extends GeneratorBase {
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(playableNote, event.dur, time, finalVel)
+        voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, time), finalVel)
         return
       }
 
@@ -715,8 +729,9 @@ export class MelodyGenerator extends GeneratorBase {
         artCtx
       )
       for (const n of scheduled) {
-        // Guard against negative pre-beat offsets if we'd schedule in the past.
-        const t = Math.max(time + n.timeOffset, time - 0.02)
+        // Clamp to ≥0 — float-negative times (and pre-beat offsets) throw
+        // Tone's "value must be within [0, Infinity]" and silence the voice.
+        const t = Math.max(0, time + n.timeOffset)
         voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
       }
     }, notes.map(n => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity })))
@@ -725,6 +740,20 @@ export class MelodyGenerator extends GeneratorBase {
     this.part.loopEnd = `${loopBars}m`
     this.part.start(startAt)
     this.hasStartedPlayback = true
+
+    // Schedule periodic phrase refreshes once per generator lifetime. The
+    // existing Tone.Part loop keeps audio continuous; this just flips a flag
+    // so the NEXT processFrame rebuilds fresh motifs. Without this, behavior
+    // and section can sit still indefinitely and the melody plays the same
+    // notes forever.
+    if (this.phraseRefreshEventId === null) {
+      const refreshInterval = `${MelodyGenerator.PHRASE_REFRESH_BARS}m`
+      this.phraseRefreshEventId = Tone.getTransport().scheduleRepeat(
+        () => { this.phraseDirty = true },
+        refreshInterval,
+        refreshInterval,
+      )
+    }
     return true
   }
 
@@ -932,6 +961,11 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.dispose()
       this.part = null
     }
+    if (this.phraseRefreshEventId !== null) {
+      try { Tone.getTransport().clear(this.phraseRefreshEventId) } catch { /* */ }
+      this.phraseRefreshEventId = null
+    }
+    this.phraseDirty = false
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())
       this.synth.releaseAll()

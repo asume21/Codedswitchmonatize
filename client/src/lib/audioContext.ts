@@ -26,7 +26,15 @@ export function getAudioContext(): AudioContext {
 
     // Force Tone.js to use OUR context (not its own default small-buffer one)
     const toneContext = new Tone.Context(sharedContext);
-    toneContext.lookAhead = 0.1; // Increase lookAhead as requested
+    // lookAhead is the scheduler's safety margin against main-thread jank. The
+    // Organism page renders heavy visualizers/meters at ~60fps; with a small
+    // lookAhead, a single dropped frame starves Tone's lookahead loop and the
+    // audio buffer underruns → the crackle + brief silence that clears the
+    // moment you navigate away (UI unmounts, main thread frees up). 0.2s gives
+    // the scheduler ~2× the headroom to ride out UI stalls. Latency cost is
+    // imperceptible for generative playback; reactive (mic/MIDI) paths still
+    // respond well under ~200ms.
+    toneContext.lookAhead = 0.2;
     Tone.setContext(toneContext);
 
     // Add error handling for audio context
@@ -79,6 +87,10 @@ export async function resumeAudioContext(): Promise<void> {
     // Fallback: try to recreate context if resume fails
     if (contextResumeAttempts >= MAX_RESUME_ATTEMPTS) {
       console.warn('🔊 Max resume attempts reached, attempting to recreate audio context');
+      // TEMP DIAGNOSTIC (remove after Organism-silence root cause confirmed):
+      // recreating the shared context orphans every live Tone node (gains → NaN).
+      // If this fires during a silent-out, this is the hijack, not the kill switch.
+      console.trace('[audio-context] RECREATING shared AudioContext — orphans live nodes →');
       try {
         // Close old context
         if (sharedContext) {

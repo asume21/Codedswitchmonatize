@@ -491,7 +491,7 @@ export class BassGenerator extends GeneratorBase {
 
       // Fast-path: default articulation skips the transform.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(playableNote, event.dur, scheduledTime, pocketVelocity)
+        voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, scheduledTime), pocketVelocity)
         return
       }
 
@@ -518,7 +518,8 @@ export class BassGenerator extends GeneratorBase {
         artCtx
       )
       for (const n of scheduled) {
-        const t = Math.max(scheduledTime + n.timeOffset, scheduledTime - 0.02)
+        // Clamp to ≥0 — a float-negative time throws Tone's "[0, Infinity]".
+        const t = Math.max(0, scheduledTime + n.timeOffset)
         voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
       }
     }, events)

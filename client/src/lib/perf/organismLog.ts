@@ -84,9 +84,14 @@ export function startOrgHeartbeat(
   intervalMs: number = 2000,
 ): () => void {
   if (!enabled) return () => {}
+  let lastSignature: string | null = null
   const id = window.setInterval(() => {
     try {
-      orgLog('heartbeat', getSnapshot())
+      const snapshot = getSnapshot()
+      const signature = JSON.stringify(snapshot)
+      if (signature === lastSignature) return
+      lastSignature = signature
+      orgLog('heartbeat', snapshot)
     } catch (err) {
       orgLog('heartbeat:error', { err: String(err) }, 'warn')
     }

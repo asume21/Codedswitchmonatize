@@ -54,6 +54,10 @@ class GlobalAudioKillSwitch {
    */
   killAllAudio() {
     console.log(' GLOBAL AUDIO KILL SWITCH ACTIVATED — NUCLEAR MODE');
+    // TEMP DIAGNOSTIC (remove after Organism-silence root cause confirmed):
+    // logs WHO triggered the nuke so we can see if a studio stop() is killing a
+    // live Organism session. See memory: project_organism_silence_audio_routing.
+    console.trace('[kill-switch] killAllAudio() called by →');
     this._killed = true;
 
     // 1. Stop ALL tracked HTMLAudioElements (includes hidden new Audio() calls)

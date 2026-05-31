@@ -8,6 +8,7 @@
  */
 
 import type { GeneratorOrchestrator } from './generators/GeneratorOrchestrator'
+import { getConductor } from './conductor/Conductor'
 
 export interface AIBeatDirective {
   section: string
@@ -74,6 +75,14 @@ export class AIDirector {
     barInCycle?: number
     totalBars?: number
   }): void {
+    // When the Conductor has an ArrangementPlan loaded, the plan IS the
+    // section directive — AIDirector must NOT override it. AIDirector is the
+    // jam-mode fallback; it speaks up only when no plan is in charge.
+    // Without this gate, AIDirector's "trap"-flavored directives compete with
+    // the composer's per-section style choices and you get the "for trap" log
+    // spam plus aiDirected=true overrides on every arrangement:apply.
+    if (getConductor().getActivePlan() !== null) return
+
     const { section, physics, bpm, subGenre = 'trap', barInCycle = 0, totalBars = 32 } = detail
 
     // Apply the buffered directive for this section if it arrived in time

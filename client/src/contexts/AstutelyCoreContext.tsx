@@ -41,6 +41,7 @@ import {
   type AstutelyCompleteResult,
 } from '@/lib/astutelyEngine';
 import { renderAstutelyToStems, audioBufferToWav } from '@/lib/astutelyAudioRenderer';
+import { resumeAudioContext } from '@/lib/audioContext';
 
 // Living Glyph / Presence module removed — these no-op shims preserve the
 // 15+ existing call shapes inside music-generation paths so those code paths

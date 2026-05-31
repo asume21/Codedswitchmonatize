@@ -1952,6 +1952,11 @@ export function OrganismCommandCenter() {
                   <option value="staccato-pop">Staccato Pop</option>
                   <option value="grace-flick">Grace-Note Flick</option>
                   <option value="trill-ornament">Trill Ornament</option>
+                  <option value="scoop-up">Scoop Up</option>
+                  <option value="fall-off">Fall Off</option>
+                  <option value="double-tap">Double Tap</option>
+                  <option value="octave-echo">Octave Echo</option>
+                  <option value="delayed-echo">Delayed Echo</option>
                 </select>
                 <button
                   onClick={resetMelodyArt}
@@ -1980,6 +1985,11 @@ export function OrganismCommandCenter() {
                   <option value="bass-ghost-note">Ghost Note</option>
                   <option value="bass-octave-jump">Octave Jump</option>
                   <option value="bass-walking-step">Walking Step</option>
+                  <option value="bass-pickup">Pickup</option>
+                  <option value="bass-muted-pulse">Muted Pulse</option>
+                  <option value="bass-octave-walk">Octave Walk</option>
+                  <option value="bass-drop-slide">Drop Slide</option>
+                  <option value="bass-dub-sustain">Dub Sustain</option>
                 </select>
                 <button
                   onClick={resetBassArt}

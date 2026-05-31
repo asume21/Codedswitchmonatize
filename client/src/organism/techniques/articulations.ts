@@ -145,6 +145,111 @@ const TrillOrnament: Articulation = {
   },
 }
 
+const ScoopUp: Articulation = {
+  id: 'scoop-up',
+  name: 'Scoop Up',
+  family: ['wind', 'brass', 'bowed', 'keyboard', 'synth'],
+  description: 'Quick lower approach note into the target pitch (low probability)',
+  apply: (note, duration, velocity, ctx) => {
+    // Only scoop on strong beats and with low probability
+    const isStrongBeat = ctx.sixteenthPos % 4 === 0
+    if (!isStrongBeat || Math.random() > 0.4) {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const scoopNote = Tone.Frequency(midi - 1, 'midi').toNote()
+      const leadSec = Math.max(0.025, 60 / ctx.tempo / 24)
+      return [
+        { timeOffset: -leadSec, note: scoopNote, duration: '64n', velocity: velocity * 0.7 },
+        { timeOffset: 0, note, duration, velocity },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const FallOff: Articulation = {
+  id: 'fall-off',
+  name: 'Fall Off',
+  family: ['wind', 'brass', 'bowed', 'keyboard', 'synth'],
+  description: 'Main note with a soft descending tail (best for end of phrases)',
+  apply: (note, duration, velocity, ctx) => {
+    // Hard to detect phrase end, so use low probability, mostly on beat 4
+    const isPhraseEndish = ctx.sixteenthPos >= 12
+    if (!isPhraseEndish || Math.random() > 0.5) {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const fallNote = Tone.Frequency(midi - 2, 'midi').toNote()
+      const tailSec = Math.max(0.04, 60 / ctx.tempo / 16)
+      return [
+        { timeOffset: 0, note, duration, velocity },
+        { timeOffset: tailSec, note: fallNote, duration: '32n', velocity: velocity * 0.45 },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const DoubleTap: Articulation = {
+  id: 'double-tap',
+  name: 'Double Tap',
+  family: ['wind', 'brass', 'bowed', 'plucked', 'keyboard', 'synth'],
+  description: 'Two quick repeated attacks (strong beats, high energy)',
+  apply: (note, _duration, velocity, ctx) => {
+    const isStrongBeat = ctx.sixteenthPos % 4 === 0
+    const probability = 0.2 + (ctx.energy * 0.5)
+    if (!isStrongBeat || Math.random() > probability) {
+      return [{ timeOffset: 0, note, duration: '4n', velocity }]
+    }
+    const gapSec = Math.max(0.04, 60 / ctx.tempo / 8)
+    return [
+      { timeOffset: 0, note, duration: '32n', velocity: Math.min(1, velocity * 1.05) },
+      { timeOffset: gapSec, note, duration: '32n', velocity: velocity * 0.82 },
+    ]
+  },
+}
+
+const OctaveEcho: Articulation = {
+  id: 'octave-echo',
+  name: 'Octave Echo',
+  family: ['wind', 'brass', 'bowed', 'keyboard', 'synth'],
+  description: 'Target note followed by a soft octave echo (low probability)',
+  apply: (note, duration, velocity, ctx) => {
+    if (Math.random() > 0.3) return [{ timeOffset: 0, note, duration, velocity }]
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const echoNote = Tone.Frequency(midi + 12, 'midi').toNote()
+      const echoSec = Math.max(0.08, 60 / ctx.tempo / 4)
+      return [
+        { timeOffset: 0, note, duration, velocity },
+        { timeOffset: echoSec, note: echoNote, duration: '16n', velocity: velocity * 0.38 },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const DelayedEcho: Articulation = {
+  id: 'delayed-echo',
+  name: 'Delayed Echo',
+  family: ['wind', 'brass', 'bowed', 'keyboard', 'synth'],
+  description: 'Soft delayed repeat behind the lead note (low probability)',
+  apply: (note, duration, velocity, ctx) => {
+    if (Math.random() > 0.3) return [{ timeOffset: 0, note, duration, velocity }]
+    const echoSec = Math.max(0.08, 60 / ctx.tempo / 4)
+    return [
+      { timeOffset: 0, note, duration, velocity },
+      { timeOffset: echoSec, note, duration: '16n', velocity: velocity * 0.35 },
+    ]
+  },
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // BASS ARTICULATIONS
 // ─────────────────────────────────────────────────────────────────────
@@ -294,6 +399,123 @@ const BassWalkingStep: Articulation = {
   },
 }
 
+const BassPickup: Articulation = {
+  id: 'bass-pickup',
+  name: 'Bass Pickup',
+  family: ['plucked', 'synth'],
+  description: 'Short pickup note into the main bass hit (beats 1/3, high energy)',
+  apply: (note, duration, velocity, ctx) => {
+    // Only apply on strong beats and with probability based on energy
+    const isStrongBeat = ctx.sixteenthPos % 8 === 0
+    const probability = 0.3 + (ctx.energy * 0.4)
+    if (!isStrongBeat || Math.random() > probability) {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+    
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const pickupNote = Tone.Frequency(midi - (Math.random() > 0.5 ? 2 : 5), 'midi').toNote()
+      const leadSec = 60 / ctx.tempo / 4
+      return [
+        { timeOffset: -leadSec, note: pickupNote, duration: '16n', velocity: velocity * 0.5 },
+        { timeOffset: 0, note, duration, velocity },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const BassMutedPulse: Articulation = {
+  id: 'bass-muted-pulse',
+  name: 'Bass Muted Pulse',
+  family: ['plucked', 'synth'],
+  description: 'Two short muted pulses for funk and west-coast pockets (syncopated)',
+  apply: (note, duration, velocity, ctx) => {
+    // Only apply on off-beats or with medium probability
+    const isSyncopated = ctx.sixteenthPos % 4 !== 0
+    const probability = 0.4 + (ctx.energy * 0.3)
+    if (!isSyncopated || Math.random() > probability) {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+
+    const gapSec = 60 / ctx.tempo / 8
+    return [
+      { timeOffset: 0, note, duration: '32n', velocity: Math.min(1, velocity * 1.05) },
+      { timeOffset: gapSec, note, duration: '32n', velocity: velocity * 0.4 },
+    ]
+  },
+}
+
+const BassOctaveWalk: Articulation = {
+  id: 'bass-octave-walk',
+  name: 'Bass Octave Walk',
+  family: ['plucked', 'synth'],
+  description: 'Root hit followed by a soft octave movement (end of bar/beat 3)',
+  apply: (note, duration, velocity, ctx) => {
+    // Only apply on beat 3 or end of bar
+    const isAppropriate = ctx.sixteenthPos === 8 || ctx.sixteenthPos === 14
+    if (!isAppropriate || Math.random() > 0.6) {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const octaveNote = Tone.Frequency(midi + 12, 'midi').toNote()
+      const stepSec = 60 / ctx.tempo / 2
+      return [
+        { timeOffset: 0, note, duration, velocity },
+        { timeOffset: stepSec, note: octaveNote, duration: '8n', velocity: velocity * 0.5 },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const BassDropSlide: Articulation = {
+  id: 'bass-drop-slide',
+  name: 'Bass Drop Slide',
+  family: ['plucked', 'synth'],
+  description: 'Higher pickup that drops into the main bass note (downbeats only)',
+  apply: (note, duration, velocity, ctx) => {
+    // Already restricted to downbeat, but add probability
+    if (!ctx.isDownbeat || Math.random() > 0.7) return [{ timeOffset: 0, note, duration, velocity }]
+    try {
+      const midi = Tone.Frequency(note as any).toMidi()
+      const dropNote = Tone.Frequency(midi + 7, 'midi').toNote()
+      const leadSec = 60 / ctx.tempo / 8
+      return [
+        { timeOffset: -leadSec, note: dropNote, duration: '32n', velocity: velocity * 0.5 },
+        { timeOffset: 0, note, duration, velocity },
+      ]
+    } catch {
+      return [{ timeOffset: 0, note, duration, velocity }]
+    }
+  },
+}
+
+const BassDubSustain: Articulation = {
+  id: 'bass-dub-sustain',
+  name: 'Bass Dub Sustain',
+  family: ['plucked', 'synth'],
+  description: 'Longer, softer bass note for dub and chill pockets',
+  apply: (note, duration, velocity, ctx) => {
+    // Avoid lengthening if note density is high (energy)
+    const factor = ctx.energy > 0.7 ? 1.2 : 1.5
+    let extDur: string | number = duration
+    try {
+      if (typeof duration === 'number') {
+        extDur = duration * factor
+      } else {
+        const secs = Tone.Time(duration).toSeconds()
+        if (typeof secs === 'number' && secs > 0) extDur = secs * factor
+      }
+    } catch { /* keep original duration */ }
+    return [{ timeOffset: 0, note, duration: extDur, velocity: velocity * 0.8 }]
+  },
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // REGISTRY
 // ─────────────────────────────────────────────────────────────────────
@@ -305,11 +527,21 @@ export const ALL_ARTICULATIONS: Articulation[] = [
   StaccatoPop,
   GraceFlick,
   TrillOrnament,
+  ScoopUp,
+  FallOff,
+  DoubleTap,
+  OctaveEcho,
+  DelayedEcho,
   // Bass
   BassSlideUp,
   BassGhostNote,
   BassOctaveJump,
   BassWalkingStep,
+  BassPickup,
+  BassMutedPulse,
+  BassOctaveWalk,
+  BassDropSlide,
+  BassDubSustain,
 ]
 
 export const ARTICULATIONS_BY_ID: Map<string, Articulation> = new Map(

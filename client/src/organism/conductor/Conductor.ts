@@ -30,6 +30,7 @@ import {
   keyToPitchClass,
   type ArrangementPlan,
 } from '@shared/arrangement'
+import { setActiveArrangementTemplate } from '../state/ProducerArrangement'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -266,8 +267,17 @@ export class Conductor {
     mood: 'focused',
     mode: 'smoke',
   }
-  // The last bank progression picked (so a re-pick can avoid repeating).
-  // null = the active progression came from DEFAULT_PROGRESSIONS, not the bank.
+  // Recent bank progressions picked — so a re-pick avoids repeating ANY of
+  // them, not just the immediately-previous one. Without this buffer the
+  // mood×mode scoring tends to land on the same 2-3 high-scoring entries
+  // over and over, which feels like "the engine only knows one progression."
+  // Buffer size 8 = roughly two cycles of an 18-bar arrangement before a
+  // progression can recur.
+  private static readonly RECENT_PROGRESSION_HISTORY = 8
+  private recentBankSignatures: string[] = []
+  // The last bank progression picked (still tracked for progressionVersion
+  // comparison and for skipping recent picks on re-roll). Null = the active
+  // progression came from DEFAULT_PROGRESSIONS, not the bank.
   private lastBankSignature: string | null = null
   // Monotonic counter — bumped every time the progression array is REPLACED
   // (setProgression / setSubGenre / setKey / setKeyByPitchClass / pickNewProgression).
@@ -285,6 +295,12 @@ export class Conductor {
   // jam-mode fallback when `activePlan === null`.
   private activePlan: ArrangementPlan | null = null
   private activeSectionIndex: number = 0
+  // Active StylePreset id from the loaded section. The generators subscribe
+  // via onStyleChange() and apply their respective slot (chord technique,
+  // bass articulation, melody articulation) when this changes. null when
+  // no plan is loaded or the section has no style (jam mode).
+  private activeStyleId: string | null = null
+  private styleChangeListeners: Array<(styleId: string | null) => void> = []
 
   constructor(options: ConductorOptions = {}) {
     this.key = options.key ?? 'C'
@@ -539,17 +555,24 @@ export class Conductor {
     const mode = this.scoreContext.mode || 'smoke'
     const keyPC = this.getKeyPitchClass()
     let chosen: ParsedProgression | null = null
-    const previousSignature = this.lastBankSignature
-    // Re-try up to 5 times so we don't immediately repeat the active progression.
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // Re-roll up to 12 times to find a progression NOT in the recent buffer.
+    // 12 attempts × ~30 high-scoring candidates per mode is enough to almost
+    // always land on a fresh pick without falling back to the same handful.
+    for (let attempt = 0; attempt < 12; attempt++) {
       const candidate = pickProgressionFromBank(mode)
       const sig = progressionSignature(candidate)
-      if (sig !== previousSignature) {
+      if (!this.recentBankSignatures.includes(sig)) {
         chosen = candidate
         this.lastBankSignature = sig
+        this.recentBankSignatures.push(sig)
+        if (this.recentBankSignatures.length > Conductor.RECENT_PROGRESSION_HISTORY) {
+          this.recentBankSignatures.shift()
+        }
         break
       }
     }
+    // Fallback — couldn't avoid history, take whatever the picker returns.
+    // Don't update the recent buffer here so the next pick has full freedom.
     if (!chosen) {
       chosen = pickProgressionFromBank(mode)
       this.lastBankSignature = progressionSignature(chosen)
@@ -578,6 +601,13 @@ export class Conductor {
     this.scale = SUB_GENRE_SCALES[plan.subGenre] ?? this.scale
     this.scoreContext.bpm = plan.bpm
     this.scoreContext.mood = plan.mood
+    // Apply the structural template the composer picked. Falls back silently
+    // if the id is unknown (older plan, or template removed from bank) —
+    // setActiveArrangementTemplate returns false and the previous active
+    // template keeps playing.
+    if (plan.templateId) {
+      setActiveArrangementTemplate(plan.templateId)
+    }
     this.loadSection(0)
   }
 
@@ -609,8 +639,36 @@ export class Conductor {
     this.scoreContext.section = section.name
     this.scoreContext.energy = section.energy
     this.scoreContext.density = section.density
+    // Broadcast style change BEFORE chord change so generators have their
+    // techniques/articulations applied before their chord-driven rebuilds
+    // pick them up. Sending the same id again is a no-op for subscribers
+    // that idempotency-guard, but we still fire so newly-connected
+    // listeners receive the current state.
+    const nextStyleId = section.style ?? null
+    if (nextStyleId !== this.activeStyleId) {
+      this.activeStyleId = nextStyleId
+      for (const cb of this.styleChangeListeners) cb(nextStyleId)
+    }
     const chord = this.currentChord()
     for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  /** Currently-active StylePreset id, or null if the section has no style
+   *  set or the Conductor is in jam mode (no plan loaded). */
+  getActiveStyleId(): string | null {
+    return this.activeStyleId
+  }
+
+  /**
+   * Subscribe to style changes. Fires every time a new section loads with a
+   * different style id than the previous one. Returns an unsubscribe fn.
+   */
+  onStyleChange(listener: (styleId: string | null) => void): () => void {
+    this.styleChangeListeners.push(listener)
+    return () => {
+      const i = this.styleChangeListeners.indexOf(listener)
+      if (i >= 0) this.styleChangeListeners.splice(i, 1)
+    }
   }
 
   /** Currently-loaded plan, or null if Conductor is in jam mode. */
@@ -632,6 +690,10 @@ export class Conductor {
   clearPlan(): void {
     this.activePlan = null
     this.activeSectionIndex = 0
+    if (this.activeStyleId !== null) {
+      this.activeStyleId = null
+      for (const cb of this.styleChangeListeners) cb(null)
+    }
   }
 
   /**

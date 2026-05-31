@@ -14,7 +14,6 @@ import {
 import StudioVocalRecorder, { type VocalTake } from '@/components/studio/StudioVocalRecorder';
 import { OrganismCommandCenter } from '@/features/organism/OrganismCommandCenter';
 import {
-  GlobalOrganismWrapper,
   useOrganismActivation,
   useOrganismSafe,
 } from '@/features/organism/GlobalOrganismWrapper';
@@ -116,11 +115,16 @@ export default function MakeSurface() {
             <span className="ml-auto h-2 w-2 rounded-full bg-emerald-400" />
           </div>
           <div className="h-[calc(100%-2.5rem)] min-h-0">
-            <GlobalOrganismWrapper>
-              <OrganismProviderGate>
-                <OrganismCommandCenter />
-              </OrganismProviderGate>
-            </GlobalOrganismWrapper>
+            {/* NOTE: do NOT mount <GlobalOrganismWrapper> here. App.tsx already
+                wraps the entire app in one (App.tsx ~L217). Nesting a second
+                wrapper spins up a SECOND OrganismProvider → second
+                GeneratorOrchestrator + MixEngine, both scheduling onto the one
+                shared Tone.Transport/destination — two beats colliding on one
+                clock (crackle, double-triggers, dropouts). The gate below
+                resolves to the app-level provider via context. */}
+            <OrganismProviderGate>
+              <OrganismCommandCenter />
+            </OrganismProviderGate>
           </div>
         </section>
 

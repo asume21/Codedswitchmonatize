@@ -15,6 +15,7 @@
 
 import React, { useState, useCallback, createContext, useContext, useMemo } from 'react'
 import { OrganismProvider } from './OrganismProvider'
+import { OrganismDebugOverlay } from './OrganismDebugOverlay'
 import { OrganismContext } from './OrganismContext'
 import type { OrganismContextValue } from './OrganismContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -70,6 +71,7 @@ export function GlobalOrganismWrapper({ children }: Props) {
       {isActivated ? (
         <OrganismProvider userId={userId} isGuest={!isAuthenticated}>
           {children}
+          <OrganismDebugOverlay />
         </OrganismProvider>
       ) : (
         children

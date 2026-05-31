@@ -34,6 +34,7 @@ import type { TranscriptionState } from './FreestyleTranscriber'
 import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
 import { useProfile }             from '../../organism/evolution/useProfile'
 import { QUICK_START_PRESETS, getQuickStartPreset } from './QuickStartPresets'
+import { composeForPreset } from './ComposeArrangement'
 import { CountInEngine }         from './CountInEngine'
 import { TriggerWordDetector }   from './TriggerWordDetector'
 import { VoiceCommandRouter }    from './VoiceCommandRouter'
@@ -987,6 +988,66 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     return () => document.removeEventListener('visibilitychange', handleVisible)
   }, [])
 
+  // Diagnostic — exposes a live snapshot of generator/transport/conductor
+  // state on window.__orgDebug() so the user can paste runtime data from the
+  // dev console while symptoms occur. Read-only — does not affect playback.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    ;(window as any).__orgDebug = () => {
+      const transport = Tone.getTransport()
+      const orchestr  = orchestrRef.current
+      const output    = orchestr?.getOutput() ?? null
+      const musical   = orchestr?.getMusicalState() ?? null
+      const stateNow  = stateMachRef.current?.getCurrentState()?.current ?? null
+      const dest      = Tone.getDestination()
+      const mix       = mixRef.current
+      // Master meter reads dB level at the MasterBus output, AFTER all processing
+      // (channel strips, master EQ, comp, limiter). If activity is high but
+      // master meter is silent (-Infinity / -75 dB), audio is being killed
+      // somewhere between generators and the speakers.
+      const masterMeter = mix?.getMasterMeter() ?? null
+      // TEMP DIAG: same-instant per-channel meters tapped from the SAME mix
+      // instance as the master meter. This localizes the broken edge:
+      //   channels alive + master dead → break is channel.output→master.input
+      //   channels dead + generators active → break is generator→channel (upstream)
+      const fmt = (m: { rmsDb: number; peakDb: number } | undefined) =>
+        m ? (Number.isFinite(m.rmsDb) ? m.rmsDb.toFixed(1) : '-inf') : 'n/a'
+      const channelDb = mix ? {
+        drum:    fmt(mix.drumChannel.getMeter()),
+        bass:    fmt(mix.bassChannel.getMeter()),
+        melody:  fmt(mix.melodyChannel.getMeter()),
+        chord:   fmt(mix.chordChannel.getMeter()),
+        texture: fmt(mix.textureChannel.getMeter()),
+      } : null
+      return {
+        transport: {
+          state:    transport.state,
+          position: transport.position,
+          bpm:      transport.bpm.value,
+        },
+        running:  isRunningRef.current,
+        state:    stateNow,
+        section:  musical?.section ?? null,
+        chord:    musical?.currentChordLabel ?? null,
+        activity: output ? {
+          drum:    output.drum.activityLevel,
+          bass:    output.bass.activityLevel,
+          melody:  output.melody.activityLevel,
+          chord:   output.chord.activityLevel,
+          texture: output.texture.activityLevel,
+        } : null,
+        channelDb,
+        masterDb: masterMeter ? {
+          rms:  Number.isFinite(masterMeter.rmsDb)  ? masterMeter.rmsDb.toFixed(1)  : '-inf',
+          peak: Number.isFinite(masterMeter.peakDb) ? masterMeter.peakDb.toFixed(1) : '-inf',
+        } : null,
+        destDb:   dest.volume.value,
+        ctxState: Tone.getContext().state,
+      }
+    }
+    return () => { delete (window as any).__orgDebug }
+  }, [])
+
   // ── Actions ───────────────────────────────────────────────────────
 
   const scheduleSilentStartRecovery = useCallback((token: number) => {
@@ -1141,6 +1202,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orgLog('provider:started', { inputSource, bpm: orchestr.getBpm() })
       window.dispatchEvent(new CustomEvent('organism:started'))
     } catch (err) {
+      // TEMP DIAGNOSTIC — prints the full stack so we can find the exact Tone
+      // call that throws "[0, Infinity]". Remove after root cause is fixed.
+      console.error('[organism] START THREW →', err, '\nSTACK:\n', (err as any)?.stack)
       endPhase({ error: err instanceof Error ? err.message : String(err) })
       orgLog('provider:start-error', { error: err instanceof Error ? err.message : String(err) }, 'error')
       setError(err instanceof Error ? err.message : 'Failed to start organism')
@@ -1414,6 +1478,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         input.stop()
         return
       }
+
+      // Fire-and-forget composer. The Organism is already playing in jam mode
+      // (Conductor picks from the 176-progression bank on every section change).
+      // When the composer returns — typically <1s, instant if Ollama isn't up —
+      // the Conductor switches to plan mode at the next bar boundary. Result:
+      // a real song structure (intro → verse → build → drop → ...) instead of
+      // an indefinite 4-bar loop. See ComposeArrangement.ts.
+      void composeForPreset(preset).then(plan => {
+        if (startTokenRef.current !== token) return
+        if (!plan) return
+        orchestr.loadArrangementPlan(plan)
+        orgLog('compose:loaded', {
+          presetId,
+          planId: plan.id,
+          sections: plan.sections.length,
+          bpm: plan.bpm,
+          key: plan.key,
+        })
+      })
+
       setV2Status({
         active:       true,
         presetId:     preset.id,
@@ -1445,6 +1529,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       })
       orgLog('quickstart:applied', { presetId, bpm: preset.bpm, mode: preset.mode })
     } catch (err) {
+      // TEMP DIAGNOSTIC — prints the stack so we can find the exact Tone call
+      // that throws "[0, Infinity]". Remove after root cause is fixed.
+      console.error('[organism] QUICKSTART THREW →', err, '\nSTACK:\n', (err as any)?.stack)
       v2PlayerRef.current?.stop()
       setV2Status(ORGANISM_V2_INITIAL_STATUS)
       endPhase({ presetId, error: err instanceof Error ? err.message : String(err) })
@@ -1536,6 +1623,23 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await orchestr.start(preset.bpm, true)
       applyStablePlaybackDefaults()
       Tone.getDestination().volume.value = 0
+
+      // Re-compose for the new preset. Conductor swaps from the old plan to
+      // the new one at the next bar boundary; the running progression keeps
+      // playing until then, so there's no audible seam on preset swap.
+      void composeForPreset(preset).then(plan => {
+        if (!plan) return
+        orchestr.loadArrangementPlan(plan)
+        orgLog('compose:loaded', {
+          presetId,
+          planId: plan.id,
+          sections: plan.sections.length,
+          bpm: plan.bpm,
+          key: plan.key,
+          via: 'swap',
+        })
+      })
+
       setV2Status({
         active:       true,
         presetId:     preset.id,
@@ -1550,6 +1654,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setActivePresetId(presetId)
       endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
     } catch (err) {
+      // TEMP DIAGNOSTIC — remove after root cause is fixed.
+      console.error('[organism] SWAP THREW →', err, '\nSTACK:\n', (err as any)?.stack)
       endSwap({ presetId, error: err instanceof Error ? err.message : String(err) })
       setError(err instanceof Error ? err.message : 'Preset swap failed')
     }

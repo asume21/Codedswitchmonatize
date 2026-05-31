@@ -24,6 +24,8 @@ export interface QuickStartPreset {
   bpm:         number
   mode:        OrganismMode
   subGenre?:   HipHopSubGenre
+  allowedTemplateIds?: string[]
+  allowedStyleIds?:    string[]
   energy:      'low' | 'medium' | 'high'
   icon:        string
   physics:     PhysicsState
@@ -169,6 +171,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Trap / Hard',
     bpm:    144,
     mode:   OrganismMode.Heat,
+    subGenre: 'trap',
     energy: 'high',
     icon:   '🔥',
     physics: makePhysics({
@@ -187,6 +190,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Melodic / Reference',
     bpm:    136,
     mode:   OrganismMode.Glow,
+    subGenre: 'trap',
     energy: 'medium',
     icon:   '🎻',
     physics: makePhysics({
@@ -205,6 +209,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Lo-fi / Chill',
     bpm:    85,
     mode:   OrganismMode.Ice,
+    subGenre: 'chill',
+    allowedTemplateIds: ['lofi-loop'],
+    allowedStyleIds:    ['lofi-warm', 'lofi-tape-echo', 'lofi-keys-bounce', 'cloud-floaty', 'jazz-rap', 'boombap-classic'],
     energy: 'low',
     icon:   '❄️',
     physics: makePhysics({
@@ -223,6 +230,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Boom-bap / Classic',
     bpm:    90,
     mode:   OrganismMode.Smoke,
+    subGenre: 'boom-bap',
     energy: 'medium',
     icon:   '💨',
     physics: makePhysics({
@@ -241,6 +249,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Drill / Dark',
     bpm:    144,
     mode:   OrganismMode.Gravel,
+    subGenre: 'drill',
     energy: 'high',
     icon:   '⚡',
     physics: makePhysics({
@@ -259,6 +268,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Chill / Melodic',
     bpm:    75,
     mode:   OrganismMode.Glow,
+    subGenre: 'chill',
+    allowedTemplateIds: ['lofi-loop'],
+    allowedStyleIds:    ['lofi-warm', 'lofi-tape-echo', 'lofi-keys-bounce', 'cloud-floaty', 'jazz-rap', 'boombap-classic', 'soulful-ballad', 'rnb-late-night'],
     energy: 'low',
     icon:   '✨',
     physics: makePhysics({
@@ -277,6 +289,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Funk / Groove',
     bpm:    100,
     mode:   OrganismMode.Smoke,
+    subGenre: 'west-coast',
+    allowedTemplateIds: ['back-and-forth'],
+    allowedStyleIds:    ['west-coast-funky', 'funk-muted-pocket', 'funk-bounce-keys', 'funk-guitar-roll', 'boombap-pocket'],
     energy: 'medium',
     icon:   '🎸',
     physics: makePhysics({
@@ -302,6 +317,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Cypher / Freestyle',
     bpm:    90,
     mode:   OrganismMode.Smoke,
+    subGenre: 'chill',
     energy: 'medium',
     icon:   '🎤',
     physics: makePhysics({
@@ -326,6 +342,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     genre:  'Storytelling / Narrative',
     bpm:    80,
     mode:   OrganismMode.Smoke,
+    subGenre: 'chill',
+    allowedTemplateIds: ['storytelling'],
+    allowedStyleIds:    ['story-piano-roll', 'story-strings-pad', 'story-pizzicato', 'story-narrative', 'lofi-warm', 'lofi-tape-echo', 'cloud-floaty', 'boombap-pocket'],
     energy: 'low',
     icon:   '📖',
     physics: makePhysics({

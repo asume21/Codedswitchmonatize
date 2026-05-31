@@ -18,9 +18,14 @@ import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { CommandPalette } from "@/components/CommandPalette";
 
-// Lazy load heavy audio providers - only needed for studio routes
-const TransportProvider = React.lazy(() => import("@/contexts/TransportContext").then(m => ({ default: m.TransportProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
-const TrackStoreProvider = React.lazy(() => import("@/contexts/TrackStoreContext").then(m => ({ default: m.TrackStoreProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
+// TransportProvider + TrackStoreProvider are hoisted to wrap the entire app so
+// TransportContext can act as the single owner of Tone.Transport everywhere
+// the Organism runs (see lib/transportController.ts + project_audio_clock_ownership
+// memory). Eager imports here are fine — Tone.js is already in the initial chunk
+// via GlobalOrganismWrapper → OrganismProvider → GeneratorOrchestrator.
+import { TransportProvider } from "@/contexts/TransportContext";
+import { TrackStoreProvider } from "@/contexts/TrackStoreContext";
+
 const StemGenerationProvider = React.lazy(() => import("@/contexts/StemGenerationContext").then(m => ({ default: m.StemGenerationProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const InstrumentProvider = React.lazy(() => import("@/contexts/InstrumentContext").then(m => ({ default: m.InstrumentProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
 const GlobalAudioProvider = React.lazy(() => import("@/contexts/GlobalAudioContext").then(m => ({ default: m.GlobalAudioProvider })).catch(() => ({ default: ({ children }: { children: React.ReactNode }) => <>{children}</> })));
@@ -110,36 +115,35 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Studio wrapper with all audio providers - only loaded when entering studio routes
+// Studio wrapper with all audio providers - only loaded when entering studio routes.
+// TrackStoreProvider + TransportProvider are NOT here anymore — they've been
+// hoisted to the top of <App/> so the single-owner Transport contract holds on
+// every page, not just /studio.
 function StudioProviders({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <TrackStoreProvider>
-        <TransportProvider>
-          <GlobalAudioProvider>
-            <InstrumentProvider>
-              <StemGenerationProvider>
-                <AstutelyCoreProvider>
-                  <StudioSessionProvider>
-                    <SongWorkSessionProvider>
-                      <SessionDestinationProvider>
-                        <GlobalAudioPlayer />
-                        {children}
-                        {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
-                        <GlobalTransportBar />
-                        {/* Press ? to see the keyboard-shortcuts cheatsheet */}
-                        <KeyboardShortcutsHelp />
-                        {/* First-run studio walkthrough (self-gated on localStorage) */}
-                        <OnboardingTour />
-                      </SessionDestinationProvider>
-                    </SongWorkSessionProvider>
-                  </StudioSessionProvider>
-                </AstutelyCoreProvider>
-              </StemGenerationProvider>
-            </InstrumentProvider>
-          </GlobalAudioProvider>
-        </TransportProvider>
-      </TrackStoreProvider>
+      <GlobalAudioProvider>
+        <InstrumentProvider>
+          <StemGenerationProvider>
+            <AstutelyCoreProvider>
+              <StudioSessionProvider>
+                <SongWorkSessionProvider>
+                  <SessionDestinationProvider>
+                    <GlobalAudioPlayer />
+                    {children}
+                    {/* Persistent DAW transport — fixed to viewport bottom, shared by every studio tab */}
+                    <GlobalTransportBar />
+                    {/* Press ? to see the keyboard-shortcuts cheatsheet */}
+                    <KeyboardShortcutsHelp />
+                    {/* First-run studio walkthrough (self-gated on localStorage) */}
+                    <OnboardingTour />
+                  </SessionDestinationProvider>
+                </SongWorkSessionProvider>
+              </StudioSessionProvider>
+            </AstutelyCoreProvider>
+          </StemGenerationProvider>
+        </InstrumentProvider>
+      </GlobalAudioProvider>
     </Suspense>
   );
 }
@@ -208,6 +212,8 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <TrackStoreProvider>
+          <TransportProvider>
           <GlobalOrganismWrapper>
           <TooltipProvider>
             <Toaster />
@@ -353,6 +359,8 @@ function App() {
           <FloatingAudioMonitor />
           <IOSAudioEnable />
           </GlobalOrganismWrapper>
+          </TransportProvider>
+          </TrackStoreProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

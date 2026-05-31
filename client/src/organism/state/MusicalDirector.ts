@@ -28,7 +28,7 @@ import {
   createDefaultMusicalState,
 } from './MusicalState'
 import {
-  PRODUCER_ARRANGEMENT_TOTAL_BARS,
+  getProducerArrangementTotalBars,
   type ProducerArrangementSlot,
   getProducerArrangementSlot,
 } from './ProducerArrangement'
@@ -121,7 +121,7 @@ export class MusicalDirector {
     this.state.density = physics.density
     this.state.voiceActive = physics.voiceActive
     this.state.flowDepth = organism.flowDepth
-    this.state.arrangementTotalBars = PRODUCER_ARRANGEMENT_TOTAL_BARS
+    this.state.arrangementTotalBars = getProducerArrangementTotalBars()
 
     // ── Sub-genre classification ──────────────────────────────────
     // STORY MODE: If groove is locked or we're in Flow state, freeze the
@@ -168,11 +168,16 @@ export class MusicalDirector {
         this.state.sectionBar = 0
         needsRebuild = true
 
-        // Notify section change listeners
-        for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
-
-        // Advance variant index so each new section can pick a different pattern
+        // Advance section-local state before listeners run so callbacks rebuild
+        // from the completed Conductor decision, not the previous section.
         this.state.drums.variantIndex = (this.state.drums.variantIndex + 1)
+        this.state.drums.dropout = slot.drumDropout
+        this.state.bass.dropout = slot.bassDropout
+        this.state.melody.dropout = slot.melodyDropout
+        this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
+
+        // Notify section change listeners after state is complete.
+        for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
 
         // Check for pattern mutation on section change
         if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
@@ -182,16 +187,17 @@ export class MusicalDirector {
         }
       } else {
         this.state.sectionBar++
+
+        // Section masks are intentional song structure. Groove lock freezes
+        // the pattern pocket, but it should not flatten the arrangement into a
+        // loop.
+        this.state.drums.dropout = slot.drumDropout
+        this.state.bass.dropout = slot.bassDropout
+        this.state.melody.dropout = slot.melodyDropout
+
+        // Fill request on last bar of each section
+        this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
       }
-
-      // Section masks are intentional song structure. Groove lock freezes the
-      // pattern pocket, but it should not flatten the arrangement into a loop.
-      this.state.drums.dropout = slot.drumDropout
-      this.state.bass.dropout = slot.bassDropout
-      this.state.melody.dropout = slot.melodyDropout
-
-      // Fill request on last bar of each section
-      this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
     }
 
     // ── Per-engine directives ─────────────────────────────────────

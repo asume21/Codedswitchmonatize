@@ -8,6 +8,7 @@ import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
 import { arrangementScheduler } from '@/lib/arrangementScheduler';
 import { getAudioContext, resumeAudioContext } from '@/lib/audioContext';
+import { registerTransportOwner } from '@/lib/transportController';
 import * as Tone from 'tone';
 
 declare global {
@@ -274,6 +275,40 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   const setLoop = useCallback((cfg: Partial<LoopRegion>) => { storeSetLoop(cfg); }, [storeSetLoop]);
   const clearLoop = useCallback(() => { storeClearLoop(); }, [storeClearLoop]);
   const setTimeSignature = useCallback((sig: Partial<TimeSignature>) => { storeSetTs(sig); }, [storeSetTs]);
+
+  // Register as the single owner of Tone.Transport while this provider is
+  // mounted. Other modules (GeneratorOrchestrator) call requestTransportStart()
+  // through the controller and end up here. See lib/transportController.ts and
+  // the project_audio_clock_ownership memory.
+  //
+  // IMPORTANT: this is the *engine* path, deliberately lighter than play().
+  // play() also kicks pianoRollScheduler (a 25ms setInterval), which competes
+  // with Tone's lookahead scheduler for main-thread time and causes audio
+  // chunking on pages where no piano-roll patterns are scheduled (e.g.
+  // /organism). The studio's play button still calls play() directly via the
+  // global transport bar, so piano roll still works for actual studio sessions.
+  useEffect(() => {
+    return registerTransportOwner({
+      start: async () => {
+        await resumeAudioContext();
+        const bpm = useStudioStore.getState().bpm ?? 120;
+        const t   = Tone.getTransport();
+        t.bpm.value = bpm;
+        if (t.state !== 'started') t.start();
+        // Mirror the playing state into the studio store so observers
+        // (transport bar, etc.) see we're playing.
+        useStudioStore.getState().play();
+      },
+      stop: () => {
+        Tone.getTransport().stop();
+        useStudioStore.getState().stop();
+        // Cancel any scheduled events from previous sessions — without this,
+        // disposed Tone.Parts can leave callbacks queued that fire on the
+        // next start, producing the "ghost notes" symptom.
+        Tone.getTransport().cancel(0);
+      },
+    });
+  }, []);
 
   const value = useMemo<TransportContextValue>(() => ({
     tempo,
