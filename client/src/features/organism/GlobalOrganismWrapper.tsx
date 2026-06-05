@@ -13,12 +13,21 @@
  *   </GlobalOrganismWrapper>
  */
 
-import React, { useState, useCallback, createContext, useContext, useMemo } from 'react'
-import { OrganismProvider } from './OrganismProvider'
+import React, { useState, useCallback, createContext, useContext, useMemo, Suspense, lazy } from 'react'
 import { OrganismDebugOverlay } from './OrganismDebugOverlay'
 import { OrganismContext } from './OrganismContext'
 import type { OrganismContextValue } from './OrganismContext'
 import { useAuth } from '@/contexts/AuthContext'
+
+// Lazy-load the heavy provider so Tone.js + the generator engines (~300KB+)
+// stay OUT of the initial chunk. The landing/login/signup pages never call
+// activate(), so they never download the audio engine. The chunk only loads
+// once the organism is actually activated (studio / organism / recording booth).
+// Consumers read state via useOrganism() from the lightweight ./OrganismContext,
+// so this split never affects them.
+const OrganismProvider = lazy(() =>
+  import('./OrganismProvider').then(m => ({ default: m.OrganismProvider })),
+)
 
 interface GlobalOrganismState {
   /** Whether the heavy OrganismProvider is mounted */
@@ -69,10 +78,15 @@ export function GlobalOrganismWrapper({ children }: Props) {
   return (
     <GlobalOrganismActivationContext.Provider value={activationValue}>
       {isActivated ? (
-        <OrganismProvider userId={userId} isGuest={!isAuthenticated}>
-          {children}
-          <OrganismDebugOverlay />
-        </OrganismProvider>
+        // fallback={children} keeps the app visible while the audio-engine
+        // chunk downloads; the subtree re-mounts wrapped once it resolves
+        // (same remount that already happened on activation before this split).
+        <Suspense fallback={children}>
+          <OrganismProvider userId={userId} isGuest={!isAuthenticated}>
+            {children}
+            <OrganismDebugOverlay />
+          </OrganismProvider>
+        </Suspense>
       ) : (
         children
       )}
