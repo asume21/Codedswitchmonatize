@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { getAudioContext } from './audioContext';
+import { requestTransportCancel, requestTransportPosition, requestTransportStart, requestTransportStop } from './transportController';
 
 interface PackSample {
   id: string;
@@ -216,9 +217,9 @@ export class PackAudioSynthesizer {
       Tone.Transport.clear(this.stepLoopId);
       this.stepLoopId = null;
     }
-    Tone.Transport.stop();
-    Tone.Transport.position = 0;
-    Tone.Transport.cancel();
+    requestTransportStop();
+    requestTransportPosition(0);
+    requestTransportCancel();
     this.notifyStop();
   }
 
@@ -310,8 +311,8 @@ export class PackAudioSynthesizer {
     // back to 0 and re-issuing start. The Tone.Loop callback uses `time` for
     // sample-accurate scheduling either way.
     if (Tone.Transport.state !== 'started') {
-      Tone.Transport.position = 0;
-      Tone.Transport.start();
+      requestTransportPosition(0);
+      await requestTransportStart();
     }
   }
 

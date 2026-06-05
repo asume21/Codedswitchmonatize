@@ -10,6 +10,7 @@
  */
 
 import * as Tone from 'tone'
+import { requestTransportStart } from '../../lib/transportController'
 
 export interface CountInOptions {
   bpm:       number
@@ -94,7 +95,7 @@ export class CountInEngine {
 
     // Start transport if not already running
     if (this.transport.state !== 'started') {
-      this.transport.start()
+      await requestTransportStart()
     }
   }
 

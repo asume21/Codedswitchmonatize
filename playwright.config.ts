@@ -10,8 +10,8 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    // Frontend runs on Vite (5000 per vite.config.ts); API tests use full URLs
-    baseURL: process.env.BASE_URL || 'http://localhost:5000',
+    // Frontend runs on Vite (5001 per vite.config.ts); API tests use full URLs
+    baseURL: process.env.BASE_URL || 'http://localhost:5001',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Reuse the logged-in session created by global-setup
@@ -36,7 +36,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     // Wait for the Vite dev server (frontend) that Playwright pages hit
-    url: process.env.BASE_URL || 'http://localhost:5000',
+    url: process.env.BASE_URL || 'http://localhost:5001',
     reuseExistingServer: true,
     timeout: 150000,
     env: {

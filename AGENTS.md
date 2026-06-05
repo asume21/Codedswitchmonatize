@@ -9,7 +9,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Commands
 
 ```bash
-# Development (runs client on :5000 and server on :4000)
+# Development (runs client on :5001 and server on :4001)
 npm run dev
 
 # Build for production
@@ -51,26 +51,32 @@ All three share one root `package.json` and `tsconfig.json`.
 
 ### Frontend Routing (`client/src/App.tsx`)
 Uses Wouter. Routes split into three tiers:
-1. **No providers** — `/`, `/login`, `/signup`
-2. **Lightweight providers** — `/dashboard`, `/social-hub`, `/settings`, `/ai-assistant`, `/vulnerability-scanner`, etc.
-3. **Full audio provider stack** — `/studio` only (and `/lyric-lab` which opens studio to the lyrics tab)
+1. **Minimal page providers** — `/`, `/login`, `/signup` render without studio-only audio providers.
+2. **Global transport providers only** — `TrackStoreProvider`, `TransportProvider`, and `GlobalOrganismWrapper` wrap the whole app so the Organism and studio share one transport owner.
+3. **Full studio-only audio provider stack** — `/studio` only (and `/lyric-lab` which opens studio to the lyrics tab)
 
-All legacy studio routes (`/beat-studio`, `/melody-composer`, `/piano-roll`, etc.) redirect to `/studio`.
+All legacy studio routes (`/beat-studio`, `/melody-composer`, `/piano-roll`, etc.) redirect to `/` or the current `/studio/*` surface depending on the route.
 
-### Audio Provider Stack (studio only)
-Providers nest in this order inside `App.tsx` (outermost → innermost):
+### Audio Provider Stack
+`TrackStoreProvider` and `TransportProvider` are global in `App.tsx`, outside routing, because `GlobalOrganismWrapper` can activate on non-studio routes and must share the same `Tone.Transport` owner.
+
+Global providers nest in this order:
 ```
-PresenceProvider → TrackStoreProvider → TransportProvider → GlobalAudioProvider →
-InstrumentProvider → StemGenerationProvider → AstutelyCoreProvider →
-StudioSessionProvider → SongWorkSessionProvider → SessionDestinationProvider
+AuthProvider → TrackStoreProvider → TransportProvider → GlobalOrganismWrapper
 ```
 TrackStoreProvider must wrap TransportProvider because TransportProvider calls `useTrackStore()`.
-`GlobalOrganismWrapper` wraps the entire app (outside routing).
+
+Studio-only providers nest inside `StudioProviders` in this order:
+```
+GlobalAudioProvider → InstrumentProvider → StemGenerationProvider →
+AstutelyCoreProvider → StudioSessionProvider → SongWorkSessionProvider →
+SessionDestinationProvider
+```
 
 ### Single Source of Truth — Audio Clock
 - **TransportContext** is the sole owner of `Tone.Transport.start/stop` and `pianoRollScheduler` lifecycle.
 - **`getAudioContext()`** (`client/src/lib/audioContext.ts`) is the single shared `AudioContext` — all components must use it (no `new AudioContext()`).
-- The Organism's `GeneratorOrchestrator` does NOT stop Tone.Transport — it only silences its generators. It will defensively start Transport if not already running.
+- The Organism's `GeneratorOrchestrator` requests transport start/stop through `transportController`; it silences its generators directly and does not call `Tone.Transport.start/stop` itself.
 
 ### Studio UI (`client/src/components/studio/UnifiedStudioWorkspace.tsx`)
 Tab-based workspace. Tabs: Beat Maker, Melody/Piano Roll, Mixer, Lyrics, Code Translator, AI Assistant, Sample Library, Song Uploader. Each tab is a separate component.
@@ -86,5 +92,5 @@ Drizzle ORM table definitions used by both server (queries) and client (inferred
 
 ### Key Patterns
 - `client/src/main.tsx` imports `./lib/globalAudioKillSwitch` **first** — this patches `window.Audio` globally before React mounts.
-- `server/storage.ts` exports a `storage` singleton (MemStorage in dev, DatabaseStorage in prod).
-- Vite dev server proxies `/api/*` to Express on port 4000.
+- `server/index.ts` chooses `DatabaseStorage` when a DB URL is present and `MemStorage` only for DB-less development; production refuses to boot without a DB URL.
+- Vite dev server proxies `/api/*` to Express on port 4001.

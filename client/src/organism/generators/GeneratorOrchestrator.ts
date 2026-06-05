@@ -304,9 +304,6 @@ export class GeneratorOrchestrator {
       }
       if (startTransport && transport.state !== 'started') {
         await requestTransportStart()
-        if ((Tone.getTransport().state as string) !== 'started') {
-          Tone.getTransport().start()
-        }
         this.startedTransport = true
       }
       return
@@ -333,15 +330,10 @@ export class GeneratorOrchestrator {
     }
 
     // Request a Transport start through the controller — TransportContext, if
-    // mounted, owns Tone.Transport and will route through its own play() so the
-    // studio store stays in sync. When no owner is registered (e.g. /organism
-    // guest page with no TransportProvider), the controller falls back to
-    // Tone.Transport.start() directly.
+    // mounted, owns Tone.Transport and keeps the studio store in sync. When
+    // no owner is registered, the controller falls back to Tone directly.
     if (transport.state !== 'started') {
       await requestTransportStart()
-      if ((Tone.getTransport().state as string) !== 'started') {
-        Tone.getTransport().start()
-      }
       this.startedTransport = true
     }
     this.running = true

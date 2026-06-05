@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import { realisticAudio } from "./realisticAudio";
 import { getAudioContext } from "./audioContext";
+import { requestTransportCancel } from "./transportController";
 
 export type InstrumentName = "piano" | "synth" | "bass" | "drums" | "custom";
 
@@ -233,7 +234,7 @@ class AudioEngine {
     if (!this.isInitialized) return;
     
     // Clear any existing scheduled events
-    Tone.Transport.cancel();
+    requestTransportCancel();
 
     events.forEach(event => {
       Tone.Transport.scheduleOnce((time) => {
@@ -289,7 +290,7 @@ class AudioEngine {
     this.drumVoices = {};
     this.drumBus?.dispose();
     this.drumBus = null;
-    Tone.Transport.cancel();
+    requestTransportCancel();
     this.isInitialized = false;
   }
 

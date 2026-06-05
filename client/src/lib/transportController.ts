@@ -22,6 +22,8 @@ import * as Tone from 'tone'
 interface TransportOwner {
   start: () => void | Promise<void>
   stop: () => void
+  cancel?: (after?: Tone.Unit.Time) => void
+  setPosition?: (position: Tone.Unit.Time) => void
 }
 
 let currentOwner: TransportOwner | null = null
@@ -34,6 +36,12 @@ const defaultOwner: TransportOwner = {
   stop: () => {
     const t = Tone.getTransport()
     if (t.state !== 'stopped') t.stop()
+  },
+  cancel: (after = 0) => {
+    Tone.getTransport().cancel(after)
+  },
+  setPosition: (position) => {
+    Tone.getTransport().position = position
   },
 }
 
@@ -50,6 +58,14 @@ export async function requestTransportStart(): Promise<void> {
 
 export function requestTransportStop(): void {
   (currentOwner ?? defaultOwner).stop()
+}
+
+export function requestTransportCancel(after: Tone.Unit.Time = 0): void {
+  ;(currentOwner ?? defaultOwner).cancel?.(after)
+}
+
+export function requestTransportPosition(position: Tone.Unit.Time): void {
+  ;(currentOwner ?? defaultOwner).setPosition?.(position)
 }
 
 export function hasTransportOwner(): boolean {

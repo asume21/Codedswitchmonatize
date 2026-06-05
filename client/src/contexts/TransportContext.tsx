@@ -307,6 +307,16 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
         // next start, producing the "ghost notes" symptom.
         Tone.getTransport().cancel(0);
       },
+      cancel: (after = 0) => {
+        Tone.getTransport().cancel(after);
+      },
+      setPosition: (position) => {
+        Tone.getTransport().position = position;
+        const numericPosition = typeof position === 'number' ? position : Number(position);
+        if (Number.isFinite(numericPosition)) {
+          useStudioStore.getState().seek(numericPosition);
+        }
+      },
     });
   }, []);
 

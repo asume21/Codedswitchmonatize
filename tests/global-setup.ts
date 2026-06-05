@@ -8,8 +8,8 @@ import { chromium, FullConfig } from '@playwright/test';
 
 const TEST_EMAIL    = process.env.TEST_EMAIL    || 'playwright-test@codedswitch.test';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'TestPass123!';
-const API_BASE      = process.env.API_BASE_URL  || 'http://localhost:4000';
-const BASE_URL      = process.env.BASE_URL      || 'http://localhost:5000';
+const API_BASE      = process.env.API_BASE_URL  || 'http://localhost:4001';
+const BASE_URL      = process.env.BASE_URL      || 'http://localhost:5001';
 
 export default async function globalSetup(_config: FullConfig) {
   // Try to register the test user (safe to fail if already exists)
