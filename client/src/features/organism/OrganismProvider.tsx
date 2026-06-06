@@ -536,6 +536,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // it tracks whichever input source is currently active (swapped without
     // requiring this effect to re-run).
     const unsubReactive = physics.subscribe((pState) => {
+      // Reactive behaviors only matter with a live mic. Running this per physics
+      // frame during preset/auto playback is pure CPU waste (a cause of the
+      // crackle/cutout on busy machines), so skip it unless the mic is active.
+      if (!(inputRef.current instanceof AudioAnalysisEngine)) return
       const oState = machine.getCurrentState()
       const lastFrame = inputRef.current?.getLastFrame()
       if (lastFrame) {
@@ -907,6 +911,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // updates stay slow; audio reactions still run from refs/engines.
     let lastPerformerUIUpdate = 0
     const unsubPerformer = input.subscribe((frame) => {
+      // Performer analysis (pitch/onset/energy) is only meaningful for a live mic.
+      // Skip it for auto/preset playback — it's per-frame CPU that contributes to
+      // the crackle/cutout on busy machines.
+      if (inputSource !== 'mic') return
       const pState = performer.processFrame(frame)
       processWowFrame(frame, pState)
       const now = performance.now()
@@ -1311,8 +1319,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyStablePlaybackDefaults()
       scheduleSilentStartRecovery(token)
 
-      // Start self-listen after audio is running
-      selfListenRef.current?.start()
+      // Start self-listen only with a live mic — it runs a continuous FFT on the
+      // output and is wasted CPU for preset/auto playback (crackle contributor).
+      if (inputSource === 'mic') selfListenRef.current?.start()
       if (inputSource === 'mic' && transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }
