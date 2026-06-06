@@ -80,7 +80,14 @@ export class BassGenerator extends GeneratorBase {
   private pendingOldSynth: Tone.MonoSynth | LoadableSampler | null = null
   // Fallback synth used while a CDN sampler is loading
   private fallbackSynth: Tone.MonoSynth
-  
+
+  // Sub-reinforcement layer — a clean sine an octave-low under the bass so ANY
+  // style can have low-end weight (not just trap's 808). Level set per style via
+  // setSubLevel(); 808 styles use 0 (the 808 already IS the sub).
+  private subSynth!: Tone.MonoSynth
+  private subGain!: Tone.Gain
+  private currentSubLevel: number = 0
+
   private isCurrentVoiceSampler: boolean = false
   private currentPerformer: InstrumentPerformerProfile | null = null
   private explicitPerformerId: InstrumentPerformerId | null = null
@@ -194,6 +201,20 @@ export class BassGenerator extends GeneratorBase {
     })
     this.fallbackSynth.volume.value = -7
     this.fallbackSynth.connect(this.filter)
+
+    // Sub layer — pure sine, routed CLEAN to output (no bass filter/distortion)
+    // so it stays a tight fundamental. Gain starts at 0; setSubLevel() opens it
+    // per style. This is what lets us "add sub to anything".
+    this.subSynth = new Tone.MonoSynth({
+      oscillator:     { type: 'sine' },
+      envelope:       { attack: 0.008, decay: 0.22, sustain: 0.9, release: 0.25 },
+      filter:         { type: 'lowpass', frequency: 160, rolloff: -24 },
+      filterEnvelope: { attack: 0.005, decay: 0.1, sustain: 1, release: 0.2, baseFrequency: 70, octaves: 1 },
+    })
+    this.subSynth.volume.value = -2
+    this.subGain = new Tone.Gain(0)
+    this.subSynth.connect(this.subGain)
+    this.subGain.connect(this.output)
 
     this.setOutputLevel(0)
 
@@ -378,6 +399,10 @@ export class BassGenerator extends GeneratorBase {
     const use808 = !this.explicitPerformerId &&
       (modeStr === 'heat' || modeStr === 'gravel' || sg === 'trap' || sg === 'drill' || sg === 'bounce')
 
+    // Add sub to ANY style: 808 styles already ARE the sub (level 0 to avoid
+    // doubling/mud); every other style gets a sine sub under its bass voice.
+    this.setSubLevel(use808 ? 0 : 0.5)
+
     if (use808) {
       // fatsine gives the fundamental sine sub plus subtle harmonics for audibility
       // on smaller speakers — pure sine disappears below 80Hz on laptop speakers.
@@ -422,6 +447,28 @@ export class BassGenerator extends GeneratorBase {
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)
     this.setOutputLevel(this.activityLevel)
+  }
+
+  /**
+   * Set the sub-reinforcement layer level (0–1). Lets ANY style add low-end
+   * weight independent of its bass voice. Trap/drill (808) styles use 0 — the
+   * 808 already provides the sub. Exposed so a profile/preset/user can dial it.
+   */
+  setSubLevel(level: number): void {
+    this.currentSubLevel = Math.max(0, Math.min(1, level))
+    if (this.subGain) this.subGain.gain.rampTo(this.currentSubLevel, 0.1)
+  }
+
+  getSubLevel(): number {
+    return this.currentSubLevel
+  }
+
+  /** Drop a note to its octave-1 pitch class for true sub-bass reinforcement. */
+  private toSubNote(note: string | number): string | null {
+    const name = typeof note === 'number' ? Tone.Frequency(note).toNote() : note
+    const pc = String(name).replace(/-?\d+$/, '')
+    if (!/^[A-G][#b]?$/.test(pc)) return null
+    return `${pc}1`
   }
 
   private computeTargetLevel(organism: OrganismState): number {
@@ -494,6 +541,16 @@ export class BassGenerator extends GeneratorBase {
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
+
+      // Sub layer — reinforce the fundamental in octave 1 so the style has weight.
+      // Once per note (independent of articulation); skipped when level is 0.
+      if (this.currentSubLevel > 0) {
+        const subNote = this.toSubNote(playableNote)
+        if (subNote) {
+          try { this.subSynth.triggerAttackRelease(subNote, event.dur, Math.max(0, scheduledTime), pocketVelocity) }
+          catch { /* monophonic retrigger race — safe to drop */ }
+        }
+      }
 
       // Fast-path: default articulation skips the transform.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
@@ -618,6 +675,8 @@ export class BassGenerator extends GeneratorBase {
     this.lfoGain.dispose()
     this.synth.dispose()
     this.fallbackSynth.dispose()
+    this.subSynth.dispose()
+    this.subGain.dispose()
     this.filter.dispose()
     this.monoSub.dispose()
     this.compressor.dispose()
