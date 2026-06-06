@@ -13,7 +13,7 @@ import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
 import { voiceChord, type ChordEvent } from './patterns/ChordProgressionBank'
 import { getConductor, type ParsedChord } from '../conductor/Conductor'
-import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
 import { getLivePartStart, quantizeGridTime } from './CompositionClock'
@@ -128,6 +128,51 @@ export class ChordGenerator extends GeneratorBase {
     this.explicitPerformerId = instrumentId
     this.applyVoice(this.currentMode)
     this.rebuildPart()
+  }
+
+  // When true, a real multisample instrument owns the chord voice and applyVoice
+  // (performer/soundfont) is suppressed so it isn't overwritten on rebuilds.
+  private multisampleActive = false
+
+  /**
+   * Swap the chord voice to a real note-mapped multisample instrument (e.g. a
+   * Soulful Keys e-piano for keys styles), so the organism comps the harmony with
+   * a real recorded instrument. Pass null to revert to the performer/soundfont.
+   */
+  setMultisampleInstrument(noteUrls: Record<string, string> | null): void {
+    if (!noteUrls) {
+      if (!this.multisampleActive) return
+      this.multisampleActive = false
+      this.applyVoice(this.currentMode)   // rebuild the performer voice
+      return
+    }
+
+    if (this.pendingSynthDispose) {
+      clearTimeout(this.pendingSynthDispose)
+      this.pendingSynthDispose = null
+      if (this.pendingOldSynth) {
+        try { this.pendingOldSynth.disconnect() } catch { /* */ }
+        try { this.pendingOldSynth.dispose() } catch { /* */ }
+        this.pendingOldSynth = null
+      }
+    }
+
+    const oldSynth = this.synth
+    try {
+      oldSynth.volume.cancelScheduledValues(Tone.now())
+      oldSynth.releaseAll()
+      oldSynth.disconnect()
+    } catch { /* */ }
+    this.pendingOldSynth = oldSynth
+    this.pendingSynthDispose = setTimeout(() => {
+      try { oldSynth.dispose() } catch { /* */ }
+      this.pendingOldSynth = null
+      this.pendingSynthDispose = null
+    }, 100)
+
+    this.synth = createMultisampleSampler(noteUrls, { attack: 0.01, release: 0.6 }, -8)
+    this.synth.connect(this.chorus)
+    this.multisampleActive = true
   }
 
   // Tracked synth dispose timer
@@ -627,6 +672,9 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private applyVoice(mode: string): void {
+    // When a real multisample instrument is locked in (e.g. a keys style using a
+    // Soulful Keys e-piano), don't let the performer/soundfont path overwrite it.
+    if (this.multisampleActive) return
     {
     const performer = selectInstrumentPerformer({
       role: 'chord',

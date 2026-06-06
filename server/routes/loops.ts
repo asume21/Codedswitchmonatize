@@ -37,7 +37,8 @@ router.get('/file', (req: Request, res: Response) => {
     if (!rel) return res.status(400).json({ success: false, message: "Missing 'p'" });
     const abs = melodicLoopLibrary.resolve(rel);
     if (!abs) return res.status(404).json({ success: false, message: 'Loop not found' });
-    res.setHeader('Content-Type', 'audio/wav');
+    const mime = /\.ogg$/i.test(abs) ? 'audio/ogg' : /\.mp3$/i.test(abs) ? 'audio/mpeg' : 'audio/wav';
+    res.setHeader('Content-Type', mime);
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     createReadStream(abs).pipe(res);
   } catch (err: any) {

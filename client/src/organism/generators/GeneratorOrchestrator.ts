@@ -948,6 +948,14 @@ export class GeneratorOrchestrator {
     this.chord.setTechnique(techniqueId)
   }
 
+  /**
+   * Swap the chord voice to a real note-mapped multisample instrument (e.g. a
+   * keys style comping on a Soulful Keys e-piano). null reverts to the performer.
+   */
+  setChordMultisample(noteUrls: Record<string, string> | null): void {
+    this.chord.setMultisampleInstrument(noteUrls)
+  }
+
   /** Get the currently active chord technique id. */
   getChordTechnique(): string {
     return this.chord.getTechnique()

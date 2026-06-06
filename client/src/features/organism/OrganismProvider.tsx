@@ -166,6 +166,29 @@ function drumInstrumentForWow(instrument: WowPulseInstrument): DrumInstrument {
   return DrumInstrument.Kick
 }
 
+// ── Playable multisample instruments (real keys, etc.) ────────────────────────
+// Cached fetch of the /api/loops/instruments catalog so keys-leaning styles can
+// comp their chords on a REAL recorded instrument (e.g. a Soulful Keys e-piano)
+// instead of a synth. See server/services/multisampleInstruments.ts.
+interface CatalogInstrument { id: string; family: string; notes: Record<string, string>; noteCount: number }
+let _instrumentCatalogPromise: Promise<CatalogInstrument[]> | null = null
+function loadInstrumentCatalog(): Promise<CatalogInstrument[]> {
+  if (!_instrumentCatalogPromise) {
+    _instrumentCatalogPromise = fetch('/api/loops/instruments')
+      .then(r => (r.ok ? r.json() : { instruments: [] }))
+      .then(d => (Array.isArray(d.instruments) ? d.instruments : []))
+      .catch(() => [])
+  }
+  return _instrumentCatalogPromise
+}
+async function pickInstrumentNotes(family: string): Promise<Record<string, string> | null> {
+  const cat = await loadInstrumentCatalog()
+  const matches = cat.filter(i => i.family === family && i.notes && Object.keys(i.notes).length >= 4)
+  if (matches.length === 0) return null
+  const pick = matches[Math.floor(Math.random() * matches.length)]
+  return pick.notes
+}
+
 export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Load persisted user profile (weighted average of past sessions)
   const { profile, recompute: recomputeProfile } = useProfile(userId, null)
@@ -1082,12 +1105,28 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // trap — pulls an appropriate real loop. '|' = ordered preferences; the
       // player falls back to any usable loop if none of these are in the library.
       const styleKey = `${preset.subGenre ?? ''} ${preset.genre}`.toLowerCase()
-      const instrument =
-        /trap|drill|orchestral|violin|string/.test(styleKey) ? 'strings|keys'
-        : /funk|west-coast/.test(styleKey)                   ? 'guitar|keys'
-        : /lofi|lo-fi|chill|soul|boom-?bap|jazz|rnb|r&b|story|narrative|cypher/.test(styleKey) ? 'keys|guitar'
-        : /pop|afro|bounce|electro/.test(styleKey)           ? 'keys|strings'
-        :                                                      'keys|strings'
+      const isKeysStyle = /lofi|lo-fi|chill|soul|boom-?bap|jazz|rnb|r&b|story|narrative|funk|west-coast|cypher/.test(styleKey)
+
+      if (isKeysStyle) {
+        // Keys-comp mode: a REAL recorded e-piano comps the chords (no strings
+        // loop over a lo-fi/soul beat). Synth melody off so the keys + bass + drums
+        // carry it. Falls back to the synth chord if no keys instrument is present.
+        try { player.stop() } catch { /* */ }
+        void pickInstrumentNotes('keys').then((notes) => {
+          if (notes) {
+            try { orchestrRef.current?.setChordMultisample(notes) } catch { /* */ }
+            try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
+            try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
+            orgLog('real-keys:comp', { notes: Object.keys(notes).length })
+          }
+        })
+        return
+      }
+
+      // Loop-lead mode (trap/orchestral/pop): a real phrase loop is the lead;
+      // the synth chord uses its normal performer voice (not the multisample).
+      try { orchestrRef.current?.setChordMultisample(null) } catch { /* */ }
+      const instrument = /pop|afro|bounce|electro/.test(styleKey) ? 'keys|strings' : 'strings|keys'
       // Start from the Conductor's current key; selection transposes as needed.
       const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
       const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
@@ -1113,6 +1152,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
     const onStopped = () => {
       melodicLoopRef.current?.stop()
+      try { orchestrRef.current?.setChordMultisample(null) } catch { /* */ }
       try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
       try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
     }

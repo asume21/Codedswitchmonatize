@@ -142,7 +142,7 @@ class MelodicLoopLibrary {
     if (normalized.startsWith('..') || path.isAbsolute(normalized)) return null;
     const abs = path.join(this.loopsDir, normalized);
     if (!abs.startsWith(this.loopsDir)) return null;
-    if (!fs.existsSync(abs) || !/\.wav$/i.test(abs)) return null;
+    if (!fs.existsSync(abs) || !/\.(wav|ogg|mp3)$/i.test(abs)) return null;
     return abs;
   }
 }

@@ -116,3 +116,40 @@ export function createSoundfontSampler(
 
   return sampler;
 }
+
+/**
+ * Build a Tone.Sampler from a real note-mapped multisample instrument
+ * (note name -> audio URL), e.g. the Soulful Keys e-pianos served by
+ * /api/loops/instruments. Lets the Organism play its OWN generated notes with a
+ * real recorded instrument. Same LoadableSampler contract as the soundfont path.
+ */
+export function createMultisampleSampler(
+  noteUrls: Record<string, string>,
+  envelope: { attack: number; release: number },
+  volume: number = -10,
+  onLoad?: () => void,
+): LoadableSampler {
+  let resolveLoaded: () => void;
+  const loadedPromise = new Promise<void>((resolve) => { resolveLoaded = resolve; });
+
+  const sampler = new Tone.Sampler({
+    urls: noteUrls,
+    attack: envelope.attack,
+    release: envelope.release,
+    volume,
+    onload: () => {
+      (sampler as LoadableSampler).isLoaded = true;
+      resolveLoaded!();
+      if (onLoad) onLoad();
+    },
+    onerror: (err) => {
+      console.error('💥 Failed to load multisample sampler', err);
+      resolveLoaded!();
+    },
+  }) as LoadableSampler;
+
+  sampler.isLoaded = false;
+  sampler.loadedPromise = loadedPromise;
+
+  return sampler;
+}

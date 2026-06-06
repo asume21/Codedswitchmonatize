@@ -53,7 +53,7 @@ class MultisampleInstrumentLibrary {
       if (e.name.startsWith('._') || e.name === '__MACOSX') continue; // macOS metadata junk
       const full = path.join(dir, e.name);
       if (e.isDirectory()) this.walk(full, acc);
-      else if (e.isFile() && /\.wav$/i.test(e.name)) acc.push(full);
+      else if (e.isFile() && /\.(wav|ogg|mp3)$/i.test(e.name)) acc.push(full);
     }
   }
 
@@ -64,11 +64,15 @@ class MultisampleInstrumentLibrary {
 
     const files: string[] = [];
     this.walk(this.loopsDir, files);
+    // Prefer compressed (ogg/mp3) over wav for the same note — production ships the
+    // small ogg; wav stays local. Sorting compressed-first makes first-write win.
+    const rank = (f: string) => (/\.wav$/i.test(f) ? 1 : 0);
+    files.sort((a, b) => rank(a) - rank(b));
 
     // Group note-sample files by instrument id.
     const byInstrument = new Map<string, Record<string, string>>();
     for (const full of files) {
-      const base = path.basename(full).replace(/\.wav$/i, '');
+      const base = path.basename(full).replace(/\.(wav|ogg|mp3)$/i, '');
       const tokens = base.split('_');
       if (tokens.length < 2) continue;
       const last = tokens[tokens.length - 1];
