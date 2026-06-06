@@ -43,7 +43,9 @@ export interface MixConfig {
 export const DEFAULT_MIX_CONFIG: MixConfig = {
   channels: {
     drum: {
-      name: 'drum', pan: 0, gainDb: 0,
+      // +5 dB so the kit drives the track instead of sitting behind the strings
+      // (captures showed "no detectable beat" — drums were too far back).
+      name: 'drum', pan: 0, gainDb: 5,
       compThresholdDb: -18, compRatio: 4, compAttackMs: 5,
       compReleaseMs: 80, compKneeDb: 6,
       eq: { highpassHz: 30, midHz: 300, midGain: -2, midQ: 0.8 },  // scoop low-mid mud
