@@ -108,6 +108,9 @@ export function createToneMock() {
       pause: vi.fn(),
       cancel: vi.fn(),
       position: '0:0:0',
+      // Transport playback position in seconds — the domain Tone.Part.start()/stop()
+      // operate in. CompositionClock.getLivePartStart() must return a value here.
+      seconds: 0,
       state: 'stopped',
       nextSubdivision: vi.fn().mockReturnValue(0),
       schedule: vi.fn().mockReturnValue(0),

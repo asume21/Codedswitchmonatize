@@ -33,7 +33,12 @@ export class MasterBus {
     //   • narrow 200Hz mud notch (Q=2.0 — only the mud, not the warmth)
     //   • -0.5dB high shelf (gentle digital-harshness tame, won't darken)
     //   • LP at 18kHz (effectively bypassed for human hearing; safety only)
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 45,    gain: -12.0 })
+    // Gentle deep-rumble control only. A -12 dB shelf at 45 Hz was gutting the
+    // sub region (20-80 Hz measured at ~4%), leaving the kick with no punch and
+    // the bass a mid-rangey "grunt". Move the corner down to 30 Hz and back off
+    // to -3 dB so true sub-rumble below ~30 Hz is tamed but the 40-80 Hz
+    // foundation that drives hip-hop survives.
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 30,    gain: -3.0 })
     this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,   gain: -1.5, Q: 2.0 })
     this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -0.5 })
     this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 18000, rolloff: -24 })

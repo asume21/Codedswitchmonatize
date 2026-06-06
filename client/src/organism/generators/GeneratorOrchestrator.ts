@@ -310,10 +310,14 @@ export class GeneratorOrchestrator {
     }
     await Tone.start()
 
-    // Look-ahead controls scheduling latency. 0.1s caused crackling when 5+
-    // generators run simultaneously on a busy dev-mode main thread. 0.25s is
-    // a safe middle ground: ~1/4 beat at 120 BPM, unnoticeable in live use.
-    Tone.getContext().lookAhead = 0.25
+    // Look-ahead controls scheduling headroom. 0.1s caused crackling when 5+
+    // generators run simultaneously on a busy dev-mode main thread; 0.25s still
+    // underran under load. 0.4s gives the scheduler ample slack so a momentarily
+    // busy main thread can't starve the audio render quantum (the main remaining
+    // crackle source once clipping is ruled out). For generative/auto playback the
+    // extra ~150ms of latency is inaudible; mic-reactive features have their own
+    // faster path, so this does not affect responsiveness to the performer.
+    Tone.getContext().lookAhead = 0.4
 
     // Start at 0 dB. The prior pre-mute-to-silence was hiding an initial
     // transient, but when the ramp was skipped it silently bricked audio.

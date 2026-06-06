@@ -681,7 +681,9 @@ export class MelodyGenerator extends GeneratorBase {
     if (oldPart) {
       if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
         oldPart.stop(startAt)
-        const msUntilStart = (startAt - Tone.getContext().currentTime) * 1000
+        // startAt is a TransportTime (see CompositionClock.getLivePartStart).
+        // Real-time until the Transport reaches it = startAt − transport.seconds.
+        const msUntilStart = (startAt - transport.seconds) * 1000
         window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
       } else {
         oldPart.stop()

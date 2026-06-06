@@ -68,29 +68,51 @@ export function getLivePartStart(hasStartedPlayback: boolean): Tone.Unit.Time {
   }
 
   const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
-  const nowSeconds = Tone.now()
+
+  // CRITICAL DOMAIN NOTE: Tone.Part.start()/stop() interpret a numeric time as a
+  // TransportTime — seconds along the Transport's own timeline (transport.seconds) —
+  // NOT an AudioContext time (Tone.now()). transport.nextSubdivision() returns an
+  // AudioContext-absolute time, so feeding its result to Part.start() schedules the
+  // part (transport.seconds − context.now) seconds away. Once the Transport has been
+  // running for a while those clocks diverge by tens of seconds, so every rebuilt
+  // part was scheduled far in the transport future and NEVER fired — the beat played
+  // its first loop, then went silent on the next rebuild ("starts then silence").
+  // We therefore compute the next measure boundary in the Transport's seconds domain.
+  const nowTransport = transport.seconds
   if (
     cachedLivePartStart &&
     nowMs - cachedLivePartStart.createdAtMs <= LIVE_REBUILD_BATCH_WINDOW_MS
   ) {
     const cached = cachedLivePartStart.value
-    if (typeof cached !== 'number' || cached - nowSeconds > 0.05) {
+    if (typeof cached !== 'number' || cached - nowTransport > 0.05) {
       return cached
     }
   }
 
-  // Rebuilds align to the next measure while playing. This prevents staggered
-  // generator rebuilds from entering on different 16ths, while first starts
-  // stay immediately active against the current transport position.
-  let startAt = transport.nextSubdivision('1m')
-
-  // If the next measure is too close, schedule the whole rebuild batch one
-  // measure later. Otherwise staggered generator rebuilds can straddle the bar:
-  // drums enter this bar while melody/chords miss it and enter the next one.
-  if (typeof startAt === 'number' && startAt - nowSeconds < MIN_LIVE_REBUILD_LEAD_SECONDS) {
-    const bpm = Math.max(40, Number(transport.bpm.value) || 120)
-    startAt += (60 / bpm) * 4
+  // Align to the next downbeat. We derive the time-to-next-bar from the MUSICAL
+  // position (transport.position = "bars:quarters:sixteenths") rather than from
+  // raw elapsed seconds, because the two diverge whenever BPM changes mid-session
+  // (preset swaps, performer-BPM sync, tempo ramps). Quantizing raw seconds with
+  // Math.ceil(seconds / secondsPerBar) then lands OFF the bar grid — the handoff
+  // schedules the new part essentially "now"/in the past and cuts the old one,
+  // producing the intermittent gaps/silence. Position fraction + current BPM gives
+  // the true remaining time to the next downbeat regardless of tempo history, and
+  // the result stays in the Transport seconds domain (so Part.start()/stop() and
+  // the generators' `startAt − transport.seconds` dispose timers stay correct).
+  const bpm = Math.max(40, Number(transport.bpm.value) || 120)
+  const secondsPerBar = (60 / bpm) * 4
+  const posParts = String(transport.position).split(':')
+  const quarters   = Number.parseFloat(posParts[1] ?? '0') || 0   // 0–3
+  const sixteenths = Number.parseFloat(posParts[2] ?? '0') || 0   // 0–3.999
+  const fractionIntoBar = (quarters + sixteenths / 4) / 4          // 0–1
+  let secondsToNextBar = (1 - fractionIntoBar) * secondsPerBar
+  // If the next downbeat is too close, push one bar later so staggered generator
+  // rebuilds (drums/bass/melody/chord fire up to ~180ms apart) all land on the
+  // SAME downbeat instead of one generator catching this bar and the rest missing.
+  if (secondsToNextBar < MIN_LIVE_REBUILD_LEAD_SECONDS) {
+    secondsToNextBar += secondsPerBar
   }
+  const startAt = nowTransport + secondsToNextBar
 
   cachedLivePartStart = { value: startAt, createdAtMs: nowMs }
   return startAt
