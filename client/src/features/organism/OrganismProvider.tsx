@@ -1085,18 +1085,29 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
       const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
 
+      // Silence the synth melody + chord IMMEDIATELY (before the loop finishes
+      // loading) so they never duet with the real strings. The recorded loop is
+      // the melodic/harmonic lead now; the synth versions are "old crap" clutter.
+      // Restored below only if no matching loop is found (so we're never silent).
+      try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
+      try { orchestrRef.current?.setChordEnabled(false) } catch { /* */ }
+
       void player.play({ root: startRoot, mode: 'minor', bpm: preset.bpm, instrument }).then((loop) => {
-        if (!loop) return
+        if (!loop) {
+          // No loop available — restore the synth melody/chord so it's not silent.
+          try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
+          try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
+          return
+        }
         // Lock the band to the loop's key so the 808/bass are in tune with it.
         try { getConductor().setKeyByPitchClass(PITCH_CLASS_MAP[loop.root] ?? 0) } catch { /* */ }
-        // Real strings are the melody now — silence the synth melody generator.
-        try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
         orgLog('melodic-loop:playing', { file: loop.fileName, key: loop.key, bpm: loop.bpm, instrument: loop.instrument })
       })
     }
     const onStopped = () => {
       melodicLoopRef.current?.stop()
       try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
+      try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
     }
     window.addEventListener('organism:started', onStarted)
     window.addEventListener('organism:stopped', onStopped)
