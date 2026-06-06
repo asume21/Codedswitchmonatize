@@ -98,9 +98,15 @@ export class ProfessionalAudioEngine {
     window.dispatchEvent(new CustomEvent('professionalAudio:masterLevel', { detail: { level } }));
   }
   
+  private initPromise: Promise<void> | null = null;
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    
+    // Guard against concurrent callers. Without this, two near-simultaneous
+    // initialize() calls BOTH pass the isInitialized check (it isn't set until
+    // after the awaits below) and each builds a full master + reverb + spectrum
+    // graph on the audio render thread — doubling DSP load and feeding crackle.
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = (async () => {
     try {
       this.audioContext = getAudioContext();
       this.sampleRate = this.audioContext.sampleRate;
@@ -131,10 +137,13 @@ export class ProfessionalAudioEngine {
       
     } catch (error) {
       console.error('Failed to initialize Professional Audio Engine:', error);
+      this.initPromise = null;  // allow a retry after a failed init
       throw error;
     }
+    })();
+    return this.initPromise;
   }
-  
+
   private async resumeAudioContext(): Promise<void> {
     if (!this.audioContext) return;
     

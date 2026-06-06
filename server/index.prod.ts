@@ -196,6 +196,7 @@ app.use((req, res, next) => {
     "/api/blog",
     "/api/social/feed/public",
     "/api/songs/public",
+    "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
   ]));

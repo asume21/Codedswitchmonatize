@@ -73,6 +73,9 @@ repo_tree*.txt
 # Rust build output
 **/target/
 audio/reference-beats/
+# Large melodic loop packs (strings/keys/guitar) — too big for git; served from
+# object storage in production. Kept local for dev. See loop-engine work.
+audio/loops/
 private/organism-kits/
 private/ace-step/
 private/ace-step-cache/

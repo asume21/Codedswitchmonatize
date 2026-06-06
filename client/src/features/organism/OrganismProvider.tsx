@@ -65,6 +65,8 @@ import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
 import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
 import { OrganismV2LoopPlayer, type OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
+import { MelodicLoopPlayer } from '../../organism/loops/MelodicLoopPlayer'
+import { getConductor } from '../../organism/conductor/Conductor'
 
 interface Props {
   children:  React.ReactNode
@@ -1051,6 +1053,60 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
     return () => { delete (window as any).__orgDebug }
   }, [])
+
+  // ── Melodic loop layer ─────────────────────────────────────────────
+  // Plays a REAL recorded melodic loop (strings/keys) that matches the song's
+  // key + tempo, locked to the same Tone.Transport as the generative drums/808.
+  // This is the "real instrument" melody — the jump from synth demo to real beat.
+  // For melodic presets (trap/orchestral/melodic) we: pick a matching loop, lock
+  // the Conductor key to it so bass/808 stay in tune, and silence the synth melody
+  // so the strings are the lead. Gated to melodic presets for now.
+  const melodicLoopRef = useRef<MelodicLoopPlayer | null>(null)
+  const PITCH_CLASS_MAP: Record<string, number> = useMemo(() => ({
+    C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5,
+    'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11,
+  }), [])
+  useEffect(() => {
+    const onStarted = (e: Event) => {
+      const presetId = (e as CustomEvent).detail?.presetId as string | undefined
+      const preset = presetId ? getQuickStartPreset(presetId) : null
+      if (!preset) return
+      // Only drive the loop layer for melodic/orchestral/trap presets for now.
+      if (!/trap|orchestral|melodic|violin|string/i.test(preset.genre)) return
+
+      if (!melodicLoopRef.current) {
+        // Route the loop through the Organism master bus so its limiter catches
+        // peaks (prevents the loop + drum/808 buses summing past 0 dB = clipping).
+        melodicLoopRef.current = new MelodicLoopPlayer(mixRef.current?.master?.input)
+      }
+      const player = melodicLoopRef.current
+      const instrument = /violin|orchestral|string/i.test(preset.genre) ? 'violin' : undefined
+      // Start from the Conductor's current key; selection transposes as needed.
+      const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
+      const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
+
+      void player.play({ root: startRoot, mode: 'minor', bpm: preset.bpm, instrument }).then((loop) => {
+        if (!loop) return
+        // Lock the band to the loop's key so the 808/bass are in tune with it.
+        try { getConductor().setKeyByPitchClass(PITCH_CLASS_MAP[loop.root] ?? 0) } catch { /* */ }
+        // Real strings are the melody now — silence the synth melody generator.
+        try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
+        orgLog('melodic-loop:playing', { file: loop.fileName, key: loop.key, bpm: loop.bpm, instrument: loop.instrument })
+      })
+    }
+    const onStopped = () => {
+      melodicLoopRef.current?.stop()
+      try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
+    }
+    window.addEventListener('organism:started', onStarted)
+    window.addEventListener('organism:stopped', onStopped)
+    return () => {
+      window.removeEventListener('organism:started', onStarted)
+      window.removeEventListener('organism:stopped', onStopped)
+      melodicLoopRef.current?.dispose()
+      melodicLoopRef.current = null
+    }
+  }, [PITCH_CLASS_MAP])
 
   // ── Actions ───────────────────────────────────────────────────────
 

@@ -17,6 +17,7 @@ import { createMixRoutes } from "./routes/mix";
 import { createLyricsRoutes } from "./routes/lyrics";
 import { createAstutelyRoutes } from "./routes/astutely";
 import { createSampleRoutes } from "./routes/samples";
+import { createLoopRoutes } from "./routes/loops";
 import { createUserRoutes } from "./routes/user";
 import { createSocialRoutes } from "./routes/social";
 import { createVulnerabilityRoutes } from "./routes/vulnerability";
@@ -324,6 +325,10 @@ ${urls
 
   // Mount Sample Library routes
   app.use("/api/samples", createSampleRoutes());
+
+  // Mount Melodic Loop routes (real string/key/guitar loop packs for the
+  // Organism loop layer). Public, like /api/samples.
+  app.use("/api/loops", createLoopRoutes());
 
   // Serve Neumann bass samples — 159 chromatic WAV files (0000.wav–0158.wav)
   // File N maps to MIDI note N. Bass range 24–72 (C1–C4) is what the Organism uses.
