@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createReadStream } from 'fs';
 import { melodicLoopLibrary } from '../services/melodicLoopLibrary';
+import { multisampleInstruments } from '../services/multisampleInstruments';
 
 /**
  * Melodic Loop Routes — real instrument loop packs for the Organism's loop layer.
@@ -14,6 +15,16 @@ router.get('/', (req: Request, res: Response) => {
   try {
     const loops = melodicLoopLibrary.scan(req.query.refresh === '1');
     res.json({ success: true, count: loops.length, loops });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Playable multisample instruments (note-mapped one-shots → Tone.Sampler maps).
+router.get('/instruments', (req: Request, res: Response) => {
+  try {
+    const instruments = multisampleInstruments.scan(req.query.refresh === '1');
+    res.json({ success: true, count: instruments.length, instruments });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }
