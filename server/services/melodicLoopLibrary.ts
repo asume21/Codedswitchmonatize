@@ -34,7 +34,22 @@ export interface MelodicLoop {
 }
 
 const KEY_RE = /^([A-G][#b]?)(m)?$/;
-const INSTRUMENT_RE = /(violin\d*|viola|cello|fullmix|piano|rhodes|keys?|guitar|string|pad|flute|sax|horn|brass|synth)/i;
+
+/**
+ * Map a filename to a CANONICAL instrument category, so style→instrument routing
+ * is clean regardless of how a pack names things (ElPiano, Wurl, Organ → keys;
+ * 12string, Hofner, Strat → guitar; Violin/Viola/Cello → strings).
+ */
+function detectInstrument(name: string): string {
+  const n = name.toLowerCase();
+  if (/fullmix/.test(n)) return 'fullmix';
+  if (/violin|viola|cello|\bstring|orchestr/.test(n)) return 'strings';
+  if (/guitar|12\s?string|hofner|strat|tele|nylon|\bag\b|acoustic.?g/.test(n)) return 'guitar';
+  if (/piano|rhodes|wurl|epiano|fmpiano|elpiano|dpiano|organ|\bkeys?\b|hofner/.test(n)) return 'keys';
+  if (/flute|sax|horn|brass|trumpet|hymn/.test(n)) return 'brass';
+  if (/pad|synth/.test(n)) return 'pad';
+  return 'unknown';
+}
 
 function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | 'url' | 'pack'> {
   const base = fileName.replace(/\.wav$/i, '');
@@ -44,7 +59,6 @@ function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | '
   let key = '';
   let root = '';
   let mode: LoopMode = 'minor';
-  let instrument = 'unknown';
 
   for (const tok of tokens) {
     if (!bpm) {
@@ -63,11 +77,10 @@ function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | '
         continue;
       }
     }
-    if (instrument === 'unknown') {
-      const im = tok.match(INSTRUMENT_RE);
-      if (im) instrument = im[1].toLowerCase();
-    }
   }
+
+  // Instrument is a canonical category derived from the whole filename.
+  const instrument = detectInstrument(base);
 
   return { fileName, bpm, key, root, mode, instrument };
 }

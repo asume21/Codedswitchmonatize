@@ -369,10 +369,14 @@ export class BassGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    // Trap/drill modes use an inline 808 sine MonoSynth — no CDN load latency
-    // and far more authentic than the synth_bass_1 General MIDI soundfont.
+    // Use the 808 sub for trap/drill — by SUB-GENRE, not just mode. Violin/
+    // orchestral trap runs in "Glow" mode but is still trap and MUST have an 808
+    // (otherwise it falls back to the acoustic Neumann bass = the mid-range
+    // "grunt" with no sub). A tuned sine-sub IS how a real 808 is made.
     const modeStr = this.currentMode.toString()
-    const use808 = !this.explicitPerformerId && (modeStr === 'heat' || modeStr === 'gravel')
+    const sg = (this.currentSubGenre ?? '').toLowerCase()
+    const use808 = !this.explicitPerformerId &&
+      (modeStr === 'heat' || modeStr === 'gravel' || sg === 'trap' || sg === 'drill' || sg === 'bounce')
 
     if (use808) {
       // fatsine gives the fundamental sine sub plus subtle harmonics for audibility

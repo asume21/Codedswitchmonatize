@@ -52,7 +52,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       name: 'bass', pan: 0, gainDb: 2,
       compThresholdDb: -20, compRatio: 5, compAttackMs: 10,
       compReleaseMs: 150, compKneeDb: 4,
-      eq: { highpassHz: 35, highShelfHz: 2000, highShelfGain: -6 },  // HP kills sub-rumble; roll off highs
+      eq: { highpassHz: 24, highShelfHz: 2000, highShelfGain: -6 },  // HP at 24Hz keeps the 808 sub (was 35 = cut the sub); roll off highs
     },
     melody: {
       name: 'melody', pan: 0.15, gainDb: 8,

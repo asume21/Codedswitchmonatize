@@ -1071,8 +1071,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       const presetId = (e as CustomEvent).detail?.presetId as string | undefined
       const preset = presetId ? getQuickStartPreset(presetId) : null
       if (!preset) return
-      // Only drive the loop layer for melodic/orchestral/trap presets for now.
-      if (!/trap|orchestral|melodic|violin|string/i.test(preset.genre)) return
 
       if (!melodicLoopRef.current) {
         // Route the loop through the Organism master bus so its limiter catches
@@ -1080,7 +1078,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         melodicLoopRef.current = new MelodicLoopPlayer(mixRef.current?.master?.input)
       }
       const player = melodicLoopRef.current
-      const instrument = /violin|orchestral|string/i.test(preset.genre) ? 'violin' : undefined
+      // Map the selected STYLE to its melodic voice so EVERY style — not just
+      // trap — pulls an appropriate real loop. '|' = ordered preferences; the
+      // player falls back to any usable loop if none of these are in the library.
+      const styleKey = `${preset.subGenre ?? ''} ${preset.genre}`.toLowerCase()
+      const instrument =
+        /trap|drill|orchestral|violin|string/.test(styleKey) ? 'strings|keys'
+        : /funk|west-coast/.test(styleKey)                   ? 'guitar|keys'
+        : /lofi|lo-fi|chill|soul|boom-?bap|jazz|rnb|r&b|story|narrative|cypher/.test(styleKey) ? 'keys|guitar'
+        : /pop|afro|bounce|electro/.test(styleKey)           ? 'keys|strings'
+        :                                                      'keys|strings'
       // Start from the Conductor's current key; selection transposes as needed.
       const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
       const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
