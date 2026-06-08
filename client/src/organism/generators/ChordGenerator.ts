@@ -14,6 +14,7 @@ import { OState }             from '../state/types'
 import { voiceChord, type ChordEvent } from './patterns/ChordProgressionBank'
 import { getConductor, type ParsedChord } from '../conductor/Conductor'
 import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
 import { getLivePartStart, quantizeGridTime } from './CompositionClock'
@@ -671,6 +672,11 @@ export class ChordGenerator extends GeneratorBase {
     }
   }
 
+  /** Rebuild the performer voice (e.g. after real samples finish loading). */
+  refreshVoice(): void {
+    this.applyVoice(this.currentMode)
+  }
+
   private applyVoice(mode: string): void {
     // When a real multisample instrument is locked in (e.g. a keys style using a
     // Soulful Keys e-piano), don't let the performer/soundfont path overwrite it.
@@ -712,11 +718,12 @@ export class ChordGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    this.synth = createSoundfontSampler(
-      performer.samplerPreset,
-      performer.envelope,
-      performer.volume,
-    )
+    // Prefer the real recorded multisample (e.g. Sonatina strings) over the thin
+    // GM soundfont when it's available on disk; GM is the graceful fallback.
+    const realNotes = getRealInstrumentNotes(performer)
+    this.synth = realNotes
+      ? createMultisampleSampler(realNotes, performer.envelope, performer.volume)
+      : createSoundfontSampler(performer.samplerPreset, performer.envelope, performer.volume)
     this.synth.connect(this.chorus)
     this.chorus.wet.rampTo(performer.family === 'bowed' ? 0.42 : 0.25, 0.5)
     this.reverb.decay = performer.family === 'bowed' ? 2.2 : 1.2

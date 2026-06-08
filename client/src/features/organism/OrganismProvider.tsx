@@ -1131,32 +1131,35 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         return
       }
 
-      // Loop-lead mode (trap/orchestral/pop): a real phrase loop is the lead;
-      // the synth chord uses its normal performer voice (not the multisample).
+      // Real-instrument lead (trap/orchestral/pop): the melody + chord generators
+      // now play REAL recorded multisamples (Sonatina strings, VCSL piano/sax,
+      // SK e-pianos, …) through the performer system, so they carry the lead and
+      // harmony themselves — following the actual progression in any key. We no
+      // longer substitute a fixed recorded phrase loop for the melody.
       try { orchestrRef.current?.setChordMultisample(null) } catch { /* */ }
-      const instrument = /pop|afro|bounce|electro/.test(styleKey) ? 'keys|strings' : 'strings|keys'
-      // Start from the Conductor's current key; selection transposes as needed.
-      const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
-      const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
+      try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
+      try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
 
-      // Silence the synth melody + chord IMMEDIATELY (before the loop finishes
-      // loading) so they never duet with the real strings. The recorded loop is
-      // the melodic/harmonic lead now; the synth versions are "old crap" clutter.
-      // Restored below only if no matching loop is found (so we're never silent).
-      try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
-      try { orchestrRef.current?.setChordEnabled(false) } catch { /* */ }
-
-      void player.play({ root: startRoot, mode: 'minor', bpm: preset.bpm, instrument }).then((loop) => {
-        if (!loop) {
-          // No loop available — restore the synth melody/chord so it's not silent.
-          try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
-          try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
-          return
-        }
-        // Lock the band to the loop's key so the 808/bass are in tune with it.
-        try { getConductor().setKeyByPitchClass(PITCH_CLASS_MAP[loop.root] ?? 0) } catch { /* */ }
-        orgLog('melodic-loop:playing', { file: loop.fileName, key: loop.key, bpm: loop.bpm, instrument: loop.instrument })
-      })
+      // PARKED (kept intentionally — do not delete): the old "loop-lead" mode that
+      // played a canned phrase loop in place of the melody and silenced the
+      // generators. Flip USE_LOOP_LEAD to true to restore that behavior.
+      const USE_LOOP_LEAD = false
+      if (USE_LOOP_LEAD) {
+        const instrument = /pop|afro|bounce|electro/.test(styleKey) ? 'keys|strings' : 'strings|keys'
+        const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
+        const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
+        try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
+        try { orchestrRef.current?.setChordEnabled(false) } catch { /* */ }
+        void player.play({ root: startRoot, mode: 'minor', bpm: preset.bpm, instrument }).then((loop) => {
+          if (!loop) {
+            try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
+            try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
+            return
+          }
+          try { getConductor().setKeyByPitchClass(PITCH_CLASS_MAP[loop.root] ?? 0) } catch { /* */ }
+          orgLog('melodic-loop:playing', { file: loop.fileName, key: loop.key, bpm: loop.bpm, instrument: loop.instrument })
+        })
+      }
     }
     const onStopped = () => {
       melodicLoopRef.current?.stop()

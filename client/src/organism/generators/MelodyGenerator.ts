@@ -17,7 +17,8 @@ import {
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
-import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import {
   applyArticulation,
   DEFAULT_ARTICULATION_ID,
@@ -422,6 +423,11 @@ export class MelodyGenerator extends GeneratorBase {
    * Intelligently picks from GLOBAL_VOICES based on performer features
    * (Aggressive rap = 808s/pianos, softer = rhodes/pads)
    */
+  /** Rebuild the performer voice (e.g. after real samples finish loading). */
+  refreshVoice(): void {
+    this.applyModeVoice(this.currentModeName)
+  }
+
   private applyModeVoice(mode: string): void {
     {
     const performer = selectInstrumentPerformer({
@@ -463,11 +469,12 @@ export class MelodyGenerator extends GeneratorBase {
       this.pendingSynthDispose = null
     }, 100)
 
-    this.synth = createSoundfontSampler(
-      performer.samplerPreset,
-      performer.envelope,
-      this.boostLeadGainDb(performer.volume),
-    )
+    // Prefer the real recorded multisample (e.g. Sonatina violin) over the thin
+    // GM soundfont when it's available on disk; GM is the graceful fallback.
+    const realNotes = getRealInstrumentNotes(performer)
+    this.synth = realNotes
+      ? createMultisampleSampler(realNotes, performer.envelope, this.boostLeadGainDb(performer.volume))
+      : createSoundfontSampler(performer.samplerPreset, performer.envelope, this.boostLeadGainDb(performer.volume))
     this.synth.connect(this.vibrato)
     this.chorus.wet.rampTo(performer.family === 'wind' || performer.family === 'bowed' ? 0.28 : 0.18, 0.5)
     this.reverb.decay = performer.family === 'wind' || performer.family === 'bowed' ? 1.6 : 1.0

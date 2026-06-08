@@ -37,6 +37,13 @@ export interface InstrumentPerformerProfile {
   polyphony: 'mono' | 'poly'
   envelope: InstrumentEnvelope
   volume: number
+  /**
+   * Optional id of a real note-mapped multisample (served at
+   * /api/loops/instruments, e.g. 'SSO_Violins1'). When present on disk, the
+   * generator builds the voice from these recorded samples instead of the GM
+   * `samplerPreset`. GM remains the graceful fallback. See realInstruments.ts.
+   */
+  realInstrument?: string
   defaultTechnique: string
   defaultLeadArticulation: string
   defaultBassArticulation: string

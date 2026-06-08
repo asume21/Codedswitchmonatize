@@ -20,6 +20,7 @@ import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
 import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
@@ -119,6 +120,11 @@ export class GeneratorOrchestrator {
     this.texture = new TextureGenerator()
     this.chord   = new ChordGenerator()
     this.director = new MusicalDirector()
+
+    // Load real recorded multisamples (Sonatina / VCSL / SK pianos) and upgrade
+    // the chord + melody voices from thin GM soundfonts to real samples the
+    // moment the catalog resolves. Falls back to GM if the fetch fails.
+    void loadRealInstruments().then(() => this.refreshInstrumentVoices())
 
     // Phase 4: Conductor is the chord source of truth. Bass + Melody self-
     // subscribe to conductor.onChordChange in their constructors; the only
@@ -954,6 +960,16 @@ export class GeneratorOrchestrator {
    */
   setChordMultisample(noteUrls: Record<string, string> | null): void {
     this.chord.setMultisampleInstrument(noteUrls)
+  }
+
+  /**
+   * Re-apply the chord + melody performer voices. Called when the real-instrument
+   * catalog finishes loading so a voice built on the GM fallback upgrades to its
+   * real recorded multisample without waiting for the next section change.
+   */
+  refreshInstrumentVoices(): void {
+    try { this.chord.refreshVoice() } catch { /* */ }
+    try { this.melody.refreshVoice() } catch { /* */ }
   }
 
   /** Get the currently active chord technique id. */
