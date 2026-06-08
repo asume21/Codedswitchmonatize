@@ -85,8 +85,12 @@ export class MelodyGenerator extends GeneratorBase {
   private currentModeName: string = 'glow'
 
   // Tracked synth dispose timer — prevents zombie synth accumulation
-  private pendingSynthDispose: ReturnType<typeof setTimeout> | null = null
-  private pendingOldSynth: Tone.PolySynth | LoadableSampler | null = null
+  // Cache of loaded samplers keyed by voice ("real:<id>" / "gm:<preset>"). Once a
+  // real instrument (e.g. SSO_Violins1) loads it stays loaded and is reused
+  // instantly on the next voice change, so the synth fallback never has to cover
+  // a re-download. This is what keeps the REAL instrument playing the lead.
+  private samplerCache: Map<string, LoadableSampler> = new Map()
+  private currentVoiceKey: string | null = null
 
   // Genre-aware swing — matches drum/bass swing per mode
   private static readonly MODE_SWING: Record<string, number> = {
@@ -445,14 +449,24 @@ export class MelodyGenerator extends GeneratorBase {
       this.lastModeForArticulation = mode
     }
 
-    if (this.pendingSynthDispose) {
-      clearTimeout(this.pendingSynthDispose)
-      this.pendingSynthDispose = null
-      if (this.pendingOldSynth) {
-        try { this.pendingOldSynth.disconnect() } catch { /* */ }
-        try { this.pendingOldSynth.dispose() } catch { /* */ }
-        this.pendingOldSynth = null
-      }
+    // Resolve the desired voice. Prefer the real recorded multisample (e.g.
+    // Sonatina violin) over the thin GM soundfont; GM is the graceful fallback.
+    const realNotes = getRealInstrumentNotes(performer)
+    const voiceKey  = realNotes ? `real:${performer.realInstrument}` : `gm:${performer.samplerPreset}`
+    const targetVol = this.boostLeadGainDb(performer.volume)
+
+    // Family-dependent FX always track the current performer.
+    this.chorus.wet.rampTo(performer.family === 'wind' || performer.family === 'bowed' ? 0.28 : 0.18, 0.5)
+    this.reverb.decay = performer.family === 'wind' || performer.family === 'bowed' ? 1.6 : 1.0
+    this.delay.feedback.rampTo(performer.family === 'plucked' ? 0.12 : 0.08, 0.5)
+
+    // Same instrument already active → just retrim and bail. Recreating the
+    // sampler would re-download it and leave the silent fallback synth playing
+    // in the gap — the exact reason mode wiggles dropped the real instrument to
+    // a synth. No churn when the instrument hasn't actually changed.
+    if (voiceKey === this.currentVoiceKey && this.samplerCache.has(voiceKey)) {
+      this.synth.volume.rampTo(targetVol, 0.1)
+      return
     }
 
     const oldSynth = this.synth
@@ -461,27 +475,30 @@ export class MelodyGenerator extends GeneratorBase {
       oldSynth.releaseAll()
       oldSynth.disconnect()
     } catch { /* */ }
+    // Dispose the previous voice only if it is NOT a cached sampler we keep
+    // alive for reuse (the initial default PolySynth is not cached → disposed).
+    const oldIsCached = this.samplerCache.get(this.currentVoiceKey ?? '') === oldSynth
+    if (!oldIsCached) {
+      setTimeout(() => { try { oldSynth.dispose() } catch { /* */ } }, 100)
+    }
 
-    this.pendingOldSynth = oldSynth
-    this.pendingSynthDispose = setTimeout(() => {
-      try { oldSynth.dispose() } catch { /* */ }
-      this.pendingOldSynth = null
-      this.pendingSynthDispose = null
-    }, 100)
-
-    // Prefer the real recorded multisample (e.g. Sonatina violin) over the thin
-    // GM soundfont when it's available on disk; GM is the graceful fallback.
-    const realNotes = getRealInstrumentNotes(performer)
-    this.synth = realNotes
-      ? createMultisampleSampler(realNotes, performer.envelope, this.boostLeadGainDb(performer.volume))
-      : createSoundfontSampler(performer.samplerPreset, performer.envelope, this.boostLeadGainDb(performer.volume))
+    // Reuse the cached, already-loaded sampler when we have one — instant real
+    // instrument, no reload gap. Only build (and load) a voice the first time.
+    let voice = this.samplerCache.get(voiceKey) ?? null
+    if (voice) {
+      voice.volume.value = targetVol
+    } else {
+      voice = realNotes
+        ? createMultisampleSampler(realNotes, performer.envelope, targetVol)
+        : createSoundfontSampler(performer.samplerPreset, performer.envelope, targetVol)
+      this.samplerCache.set(voiceKey, voice)
+    }
+    this.synth = voice
+    this.currentVoiceKey = voiceKey
     this.synth.connect(this.vibrato)
-    this.chorus.wet.rampTo(performer.family === 'wind' || performer.family === 'bowed' ? 0.28 : 0.18, 0.5)
-    this.reverb.decay = performer.family === 'wind' || performer.family === 'bowed' ? 1.6 : 1.0
-    this.delay.feedback.rampTo(performer.family === 'plucked' ? 0.12 : 0.08, 0.5)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(`Melody performer: ${performer.name}`)
+      console.debug(`Melody performer: ${performer.name} [${voiceKey}]`)
     }
     }
   }
@@ -1003,17 +1020,15 @@ export class MelodyGenerator extends GeneratorBase {
       this.unsubscribeConductor()
       this.unsubscribeConductor = null
     }
-    if (this.pendingSynthDispose) {
-      clearTimeout(this.pendingSynthDispose)
-      this.pendingSynthDispose = null
+    // Dispose every cached sampler (includes the currently-active this.synth
+    // when it's a cached voice), then clear the cache.
+    for (const s of this.samplerCache.values()) {
+      try { s.dispose() } catch { /* */ }
     }
-    if (this.pendingOldSynth) {
-      try { this.pendingOldSynth.disconnect() } catch { /* */ }
-      try { this.pendingOldSynth.dispose() } catch { /* */ }
-      this.pendingOldSynth = null
-    }
+    this.samplerCache.clear()
+    this.currentVoiceKey = null
     this.vibrato.dispose()
-    this.synth.dispose()
+    try { this.synth.dispose() } catch { /* already disposed via cache */ }
     this.fallbackSynth.dispose()
     this.chorus.dispose()
     this.dryBus.dispose()
