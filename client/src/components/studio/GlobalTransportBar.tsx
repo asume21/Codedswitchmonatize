@@ -360,10 +360,12 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   if (hideOnMobile) return null;
 
   const containerClasses = cn(
-    "bg-gray-900/95 backdrop-blur-md border-gray-700 transition-all duration-300",
+    // Theme tokens (was hardcoded gray) + z-40 = persistent chrome tier, below
+    // modals (z-50) so dialogs cover the transport bar instead of tying with it.
+    "bg-card/95 backdrop-blur-md border-border transition-all duration-300",
     isInline
       ? "relative w-full rounded-lg border px-4 py-3 flex flex-col gap-3"
-      : "fixed bottom-0 left-0 right-0 z-50 border-t",
+      : "fixed bottom-0 left-0 right-0 z-40 border-t",
   );
 
   const mainRowClasses = cn(

@@ -2,7 +2,6 @@ import React, { Suspense, useCallback, useMemo } from 'react';
 import { Redirect, useLocation } from 'wouter';
 import { Mic, Music, Users, FolderOpen, Command } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -10,6 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import AssistantOverlay from './overlays/AssistantOverlay';
 import TranslatorOverlay from './overlays/TranslatorOverlay';
+import { OPEN_COMMAND_PALETTE_EVENT } from '@/components/CommandPalette';
 
 const UnifiedStudioWorkspace = React.lazy(
   () => import('./UnifiedStudioWorkspace')
@@ -17,6 +17,12 @@ const UnifiedStudioWorkspace = React.lazy(
 const MakeSurface = React.lazy(
   () => import('./surfaces/MakeSurface')
 );
+// SHARE and LIBRARY surfaces mount the already-built pages directly (per
+// CLAUDE.md: SHARE = Social Hub, LIBRARY = Sample Library). The shell is
+// already inside ProtectedRoute + the studio provider stack, so these page
+// components — which only need auth + react-query — render as-is.
+const SocialHub = React.lazy(() => import('@/pages/social-hub'));
+const SampleLibraryPage = React.lazy(() => import('@/pages/sample-library'));
 
 const SURFACES = ['make', 'mix', 'share', 'library'] as const;
 type Surface = (typeof SURFACES)[number];
@@ -116,7 +122,6 @@ export default function StudioShell() {
         <DesktopSurfaceRail
           active={surface}
           onChange={switchSurface}
-          onOpenOverlay={openOverlay}
         />
       )}
 
@@ -156,17 +161,15 @@ function SurfaceRouter({ surface }: { surface: Surface }) {
       );
     case 'share':
       return (
-        <SurfaceStub
-          title="SHARE"
-          description="Social hub and artist profiles — coming soon"
-        />
+        <Suspense fallback={<SurfaceLoading label="SHARE" />}>
+          <SocialHub />
+        </Suspense>
       );
     case 'library':
       return (
-        <SurfaceStub
-          title="LIBRARY"
-          description="Sample library and saved beats — coming soon"
-        />
+        <Suspense fallback={<SurfaceLoading label="LIBRARY" />}>
+          <SampleLibraryPage />
+        </Suspense>
       );
   }
 }
@@ -174,16 +177,18 @@ function SurfaceRouter({ surface }: { surface: Surface }) {
 function DesktopSurfaceRail({
   active,
   onChange,
-  onOpenOverlay,
 }: {
   active: Surface;
   onChange: (next: Surface) => void;
-  onOpenOverlay: (id: OverlayId) => void;
 }) {
   return (
     <nav
       data-testid="studio-shell-rail"
-      className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-background/95 backdrop-blur px-4 h-12"
+      // Controls are pinned to the RIGHT so they never sit under the global
+      // floating nav (App.tsx renders <GlobalNav> fixed top-4 left-4), which is
+      // a wide cluster that previously covered the surface tabs. Left side is
+      // intentionally left for that global nav.
+      className="sticky top-0 z-40 flex items-center justify-end gap-3 border-b border-border bg-background/95 backdrop-blur px-4 h-12"
     >
       <ul className="flex items-center gap-1">
         {SURFACES.map((s) => (
@@ -196,12 +201,16 @@ function DesktopSurfaceRail({
           </li>
         ))}
       </ul>
+      {/* Opens the SAME command palette as Cmd/Ctrl+K — the ⌘K label is now
+          truthful (it previously opened the AI Assistant overlay). */}
       <Button
         size="sm"
         variant="ghost"
         className="gap-2"
-        onClick={() => onOpenOverlay('assistant')}
+        onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
         data-testid="studio-shell-command-trigger"
+        aria-label="Open command palette"
+        title="Command palette (⌘K)"
       >
         <Command className="w-4 h-4" />
         <span className="text-xs tracking-wide">⌘K</span>
@@ -286,27 +295,6 @@ function SurfaceButton({
       <Icon className="w-4 h-4" />
       <span>{meta.label}</span>
     </button>
-  );
-}
-
-function SurfaceStub({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex items-center justify-center p-8 min-h-[60vh]">
-      <Card className="max-w-md w-full">
-        <CardHeader>
-          <CardTitle className="tracking-wider">{title}</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          {description}
-        </CardContent>
-      </Card>
-    </div>
   );
 }
 

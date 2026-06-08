@@ -11,6 +11,10 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 
+/** Fire `window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))` to open
+ *  the palette from anywhere (matches what Cmd/Ctrl+K does). */
+export const OPEN_COMMAND_PALETTE_EVENT = "codedswitch:open-command-palette";
+
 interface PaletteEntry {
   label: string;
   path: string;
@@ -76,8 +80,16 @@ export function CommandPalette() {
         setOpen((prev) => !prev);
       }
     };
+    // Allow UI affordances (e.g. the studio rail's ⌘K button) to open the
+    // same palette programmatically, so the keyboard shortcut and the button
+    // stay in sync instead of pointing at different things.
+    const openHandler = () => setOpen(true);
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, openHandler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, openHandler);
+    };
   }, []);
 
   const run = useCallback(
@@ -117,7 +129,7 @@ export function CommandPalette() {
               onSelect={() => run(entry.path)}
             >
               {entry.label}
-              <CommandShortcut>⌘K</CommandShortcut>
+              <CommandShortcut>{entry.path}</CommandShortcut>
             </CommandItem>
           ))}
         </CommandGroup>

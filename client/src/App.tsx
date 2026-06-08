@@ -219,8 +219,15 @@ function App() {
             <Toaster />
             {/* Cmd/Ctrl+K command palette — available everywhere, mounts only the dialog shell until invoked */}
             <CommandPalette />
-            {/* GLOBAL NAVIGATION - Available on ALL pages */}
-            <GlobalNav className="fixed top-4 left-4 z-[9999]" />
+            {/* GLOBAL NAVIGATION - Available on ALL pages.
+                z-index scale (keep these tiers coordinated app-wide):
+                  z-40  persistent chrome  — GlobalNav, studio rail, transport bar
+                  z-50  modal overlays     — Radix dialog/sheet/popover, command palette
+                  z-100 toasts            — above modals so confirmations are visible
+                  z-200 dev/util floats   — FloatingAudioMonitor
+                GlobalNav lives in the chrome tier so open modals correctly cover it
+                (it was z-[9999], which floated the nav over every dialog). */}
+            <GlobalNav className="fixed top-4 left-4 z-40" />
             <Suspense fallback={<LoadingFallback />}>
               <Switch>
               {/* ============================================
