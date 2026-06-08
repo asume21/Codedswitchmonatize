@@ -68,30 +68,20 @@ export function registerOrganismAudioDebugSource(source: {
   connect: (destination: Tone.InputNode) => void
   disconnect: (destination: Tone.InputNode) => void
 }): () => void {
+  // NOTE: we intentionally do NOT connect this source to the capture tap.
+  // The Organism's master already routes to Tone's global destination
+  // (MasterBus → analyser.toDestination()), and ensureTap() taps that same
+  // destination gain node. Connecting the master here too made the capture sum
+  // the post-limiter signal TWICE (~+6 dB), producing false "clipping"
+  // (+3.9 dBFS peak) in analysis while the real speaker output was clean at the
+  // −3 dB limiter ceiling. The destination tap is the single source of truth
+  // for "what comes out of the speakers". The registration is kept as a no-op
+  // so callers/cleanup stay unchanged.
   organismSource = source
-  if (tapNode) {
-    try {
-      source.connect(tapNode as unknown as Tone.InputNode)
-      tapSource = {
-        disconnect: () => source.disconnect(tapNode as unknown as Tone.InputNode),
-      }
-      log('Registered live Organism generator tap ✓')
-    } catch (e) {
-      log(`Could not attach live Organism generator tap: ${e}`)
-    }
-  }
 
   return () => {
     if (organismSource !== source) return
-    if (tapNode) {
-      try { source.disconnect(tapNode as unknown as Tone.InputNode) } catch { /* ignore */ }
-    }
     organismSource = null
-    tapSource = null
-    // Null tapNode so the next Organism session builds a fresh tap rather than
-    // reusing a stale node that has nothing connected to it.
-    tapNode = null
-    tapContext = null
   }
 }
 
@@ -218,17 +208,10 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     tapSource = gainNode
     log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
 
-    // The Organism mix bus registers before the first capture in normal use.
-    // Attach it when the tap is created too; otherwise it only connects when
-    // registerOrganismAudioDebugSource() happens after tapNode already exists.
-    if (organismSource) {
-      try {
-        organismSource.connect(tapNode as unknown as Tone.InputNode)
-        log('Tapped live Organism master output ✓')
-      } catch (e) {
-        log(`Could not attach live Organism master output: ${e}`)
-      }
-    }
+    // We deliberately do NOT also connect organismSource here. The Organism's
+    // master reaches this same destination gain node, so adding a second tap
+    // double-counted the signal (~+6 dB) and produced false clipping in the
+    // analysis. The destination gain tap above is the single source of truth.
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null

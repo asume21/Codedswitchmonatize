@@ -83,3 +83,4 @@ private/tools/
 
 # Retired AI handoff doc — superseded by git log and .claude memory
 AI_HANDOFF.md
+.audio-debug/
