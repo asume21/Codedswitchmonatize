@@ -53,6 +53,22 @@ const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, I
   },
 }
 
+// Per-start variety seed. The scoring below is deterministic, so without it
+// the SAME instrument won every start ("the melody is violin every time").
+// Reseeded by the orchestrator on each cold start: stable WITHIN a session
+// (mode changes don't churn instruments mid-beat), different ACROSS starts.
+let performerSessionSeed = Math.random() * 1000
+
+export function reseedPerformerSelection(): void {
+  performerSessionSeed = Math.random() * 1000
+}
+
+function seededJitter(profileId: string): number {
+  let h = performerSessionSeed
+  for (let i = 0; i < profileId.length; i++) h = (h * 31 + profileId.charCodeAt(i)) % 9973
+  return (h / 9973) * 3   // 0..3 — reorders near-tied candidates, not the field
+}
+
 export function selectInstrumentPerformer(ctx: PerformerSelectionContext): InstrumentPerformerProfile {
   if (ctx.explicitId) {
     const explicit = INSTRUMENT_PERFORMERS_BY_ID.get(ctx.explicitId)
@@ -73,6 +89,7 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
     if (ctx.energy < 0.35 && (profile.tags.includes('warm') || profile.tags.includes('air'))) score += 2
     if ((ctx.brightness ?? 0.5) > 0.65 && (profile.family === 'wind' || profile.family === 'brass')) score += 1
     if (profile.id === DEFAULT_BY_ROLE[ctx.role]) score += 0.5
+    score += seededJitter(profile.id)
 
     if (score > bestScore) {
       bestScore = score

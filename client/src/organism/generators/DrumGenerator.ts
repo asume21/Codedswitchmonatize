@@ -9,7 +9,7 @@ import {
   getDrumKit,
   buildDrumPattern,
 }                              from './patterns/DrumPatternLibrary'
-import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
@@ -431,7 +431,9 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    this.part.start(startAt)
+    // Phase-aligned: continue the 4-bar pattern from the current musical bar
+    // instead of restarting at bar 0 on every rebuild.
+    this.part.start(startAt, livePartStartOffset(startAt, 4))
     this.hasStartedPlayback = true
     orgLog('drum:part-started', {
       hits: events.length,

@@ -324,6 +324,8 @@ export function OrganismCommandCenter() {
     chordVolume,  setChordVolume,
     melodyFocusEnabled, setMelodyFocusEnabled,
     instrumentAssignments, setOrganismInstrument,
+    reactToVoiceEnabled, setReactToVoiceEnabled,
+    songModeEnabled, setSongModeEnabled,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -835,6 +837,14 @@ export function OrganismCommandCenter() {
   const toggleMelodyFocus = useCallback(() => {
     setMelodyFocusEnabled(!melodyFocusEnabled)
   }, [melodyFocusEnabled, setMelodyFocusEnabled])
+
+  const toggleReactToVoice = useCallback(() => {
+    setReactToVoiceEnabled(!reactToVoiceEnabled)
+  }, [reactToVoiceEnabled, setReactToVoiceEnabled])
+
+  const toggleSongMode = useCallback(() => {
+    setSongModeEnabled(!songModeEnabled)
+  }, [songModeEnabled, setSongModeEnabled])
 
   const handleV2Gain = useCallback((value: number) => {
     setV2Gain(value)
@@ -2075,6 +2085,8 @@ export function OrganismCommandCenter() {
               isolation: 'isolate',
               transformStyle: 'flat',
             }}>
+              <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
+              <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
               <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />
               <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={toggleCallResponse} color={C.purple} />
               <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={toggleDropDetector}   color={C.amber} />

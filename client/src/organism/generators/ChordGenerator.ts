@@ -570,16 +570,20 @@ export class ChordGenerator extends GeneratorBase {
         break
       }
       case ChordBehavior.Stab: {
-        const swungSub = 2 + this.currentSwing
-        events.push({ time: '0:0:0',                          notes: noteStrings, dur: '8n', vel: 0.65, chordIdx: 0 })
-        events.push({ time: `0:1:${swungSub.toFixed(2)}`,     notes: noteStrings, dur: '8n', vel: 0.50, chordIdx: 0 })
-        events.push({ time: '0:2:0',                          notes: noteStrings, dur: '8n', vel: 0.58, chordIdx: 0 })
+        // Sub 2 is the STRAIGHT eighth — 16th-note swing (the band's
+        // convention, subs 1/3 delayed) never moves it. The old
+        // `2 + swing` pushed every chord off-beat ~35ms late against drums
+        // that play the same eighth straight: 8th-swing against a 16th-swing
+        // band, a constant subtle drag on the "and" of beats 2 and 4.
+        events.push({ time: '0:0:0', notes: noteStrings, dur: '8n', vel: 0.65, chordIdx: 0 })
+        events.push({ time: '0:1:2', notes: noteStrings, dur: '8n', vel: 0.50, chordIdx: 0 })
+        events.push({ time: '0:2:0', notes: noteStrings, dur: '8n', vel: 0.58, chordIdx: 0 })
         // Pickup to the next chord — Conductor.nextChord() makes this work
-        // even though we only render one bar at a time. The pickup falls on
-        // the swung "and" of beat 4.
+        // even though we only render one bar at a time. The pickup sits on
+        // the swung last 16th (sub 3 + band swing) leading into the downbeat.
         const nextMidi = voiceChord(nextChord, voicingRootPC, octave)
         const nextNotes = nextMidi.map((m) => Tone.Frequency(m, 'midi').toNote())
-        events.push({ time: `0:3:${swungSub.toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
+        events.push({ time: `0:3:${(3 + this.currentSwing).toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
         break
       }
     }

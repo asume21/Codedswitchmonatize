@@ -34,7 +34,12 @@ export class ReactiveBehaviorEngine {
 
   private orchestrator: GeneratorOrchestrator | null = null
   private active:       boolean = false
-  private styleShiftsEnabled: boolean = true
+  // Master "React to Voice" switch — OFF by default (switches-not-modes
+  // design): the Organism is a steady beat machine unless the user opts in.
+  // When off, NO reactive behavior touches the orchestrator: no ducking,
+  // no pause-fills, no energy mirroring, no style shifts.
+  private enabled: boolean = false
+  private styleShiftsEnabled: boolean = false
   private lastZone: EnergyZone | null = null
 
   constructor(config: Partial<ReactiveConfig> = {}) {
@@ -49,7 +54,21 @@ export class ReactiveBehaviorEngine {
     this.styleShift        = new StyleShift(this.config)
   }
 
-  /** Enable/disable automatic technique+articulation shifts based on energy. */
+  /** Master "React to Voice" switch — gates the WHOLE reactive stack. */
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) {
+      this.reset()
+      // Release any in-flight ducking/boosts so switching off mid-performance
+      // can't leave the beat stuck at reduced levels.
+      this.applyToOrchestrator(NEUTRAL_BEHAVIOR_OUTPUT)
+    }
+  }
+
+  isEnabled(): boolean { return this.enabled }
+
+  /** Enable/disable automatic technique+articulation shifts based on energy.
+   *  Sub-toggle of the master switch — has no effect while disabled. */
   setStyleShiftsEnabled(enabled: boolean): void {
     this.styleShiftsEnabled = enabled
   }
@@ -67,6 +86,7 @@ export class ReactiveBehaviorEngine {
     physics:  PhysicsState,
     organism: OrganismState,
   ): void {
+    if (!this.enabled) return
     this.active = organism.current === OState.Flow
     if (!this.active) return
 

@@ -128,6 +128,23 @@ function ticksFromTransportTime(time: Tone.Unit.Time): number | null {
 }
 
 /**
+ * Phase-aligned offset into a rebuilt Part. A 4-bar pattern rebuilt at
+ * musical bar 13 must CONTINUE from its bar 1 (13 % 4), not restart at
+ * bar 0 — restarting meant bass/drum patterns perpetually replayed their
+ * first half on every chord-change rebuild ("they all restart right in
+ * the middle"; bars 3-4 of every authored pattern were never heard).
+ * Pass the result as the second arg to Tone.Part.start(startAt, offset).
+ */
+export function livePartStartOffset(startAt: Tone.Unit.Time, loopBars: number): Tone.Unit.Time {
+  if (loopBars <= 1) return 0
+  const ticks = ticksFromTransportTime(startAt)
+  if (ticks === null) return 0
+  const ticksPerBar = Tone.getTransport().PPQ * 4
+  const offsetBars = Math.round(ticks / ticksPerBar) % loopBars
+  return offsetBars === 0 ? 0 : `${offsetBars * ticksPerBar}i`
+}
+
+/**
  * Wall-clock milliseconds until a TransportTime boundary. Used by the
  * seamless-handoff dispose timers. Approximate during an active bpm ramp
  * (uses the instantaneous bpm), so callers should pad generously — disposing

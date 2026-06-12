@@ -14,7 +14,7 @@ import {
   getPortamentoTime,
 }                              from './patterns/BassPatternLibrary'
 import type { HipHopSubGenre } from '../state/MusicalState'
-import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
 // root via the Conductor's chord-change events (Phase 4).
 import type { PhysicsState }   from '../physics/types'
@@ -607,7 +607,9 @@ export class BassGenerator extends GeneratorBase {
 
     this.part.loop      = true
     this.part.loopEnd   = '4m'
-    this.part.start(startAt)
+    // Phase-aligned: continue the 4-bar pattern from the current musical bar
+    // instead of restarting at bar 0 on every chord-change rebuild.
+    this.part.start(startAt, livePartStartOffset(startAt, 4))
     this.hasStartedPlayback = true
     return true
   }

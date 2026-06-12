@@ -25,7 +25,7 @@ import {
   defaultMelodyArticulation,
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
-import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import {
   conformNoteToInstrument,
   selectInstrumentPerformer,
@@ -398,6 +398,14 @@ export class MelodyGenerator extends GeneratorBase {
 
   setSwing(amount: number): void {
     this.subGenreSwing = Math.max(0, Math.min(1, amount))
+  }
+
+  // Per-start phrase variety — rolled by the orchestrator on each cold start
+  // so two sessions over the same progression don't play identical phrases.
+  private sessionSeed: number = Math.floor(Math.random() * 97)
+
+  reseed(): void {
+    this.sessionSeed = Math.floor(Math.random() * 97)
   }
 
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
@@ -783,7 +791,9 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
-    this.part.start(startAt)
+    // Phase-aligned: continue multi-bar phrases from the current musical bar
+    // instead of restarting at bar 0 on every chord-change rebuild.
+    this.part.start(startAt, livePartStartOffset(startAt, loopBars))
     this.hasStartedPlayback = true
 
     // Schedule periodic phrase refreshes once per generator lifetime. The
@@ -815,9 +825,11 @@ export class MelodyGenerator extends GeneratorBase {
       ? this.lastPerformerEnergy
       : Math.max(0.75, this.lastPerformerEnergy)
 
-    // CALL & RESPONSE: Deterministic selection based on chord root and absolute bar
+    // CALL & RESPONSE: Deterministic selection based on chord root and absolute
+    // bar, mixed with a per-start session seed — pure (root, bar) seeding made
+    // every cold start play the EXACT same phrase note-for-note.
     const currentBar = getConductor().getScoreFrame().bar
-    const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar) % 10
+    const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
     let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
     if (!this.voiceActive) {
@@ -886,8 +898,19 @@ export class MelodyGenerator extends GeneratorBase {
         // instead of competing with the hats — same mapping the 'sad' intent
         // always used. With a live vocalist the melody keeps its tighter
         // rhythmic feel since it's a backing texture there.
-        const sadLegato = this.emotionalIntent === 'sad'
-          || (!this.voiceActive && this.currentBehavior === MelodyBehavior.Lead)
+        //
+        // EXCEPT sustained families (bowed/wind/brass): their samples already
+        // ring at full level for the whole duration, so stretched durations
+        // OVERLAP — the previous note's tail re-emerges when the new note
+        // ends ("the violin goes back to the previous note mid-phrase").
+        // Decaying instruments (keys/pluck) get the stretch; sustainers keep
+        // natural motif lengths and let the bow do the singing.
+        const sustainedFamily = this.currentPerformer?.family === 'bowed'
+          || this.currentPerformer?.family === 'wind'
+          || this.currentPerformer?.family === 'brass'
+        const sadLegato = (this.emotionalIntent === 'sad'
+          || (!this.voiceActive && this.currentBehavior === MelodyBehavior.Lead))
+          && !sustainedFamily
         const durStr = sadLegato
           ? (step.dur16ths <= 1 ? '8n'
             : step.dur16ths <= 2 ? '8n.'
@@ -905,7 +928,12 @@ export class MelodyGenerator extends GeneratorBase {
         const bar  = Math.floor(c / 16)
         const beat = Math.floor((c % 16) / 4)
         const sub  = c % 4
-        const time = `${bar}:${beat}:${sub}`
+        // Swing the off-16ths (subs 1/3) by the band's shared amount — the
+        // melody computed currentSwing for years but never applied it, so its
+        // syncopated notes landed STRAIGHT (early) against the swung drums
+        // and bass: a persistent subtle "off" feel on every off-beat.
+        const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
+        const time = `${bar}:${beat}:${swungSub.toFixed(2)}`
 
         const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
 

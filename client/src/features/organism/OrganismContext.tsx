@@ -204,6 +204,16 @@ export interface OrganismContextValue {
   textureEnabled:     boolean
   setTextureEnabled:  (enabled: boolean) => void
 
+  // Switches-not-modes: the Organism is a steady beat machine by default;
+  // everything "smart" is an explicit opt-in toggle (all OFF by default).
+  // React to Voice gates the WHOLE reactive stack (ducking, pause-fills,
+  // energy mirroring, style shifts); Song Mode gates arrangement sections
+  // (intro/build/drop) + composer plans.
+  reactToVoiceEnabled:    boolean
+  setReactToVoiceEnabled: (enabled: boolean) => void
+  songModeEnabled:        boolean
+  setSongModeEnabled:     (enabled: boolean) => void
+
   // Instrument picker — null means Auto, otherwise locks that generator role.
   instrumentAssignments: OrganismInstrumentAssignments
   setOrganismInstrument: (role: OrganismInstrumentRole, instrumentId: InstrumentPerformerId | null) => void

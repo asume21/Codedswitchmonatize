@@ -9,15 +9,24 @@ import {
 import { INSTRUMENT_PERFORMERS_BY_ID } from '../InstrumentRegistry'
 
 describe('InstrumentPerformerRouter', () => {
+  // Selection carries a per-start variety seed (reseedPerformerSelection) so
+  // cold starts don't all pick the same instrument — the contract is that the
+  // winner stays WITHIN the mode's idiomatic preferred list (the jitter is too
+  // small to lift a non-preferred candidate over the preference gap).
   it('selects idiomatic lead instruments by mode', () => {
-    expect(selectInstrumentPerformer({ role: 'lead', mode: 'ice', energy: 0.4 }).id).toBe('flute')
-    expect(selectInstrumentPerformer({ role: 'lead', mode: 'glow', energy: 0.5 }).id).toBe('violin')
-    expect(selectInstrumentPerformer({ role: 'lead', mode: 'heat', energy: 0.9 }).id).toBe('trumpet')
+    expect(['flute', 'harp', 'violin', 'sitar'])
+      .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'ice', energy: 0.4 }).id)
+    expect(['violin', 'flute', 'guitar-nylon', 'clarinet'])
+      .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'glow', energy: 0.5 }).id)
+    expect(['piano', 'trumpet', 'rhodes'])
+      .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'heat', energy: 0.9 }).id)
   })
 
   it('selects idiomatic bass instruments by mode', () => {
-    expect(selectInstrumentPerformer({ role: 'bass', mode: 'smoke', energy: 0.4 }).id).toBe('bass-upright')
-    expect(selectInstrumentPerformer({ role: 'bass', mode: 'heat', energy: 0.8 }).id).toBe('bass-synth')
+    expect(['bass-upright', 'bass-electric'])
+      .toContain(selectInstrumentPerformer({ role: 'bass', mode: 'smoke', energy: 0.4 }).id)
+    expect(['bass-synth', 'bass-electric'])
+      .toContain(selectInstrumentPerformer({ role: 'bass', mode: 'heat', energy: 0.8 }).id)
   })
 
   it('converts between note names and midi', () => {

@@ -331,6 +331,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [chordVolume,      setChordVolumeState] = useState(1.0)
   const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
   const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
+  // Switches-not-modes: the Organism is a steady beat machine by default.
+  // Everything "smart" is an explicit opt-in toggle.
+  const [reactToVoiceEnabled, setReactToVoiceEnabledState] = useState(false)
+  const [songModeEnabled,     setSongModeEnabledState]     = useState(false)
+  // Ref mirror so quickStart/swapPreset closures read the LIVE value.
+  const songModeEnabledRef = useRef(false)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -1264,9 +1270,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const orchestr = orchestrRef.current
     if (!orchestr) return
 
-    // Lock arrangement and groove for recording stability.
-    // Do NOT override volume multipliers — respect user's explicit "Off" settings.
-    orchestr.setArrangementEnabled(true)
+    // Lock groove for playback stability. Arrangement (sections/builds/drops)
+    // follows the user's Song Mode switch — forcing it on here silently
+    // re-enabled song structure on every start/swap.
+    orchestr.setArrangementEnabled(songModeEnabledRef.current)
     orchestr.setGrooveLocked(true)
     orchestr.setTextureVolumeMultiplier(0)
     orchestr.setTextureEnabled(false)
@@ -1670,9 +1677,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         return
       }
 
-      // Fire-and-forget composer. The Organism starts immediately, then swaps
-      // onto a fresh ArrangementPlan as soon as the composer/fallback returns.
-      void composeForPreset(preset).then(plan => {
+      // Fire-and-forget composer — Song Mode only. With Song Mode off the
+      // Organism is a steady beat machine: the Conductor's jam-mode bank pick
+      // still gives every start a fresh progression/key, but no section
+      // structure (intro/build/drop) is imposed on the loop.
+      if (songModeEnabledRef.current) void composeForPreset(preset).then(plan => {
         if (startTokenRef.current !== token) return
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
@@ -1816,9 +1825,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyStablePlaybackDefaults()
       Tone.getDestination().volume.value = 0
 
-      // Re-compose for the new preset. The running groove keeps playing until
-      // the new plan lands at a section boundary.
-      void composeForPreset(preset).then(plan => {
+      // Re-compose for the new preset — Song Mode only (see quickStart note).
+      if (songModeEnabledRef.current) void composeForPreset(preset).then(plan => {
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
         orgLog('compose:loaded', {
@@ -3165,7 +3173,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     } else {
       machine.setStateFloor(null)
       orchestr.setGrooveLocked(false)
-      orchestr.setArrangementEnabled(true)
+      // Restore to the user's Song Mode switch, not a hardcoded "on".
+      orchestr.setArrangementEnabled(songModeEnabledRef.current)
       orgLog('recording:lock-released', {
         arrangementEnabled: orchestr.isArrangementEnabled(),
         floor: null,
@@ -3589,6 +3598,19 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current?.setTextureEnabled(enabled)
     },
 
+    // Switches-not-modes toggles
+    reactToVoiceEnabled,
+    setReactToVoiceEnabled: (enabled: boolean) => {
+      setReactToVoiceEnabledState(enabled)
+      reactiveRef.current?.setEnabled(enabled)
+    },
+    songModeEnabled,
+    setSongModeEnabled: (enabled: boolean) => {
+      setSongModeEnabledState(enabled)
+      songModeEnabledRef.current = enabled
+      orchestrRef.current?.setArrangementEnabled(enabled)
+    },
+
     // Instrument picker
     instrumentAssignments,
     setOrganismInstrument,
@@ -3647,6 +3669,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
+    reactToVoiceEnabled, songModeEnabled,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,

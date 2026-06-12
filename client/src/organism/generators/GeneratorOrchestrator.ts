@@ -19,6 +19,7 @@ import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './pattern
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
+import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
@@ -91,7 +92,9 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private get arrangementTotalBars(): number { return getProducerArrangementTotalBars() }
-  private arrangementEnabled: boolean = true
+  // Song Mode switch — OFF by default (switches-not-modes design): the
+  // Organism is a steady beat machine; sections/builds/drops are opt-in.
+  private arrangementEnabled: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -359,6 +362,22 @@ export class GeneratorOrchestrator {
     setBassSwingFromSubGenre(startSubGenre)
     this.chord.setSwing(startSwing)
     this.melody.setSwing(startSwing)
+
+    // Load the initial drum pattern explicitly. With Song Mode (arrangement)
+    // off there are no section entries to load it, and onSubGenreChange only
+    // fires on a CHANGE — a cold start whose sub-genre matched the director's
+    // default produced a fully "active" but silent drum generator.
+    if (this.drumEnabled) {
+      const startPattern = buildSubGenrePattern(startSubGenre, this.director.getState().drums.variantIndex)
+      this.drum.loadGeneratedPattern(startPattern.hits, true)
+    }
+
+    // Roll the dice once per start — without this, every cold start played
+    // the SAME instrument (deterministic performer scoring), the SAME phrases
+    // (deterministic motif seeding), over the SAME default progression.
+    reseedPerformerSelection()
+    this.melody.reseed()
+    getConductor().pickNewProgression()
   }
 
   /**
@@ -1343,7 +1362,22 @@ export class GeneratorOrchestrator {
 
   /** Reads the current Transport bar and applies arrangement section multipliers. */
   private applyArrangement(): void {
-    if (!this.arrangementEnabled || !this.running) return
+    if (!this.running) return
+
+    // Song Mode OFF = pure beat machine: no section multipliers, no section
+    // FX, no plan-section loading — but the HARMONIC clock still beats. The
+    // chord advance used to live behind the arrangement gate, so disabling
+    // the arrangement froze the progression on one chord forever.
+    if (!this.arrangementEnabled) {
+      const transport = Tone.getTransport()
+      const barNumber = parseInt(String(transport.position).split(':')[0], 10) || 0
+      if (barNumber === this.lastArrangementBar) return
+      this.lastArrangementBar = barNumber
+      // Same convention as the arrangement path: advance on ODD bars so the
+      // rebuilt parts SOUND the new chord exactly on the even downbeat.
+      if (barNumber % 2 === 1) getConductor().advanceChord()
+      return
+    }
 
     if (this.melodyOnlyMode) {
       this.drum.applyArrangementMultiplier(0)

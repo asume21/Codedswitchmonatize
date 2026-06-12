@@ -60,6 +60,28 @@ describe('ReactiveBehaviorEngine', () => {
     engine = new ReactiveBehaviorEngine()
     mockOrch = createMockOrchestrator()
     engine.wire(mockOrch as unknown as import('../../generators/GeneratorOrchestrator').GeneratorOrchestrator)
+    // "React to Voice" master switch is OFF by default (switches-not-modes) —
+    // these tests exercise the reactive behaviors, so opt in like a user would.
+    engine.setEnabled(true)
+    mockOrch.applyReactiveMultipliers.mockClear()  // setEnabled(false→true) noise guard
+  })
+
+  it('master switch OFF (default) → processFrame never touches the orchestrator', () => {
+    const fresh = new ReactiveBehaviorEngine()
+    const orch = createMockOrchestrator()
+    fresh.wire(orch as unknown as import('../../generators/GeneratorOrchestrator').GeneratorOrchestrator)
+    fresh.processFrame(makeFrame(), makePhysics(), makeOrganism())
+    expect(orch.applyReactiveMultipliers).not.toHaveBeenCalled()
+    expect(fresh.isEnabled()).toBe(false)
+  })
+
+  it('switching OFF mid-performance releases ducking (neutral multipliers applied)', () => {
+    engine.processFrame(makeFrame(), makePhysics({ presence: 1.0 }), makeOrganism())
+    mockOrch.applyReactiveMultipliers.mockClear()
+    engine.setEnabled(false)
+    const output = mockOrch.applyReactiveMultipliers.mock.calls[0][0]
+    expect(output.bassVolumeMultiplier).toBe(1)
+    expect(output.melodyVolumeMultiplier).toBe(1)
   })
 
   it('all 6 behaviors run without error on valid context', () => {
