@@ -75,7 +75,14 @@ repo_tree*.txt
 audio/reference-beats/
 # Large melodic loop packs (strings/keys/guitar) — too big for git; served from
 # object storage in production. Kept local for dev. See loop-engine work.
-audio/loops/
+# EXCEPTION: the imported playable multisample instruments (small oggs) ARE
+# committed so production serves real instruments instead of GM fallback:
+# SSO_* (Sonatina orchestra), VCSL_* (piano/sax), SK_* (Soulful Keys oggs —
+# built from the local WAV pack by scripts/import-sk-keys.mjs).
+audio/loops/*
+!audio/loops/SSO_*/
+!audio/loops/VCSL_*/
+!audio/loops/SK_*/
 private/organism-kits/
 private/ace-step/
 private/ace-step-cache/
