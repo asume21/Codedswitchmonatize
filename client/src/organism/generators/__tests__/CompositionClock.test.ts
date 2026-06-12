@@ -4,7 +4,7 @@ import { createToneMock } from './__mocks__/toneMock'
 vi.mock('tone', () => createToneMock())
 
 import * as Tone from 'tone'
-import { getLivePartStart, quantizeGridTime, resetLivePartStartCacheForTests } from '../CompositionClock'
+import { getLivePartStart, msUntilTransportTime, quantizeGridTime, resetLivePartStartCacheForTests } from '../CompositionClock'
 
 describe('CompositionClock', () => {
   beforeEach(() => {
@@ -13,6 +13,7 @@ describe('CompositionClock', () => {
     const transport = Tone.getTransport()
     transport.state = 'stopped'
     transport.bpm.value = 90
+    transport.ticks = 0
     vi.mocked(transport.nextSubdivision).mockReset()
     vi.mocked(transport.nextSubdivision).mockReturnValue(0 as any)
     vi.mocked(Tone.now).mockReturnValue(0)
@@ -37,61 +38,59 @@ describe('CompositionClock', () => {
     expect(transport.nextSubdivision).not.toHaveBeenCalled()
   })
 
-  it('returns the rebuild target in the Transport seconds domain, not AudioContext time', () => {
-    // Regression: Part.start()/stop() expect a TransportTime (transport.seconds),
-    // NOT an AudioContext time. The old code returned transport.nextSubdivision(),
-    // which is AudioContext-absolute, so once the two clocks diverged every rebuilt
-    // part was scheduled tens of seconds into the transport future and never fired.
+  it('returns the rebuild target in the tick domain, immune to bpm automation', () => {
+    // Regression: Part.start(<seconds>) converts seconds→ticks at the CURRENT bpm
+    // only, while transport.seconds integrates the bpm automation curve. After a
+    // preset swap's bpm.rampTo every seconds-scheduled part landed ~5–6s late and
+    // was disposed before its first event fired. Ticks ("<n>i") are exact.
     const transport = Tone.getTransport()
     transport.state = 'started'
-    transport.bpm.value = 120          // secondsPerBar = 2.0
-    transport.seconds = 5.0            // transport timeline position (seconds)
-    transport.position = '2:2:0'       // halfway through the bar → fraction 0.5
-    // Even if the AudioContext clock has drifted far ahead, the result must track
-    // transport.seconds — not Tone.now().
+    transport.bpm.value = 120
+    transport.ticks = 2000             // ticksPerBar = 192*4 = 768 → mid bar 2
+    // Even if the AudioContext clock has drifted far ahead, the result must be
+    // tick-based — not Tone.now()- or seconds-based.
     vi.mocked(Tone.now).mockReturnValue(9999)
 
-    // secondsToNextBar = (1 − 0.5) * 2.0 = 1.0 → startAt = 5.0 + 1.0 = 6.0
-    expect(getLivePartStart(true)).toBeCloseTo(6.0)
-  })
-
-  it('derives time-to-next-bar from musical position, immune to seconds/position drift', () => {
-    // After a mid-session tempo change, transport.seconds and the bar grid diverge.
-    // Quantizing raw seconds would land off-grid; using the position fraction does not.
-    const transport = Tone.getTransport()
-    transport.state = 'started'
-    transport.bpm.value = 90           // secondsPerBar = (60/90)*4 = 2.6667
-    transport.seconds = 534.2          // wildly out of step with a fresh bar grid
-    transport.position = '218:2:0'     // fraction 0.5 into the current bar
-    // secondsToNextBar = (1 − 0.5) * 2.6667 = 1.3333 → startAt = 534.2 + 1.3333
-    expect(getLivePartStart(true)).toBeCloseTo(535.5333, 3)
+    // next downbeat = ceil(2000/768) * 768 = 3 * 768 = 2304
+    expect(getLivePartStart(true)).toBe('2304i')
   })
 
   it('shares one live rebuild target across staggered generator rebuilds', () => {
     const transport = Tone.getTransport()
     transport.state = 'started'
-    transport.bpm.value = 120          // secondsPerBar = 2.0
-    transport.seconds = 5.0
-    transport.position = '2:2:0'
+    transport.bpm.value = 120
+    transport.ticks = 2000
 
     const first = getLivePartStart(true)
-    expect(first).toBeCloseTo(6.0)
+    expect(first).toBe('2304i')
 
     // A staggered rebuild milliseconds later (transport advanced) must reuse the
     // SAME target so drums/bass/melody/chord all enter on one downbeat.
-    transport.seconds = 5.3
-    transport.position = '2:2:2'
+    transport.ticks = 2100
     expect(getLivePartStart(true)).toBe(first)
   })
 
   it('pushes a too-close downbeat one bar later so the full rebuild batch lands together', () => {
     const transport = Tone.getTransport()
     transport.state = 'started'
-    transport.bpm.value = 120          // secondsPerBar = 2.0
-    transport.seconds = 11.9
-    // 3:3.9 → fraction ≈ 0.994 into the bar → ~0.0125s to the next downbeat, under
-    // the 0.25 lead, so we push one bar: secondsToNextBar ≈ 0.0125 + 2.0 = 2.0125.
-    transport.position = '5:3:3.9'
-    expect(getLivePartStart(true)).toBeCloseTo(13.9125, 3)
+    transport.bpm.value = 120
+    // minLead = 0.25s * (120/60) * 192 = 96 ticks. 50 ticks to the downbeat at
+    // 2304 is under the lead → push one bar later: 2304 + 768 = 3072.
+    transport.ticks = 2254
+    expect(getLivePartStart(true)).toBe('3072i')
+  })
+
+  it('msUntilTransportTime converts a ticks target to wall-clock ms at current bpm', () => {
+    const transport = Tone.getTransport()
+    transport.state = 'started'
+    transport.bpm.value = 120
+    transport.ticks = 2000
+    // (2304 − 2000) / 192 quarter notes * 0.5 s/quarter = 0.79167 s
+    expect(msUntilTransportTime('2304i')).toBeCloseTo(791.67, 1)
+    // Numeric (seconds) input still supported for legacy callers.
+    transport.seconds = 5
+    expect(msUntilTransportTime(6.5)).toBeCloseTo(1500, 5)
+    // Past boundaries clamp to 0.
+    expect(msUntilTransportTime('100i')).toBe(0)
   })
 })

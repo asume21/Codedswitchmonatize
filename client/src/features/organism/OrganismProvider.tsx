@@ -1803,6 +1803,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         stems:        [],
       })
       setActivePresetId(presetId)
+
+      // Re-run the per-preset voicing decision (keys-comp vs. real-instrument
+      // lead) for the NEW preset. Without this, a live swap kept whatever the
+      // previous preset set — e.g. a chill/keys default disables the melody
+      // (keys-comp), and swapping to Violin Trap left the violin LEAD hard-off
+      // ("melody: off" in the debug HUD, no lead audible). onStarted is the only
+      // listener and is idempotent, so re-dispatching just re-applies voicing.
+      window.dispatchEvent(new CustomEvent('organism:started', { detail: { presetId } }))
+
       endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
     } catch (err) {
       // TEMP DIAGNOSTIC — remove after root cause is fixed.

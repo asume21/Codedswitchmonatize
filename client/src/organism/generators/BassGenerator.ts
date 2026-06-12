@@ -14,7 +14,7 @@ import {
   getPortamentoTime,
 }                              from './patterns/BassPatternLibrary'
 import type { HipHopSubGenre } from '../state/MusicalState'
-import { getLivePartStart, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
 // root via the Conductor's chord-change events (Phase 4).
 import type { PhysicsState }   from '../physics/types'
@@ -514,14 +514,18 @@ export class BassGenerator extends GeneratorBase {
     const transport = Tone.getTransport()
     const oldPart = this.part
     if (oldPart) {
-      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+      if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
         oldPart.stop(startAt)
-        // startAt is a TransportTime (see CompositionClock.getLivePartStart).
-        // Real-time until the Transport reaches it = startAt − transport.seconds.
-        const msUntilStart = (startAt - transport.seconds) * 1000
-        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+        // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
+        // Dispose only AFTER the boundary, generously padded — disposing early
+        // destroys the incoming part's handoff window; disposing late is free.
+        const msUntilStart = msUntilTransportTime(startAt)
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
       } else {
-        oldPart.stop()
+        // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
+        // Tone rejects negative times with an uncaught RangeError that aborts the
+        // whole preset-swap chain. dispose() below still unschedules everything.
+        try { oldPart.stop() } catch { /* negative-time rounding — dispose handles it */ }
         oldPart.dispose()
       }
     }
@@ -583,7 +587,12 @@ export class BassGenerator extends GeneratorBase {
       for (const n of scheduled) {
         // Clamp to ≥0 — a float-negative time throws Tone's "[0, Infinity]".
         const t = Math.max(0, scheduledTime + n.timeOffset)
-        voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
+        // Articulations can emit notes with equal/decreasing times; on the
+        // monophonic synth Tone throws "Start time must be strictly greater
+        // than previous start time". Dropping the collision is correct — a
+        // mono voice can't sound both — same precedent as the subSynth above.
+        try { voice.triggerAttackRelease(n.note, n.duration, t, n.velocity) }
+        catch { /* monophonic retrigger collision — safe to drop */ }
       }
     }, events)
 

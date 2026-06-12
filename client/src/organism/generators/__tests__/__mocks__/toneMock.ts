@@ -108,9 +108,12 @@ export function createToneMock() {
       pause: vi.fn(),
       cancel: vi.fn(),
       position: '0:0:0',
-      // Transport playback position in seconds — the domain Tone.Part.start()/stop()
-      // operate in. CompositionClock.getLivePartStart() must return a value here.
       seconds: 0,
+      // Tick-domain position — the domain CompositionClock schedules in ("<n>i"
+      // TransportTime). Ticks are immune to bpm-automation history, unlike the
+      // seconds<->ticks conversion Tone.Part.start() applies to plain numbers.
+      ticks: 0,
+      PPQ: 192,
       state: 'stopped',
       nextSubdivision: vi.fn().mockReturnValue(0),
       schedule: vi.fn().mockReturnValue(0),

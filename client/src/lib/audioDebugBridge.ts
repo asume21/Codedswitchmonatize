@@ -34,10 +34,11 @@ interface WebEarBridgeStatus {
 let tapNode:        MediaStreamAudioDestinationNode | null = null
 let tapContext:     AudioContext | null = null  // track which context the tap belongs to
 let tapSource:      { disconnect: (node?: AudioNode) => unknown } | null = null
-let organismSource: {
+interface OrganismTapSource {
   connect: (destination: Tone.InputNode) => void
   disconnect: (destination: Tone.InputNode) => void
-} | null = null
+}
+let organismSource: OrganismTapSource | null = null
 let recorder:       MediaRecorder | null = null
 let sseSource:      EventSource   | null = null
 let localSseSource: EventSource   | null = null
@@ -64,24 +65,41 @@ function setWebEarStatus(state: WebEarBridgeState, message: string) {
   window.dispatchEvent(new CustomEvent('webear:status', { detail: status }))
 }
 
-export function registerOrganismAudioDebugSource(source: {
-  connect: (destination: Tone.InputNode) => void
-  disconnect: (destination: Tone.InputNode) => void
-}): () => void {
-  // NOTE: we intentionally do NOT connect this source to the capture tap.
-  // The Organism's master already routes to Tone's global destination
-  // (MasterBus → analyser.toDestination()), and ensureTap() taps that same
-  // destination gain node. Connecting the master here too made the capture sum
-  // the post-limiter signal TWICE (~+6 dB), producing false "clipping"
-  // (+3.9 dBFS peak) in analysis while the real speaker output was clean at the
-  // −3 dB limiter ceiling. The destination tap is the single source of truth
-  // for "what comes out of the speakers". The registration is kept as a no-op
-  // so callers/cleanup stay unchanged.
+export function registerOrganismAudioDebugSource(source: OrganismTapSource): () => void {
+  // The organism master IS the capture source. Measured live 2026-06-12 (Tone
+  // 15.1.22): the Tone.getDestination() internal gain nodes that ensureTap()
+  // guesses at carry NO signal even while audio is audible, so the destination
+  // tap records pure silence — the organism registration is the only live
+  // source. (The earlier "false +6 dB double-tap" was double-REGISTRATION, not
+  // organism+destination summing; connectSourceToTap below is idempotent.)
+  if (organismSource && organismSource !== source && tapNode) {
+    try { organismSource.disconnect(tapNode) } catch { /* not connected */ }
+    tapConnectedSource = null
+  }
   organismSource = source
+  connectSourceToTap()
 
   return () => {
     if (organismSource !== source) return
+    if (tapNode) {
+      try { source.disconnect(tapNode) } catch { /* not connected */ }
+    }
+    if (tapConnectedSource === source) tapConnectedSource = null
     organismSource = null
+  }
+}
+
+let tapConnectedSource: OrganismTapSource | null = null
+
+/** Connect the registered organism source to the tap exactly once per tap node. */
+function connectSourceToTap(): void {
+  if (!tapNode || !organismSource || tapConnectedSource === organismSource) return
+  try {
+    organismSource.connect(tapNode)
+    tapConnectedSource = organismSource
+    log('Organism master connected to capture tap ✓')
+  } catch (e) {
+    log(`Could not connect organism source to tap: ${e}`)
   }
 }
 
@@ -168,6 +186,10 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     if (tapNode && tapContext !== ctx) {
       log('AudioContext changed — rebuilding tap')
       try { tapSource?.disconnect(tapNode) } catch { /* ignore */ }
+      if (tapConnectedSource) {
+        try { tapConnectedSource.disconnect(tapNode) } catch { /* ignore */ }
+        tapConnectedSource = null
+      }
       tapNode = null
       tapContext = null
       tapSource = null
@@ -208,10 +230,9 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     tapSource = gainNode
     log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
 
-    // We deliberately do NOT also connect organismSource here. The Organism's
-    // master reaches this same destination gain node, so adding a second tap
-    // double-counted the signal (~+6 dB) and produced false clipping in the
-    // analysis. The destination gain tap above is the single source of truth.
+    // The destination gain above carries no signal in Tone 15.1.22 (verified
+    // live) — the organism master registration is the real capture source.
+    connectSourceToTap()
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null

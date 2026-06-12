@@ -25,7 +25,7 @@ import {
   defaultMelodyArticulation,
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
-import { getLivePartStart, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import {
   conformNoteToInstrument,
   selectInstrumentPerformer,
@@ -703,14 +703,18 @@ export class MelodyGenerator extends GeneratorBase {
     const transport = Tone.getTransport()
     const oldPart = this.part
     if (oldPart) {
-      if (transport.state === 'started' && this.hasStartedPlayback && typeof startAt === 'number' && startAt > 0) {
+      if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
         oldPart.stop(startAt)
-        // startAt is a TransportTime (see CompositionClock.getLivePartStart).
-        // Real-time until the Transport reaches it = startAt − transport.seconds.
-        const msUntilStart = (startAt - transport.seconds) * 1000
-        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 100))
+        // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
+        // Dispose only AFTER the boundary, generously padded — disposing early
+        // destroys the incoming part's handoff window; disposing late is free.
+        const msUntilStart = msUntilTransportTime(startAt)
+        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
       } else {
-        oldPart.stop()
+        // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
+        // Tone rejects negative times with an uncaught RangeError that aborts the
+        // whole preset-swap chain. dispose() below still unschedules everything.
+        try { oldPart.stop() } catch { /* negative-time rounding — dispose handles it */ }
         oldPart.dispose()
       }
     }

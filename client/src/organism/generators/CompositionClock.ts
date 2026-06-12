@@ -69,53 +69,71 @@ export function getLivePartStart(hasStartedPlayback: boolean): Tone.Unit.Time {
 
   const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
-  // CRITICAL DOMAIN NOTE: Tone.Part.start()/stop() interpret a numeric time as a
-  // TransportTime — seconds along the Transport's own timeline (transport.seconds) —
-  // NOT an AudioContext time (Tone.now()). transport.nextSubdivision() returns an
-  // AudioContext-absolute time, so feeding its result to Part.start() schedules the
-  // part (transport.seconds − context.now) seconds away. Once the Transport has been
-  // running for a while those clocks diverge by tens of seconds, so every rebuilt
-  // part was scheduled far in the transport future and NEVER fired — the beat played
-  // its first loop, then went silent on the next rebuild ("starts then silence").
-  // We therefore compute the next measure boundary in the Transport's seconds domain.
-  const nowTransport = transport.seconds
+  // CRITICAL DOMAIN NOTE: we schedule in TICKS ("<n>i" TransportTime), never in
+  // transport-seconds. Tone keeps two clocks that disagree after any BPM
+  // automation: transport.seconds integrates the bpm curve, but Part.start(<sec>)
+  // converts seconds→ticks at the CURRENT bpm only. After a preset swap's
+  // bpm.rampTo (e.g. 85→130) every seconds-scheduled part landed ~5–6s late in
+  // tick time, and the handoff's wall-clock dispose timer destroyed each part
+  // BEFORE its first event fired → permanent silence with sporadic blips
+  // (measured live 2026-06-12: a bare Part scheduled at +1.0s fired at +6.35s).
+  // Ticks are PPQ-based musical time, immune to bpm history, so the next-downbeat
+  // computation stays exact through ramps, swaps, and performer BPM sync.
+  const nowTicks = transport.ticks
+  const ppq = transport.PPQ
+  const ticksPerBar = ppq * 4   // engine-wide 4/4 assumption (matches the rest)
+
   if (
     cachedLivePartStart &&
     nowMs - cachedLivePartStart.createdAtMs <= LIVE_REBUILD_BATCH_WINDOW_MS
   ) {
-    const cached = cachedLivePartStart.value
-    if (typeof cached !== 'number' || cached - nowTransport > 0.05) {
-      return cached
+    const cachedTicks = ticksFromTransportTime(cachedLivePartStart.value)
+    if (cachedTicks === null || cachedTicks - nowTicks > ppq * 0.02) {
+      return cachedLivePartStart.value
     }
   }
 
-  // Align to the next downbeat. We derive the time-to-next-bar from the MUSICAL
-  // position (transport.position = "bars:quarters:sixteenths") rather than from
-  // raw elapsed seconds, because the two diverge whenever BPM changes mid-session
-  // (preset swaps, performer-BPM sync, tempo ramps). Quantizing raw seconds with
-  // Math.ceil(seconds / secondsPerBar) then lands OFF the bar grid — the handoff
-  // schedules the new part essentially "now"/in the past and cuts the old one,
-  // producing the intermittent gaps/silence. Position fraction + current BPM gives
-  // the true remaining time to the next downbeat regardless of tempo history, and
-  // the result stays in the Transport seconds domain (so Part.start()/stop() and
-  // the generators' `startAt − transport.seconds` dispose timers stay correct).
-  const bpm = Math.max(40, Number(transport.bpm.value) || 120)
-  const secondsPerBar = (60 / bpm) * 4
-  const posParts = String(transport.position).split(':')
-  const quarters   = Number.parseFloat(posParts[1] ?? '0') || 0   // 0–3
-  const sixteenths = Number.parseFloat(posParts[2] ?? '0') || 0   // 0–3.999
-  const fractionIntoBar = (quarters + sixteenths / 4) / 4          // 0–1
-  let secondsToNextBar = (1 - fractionIntoBar) * secondsPerBar
-  // If the next downbeat is too close, push one bar later so staggered generator
+  // Align to the next downbeat, with a minimum lead so staggered generator
   // rebuilds (drums/bass/melody/chord fire up to ~180ms apart) all land on the
   // SAME downbeat instead of one generator catching this bar and the rest missing.
-  if (secondsToNextBar < MIN_LIVE_REBUILD_LEAD_SECONDS) {
-    secondsToNextBar += secondsPerBar
+  const bpm = Math.max(40, Number(transport.bpm.value) || 120)
+  const minLeadTicks = MIN_LIVE_REBUILD_LEAD_SECONDS * (bpm / 60) * ppq
+  let nextBarTick = (Math.floor(nowTicks / ticksPerBar) + 1) * ticksPerBar
+  if (nextBarTick - nowTicks < minLeadTicks) {
+    nextBarTick += ticksPerBar
   }
-  const startAt = nowTransport + secondsToNextBar
+  const startAt: Tone.Unit.Time = `${nextBarTick}i`
 
   cachedLivePartStart = { value: startAt, createdAtMs: nowMs }
   return startAt
+}
+
+/** Parse a "<n>i" ticks TransportTime; null for anything else. */
+function ticksFromTransportTime(time: Tone.Unit.Time): number | null {
+  if (typeof time === 'string' && time.endsWith('i')) {
+    const ticks = Number.parseFloat(time)
+    return Number.isFinite(ticks) ? ticks : null
+  }
+  return null
+}
+
+/**
+ * Wall-clock milliseconds until a TransportTime boundary. Used by the
+ * seamless-handoff dispose timers. Approximate during an active bpm ramp
+ * (uses the instantaneous bpm), so callers should pad generously — disposing
+ * late is harmless, disposing early kills a part before it ever plays.
+ */
+export function msUntilTransportTime(time: Tone.Unit.Time): number {
+  const transport = Tone.getTransport()
+  const ticks = ticksFromTransportTime(time)
+  if (ticks !== null) {
+    const bpm = Math.max(40, Number(transport.bpm.value) || 120)
+    return Math.max(0, ((ticks - transport.ticks) / transport.PPQ) * (60 / bpm) * 1000)
+  }
+  if (typeof time === 'number') {
+    return Math.max(0, (time - transport.seconds) * 1000)
+  }
+  return 0
 }
 
 export function resetLivePartStartCacheForTests(): void {
