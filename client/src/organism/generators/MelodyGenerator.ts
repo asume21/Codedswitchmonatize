@@ -92,9 +92,11 @@ export class MelodyGenerator extends GeneratorBase {
   private samplerCache: Map<string, LoadableSampler> = new Map()
   private currentVoiceKey: string | null = null
 
-  // Genre-aware swing — matches drum/bass swing per mode
+  // Fallback only — the orchestrator pushes the sub-genre swing (the band's
+  // single groove source) via setSwing() on start and every sub-genre change.
+  // Scaled to the same musical range as DrumPatternLibrary's SWING table.
   private static readonly MODE_SWING: Record<string, number> = {
-    heat: 0.20, gravel: 0.22, smoke: 0.55, ice: 0.48, glow: 0.38,
+    heat: 0.10, gravel: 0.11, smoke: 0.28, ice: 0.24, glow: 0.19,
   }
   private currentSwing: number = 0.35
 
@@ -150,6 +152,9 @@ export class MelodyGenerator extends GeneratorBase {
 
   /** Set articulation. markAsOverride=true locks out mode-default auto-apply. */
   setArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    // Automatic callers (reactive style shifts, section style presets) must
+    // not stomp an explicit user pick — the UI dropdown "snapping back".
+    if (!markAsOverride && this.articulationOverridden) return
     this.currentArticulationId = articulationId
     if (markAsOverride) this.articulationOverridden = true
   }
@@ -387,6 +392,14 @@ export class MelodyGenerator extends GeneratorBase {
     this.lastPerformerSyllabicRate = syllabicRate
   }
 
+  // Set by the orchestrator on every sub-genre change so the melody swings by
+  // the SAME amount as the drum pattern (one band, one pocket).
+  private subGenreSwing: number | null = null
+
+  setSwing(amount: number): void {
+    this.subGenreSwing = Math.max(0, Math.min(1, amount))
+  }
+
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
     this.explicitPerformerId = instrumentId
     this.applyModeVoice(this.currentModeName)
@@ -507,7 +520,9 @@ export class MelodyGenerator extends GeneratorBase {
     this.currentPresence = physics.presence
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth
-    this.currentSwing    = MelodyGenerator.MODE_SWING[physics.mode.toString()] ?? 0.35
+    // Sub-genre swing (pushed by the orchestrator, matches the DRUM grid) wins;
+    // the mode table is only the fallback before the first sub-genre sync.
+    this.currentSwing    = this.subGenreSwing ?? MelodyGenerator.MODE_SWING[physics.mode.toString()] ?? 0.35
     this.currentModeName = physics.mode.toString()
 
     // Auto-apply mode-default articulation if user/warmup hasn't overridden it.
@@ -865,10 +880,14 @@ export class MelodyGenerator extends GeneratorBase {
 
         const pitch = degreeToPitch(degIndex, transposeOct)
         
-        // 'sad' intent: bump duration one notch toward legato (16n→8n,
-        // 8n→8n., 4n→4n.) so phrases breathe and ring out rather than chop.
-        // Other intents keep the natural rhythmic feel of the motif.
+        // Rhythmic-density contrast ("fast bottom, slow top"): drums carry the
+        // 8th/16th momentum; the melody carries emotion and SPACE. When nobody
+        // is rapping, the lead sings in longer values (one notch toward legato)
+        // instead of competing with the hats — same mapping the 'sad' intent
+        // always used. With a live vocalist the melody keeps its tighter
+        // rhythmic feel since it's a backing texture there.
         const sadLegato = this.emotionalIntent === 'sad'
+          || (!this.voiceActive && this.currentBehavior === MelodyBehavior.Lead)
         const durStr = sadLegato
           ? (step.dur16ths <= 1 ? '8n'
             : step.dur16ths <= 2 ? '8n.'
@@ -917,7 +936,10 @@ export class MelodyGenerator extends GeneratorBase {
 
     let cursor = 0
     let phraseIndex = 0
-    const restLen = isHint ? 6 : this.currentBehavior === MelodyBehavior.Respond ? 3 : 2
+    // Space between motifs IS the musical statement — a lead that never
+    // breathes reads as noise against a busy drum pattern. Lead phrases get a
+    // beat and a half of air; Respond gets a beat and a half; Hint two beats.
+    const restLen = isHint ? 8 : this.currentBehavior === MelodyBehavior.Respond ? 6 : 6
     const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
     while (cursor < length16ths && phraseIndex < maxIterations) {

@@ -21,6 +21,29 @@ export interface CatalogLoop {
   root: string
   mode: 'minor' | 'major'
   instrument: string
+  durationSec?: number
+  bars?: number
+}
+
+export type LoopChopKind = 'half-bar' | 'bar' | 'two-bar'
+
+export interface CatalogLoopChop {
+  id: string
+  loopId: string
+  url: string
+  fileName: string
+  pack: string
+  bpm: number
+  key: string
+  root: string
+  mode: 'minor' | 'major'
+  instrument: string
+  kind: LoopChopKind
+  startSec: number
+  durationSec: number
+  bar: number
+  beat: number
+  tags: string[]
 }
 
 export interface LoopSelection {
@@ -36,10 +59,15 @@ export interface LoopSelection {
 
 export class MelodicLoopPlayer {
   private catalog: CatalogLoop[] = []
+  private chopCatalog: CatalogLoopChop[] = []
   private player: Tone.Player | null = null
+  private chopPlayers: Map<string, Tone.Player> = new Map()
+  private chopEventIds: number[] = []
   private gain: Tone.Gain
   private current: CatalogLoop | null = null
+  private currentChops: CatalogLoopChop[] = []
   private loaded = false
+  private chopsLoaded = false
 
   /**
    * @param output optional node to route into (e.g. the Organism MixEngine master
@@ -71,6 +99,25 @@ export class MelodicLoopPlayer {
 
   getCatalog(): CatalogLoop[] {
     return this.catalog
+  }
+
+  async loadChops(): Promise<CatalogLoopChop[]> {
+    if (this.chopsLoaded) return this.chopCatalog
+    try {
+      const res = await fetch('/api/loops/chops')
+      if (!res.ok) throw new Error(`/api/loops/chops ${res.status}`)
+      const data = await res.json()
+      this.chopCatalog = Array.isArray(data.chops) ? data.chops : []
+      this.chopsLoaded = true
+    } catch (err) {
+      console.warn('[MelodicLoop] chop catalog load failed', err)
+      this.chopCatalog = []
+    }
+    return this.chopCatalog
+  }
+
+  getChopCatalog(): CatalogLoopChop[] {
+    return this.chopCatalog
   }
 
   /**
@@ -152,6 +199,89 @@ export class MelodicLoopPlayer {
     })
   }
 
+  selectChops(sel: LoopSelection, bars = 4): CatalogLoopChop[] {
+    if (this.chopCatalog.length === 0) return []
+    const instruments = (sel.instrument ? sel.instrument.split('|') : []).map(s => s.trim().toLowerCase()).filter(Boolean)
+    const scored = this.chopCatalog
+      .filter(chop => chop.kind === 'bar')
+      .map(chop => {
+        let score = 0
+        if (chop.mode === sel.mode) score += 25
+        if (instruments.length && instruments.some(i => chop.instrument.includes(i) || chop.tags.includes(i))) score += 55
+        if (chop.bpm > 0) score -= Math.abs(chop.bpm - sel.bpm) * 0.35
+        if (chop.tags.includes('fullmix')) score -= 15
+        if (this.currentChops.some(current => current.id === chop.id)) score -= 20
+        return { chop, score }
+      })
+      .sort((a, b) => b.score - a.score)
+
+    if (scored.length === 0) return []
+    const top = scored.filter(s => s.score >= scored[0].score - 18)
+    const pool = top.length > 0 ? top : scored
+    const phrase: CatalogLoopChop[] = []
+    const used = new Set<string>()
+
+    for (let i = 0; i < bars; i++) {
+      const candidates = pool.filter(s => !used.has(s.chop.id))
+      const choices = candidates.length > 0 ? candidates : pool
+      const pick = choices[Math.floor(Math.random() * choices.length)].chop
+      phrase.push(pick)
+      used.add(pick.id)
+    }
+
+    return phrase
+  }
+
+  async playChopped(sel: LoopSelection): Promise<CatalogLoopChop[]> {
+    await this.loadChops()
+    const chops = this.selectChops(sel, 4)
+    if (chops.length === 0) {
+      console.warn('[MelodicLoop] no chops matched', sel)
+      return []
+    }
+
+    this.stop()
+    this.currentChops = chops
+
+    const uniqueLoopIds = [...new Set(chops.map(chop => chop.loopId))]
+    await Promise.all(uniqueLoopIds.map(loopId => {
+      const chop = chops.find(c => c.loopId === loopId)!
+      const playbackRate = chop.bpm > 0 ? Math.max(0.5, Math.min(2, sel.bpm / chop.bpm)) : 1
+      return new Promise<void>((resolve) => {
+        const player = new Tone.Player({
+          url: chop.url,
+          loop: false,
+          playbackRate,
+          fadeIn: 0.01,
+          fadeOut: 0.035,
+          onload: () => resolve(),
+          onerror: (e) => {
+            console.warn('[MelodicLoop] failed to load chop source', chop.url, e)
+            resolve()
+          },
+        }).connect(this.gain)
+        this.chopPlayers.set(loopId, player)
+      })
+    }))
+
+    const transport = Tone.getTransport()
+    const schedulePhrase = (time: number) => {
+      const bpm = Math.max(40, Number(transport.bpm.value) || sel.bpm || 90)
+      const beatSec = 60 / bpm
+      chops.forEach((chop, index) => {
+        const player = this.chopPlayers.get(chop.loopId)
+        if (!player) return
+        player.start(time + index * 4 * beatSec, chop.startSec, chop.durationSec)
+      })
+    }
+
+    const startAt = transport.state === 'started' ? '+0.05' : 0
+    const eventId = transport.scheduleRepeat(schedulePhrase, '4m', startAt)
+    this.chopEventIds.push(eventId)
+
+    return chops
+  }
+
   setLevel(linear: number): void {
     this.gain.gain.rampTo(Math.max(0, Math.min(1.5, linear)), 0.1)
   }
@@ -165,6 +295,17 @@ export class MelodicLoopPlayer {
   }
 
   stop(): void {
+    const transport = Tone.getTransport()
+    for (const id of this.chopEventIds) {
+      try { transport.clear(id) } catch { /* already cleared */ }
+    }
+    this.chopEventIds = []
+    for (const player of this.chopPlayers.values()) {
+      try { player.stop() } catch { /* not started */ }
+      try { player.dispose() } catch { /* already disposed */ }
+    }
+    this.chopPlayers.clear()
+    this.currentChops = []
     if (this.player) {
       try { this.player.unsync().stop(); } catch { /* not started */ }
       try { this.player.dispose(); } catch { /* already disposed */ }

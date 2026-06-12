@@ -15,7 +15,7 @@ import type { GeneratorOutput, MelodyBehavior } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
 import { getProducerArrangementTotalBars, getProducerArrangementSlot } from '../state/ProducerArrangement'
-import { buildSubGenrePattern, mutatePattern } from './patterns/DrumPatternLibrary'
+import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
@@ -156,9 +156,11 @@ export class GeneratorOrchestrator {
         bass:        preset.bassArticulation,
         melody:      preset.melodyArticulation,
       })
-      this.setChordTechnique(preset.chordTechnique)
-      this.setBassArticulation(preset.bassArticulation)
-      this.setMelodyArticulation(preset.melodyArticulation)
+      // Section style presets are AUTOMATIC — they yield to explicit user
+      // picks (markAsOverride=false respects the generators' override flags).
+      this.setChordTechnique(preset.chordTechnique, false)
+      this.setBassArticulation(preset.bassArticulation, false)
+      this.setMelodyArticulation(preset.melodyArticulation, false)
       // Drum pattern is keyed by HipHopSubGenre — swap it through the
       // director so drum + groove + arrangement stay in lock-step. But ONLY
       // fire the swap when the drum pattern actually changes; calling
@@ -347,6 +349,16 @@ export class GeneratorOrchestrator {
       this.startedTransport = true
     }
     this.running = true
+
+    // Push the band-wide swing on start too — onSubGenreChange only fires on
+    // a CHANGE, so a preset whose sub-genre matches the director's current
+    // state would leave chord/melody swinging by their mode-table fallback
+    // while drums swing by sub-genre (the "not playing together" mismatch).
+    const startSubGenre = this.director.getState().subGenre
+    const startSwing = swingForSubGenre(startSubGenre)
+    setBassSwingFromSubGenre(startSubGenre)
+    this.chord.setSwing(startSwing)
+    this.melody.setSwing(startSwing)
   }
 
   /**
@@ -933,6 +945,8 @@ export class GeneratorOrchestrator {
   /** Drop the active plan and return to jam mode (bank picker). */
   clearArrangementPlan(): void {
     getConductor().clearPlan()
+    this.lastArrangementSection = ''
+    this.lastPlanSectionLoadBar = -1
   }
 
   /** The currently-loaded plan, or null if the engine is in jam mode. */
@@ -950,8 +964,8 @@ export class GeneratorOrchestrator {
    * 'piano-alberti', 'piano-sustained-pad', 'guitar-strum-down',
    * 'guitar-strum-up', 'guitar-arp-rolled', 'guitar-muted-stab'.
    */
-  setChordTechnique(techniqueId: string): void {
-    this.chord.setTechnique(techniqueId)
+  setChordTechnique(techniqueId: string, markAsOverride: boolean = true): void {
+    this.chord.setTechnique(techniqueId, markAsOverride)
   }
 
   /**
@@ -983,8 +997,8 @@ export class GeneratorOrchestrator {
    * 'grace-flick', 'trill-ornament', 'scoop-up', 'fall-off',
    * 'double-tap', 'octave-echo', 'delayed-echo'.
    */
-  setMelodyArticulation(articulationId: string): void {
-    this.melody.setArticulation(articulationId)
+  setMelodyArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    this.melody.setArticulation(articulationId, markAsOverride)
   }
 
   getMelodyArticulation(): string {
@@ -1002,8 +1016,8 @@ export class GeneratorOrchestrator {
    * 'bass-muted-pulse', 'bass-octave-walk', 'bass-drop-slide',
    * 'bass-dub-sustain'.
    */
-  setBassArticulation(articulationId: string): void {
-    this.bass.setArticulation(articulationId)
+  setBassArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    this.bass.setArticulation(articulationId, markAsOverride)
   }
 
   getBassArticulation(): string {
@@ -1099,8 +1113,16 @@ export class GeneratorOrchestrator {
    * Rebuilds drum + bass patterns with the new sub-genre's vocabulary.
    */
   private onSubGenreChange(subGenre: HipHopSubGenre): void {
-    // Sync bass swing to new sub-genre
+    // ONE pocket for the whole band: the drum pattern's sub-genre swing is the
+    // groove anchor, and bass/chord/melody all swing by that same amount.
+    // (Previously chords + melody swung by the physics MODE table and bass
+    // stomped its sub-genre swing per state transition — on trap, drums were
+    // near-straight at 0.20 while everything else dragged at 0.38, which is
+    // why the generators sounded like they weren't playing together.)
+    const swing = swingForSubGenre(subGenre)
     setBassSwingFromSubGenre(subGenre)
+    this.chord.setSwing(swing)
+    this.melody.setSwing(swing)
     this.bass.setSubGenre(subGenre)
 
     // Rebuild drum pattern with sub-genre-specific variant.
@@ -1389,7 +1411,21 @@ export class GeneratorOrchestrator {
       } else {
         conductor.pickNewProgression()
       }
-    } else {
+    } else if (sectionBar % 2 === 1) {
+      // Harmonic rhythm = one chord per TWO bars (real hip-hop/R&B pacing —
+      // advanceChord's own doc says "typically every 2 bars" but this called
+      // it every bar). Per-bar chord changes forced chord/melody/bass to
+      // rebuild their parts every ~1.8s at trap tempos, so no generator ever
+      // completed a musical phrase — the core of the "everyone playing
+      // blindfolded" feel.
+      //
+      // Advance on ODD bars deliberately: generators rebuild on the NEXT
+      // processFrame and their new parts start at the NEXT downbeat
+      // (getLivePartStart). Advancing on the even boundary itself made the
+      // audible chord change land a full bar LATE — the band played the old
+      // chord for the first half of every new chord, and the chord stab's
+      // beat-4 pickup anticipated a grid nobody was playing. Advancing one
+      // bar early means the new harmony SOUNDS exactly on the even downbeat.
       conductor.advanceChord()
     }
 

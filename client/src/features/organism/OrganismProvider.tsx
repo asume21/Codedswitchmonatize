@@ -1114,20 +1114,49 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // player falls back to any usable loop if none of these are in the library.
       const styleKey = `${preset.subGenre ?? ''} ${preset.genre}`.toLowerCase()
       const isKeysStyle = /lofi|lo-fi|chill|soul|boom-?bap|jazz|rnb|r&b|story|narrative|funk|west-coast|cypher/.test(styleKey)
+      const isBrightStyle = /happy|bright|afro|funk|disco|pop|bounce|west-coast/.test(styleKey)
+      const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
+      const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
+
+      // PARKED (keep, do not delete): the loop-chop texture layer. Disabled until
+      // (a) selectChops filters by KEY compatibility with the Conductor (today it
+      // matches bpm/instrument only and repitches via playbackRate, so it layers
+      // out-of-key phrases over the beat), and (b) it routes through a mix CHANNEL
+      // strip instead of the master input (today solo/volume can't silence it).
+      const USE_CHOP_LAYER = false
 
       if (isKeysStyle) {
         // Keys-comp mode: a REAL recorded e-piano comps the chords (no strings
-        // loop over a lo-fi/soul beat). Synth melody off so the keys + bass + drums
-        // carry it. Falls back to the synth chord if no keys instrument is present.
+        // loop over a lo-fi/soul beat). Falls back to the synth chord if no keys
+        // instrument is present. The melody stays ENABLED — it plays real
+        // multisamples now, and most presets are keys styles, so hard-disabling
+        // it here left "melody off" across most of the catalog.
         try { player.stop() } catch { /* */ }
         void pickInstrumentNotes('keys').then((notes) => {
           if (notes) {
             try { orchestrRef.current?.setChordMultisample(notes) } catch { /* */ }
             try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
-            try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
+            try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
             orgLog('real-keys:comp', { notes: Object.keys(notes).length })
           }
         })
+        if (USE_CHOP_LAYER) {
+          player.setLevel(0.22)
+          void player.playChopped({
+            root: startRoot,
+            mode: isBrightStyle ? 'major' : 'minor',
+            bpm: preset.bpm,
+            instrument: 'strings|keys|guitar',
+          }).then((chops) => {
+            if (chops.length > 0) {
+              orgLog('loop-chops:playing', {
+                count: chops.length,
+                source: chops.map(chop => chop.fileName),
+                instrument: chops[0]?.instrument,
+              })
+            }
+          })
+        }
         return
       }
 
@@ -1139,6 +1168,23 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       try { orchestrRef.current?.setChordMultisample(null) } catch { /* */ }
       try { orchestrRef.current?.setMelodyEnabled(true) } catch { /* */ }
       try { orchestrRef.current?.setChordEnabled(true) } catch { /* */ }
+      if (USE_CHOP_LAYER) {
+        player.setLevel(0.28)
+        void player.playChopped({
+          root: startRoot,
+          mode: isBrightStyle ? 'major' : 'minor',
+          bpm: preset.bpm,
+          instrument: /guitar|afro|funk/.test(styleKey) ? 'guitar|keys|strings' : 'strings|keys|guitar',
+        }).then((chops) => {
+          if (chops.length > 0) {
+            orgLog('loop-chops:playing', {
+              count: chops.length,
+              source: chops.map(chop => chop.fileName),
+              instrument: chops[0]?.instrument,
+            })
+          }
+        })
+      }
 
       // PARKED (kept intentionally — do not delete): the old "loop-lead" mode that
       // played a canned phrase loop in place of the melody and silenced the
@@ -1146,8 +1192,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       const USE_LOOP_LEAD = false
       if (USE_LOOP_LEAD) {
         const instrument = /pop|afro|bounce|electro/.test(styleKey) ? 'keys|strings' : 'strings|keys'
-        const startPc = (() => { try { return getConductor().getKeyPitchClass() } catch { return 0 } })()
-        const startRoot = Object.keys(PITCH_CLASS_MAP).find(k => PITCH_CLASS_MAP[k] === startPc) ?? 'C'
         try { orchestrRef.current?.setMelodyEnabled(false) } catch { /* */ }
         try { orchestrRef.current?.setChordEnabled(false) } catch { /* */ }
         void player.play({ root: startRoot, mode: 'minor', bpm: preset.bpm, instrument }).then((loop) => {
@@ -1626,12 +1670,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         return
       }
 
-      // Fire-and-forget composer. The Organism is already playing in jam mode
-      // (Conductor picks from the 176-progression bank on every section change).
-      // When the composer returns — typically <1s, instant if Ollama isn't up —
-      // the Conductor switches to plan mode at the next bar boundary. Result:
-      // a real song structure (intro → verse → build → drop → ...) instead of
-      // an indefinite 4-bar loop. See ComposeArrangement.ts.
+      // Fire-and-forget composer. The Organism starts immediately, then swaps
+      // onto a fresh ArrangementPlan as soon as the composer/fallback returns.
       void composeForPreset(preset).then(plan => {
         if (startTokenRef.current !== token) return
         if (!plan) return
@@ -1639,6 +1679,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         orgLog('compose:loaded', {
           presetId,
           planId: plan.id,
+          templateId: plan.templateId,
           sections: plan.sections.length,
           bpm: plan.bpm,
           key: plan.key,
@@ -1775,15 +1816,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyStablePlaybackDefaults()
       Tone.getDestination().volume.value = 0
 
-      // Re-compose for the new preset. Conductor swaps from the old plan to
-      // the new one at the next bar boundary; the running progression keeps
-      // playing until then, so there's no audible seam on preset swap.
+      // Re-compose for the new preset. The running groove keeps playing until
+      // the new plan lands at a section boundary.
       void composeForPreset(preset).then(plan => {
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
         orgLog('compose:loaded', {
           presetId,
           planId: plan.id,
+          templateId: plan.templateId,
           sections: plan.sections.length,
           bpm: plan.bpm,
           key: plan.key,
@@ -2574,8 +2615,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
     }
 
+    // Studio transport Stop (GlobalTransportBar.handleStop) dispatches
+    // 'stopAllTools'. Without this listener the Organism survives the bar's
+    // Stop: the kill switch suspends audio, but the context auto-resume +
+    // silent-start recovery resurrect it seconds later — so the transport bar
+    // appeared to have no power over the Organism. One clock, one stop.
+    const handleStopAllTools = () => {
+      if (isRunningRef.current) stop()
+    }
+
     window.addEventListener('organism:command', handleCommand)
-    return () => window.removeEventListener('organism:command', handleCommand)
+    window.addEventListener('stopAllTools', handleStopAllTools)
+    return () => {
+      window.removeEventListener('organism:command', handleCommand)
+      window.removeEventListener('stopAllTools', handleStopAllTools)
+    }
   }, [start, stop, captureSession, downloadMidi, startRecording, stopRecording, quickStart])
 
   useEffect(() => {

@@ -63,20 +63,36 @@ const P = DrumInstrument.Perc
 
 // ── Per-genre swing amounts ───────────────────────────────────────────
 // 0 = perfectly straight, 1 = full 16th-note delay on off-beats.
+// CALIBRATION NOTE (2026-06-12): these values were originally ~2× larger but
+// inaudible — quantizeGridTime rounded swing away before it reached the
+// speakers, so nobody ever heard them. Once swing preservation landed, the old
+// values lurched grotesquely (boom-bap 0.60 = 60% of the way to the NEXT 16th,
+// far beyond human swing; MPC-equivalent ~80%). Scaled to musical range:
+// 0.33 ≈ full triplet feel, 0.25-0.30 ≈ heavy MPC swing, ≤0.12 ≈ near-straight.
 const SWING: Record<string, number> = {
-  'boom-bap':    0.60,   // classic MPC / J Dilla pocket
-  'trap':        0.20,   // trap is mostly straight 16ths
-  'drill':       0.22,   // UK drill — near-straight
-  'lo-fi':       0.48,   // dusty lo-fi — slightly laid-back
-  'west-coast':  0.52,   // G-funk bounce
-  'dirty-south': 0.35,   // crunk — moderate swing
-  'phonk':       0.28,   // Memphis — slightly swung
-  'jersey-club': 0.15,   // jersey club — nearly straight, fast
-  'bounce':      0.42,   // NOLA bounce — moderate
-  'reggaeton':   0.10,   // dembow — very straight
-  'afrobeat':    0.35,   // moderate clave swing
-  'chill':       0.38,   // atmospheric / dream
+  'boom-bap':    0.30,   // classic MPC / J Dilla pocket (heavy but human)
+  'trap':        0.10,   // trap is mostly straight 16ths
+  'drill':       0.11,   // UK drill — near-straight
+  'lo-fi':       0.24,   // dusty lo-fi — slightly laid-back
+  'west-coast':  0.26,   // G-funk bounce
+  'dirty-south': 0.18,   // crunk — moderate swing
+  'phonk':       0.14,   // Memphis — slightly swung
+  'jersey-club': 0.08,   // jersey club — nearly straight, fast
+  'bounce':      0.21,   // NOLA bounce — moderate
+  'reggaeton':   0.05,   // dembow — very straight
+  'afrobeat':    0.18,   // moderate clave swing
+  'chill':       0.19,   // atmospheric / dream
 } as const
+
+/**
+ * THE groove anchor — drums define the sub-genre's swing, and every other
+ * generator must swing by this same amount or the band plays "loose" (chords/
+ * melody dragging up to ~20ms behind the drums on every off-beat 16th, which
+ * reads as "the generators aren't playing together").
+ */
+export function swingForSubGenre(subGenre: string): number {
+  return SWING[subGenre] ?? 0.35
+}
 
 // ══════════════════════════════════════════════════════════════════════
 //  PATTERN BUILDERS — each returns a 4-bar (4m) DrumHit[] array

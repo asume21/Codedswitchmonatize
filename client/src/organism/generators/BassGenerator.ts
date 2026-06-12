@@ -8,7 +8,7 @@ import {
   getBassBehavior,
   getBassFilterCutoff,
   getBassBehaviorFromSubGenre,
-  setBassSwing,
+  setBassChordQuality,
   buildBassNotes,
   shouldEnableSlide,
   getPortamentoTime,
@@ -98,6 +98,9 @@ export class BassGenerator extends GeneratorBase {
   private lastModeForArticulation: string = ''
 
   setArticulation(articulationId: string, markAsOverride: boolean = true): void {
+    // Automatic callers (reactive style shifts, section style presets) must
+    // not stomp an explicit user pick — the UI dropdown "snapping back".
+    if (!markAsOverride && this.articulationOverridden) return
     this.currentArticulationId = articulationId
     if (markAsOverride) this.articulationOverridden = true
   }
@@ -225,6 +228,10 @@ export class BassGenerator extends GeneratorBase {
     const conductor = getConductor()
     this.rootMidi = this.bassRootFromMidi(conductor.currentChord().rootMidi)
     this.unsubscribeConductor = conductor.onChordChange((chord) => {
+      // Push the chord QUALITY before the same-root early-return — patterns
+      // must play the chord's actual third/seventh (a minor-pent bass over
+      // the progression's major chords is the "off notes" clash).
+      setBassChordQuality(chord.intervals)
       const newRoot = this.bassRootFromMidi(chord.rootMidi)
       if (newRoot === this.rootMidi) return
       this.rootMidi = newRoot
@@ -321,7 +328,10 @@ export class BassGenerator extends GeneratorBase {
       this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
       this.currentMode     = physics.mode
       this.currentOrganismState = to
-      setBassSwing(physics.mode.toString())
+      // Swing comes from the orchestrator's sub-genre sync (setBassSwingFromSubGenre)
+      // so bass locks to the DRUM grid. The old per-transition setBassSwing(mode)
+      // call stomped it with the mode table — bass then swung by a different
+      // amount than drums (e.g. trap drums 0.20 vs glow mode 0.38).
       this.currentBehavior = this.resolveBassBehavior(to)
       this.applyBassPreset()
       this.rebuildPart(physics)
@@ -331,7 +341,6 @@ export class BassGenerator extends GeneratorBase {
     this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
     this.currentMode = physics.mode
     this.currentOrganismState = to
-    setBassSwing(physics.mode.toString()) 
     this.currentBehavior = this.resolveBassBehavior(to)
     this.applyBassPreset()
     this.rebuildPart(physics)

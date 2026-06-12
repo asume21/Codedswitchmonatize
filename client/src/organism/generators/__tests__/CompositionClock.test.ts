@@ -19,11 +19,15 @@ describe('CompositionClock', () => {
     vi.mocked(Tone.now).mockReturnValue(0)
   })
 
-  it('quantizes sloppy transport positions to the nearest 16th slot', () => {
-    expect(quantizeGridTime('0:1:1.48')).toBe('0:1:1')
-    expect(quantizeGridTime('0:1:1.51')).toBe('0:1:2')
-    expect(quantizeGridTime('0:1:3.8')).toBe('0:2:0')
-    expect(quantizeGridTime('5:0:0', 4)).toBe('1:0:0')
+  it('snaps to the intended 16th slot while PRESERVING the authored swing fraction', () => {
+    // Pattern libraries write "<step>.<swing>" — the fraction IS the genre's
+    // pocket. The old Math.round() stripped swing < 0.5 (drums played straight
+    // against swinging bass/chords) and pushed swing ≥ 0.5 onto the WRONG step.
+    expect(quantizeGridTime('0:1:1.48')).toBe('0:1:1.48')
+    expect(quantizeGridTime('0:1:1.6')).toBe('0:1:1.6')   // boom-bap stays on step 1
+    expect(quantizeGridTime('0:1:3.8')).toBe('0:1:3.8')
+    expect(quantizeGridTime('0:1:2')).toBe('0:1:2')        // straight hits untouched
+    expect(quantizeGridTime('5:0:0', 4)).toBe('1:0:0')     // loop wrapping preserved
   })
 
   it('pre-rolls stopped parts from zero', () => {

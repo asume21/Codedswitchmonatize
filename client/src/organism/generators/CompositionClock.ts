@@ -41,16 +41,26 @@ export function quantizeGridTime(time: string, loopBars = DEFAULT_PART_LOOP_BARS
   const rawBar = Math.max(0, Number.parseInt(barRaw ?? '0', 10) || 0)
   const rawBeat = Math.max(0, Number.parseInt(beatRaw ?? '0', 10) || 0)
   const sub = Math.max(0, Number.parseFloat(subRaw ?? '0') || 0)
-  const step = Math.round(rawBar * STEPS_PER_BAR + rawBeat * 4 + sub)
+  // Snap to the INTENDED 16th slot (floor) but PRESERVE the fractional swing
+  // offset. Pattern libraries author times as "<step>.<swing>" (e.g. sub 1.35
+  // = off-beat 16th pushed 35% late — the genre's pocket). The previous
+  // Math.round() destroyed that: swing < 0.5 was stripped (drums played dead
+  // straight while bass/chords swung) and swing ≥ 0.5 (boom-bap 0.60) rounded
+  // a FULL 16th late onto the wrong grid step — mangling the pattern itself.
+  // Deterministic authored swing is the groove, not "runtime randomness".
+  const stepFloat = rawBar * STEPS_PER_BAR + rawBeat * 4 + sub
+  const baseStep = Math.floor(stepFloat)
+  const swingFrac = stepFloat - baseStep
   const loopSteps = loopBars * STEPS_PER_BAR
   // Use modulo for clean wrapping within the loop instead of clamping
-  const wrappedStep = ((step % loopSteps) + loopSteps) % loopSteps
+  const wrappedStep = ((baseStep % loopSteps) + loopSteps) % loopSteps
   const bar = Math.floor(wrappedStep / STEPS_PER_BAR)
   const stepInBar = wrappedStep % STEPS_PER_BAR
+  const subOut = stepInBar % 4 + swingFrac
   return formatGridTime({
     bar,
     beat: Math.floor(stepInBar / 4),
-    sub: stepInBar % 4,
+    sub: Number(subOut.toFixed(3)),
   })
 }
 

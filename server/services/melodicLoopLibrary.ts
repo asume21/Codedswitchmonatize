@@ -31,6 +31,29 @@ export interface MelodicLoop {
   root: string;        // pitch class without quality, e.g. "C", "F#"
   mode: LoopMode;
   instrument: string;  // violin / viola / cello / fullmix / keys / guitar / unknown
+  durationSec?: number;
+  bars?: number;
+}
+
+export type LoopChopKind = 'half-bar' | 'bar' | 'two-bar';
+
+export interface MelodicLoopChop {
+  id: string;
+  loopId: string;
+  url: string;
+  fileName: string;
+  pack: string;
+  bpm: number;
+  key: string;
+  root: string;
+  mode: LoopMode;
+  instrument: string;
+  kind: LoopChopKind;
+  startSec: number;
+  durationSec: number;
+  bar: number;
+  beat: number;
+  tags: string[];
 }
 
 const KEY_RE = /^([A-G][#b]?)(m)?$/;
@@ -51,7 +74,7 @@ function detectInstrument(name: string): string {
   return 'unknown';
 }
 
-function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | 'url' | 'pack'> {
+function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | 'url' | 'pack' | 'durationSec' | 'bars'> {
   const base = fileName.replace(/\.wav$/i, '');
   const tokens = base.split('_');
 
@@ -83,6 +106,75 @@ function parseLoopName(fileName: string): Omit<MelodicLoop, 'id' | 'relPath' | '
   const instrument = detectInstrument(base);
 
   return { fileName, bpm, key, root, mode, instrument };
+}
+
+function readWavDurationSec(filePath: string): number | undefined {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(12);
+      if (fs.readSync(fd, header, 0, 12, 0) !== 12) return undefined;
+      if (header.toString('ascii', 0, 4) !== 'RIFF' || header.toString('ascii', 8, 12) !== 'WAVE') {
+        return undefined;
+      }
+
+      let offset = 12;
+      let sampleRate = 0;
+      let channels = 0;
+      let bitsPerSample = 0;
+      let dataBytes = 0;
+      const chunk = Buffer.alloc(8);
+
+      while (fs.readSync(fd, chunk, 0, 8, offset) === 8) {
+        const id = chunk.toString('ascii', 0, 4);
+        const size = chunk.readUInt32LE(4);
+        const dataOffset = offset + 8;
+
+        if (id === 'fmt ') {
+          const fmt = Buffer.alloc(Math.min(size, 32));
+          fs.readSync(fd, fmt, 0, fmt.length, dataOffset);
+          channels = fmt.readUInt16LE(2);
+          sampleRate = fmt.readUInt32LE(4);
+          bitsPerSample = fmt.readUInt16LE(14);
+        } else if (id === 'data') {
+          dataBytes = size;
+          break;
+        }
+
+        offset = dataOffset + size + (size % 2);
+      }
+
+      const bytesPerSampleFrame = channels * (bitsPerSample / 8);
+      if (!sampleRate || !bytesPerSampleFrame || !dataBytes) return undefined;
+      return dataBytes / bytesPerSampleFrame / sampleRate;
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+}
+
+function estimateBars(loop: Pick<MelodicLoop, 'bpm' | 'durationSec'>): number | undefined {
+  if (!loop.bpm || !loop.durationSec) return undefined;
+  const barSec = (60 / loop.bpm) * 4;
+  const bars = Math.round(loop.durationSec / barSec);
+  if (!Number.isFinite(bars)) return undefined;
+  return Math.max(1, Math.min(16, bars));
+}
+
+function isPhraseLoop(loop: MelodicLoop): boolean {
+  return Boolean(loop.key && loop.bpm > 0 && /mini.?sp/i.test(loop.pack));
+}
+
+function chopTags(loop: MelodicLoop, kind: LoopChopKind): string[] {
+  const tags = [loop.instrument, loop.mode, kind];
+  const name = `${loop.fileName} ${loop.pack}`.toLowerCase();
+  if (/dark|moody|min|minor|m\b/.test(name)) tags.push('dark', 'sad');
+  if (/soul|disco|major|happy|bright/.test(name)) tags.push('happy', 'soulful');
+  if (/violin|viola|cello|string/.test(name)) tags.push('strings', 'sustain');
+  if (/fullmix/.test(name)) tags.push('fullmix');
+  return [...new Set(tags.filter(Boolean))];
 }
 
 class MelodicLoopLibrary {
@@ -120,11 +212,15 @@ class MelodicLoopLibrary {
     this.loops = files.map((full) => {
       const relPath = path.relative(this.loopsDir, full).split(path.sep).join('/');
       const parsed = parseLoopName(path.basename(full));
+      const durationSec = readWavDurationSec(full);
+      const bars = estimateBars({ bpm: parsed.bpm, durationSec });
       return {
         id: relPath,
         relPath,
         url: `/api/loops/file?p=${encodeURIComponent(relPath)}`,
         pack: path.basename(path.dirname(full)),
+        durationSec,
+        bars,
         ...parsed,
       };
     });
@@ -134,6 +230,54 @@ class MelodicLoopLibrary {
 
   all(): MelodicLoop[] {
     return this.scan();
+  }
+
+  chops(force = false): MelodicLoopChop[] {
+    const loops = this.scan(force).filter(isPhraseLoop);
+    const chops: MelodicLoopChop[] = [];
+
+    for (const loop of loops) {
+      const barSec = (60 / loop.bpm) * 4;
+      const durationSec = loop.durationSec ?? barSec * 4;
+      const totalBars = loop.bars ?? Math.max(1, Math.floor(durationSec / barSec));
+      const maxBars = Math.max(1, Math.min(totalBars, Math.floor(durationSec / barSec)));
+
+      const add = (kind: LoopChopKind, bar: number, beat: number, lengthBeats: number) => {
+        const startSec = (bar * 4 + beat) * (60 / loop.bpm);
+        const chopDurationSec = lengthBeats * (60 / loop.bpm);
+        if (startSec + chopDurationSec > durationSec + 0.05) return;
+        const id = `${loop.id}#${kind}:${bar}:${beat}`;
+        chops.push({
+          id,
+          loopId: loop.id,
+          url: loop.url,
+          fileName: loop.fileName,
+          pack: loop.pack,
+          bpm: loop.bpm,
+          key: loop.key,
+          root: loop.root,
+          mode: loop.mode,
+          instrument: loop.instrument,
+          kind,
+          startSec: Number(startSec.toFixed(4)),
+          durationSec: Number(chopDurationSec.toFixed(4)),
+          bar,
+          beat,
+          tags: chopTags(loop, kind),
+        });
+      };
+
+      for (let bar = 0; bar < maxBars; bar++) {
+        add('bar', bar, 0, 4);
+        add('half-bar', bar, 0, 2);
+        add('half-bar', bar, 2, 2);
+      }
+      for (let bar = 0; bar + 1 < maxBars; bar += 2) {
+        add('two-bar', bar, 0, 8);
+      }
+    }
+
+    return chops;
   }
 
   /** Resolve a safe absolute path for a relative loop path (prevents traversal). */

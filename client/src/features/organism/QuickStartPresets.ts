@@ -58,6 +58,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      80,
     mode:     OrganismMode.Glow,
     subGenre: 'chill',
+    allowedTemplateIds: ['storytelling', 'slow-burn', 'classic', 'bridge-heavy'],
     energy:   'low',
     icon:     '✨',
     physics: makePhysics({
@@ -77,6 +78,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      140,
     mode:     OrganismMode.Heat,
     subGenre: 'trap',
+    allowedTemplateIds: ['trap-tag', 'hook-heavy', 'dropfirst', 'classic'],
     energy:   'high',
     icon:     '🔥',
     physics: makePhysics({
@@ -96,6 +98,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      130,
     mode:     OrganismMode.Glow,
     subGenre: 'trap',
+    allowedTemplateIds: ['storytelling', 'slow-burn', 'classic', 'bridge-heavy'],
     energy:   'medium',
     icon:     '🎻',
     physics: makePhysics({
@@ -115,6 +118,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      110,
     mode:     OrganismMode.Glow,
     subGenre: 'bounce',
+    allowedTemplateIds: ['storytelling', 'classic', 'bridge-heavy', 'slow-burn'],
     energy:   'medium',
     icon:     '❄️',
     physics: makePhysics({
@@ -134,6 +138,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      120,
     mode:     OrganismMode.Glow,
     subGenre: 'afrobeat',
+    allowedTemplateIds: ['classic', 'hook-heavy', 'back-and-forth', 'storytelling'],
     energy:   'medium',
     icon:     '〰',
     physics: makePhysics({
@@ -153,6 +158,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:      96,
     mode:     OrganismMode.Smoke,
     subGenre: 'west-coast',
+    allowedTemplateIds: ['storytelling', 'bridge-heavy', 'slow-burn', 'classic'],
     energy:   'medium',
     icon:     '◌',
     physics: makePhysics({
@@ -172,6 +178,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    144,
     mode:   OrganismMode.Heat,
     subGenre: 'trap',
+    allowedTemplateIds: ['trap-tag', 'hook-heavy', 'dropfirst', 'classic'],
     energy: 'high',
     icon:   '🔥',
     physics: makePhysics({
@@ -191,6 +198,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    136,
     mode:   OrganismMode.Glow,
     subGenre: 'trap',
+    allowedTemplateIds: ['storytelling', 'slow-burn', 'classic', 'bridge-heavy'],
     energy: 'medium',
     icon:   '🎻',
     physics: makePhysics({
@@ -210,7 +218,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    85,
     mode:   OrganismMode.Ice,
     subGenre: 'chill',
-    allowedTemplateIds: ['lofi-loop'],
+    allowedTemplateIds: ['lofi-loop', 'storytelling', 'slow-burn', 'bridge-heavy'],
     allowedStyleIds:    ['lofi-warm', 'lofi-tape-echo', 'lofi-keys-bounce', 'cloud-floaty', 'jazz-rap', 'boombap-classic'],
     energy: 'low',
     icon:   '❄️',
@@ -231,6 +239,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    90,
     mode:   OrganismMode.Smoke,
     subGenre: 'boom-bap',
+    allowedTemplateIds: ['storytelling', 'classic', 'bridge-heavy', 'slow-burn'],
     energy: 'medium',
     icon:   '💨',
     physics: makePhysics({
@@ -250,6 +259,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    144,
     mode:   OrganismMode.Gravel,
     subGenre: 'drill',
+    allowedTemplateIds: ['trap-tag', 'hook-heavy', 'dropfirst', 'classic'],
     energy: 'high',
     icon:   '⚡',
     physics: makePhysics({
@@ -269,7 +279,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    75,
     mode:   OrganismMode.Glow,
     subGenre: 'chill',
-    allowedTemplateIds: ['lofi-loop'],
+    allowedTemplateIds: ['lofi-loop', 'storytelling', 'slow-burn', 'bridge-heavy'],
     allowedStyleIds:    ['lofi-warm', 'lofi-tape-echo', 'lofi-keys-bounce', 'cloud-floaty', 'jazz-rap', 'boombap-classic', 'soulful-ballad', 'rnb-late-night'],
     energy: 'low',
     icon:   '✨',
@@ -290,7 +300,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    100,
     mode:   OrganismMode.Smoke,
     subGenre: 'west-coast',
-    allowedTemplateIds: ['back-and-forth'],
+    allowedTemplateIds: ['back-and-forth', 'classic', 'hook-heavy', 'bridge-heavy'],
     allowedStyleIds:    ['west-coast-funky', 'funk-muted-pocket', 'funk-bounce-keys', 'funk-guitar-roll', 'boombap-pocket'],
     energy: 'medium',
     icon:   '🎸',
@@ -318,6 +328,8 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    90,
     mode:   OrganismMode.Smoke,
     subGenre: 'chill',
+    allowedTemplateIds: ['cypher-flow', 'storytelling', 'minimal-jam'],
+    allowedStyleIds:    ['cypher-stripped', 'cypher-call-response', 'boombap-pocket'],
     energy: 'medium',
     icon:   '🎤',
     physics: makePhysics({
@@ -343,7 +355,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     bpm:    80,
     mode:   OrganismMode.Smoke,
     subGenre: 'chill',
-    allowedTemplateIds: ['storytelling'],
+    allowedTemplateIds: ['storytelling', 'slow-burn', 'bridge-heavy', 'classic'],
     allowedStyleIds:    ['story-piano-roll', 'story-strings-pad', 'story-pizzicato', 'story-narrative', 'lofi-warm', 'lofi-tape-echo', 'cloud-floaty', 'boombap-pocket'],
     energy: 'low',
     icon:   '📖',

@@ -20,6 +20,17 @@ router.get('/', (req: Request, res: Response) => {
   }
 });
 
+// Derived chop catalog: bar/half-bar/two-bar slices from phrase loops. The
+// audio still streams from the source loop; chops provide offsets/durations.
+router.get('/chops', (req: Request, res: Response) => {
+  try {
+    const chops = melodicLoopLibrary.chops(req.query.refresh === '1');
+    res.json({ success: true, count: chops.length, chops });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Playable multisample instruments (note-mapped one-shots → Tone.Sampler maps).
 router.get('/instruments', (req: Request, res: Response) => {
   try {

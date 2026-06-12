@@ -11,9 +11,32 @@ import type { ScheduledNote } from '../types'
 import type { OrganismMode } from '../../physics/types'
 import type { OState } from '../../state/types'
 import type { HipHopSubGenre } from '../../state/MusicalState'
+import { swingForSubGenre } from './DrumPatternLibrary'
 
 // Pentatonic minor intervals from root
 export const PENTATONIC_MINOR: number[] = [0, 3, 5, 7, 10]
+
+// ── Chord-quality awareness ──────────────────────────────────────────
+// Every pattern used to hard-code the MINOR pentatonic (b3/b7) on whatever
+// root the Conductor handed over. Over the major chords every hip-hop
+// progression contains (bVI, bVII, IV…) that plays a minor third against a
+// major chord — the sour "off notes" that read as "bass isn't syncing".
+// The BassGenerator pushes the current chord's intervals here on every
+// chord change; patterns then build from the chord's ACTUAL third/seventh.
+let currentThird = 3     // 3 = minor, 4 = major (from the live chord)
+let currentSeventh = 10  // 10 = b7, 11 = maj7
+
+export function setBassChordQuality(intervals: number[]): void {
+  currentThird = intervals.includes(4) && !intervals.includes(3) ? 4 : 3
+  currentSeventh = intervals.includes(11) && !intervals.includes(10) ? 11 : 10
+}
+
+/** Chord-aware pentatonic: root, chord third, 4th, 5th, chord seventh. */
+function chordPentatonic(): number[] {
+  return [0, currentThird, 5, 7, currentSeventh]
+}
+function chordThird(rootMidi: number): number { return rootMidi + currentThird }
+function chordSeventh(rootMidi: number): number { return rootMidi + currentSeventh }
 
 // Natural minor intervals for walking lines
 const NATURAL_MINOR: number[] = [0, 2, 3, 5, 7, 8, 10]
@@ -23,27 +46,30 @@ const BLUES_SCALE: number[] = [0, 3, 5, 6, 7, 10]
 
 // ── Genre-aware swing amounts ────────────────────────────────────────
 // Must match DrumPatternLibrary swing values so bass grooves lock with drums.
+// Fallback only — setBassSwingFromSubGenre (the live path) reads the DRUM
+// library's swing table so bass and drums can never disagree. Scaled to the
+// same musical range (≤0.33 = triplet feel ceiling).
 const MODE_SWING: Record<string, number> = {
-  heat:   0.20,
-  gravel: 0.22,
-  smoke:  0.55,
-  ice:    0.48,
-  glow:   0.38,
+  heat:   0.10,
+  gravel: 0.11,
+  smoke:  0.28,
+  ice:    0.24,
+  glow:   0.19,
 }
 
 const SUBGENRE_SWING: Record<string, number> = {
-  'boom-bap':    0.60,
-  'trap':        0.20,
-  'drill':       0.22,
-  'lo-fi':       0.48,
-  'west-coast':  0.52,
-  'dirty-south': 0.35,
-  'phonk':       0.28,
-  'jersey-club': 0.15,
-  'bounce':      0.42,
-  'reggaeton':   0.10,
-  'afrobeat':    0.35,
-  'chill':       0.38,
+  'boom-bap':    0.30,
+  'trap':        0.10,
+  'drill':       0.11,
+  'lo-fi':       0.24,
+  'west-coast':  0.26,
+  'dirty-south': 0.18,
+  'phonk':       0.14,
+  'jersey-club': 0.08,
+  'bounce':      0.21,
+  'reggaeton':   0.05,
+  'afrobeat':    0.18,
+  'chill':       0.19,
 }
 
 let currentSwing = 0.35
@@ -53,9 +79,10 @@ export function setBassSwing(mode: string): void {
   currentSwing = MODE_SWING[mode] ?? SUBGENRE_SWING[mode] ?? 0.35
 }
 
-/** Set swing from sub-genre directly. */
+/** Set swing from sub-genre directly — reads the DRUM library's swing table
+ *  (the band's single groove source) so bass and drums can never disagree. */
 export function setBassSwingFromSubGenre(subGenre: HipHopSubGenre): void {
-  currentSwing = SUBGENRE_SWING[subGenre] ?? 0.35
+  currentSwing = swingForSubGenre(subGenre)
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -117,7 +144,7 @@ export function buildBreatheNotes(rootMidi: number, density: number = 0.5): Sche
 /** Kick-locked 8th note pattern — tight rhythmic lock */
 export function buildLockNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
-  const pent = PENTATONIC_MINOR
+  const pent = chordPentatonic()
   const degrees = [0, 0, 4, 0, 0, 2, 0, 1]
   
   // High density → staccato
@@ -175,7 +202,7 @@ export function buildWalkNotes(rootMidi: number, density: number = 0.5): Schedul
 /** Bouncy syncopated 8th/16th pattern — energetic rhythmic drive */
 export function buildBounceNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
-  const pent = PENTATONIC_MINOR
+  const pent = chordPentatonic()
   const fifth = rootMidi + 7
   const octDown = rootMidi - 12
   
@@ -207,7 +234,7 @@ export function buildBounceNotes(rootMidi: number, density: number = 0.5): Sched
 export function buildTrapNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
   const fifth   = rootMidi + 7
-  const minor7  = rootMidi + 10
+  const minor7  = chordSeventh(rootMidi)
   const octDown = rootMidi - 12
   
   const mainDur = density > 0.85 ? '4n' : '2n'
@@ -237,7 +264,7 @@ export function buildTrapNotes(rootMidi: number, density: number = 0.5): Schedul
 /** Funk style — 16th note syncopation, call-and-response, lots of ghost notes */
 export function buildFunkNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
-  const pent = PENTATONIC_MINOR
+  const pent = chordPentatonic()
   const octDown = rootMidi - 12
   
   const mainDur = '16n' // Always funky short
@@ -306,8 +333,8 @@ export function buildSlide808Notes(rootMidi: number, density: number = 0.5): Sch
   const notes: ScheduledNote[] = []
   const octDown = rootMidi - 12
   const fifth = rootMidi + 7
-  const minor3 = rootMidi + 3
-  const minor7 = rootMidi + 10
+  const minor3 = chordThird(rootMidi)
+  const minor7 = chordSeventh(rootMidi)
   
   const mainDur = density > 0.8 ? '4n' : '2n'
 
@@ -348,7 +375,7 @@ export function buildSlide808Notes(rootMidi: number, density: number = 0.5): Sch
  */
 export function buildWestCoastNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
-  const pent = PENTATONIC_MINOR
+  const pent = chordPentatonic()
   const octDown = rootMidi - 12
   
   const mainDur = density > 0.8 ? '16n' : '8n'
@@ -434,8 +461,8 @@ export function buildDirtySouthNotes(rootMidi: number, density: number = 0.5): S
 export function buildPhonkNotes(rootMidi: number, density: number = 0.5): ScheduledNote[] {
   const notes: ScheduledNote[] = []
   const octDown = rootMidi - 12
-  const minor3 = rootMidi + 3
-  const minor7 = rootMidi + 10
+  const minor3 = chordThird(rootMidi)
+  const minor7 = chordSeventh(rootMidi)
   
   const mainDur = density > 0.8 ? '4n' : '4n.'
 

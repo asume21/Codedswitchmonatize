@@ -32,12 +32,18 @@ export enum ChordBehavior {
   Stab    = 'stab',      // High energy — short staccato stabs
 }
 
+// Fallback only — the orchestrator pushes the sub-genre swing (the band's
+// single groove source) via setSwing() on start and every sub-genre change.
+// Scaled to the same musical range as DrumPatternLibrary's SWING table.
 const MODE_SWING: Record<string, number> = {
-  heat: 0.20, gravel: 0.22, smoke: 0.55, ice: 0.48, glow: 0.38,
+  heat: 0.10, gravel: 0.11, smoke: 0.28, ice: 0.24, glow: 0.19,
 }
 
+// Chords live an octave below the lead — octave 3 voicings (C3–G3) are the
+// hip-hop/R&B register. ice/glow previously voiced at octave 4 (C4–G4 close
+// triads), which reads as bright toy-keyboard "kids music" against an 808.
 const MODE_OCTAVES: Record<string, number> = {
-  heat: 3, gravel: 3, smoke: 3, ice: 4, glow: 4,
+  heat: 3, gravel: 3, smoke: 3, ice: 3, glow: 3,
 }
 
 export class ChordGenerator extends GeneratorBase {
@@ -100,6 +106,9 @@ export class ChordGenerator extends GeneratorBase {
       console.warn(`[ChordGenerator] Unknown technique: ${techniqueId}`)
       return
     }
+    // Automatic callers (reactive style shifts, section style presets) must
+    // not stomp an explicit user pick — the UI dropdown "snapping back".
+    if (!markAsOverride && this.techniqueOverridden) return
     if (markAsOverride) this.techniqueOverridden = true
     if (this.currentTechniqueId === techniqueId) return
     this.currentTechniqueId = techniqueId
@@ -125,8 +134,21 @@ export class ChordGenerator extends GeneratorBase {
     this.lastPerformerEnergy = energy
   }
 
+  // Set by the orchestrator on every sub-genre change so chords swing by the
+  // SAME amount as the drum pattern (one band, one pocket).
+  private subGenreSwing: number | null = null
+
+  setSwing(amount: number): void {
+    this.subGenreSwing = Math.max(0, Math.min(1, amount))
+  }
+
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
     this.explicitPerformerId = instrumentId
+    // An explicit user pick must beat the keys-style multisample lock —
+    // otherwise applyVoice() early-returns and the CHORDS instrument dropdown
+    // silently does nothing on most presets (every keys style locks the
+    // e-piano via setMultisampleInstrument).
+    if (instrumentId) this.multisampleActive = false
     this.applyVoice(this.currentMode)
     this.rebuildPart()
   }
@@ -317,7 +339,9 @@ export class ChordGenerator extends GeneratorBase {
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     this.currentMode = physics.mode.toString()
-    this.currentSwing = MODE_SWING[this.currentMode] ?? 0.35
+    // Sub-genre swing (pushed by the orchestrator, matches the DRUM grid) wins;
+    // the mode table is only the fallback before the first sub-genre sync.
+    this.currentSwing = this.subGenreSwing ?? MODE_SWING[this.currentMode] ?? 0.35
 
     // Technique priority (highest → lowest):
     //   1. User explicit override (techniqueOverridden=true) — never touched here

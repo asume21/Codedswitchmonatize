@@ -118,13 +118,16 @@ export class ReactiveBehaviorEngine {
     const style = this.styleShift.process(ctx)
     if (style.zone && style.preset) {
       this.lastZone = style.zone
-      if (this.styleShiftsEnabled && this.orchestrator) {
-        // markAsOverride=false via direct generator access would be cleaner,
-        // but our public API only exposes setX which locks overrides. We want
-        // locks here — the reactive engine is making an explicit musical choice.
-        this.orchestrator.setChordTechnique(style.preset.chordTechnique)
-        this.orchestrator.setMelodyArticulation(style.preset.melodyArticulation)
-        this.orchestrator.setBassArticulation(style.preset.bassArticulation)
+      // Apply only when a performer is actually present (voiceActive) — in
+      // auto-generate mode the "energy" is synthetic, and reacting to it
+      // rotated the whole band's playing styles every few bars: UI dropdowns
+      // snapped back, and the groove changed feel mid-loop ("they match for
+      // a split second, then drift"). markAsOverride=false lets explicit
+      // user picks always win over the reactive engine.
+      if (this.styleShiftsEnabled && this.orchestrator && ctx.physics.voiceActive) {
+        this.orchestrator.setChordTechnique(style.preset.chordTechnique, false)
+        this.orchestrator.setMelodyArticulation(style.preset.melodyArticulation, false)
+        this.orchestrator.setBassArticulation(style.preset.bassArticulation, false)
       }
     }
   }
