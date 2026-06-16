@@ -33,6 +33,7 @@ import {
   type InstrumentPerformerProfile,
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -66,6 +67,15 @@ export class MelodyGenerator extends GeneratorBase {
   // PHRASE_REFRESH_BARS so processFrame regenerates fresh notes on cadence.
   private phraseDirty:          boolean = false
   private phraseRefreshEventId: number | null = null
+
+  // The ONE motif the current section commits to. Developed (transpose/invert/
+  // augment) across the phrase instead of swapping to a different bank entry —
+  // that "motif salad" was why the line never cohered into a recognizable tune.
+  // Persists across phrase refreshes WITHIN a section (the idea recurs);
+  // onSectionChange() nulls it so the next section commits to a fresh motif.
+  private currentSectionMotif: MelodyMotif | null = null
+  // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
+  private preferredMotifBankKey: string | null = null
 
   // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats.
   // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
@@ -970,9 +980,20 @@ export class MelodyGenerator extends GeneratorBase {
     const restLen = isHint ? 8 : this.currentBehavior === MelodyBehavior.Respond ? 6 : 6
     const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
+    // Commit to ONE motif for this section (picked once), then DEVELOP it across
+    // the phrase — state the theme, then vary it (transpose / invert / augment).
+    // This replaces the old "motif salad" that grabbed a different bank entry
+    // every iteration, so nothing ever recurred and the line never cohered.
+    if (!this.currentSectionMotif) {
+      this.currentSectionMotif = motifBank[chordSeed % motifBank.length]
+    }
+    const baseMotif = this.currentSectionMotif
+    const variations = pickPhraseVariations(this.sessionSeed + chordSeed, maxIterations)
+
     while (cursor < length16ths && phraseIndex < maxIterations) {
-      const motifIdx = (chordSeed + phraseIndex) % motifBank.length
-      const motif = motifBank[motifIdx]
+      const variation = variations[phraseIndex] ?? 'identity'
+      const transposeAmount = variation === 'transpose' ? 1 + (chordSeed % 3) : 0
+      const motif = developMotif(baseMotif, variation, transposeAmount)
       const transposeOct = this.currentBehavior === MelodyBehavior.Lead && phraseIndex % 4 === 3 ? 1 : 0
       const result = renderMotif(motif, cursor, transposeOct)
 
