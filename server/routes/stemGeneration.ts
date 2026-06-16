@@ -11,7 +11,9 @@ import { Router, type Request, type Response } from "express";
 import path from "path";
 import fs from "fs";
 import ffmpeg from "fluent-ffmpeg";
+import { randomUUID } from "crypto";
 import { requireAuth } from "../middleware/auth";
+import { isWorkerReady, submitGeneration, pollJob, type AceStepTrackName } from "../services/aceStepService";
 
 const router = Router();
 
@@ -67,6 +69,18 @@ async function storeAndServe(
   return `/api/stems/musicgen-stems/${jobId}_${stemName}.wav`;
 }
 
+// ── ACE-Step lego stems ──────────────────────────────────────────────────────
+// ACE's `lego` task renders one isolated track per job, so a stem request
+// fans out into three ACE jobs (drums/bass/other→synth) tracked under one
+// local jobId with an `ace:` prefix. In-memory like runpodServerlessService's
+// jobMeta — a server restart mid-job orphans it (client just regenerates).
+const STEM_TRACKS: Record<string, AceStepTrackName> = {
+  drums: "drums",
+  bass: "bass",
+  other: "synth",
+};
+const aceStemJobs = new Map<string, Record<string, string>>();
+
 // ── routes ────────────────────────────────────────────────────────────────────
 
 /**
@@ -81,6 +95,31 @@ router.post(
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return sendError(res, 400, "prompt is required");
+    }
+
+    // ═══ ACE-Step first (lego per-track) — silent fallback to the sidecar ═══
+    try {
+      if (await isWorkerReady()) {
+        const seed = Math.floor(Math.random() * 2147483647);
+        const aceIds: Record<string, string> = {};
+        for (const [stem, trackName] of Object.entries(STEM_TRACKS)) {
+          aceIds[stem] = await submitGeneration({
+            prompt: `${prompt.trim()}, ${key} key, ${bpm} bpm`,
+            audioDuration: duration,
+            bpm,
+            seed, // shared seed keeps the three tracks musically related
+            taskType: "lego",
+            trackName,
+            instrumental: true,
+          });
+        }
+        const jobId = `ace:${randomUUID()}`;
+        aceStemJobs.set(jobId, aceIds);
+        return res.json({ success: true, jobId, status: "pending" });
+      }
+      console.log("[aceFirst] stem-generation fell back: worker not ready");
+    } catch (aceErr: any) {
+      console.warn("[aceFirst] stem-generation fell back:", aceErr?.message || aceErr);
     }
 
     try {
@@ -119,6 +158,52 @@ router.get("/:jobId", requireAuth(), async (req: Request, res: Response) => {
   const { jobId } = req.params;
 
   if (!jobId) return sendError(res, 400, "jobId is required");
+
+  // ═══ ACE-Step lego jobs ═══
+  if (jobId.startsWith("ace:")) {
+    const aceIds = aceStemJobs.get(jobId);
+    if (!aceIds) return sendError(res, 404, "Job not found (server may have restarted — please regenerate)");
+
+    try {
+      const jobs = await Promise.all(
+        Object.entries(aceIds).map(async ([stem, aceId]) => ({ stem, job: await pollJob(aceId) })),
+      );
+
+      const failed = jobs.find(({ job }) => job.status === "error");
+      if (failed) {
+        aceStemJobs.delete(jobId);
+        return sendError(res, 500, `Stem "${failed.stem}" failed: ${failed.job.error ?? "unknown error"}`);
+      }
+      if (jobs.some(({ job }) => job.status !== "done")) {
+        return res.json({ success: true, jobId, status: "running" });
+      }
+
+      // All done — reuse the same normalize/store pipeline as the sidecar path.
+      const stemUrls: Record<string, string> = {};
+      const safeId = jobId.replace(/[^a-zA-Z0-9_-]/g, "_");
+      for (const { stem, job } of jobs) {
+        const rawPath = job.outputPath;
+        if (!rawPath || !fs.existsSync(rawPath)) {
+          console.warn(`stem-generation(ace): missing ${stem} at ${rawPath}`);
+          continue;
+        }
+        const normPath = rawPath.replace(/\.(wav|mp3)$/, "_norm.wav");
+        try {
+          await normalizeLoudness(rawPath, normPath);
+          stemUrls[stem] = await storeAndServe(normPath, safeId, stem);
+          fs.unlink(normPath, () => {});
+        } catch {
+          console.warn(`stem-generation(ace): ffmpeg failed for ${stem}, serving raw`);
+          stemUrls[stem] = await storeAndServe(rawPath, safeId, stem);
+        }
+      }
+      aceStemJobs.delete(jobId);
+      return res.json({ success: true, jobId, status: "complete", stems: stemUrls });
+    } catch (err: any) {
+      console.error("❌ stem-generation(ace) status error:", err?.message);
+      return sendError(res, 500, err?.message || "Failed to get job status");
+    }
+  }
 
   try {
     const data = await fetchSidecar(`/status/${jobId}`);

@@ -1,4 +1,5 @@
 import type { ArrangementSection } from './MusicalState'
+import type { ArrangementSection as PlanSection } from '@shared/arrangement'
 
 export interface ProducerArrangementSlot {
   name: ArrangementSection
@@ -195,6 +196,16 @@ let currentTemplateId: string = 'classic'
 let currentSlots:      ProducerArrangementSlot[] = TEMPLATE_CLASSIC
 let currentTotalBars:  number = TEMPLATE_CLASSIC.reduce((sum, s) => sum + s.bars, 0)
 
+// ── Plan override (Phase 5: ArrangementPlan) ──────────────────────────
+// When the Conductor loads a composer ArrangementPlan, the plan's own
+// sections — not a named template — become the live arrangement. This keeps
+// the section boundaries the live band plays (durations from
+// plan.sections[].bars) in lockstep with the progressions the Conductor
+// loads per section, AND with what ACE-Step renders from the same plan's
+// acePrompt. Null = jam mode / template mode (the named-template path above).
+let planSlots:     ProducerArrangementSlot[] | null = null
+let planTotalBars: number = 0
+
 /**
  * Switch to a different arrangement template. Called by OrganismProvider on
  * preset start with a random pick from the preset's `arrangementTemplateIds`.
@@ -215,9 +226,10 @@ export function getActiveArrangementTemplateId(): string {
   return currentTemplateId
 }
 
-/** Total bars in the active arrangement cycle. */
+/** Total bars in the active arrangement cycle — plan override when one is
+ *  loaded, otherwise the active named template. */
 export function getProducerArrangementTotalBars(): number {
-  return currentTotalBars
+  return planSlots ? planTotalBars : currentTotalBars
 }
 
 
@@ -226,16 +238,76 @@ export function getProducerArrangementSlot(barNumber: number): {
   cycleBar: number
   sectionBar: number
 } {
+  const slots = planSlots ?? currentSlots
+  const totalBars = planSlots ? planTotalBars : currentTotalBars
   const safeBar = Math.max(0, Math.floor(Number.isFinite(barNumber) ? barNumber : 0))
-  const cycleBar = safeBar % currentTotalBars
+  const cycleBar = safeBar % totalBars
   let accumulated = 0
-  for (const slot of currentSlots) {
+  for (const slot of slots) {
     if (cycleBar < accumulated + slot.bars) {
       return { slot, cycleBar, sectionBar: cycleBar - accumulated }
     }
     accumulated += slot.bars
   }
-  return { slot: currentSlots[0], cycleBar: 0, sectionBar: 0 }
+  return { slot: slots[0], cycleBar: 0, sectionBar: 0 }
+}
+
+// ── Plan → arrangement conversion (Phase 5) ───────────────────────────
+//
+// A composer's ArrangementSection carries musical INTENT (energy, density)
+// but not the five per-channel gain multipliers the audio engine needs. This
+// derives them from energy + density using the relationships read off the
+// 12 hand-tuned templates above:
+//   - drums track DENSITY most directly (sparse intro → busy drop).
+//   - bass + melody lift with ENERGY but never silence (audible bed always).
+//   - chords recede as energy rises so drums/bass own the drop, and carry
+//     the low-energy sections (intro/breakdown) where they're exposed.
+//   - texture stays off — it's gated separately by the orchestrator's
+//     textureEnabled switch (off by default for hip-hop).
+//
+// These coefficients are the one genuinely musical knob in the plan→audio
+// path; tune them by ear, not by type-checker. The mapping is intentionally
+// lossy (a "voice-forward" verse can't be expressed by energy/density alone —
+// that intent rides on the section's StylePreset instead).
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+const round2  = (v: number) => Math.round(v * 100) / 100
+
+export function slotFromPlanSection(section: PlanSection): ProducerArrangementSlot {
+  const energy  = clamp01(Number.isFinite(section.energy) ? section.energy : 0.5)
+  const density = clamp01(Number.isFinite(section.density) ? section.density : 0.5)
+  const bars    = Math.min(64, Math.max(1, Math.round(section.bars)))
+  return {
+    name:          section.name,
+    bars,
+    drums:         round2(0.25 + density * 0.80),
+    bass:          round2(0.45 + energy  * 0.55),
+    melody:        round2(0.80 + energy  * 0.28),
+    chord:         round2(0.65 + (1 - energy) * 0.30),
+    texture:       0,
+    energy,
+    drumDropout:   false,
+    bassDropout:   false,
+    melodyDropout: false,
+  }
+}
+
+/**
+ * Install a composer plan's sections as the live arrangement. The plan's bar
+ * counts become the section durations; energy/density become channel
+ * multipliers via slotFromPlanSection. No-op on an empty list so a malformed
+ * plan leaves the active template playing. Reverted by clearArrangementFromPlan.
+ */
+export function setArrangementFromPlan(sections: ReadonlyArray<PlanSection>): boolean {
+  if (!sections || sections.length === 0) return false
+  planSlots     = sections.map(slotFromPlanSection)
+  planTotalBars = planSlots.reduce((sum, s) => sum + s.bars, 0)
+  return true
+}
+
+/** Drop the plan override and return to the active named template. */
+export function clearArrangementFromPlan(): void {
+  planSlots     = null
+  planTotalBars = 0
 }
 
 // Deprecated const exports — kept for backward compat with old call sites

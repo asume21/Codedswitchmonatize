@@ -7,6 +7,7 @@ import ffmpeg from "fluent-ffmpeg";
 import { localMusicGenService, LocalMusicGenPack, LocalMusicGenSample } from "./local-musicgen";
 import { ObjectStorageService } from "../objectStorage";
 import { getGenreSpec, enhancePromptWithGenre } from "../ai/knowledge/genreDatabase";
+import { tryAceFirst } from "./aceFirst";
 
 const LOCAL_OBJECTS_DIR =
   fs.existsSync("/data") && fs.statSync("/data").isDirectory()
@@ -286,6 +287,28 @@ export class UnifiedMusicService {
       }
     }
 
+    // ═══ PROVIDER 0: ACE-Step (our own RunPod worker, ~$0.003/render) ═══
+    // Instrumental only: generateFullSong has no lyrics to give ACE, and a
+    // vocal request without lyrics would come back as mumble — Suno keeps
+    // the vocal lane until the lyrics-aware route (songs.ts) is the caller.
+    if (!vocals) {
+      const ace = await tryAceFirst({
+        prompt: rich.prompt,
+        audioDuration: Math.min(duration, 120),
+        bpm: rich.bpm,
+        seed,
+        instrumental: true,
+      }, 'unified:full-song');
+      if (ace) {
+        return {
+          status: 'success',
+          audio_url: ace.url,
+          variations: [{ audio_url: ace.url, seed: seed ?? 0, variation: 1 }],
+          metadata: { duration: ace.durationS ?? duration, quality: '44.1kHz stereo', generator: 'ace-step', genre, bpm: rich.bpm, key: rich.key },
+        };
+      }
+    }
+
     // ═══ PROVIDER 1: Suno API (best quality) ═══
     try {
       console.log('🎵 Provider 1: Suno API');
@@ -531,6 +554,21 @@ export class UnifiedMusicService {
       
       console.log(`🎵 Enhanced MusicGen prompt: ${fullPrompt.substring(0, 100)}...`);
 
+      // ═══ ACE-Step first (our own worker) — silent fallback to Replicate ═══
+      const ace = await tryAceFirst({
+        prompt: fullPrompt,
+        audioDuration: Math.min(duration, 60),
+        bpm: smartBpm,
+        instrumental: true,
+      }, `unified:track:${type}`);
+      if (ace) {
+        return {
+          status: 'success',
+          audio_url: ace.url,
+          metadata: { type, duration: ace.durationS ?? duration, generator: 'ace-step', genre, key: smartKey, bpm: smartBpm },
+        };
+      }
+
       try {
         // Use MusicGen Large with optimized sampling params
         const randomSeed = Math.floor(Math.random() * 2147483647);
@@ -627,7 +665,22 @@ export class UnifiedMusicService {
     
     // Build rich prompt for Stable Audio
     const fullPrompt = `${genre} instrumental track, ${smartBpm} BPM, ${key || 'C major'}. ${smartInstruments}. ${prompt}. High quality, professional production, clear mix.`;
-    
+
+    // ═══ ACE-Step first (our own worker) — silent fallback to Stable Audio ═══
+    const ace = await tryAceFirst({
+      prompt: fullPrompt,
+      audioDuration: Math.min(duration, 47),
+      bpm: smartBpm,
+      instrumental: true,
+    }, 'unified:stable-audio');
+    if (ace) {
+      return {
+        status: 'success',
+        audio_url: ace.url,
+        metadata: { type: 'instrumental', duration: ace.durationS ?? duration, generator: 'ace-step', genre, bpm: smartBpm, key },
+      };
+    }
+
     try {
       const output = await replicate.run(
         "stability-ai/stable-audio-2.5:a61ac8edbb27cd2eda1b2eff2bbc03dcff1131f5560836ff77a052df05b77491" as any,
@@ -693,6 +746,21 @@ export class UnifiedMusicService {
       
       console.log(`🧠 Genre Fusion Intelligence: ${genreList} → BPM: ${blendedBpm}, Instruments: ${instrumentList}`);
 
+      // ═══ ACE-Step first (our own worker) — silent fallback to MusicGen ═══
+      const ace = await tryAceFirst({
+        prompt: fullPrompt,
+        audioDuration: 30,
+        bpm: blendedBpm,
+        instrumental: true,
+      }, 'unified:genre-blend');
+      if (ace) {
+        return {
+          status: 'success',
+          audio_url: ace.url,
+          metadata: { type: 'genre_blend', duration: ace.durationS ?? 30, generator: 'ace-step', fusion_type: 'genre_blend' },
+        };
+      }
+
       const output = await replicate.run(
         "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb",
         {
@@ -732,6 +800,10 @@ export class UnifiedMusicService {
   } = {}): Promise<MusicPack[]> {
     const { bpm = 120, packCount = 1 } = options;
     console.log(`📦 UnifiedMusic: Generating sample packs for "${prompt}"`);
+
+    // ═══ ACE-Step first (our own worker) — silent fallback to the looper ═══
+    const acePacks = await this.generateSamplePackWithAce(prompt, bpm, packCount);
+    if (acePacks) return acePacks;
 
     try {
       // Try Replicate MusicGen-Looper first
@@ -829,6 +901,63 @@ export class UnifiedMusicService {
         }))
       }));
     }
+  }
+
+  /**
+   * Sample packs via ACE-Step: 4 seeded loop renders per pack, mirroring the
+   * looper's variation count. Returns null (→ caller falls back) if ACE is
+   * down or the FIRST render fails; later failures just shrink the pack.
+   */
+  private async generateSamplePackWithAce(prompt: string, bpm: number, packCount: number): Promise<MusicPack[] | null> {
+    const detectedGenre = this.detectGenreFromPrompt(prompt);
+    const detectedKey = this.pickKeyForGenre(detectedGenre);
+    const moods = ['energetic and driving', 'melodic and atmospheric', 'dark and moody', 'minimal and spacious'];
+
+    const packs: MusicPack[] = [];
+    for (let i = 0; i < packCount; i++) {
+      const samples: MusicSample[] = [];
+      for (let v = 0; v < 4; v++) {
+        const ace = await tryAceFirst({
+          prompt: `${prompt}, ${moods[v]}, ${detectedGenre.toLowerCase()}, ${bpm} bpm, seamless loop, instrumental`,
+          audioDuration: 8,
+          bpm,
+          seed: Math.floor(Math.random() * 2147483647),
+          instrumental: true,
+        }, `unified:sample-pack:${i + 1}.${v + 1}`);
+        if (!ace) {
+          // First render failing means ACE is effectively down — bail to looper.
+          if (i === 0 && v === 0) return null;
+          continue;
+        }
+        samples.push({
+          id: `sample_${randomUUID()}`,
+          name: `${prompt} Var ${v + 1}`,
+          prompt,
+          audioUrl: ace.url,
+          duration: ace.durationS ?? 8,
+          type: 'loop',
+          instrument: 'mixed',
+          bpm,
+        });
+      }
+      if (samples.length === 0) continue;
+      packs.push({
+        id: `pack_${randomUUID()}`,
+        title: `${prompt} AI Pack ${i + 1}`,
+        description: `AI generated ${detectedGenre.toLowerCase()} loop pack (ACE-Step)`,
+        bpm,
+        key: detectedKey,
+        genre: detectedGenre,
+        samples,
+        metadata: {
+          energy: 0.8,
+          mood: moods[0],
+          instruments: ['mixed'],
+          tags: ['ai', 'ace-step', detectedGenre.toLowerCase()],
+        },
+      });
+    }
+    return packs.length > 0 ? packs : null;
   }
 
   private detectGenreFromPrompt(prompt: string): string {

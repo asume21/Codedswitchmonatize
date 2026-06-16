@@ -10,6 +10,8 @@ import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
 import { sunoApi } from "../services/sunoApi";
+import { isWorkerReady, submitGeneration, generateAndWait, pollJob } from "../services/aceStepService";
+import { aceTaskId, isAceTaskId, rawAceJobId, aceJobToSunoTracks, aceJobToSunoStatusData } from "../services/aceSunoBridge";
 import { stemSeparationService } from "../services/stemSeparation";
 import { getGuestUserId } from "../guestUser";
 import { isIP } from "net";
@@ -663,6 +665,42 @@ export function createSongRoutes(storage: IStorage) {
 
       console.log('🎵 Suno Generate:', { prompt: prompt?.substring(0, 50), style, model, instrumental });
 
+      // ═══ ACE-Step first (our own worker) — silent fallback to Suno ═══
+      // In customMode the prompt IS the lyrics; style carries the sound. ACE
+      // taskIds wear an `ace:` prefix so /suno/status can serve them too.
+      try {
+        if (await isWorkerReady()) {
+          const aceReq = {
+            prompt: [style, instrumental ? 'instrumental' : 'with vocals', 'high fidelity, studio quality']
+              .filter(Boolean).join(', '),
+            lyrics: instrumental ? undefined : (prompt || undefined),
+            audioDuration: 120,
+            inferStep: 30,
+            instrumental: Boolean(instrumental),
+          };
+          if (waitForResult) {
+            const job = await generateAndWait(aceReq);
+            const tracks = aceJobToSunoTracks(job, title || 'AI Generated Track');
+            if (tracks.length > 0) {
+              return res.json({ success: true, taskId: aceTaskId(job.jobId), status: 'complete', tracks });
+            }
+            console.warn('[aceFirst] songs:suno-generate fell back: completed without audio');
+          } else {
+            const jobId = await submitGeneration(aceReq);
+            return res.json({
+              success: true,
+              taskId: aceTaskId(jobId),
+              status: 'pending',
+              message: 'Generation started. Poll /api/songs/suno/status with the taskId to check progress.',
+            });
+          }
+        } else {
+          console.log('[aceFirst] songs:suno-generate fell back: worker not ready');
+        }
+      } catch (aceErr: any) {
+        console.warn('[aceFirst] songs:suno-generate fell back:', aceErr?.message || aceErr);
+      }
+
       const result = await sunoApi.generateMusic({
         prompt: prompt || '',
         customMode,
@@ -888,6 +926,13 @@ export function createSongRoutes(storage: IStorage) {
   router.post("/suno/status", async (req: Request, res: Response) => {
     try {
       const { taskId } = req.body;
+
+      // ACE-Step jobs travel through the same polling flow with an ace: prefix.
+      if (isAceTaskId(taskId)) {
+        const job = await pollJob(rawAceJobId(taskId));
+        return res.json(aceJobToSunoStatusData(job, 'AI Generated Track'));
+      }
+
       const result = await sunoApi.getTaskStatus(taskId);
 
       if (!result.success) {

@@ -30,7 +30,7 @@ import {
   keyToPitchClass,
   type ArrangementPlan,
 } from '@shared/arrangement'
-import { setActiveArrangementTemplate } from '../state/ProducerArrangement'
+import { setActiveArrangementTemplate, setArrangementFromPlan } from '../state/ProducerArrangement'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -601,11 +601,14 @@ export class Conductor {
     this.scale = SUB_GENRE_SCALES[plan.subGenre] ?? this.scale
     this.scoreContext.bpm = plan.bpm
     this.scoreContext.mood = plan.mood
-    // Apply the structural template the composer picked. Falls back silently
-    // if the id is unknown (older plan, or template removed from bank) —
-    // setActiveArrangementTemplate returns false and the previous active
-    // template keeps playing.
-    if (plan.templateId) {
+    // The plan's OWN sections become the live arrangement — their bar counts
+    // drive section durations and their energy/density drive channel levels,
+    // so the live band's structure matches what ACE-Step renders from the
+    // same plan. (Supersedes picking a named template by plan.templateId; the
+    // template now only informs the composer's structural character upstream.)
+    // If the plan somehow has no sections, fall back to the named template so
+    // the engine still has an arrangement to read.
+    if (!setArrangementFromPlan(plan.sections) && plan.templateId) {
       setActiveArrangementTemplate(plan.templateId)
     }
     this.loadSection(0)

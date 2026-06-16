@@ -79,7 +79,7 @@ export async function submitGeneration(req: AceStepRequest): Promise<string> {
     use_erg_tag:      true,
     use_erg_lyric:    req.lyrics ? true : false,
     use_erg_diffusion: true,
-    instrumental:     true,
+    instrumental:     req.instrumental ?? true,
     seed:             req.seed ?? null,
   }
 

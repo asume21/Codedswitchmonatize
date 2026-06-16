@@ -2,6 +2,7 @@ import axios from "axios";
 import { readFile } from "fs/promises";
 import path from "path";
 import { LocalStorageService } from "./localStorageService";
+import { tryAceFirst } from "./aceFirst";
 
 const DEFAULT_MUSICGEN_GENERATE_URL = "http://localhost:5005/generate";
 
@@ -40,6 +41,21 @@ export class BackingTrackService {
 
     if (!request.prompt || request.prompt.trim().length === 0) {
       throw new Error("Prompt is required for backing track generation");
+    }
+
+    // ═══ ACE-Step first (our own worker) — silent fallback to the sidecar ═══
+    const ace = await tryAceFirst({
+      prompt: request.prompt,
+      audioDuration: request.durationSeconds,
+      seed: request.seed,
+      instrumental: true,
+    }, 'backing-track');
+    if (ace) {
+      return {
+        audioUrl: ace.url,
+        audioPath: ace.localPath ?? ace.url,
+        sourcePath: ace.localPath ?? ace.url,
+      };
     }
 
     const payload = {
