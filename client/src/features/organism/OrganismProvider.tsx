@@ -1110,9 +1110,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (!preset) return
 
       if (!melodicLoopRef.current) {
-        // Route the loop through the Organism master bus so its limiter catches
-        // peaks (prevents the loop + drum/808 buses summing past 0 dB = clipping).
-        melodicLoopRef.current = new MelodicLoopPlayer(mixRef.current?.master?.input)
+        // Route the loop through the MELODY channel strip (NOT straight to master)
+        // so the real-instrument loop inherits the channel's +8 dB presence gain +
+        // EQ and obeys the melody fader — fixes "real-instrument melody is weak /
+        // fader does nothing". melodyChannel.output still feeds master.input, so the
+        // master limiter keeps catching peaks. Falls back to master if the mix
+        // engine's channel isn't up yet.
+        melodicLoopRef.current = new MelodicLoopPlayer(
+          mixRef.current?.melodyChannel?.input ?? mixRef.current?.master?.input,
+        )
       }
       const player = melodicLoopRef.current
       // Map the selected STYLE to its melodic voice so EVERY style — not just
@@ -3578,7 +3584,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     },
     setMelodyVolume: (v: number) => {
       setMelodyVolumeState(v)
-      orchestrRef.current?.setMelodyVolumeMultiplier(v)
+      // Drive the melody CHANNEL gain — it governs BOTH the synth melody and the
+      // real-instrument loop player, which now route through this channel. The
+      // +8 dB offset preserves the channel's configured presence level at v=1
+      // (matches DEFAULT_MIX_CONFIG.channels.melody.gainDb). Replaces the old
+      // generator-only volume multiplier, which never touched the loop player —
+      // that mismatch was why the melody fader appeared dead.
+      mixRef.current?.setChannelGainDb('melody', v <= 0 ? -60 : 8 + 20 * Math.log10(v))
       orchestrRef.current?.setMelodyEnabled(v > 0)
     },
     setChordVolume: (v: number) => {

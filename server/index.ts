@@ -372,6 +372,7 @@ app.use((req, res, next) => {
     "/api/social/feed/public", // public social feed
     "/api/songs/public",      // public shared songs
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
+    "/api/neumann-bass",      // 159 shared chromatic bass multisamples (static instrument, not user data; like /api/loops). Tone.Player media fetches can't attach a bearer token, so this MUST be public or the bass collapses to the synth fallback.
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys (trailing slash keeps /api/webear-keys session-gated)
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
     // Dev-only: audio-debug bridge is gated by NODE_ENV !== 'production' at
