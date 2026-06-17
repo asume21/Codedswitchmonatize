@@ -376,7 +376,8 @@ export class ChordGenerator extends GeneratorBase {
       if (rebuilt) this.conductorChordDirty = false
     }
 
-    const targetLevel = this.computeTargetLevel(organism)
+    // Composer's role caps activity; reactive curve adds feel under the ceiling.
+    const targetLevel = this.computeTargetLevel(organism) * this.roleCeiling()
     this.activityLevel += this.smoothingCoeff(150) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
   }

@@ -71,6 +71,7 @@ describe('TextureGenerator', () => {
 
   it('FLOW with flowDepth=1.0 → activity converges toward 0.28', () => {
     const physics = makePhysics()
+    gen.setRole('lead')   // measure the pure reactive curve (ceiling 1.0)
     const organism = makeOrganism({
       current: OState.Flow,
       flowDepth: 1.0,

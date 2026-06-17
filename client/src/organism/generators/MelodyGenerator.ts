@@ -618,7 +618,8 @@ export class MelodyGenerator extends GeneratorBase {
       if (rebuilt && phraseWasDirty) this.phraseDirty = false
     }
 
-    const targetLevel = this.computeTargetLevel(organism, newBehavior)
+    // Composer's role caps activity; reactive curve adds feel under the ceiling.
+    const targetLevel = this.computeTargetLevel(organism, newBehavior) * this.roleCeiling()
     this.activityLevel += this.smoothingCoeff(100) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
 

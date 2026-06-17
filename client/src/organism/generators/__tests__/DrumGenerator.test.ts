@@ -73,6 +73,7 @@ describe('DrumGenerator', () => {
 
   it('onStateTransition(BREATHING) → activityLevel approaches 0.55', () => {
     const physics = makePhysics()
+    gen.setRole('lead')   // measure the pure reactive curve (ceiling 1.0)
     gen.onStateTransition(OState.Breathing, physics)
 
     const organism = makeOrganism({
@@ -90,6 +91,7 @@ describe('DrumGenerator', () => {
 
   it('onStateTransition(FLOW) → activityLevel approaches 0.85', () => {
     const physics = makePhysics()
+    gen.setRole('lead')   // measure the pure reactive curve (ceiling 1.0)
     gen.onStateTransition(OState.Flow, physics)
 
     const organism = makeOrganism({
@@ -103,6 +105,20 @@ describe('DrumGenerator', () => {
     const report = gen.getActivityReport(Date.now())
     expect(report.activityLevel).toBeGreaterThan(0.70)
     expect(report.activityLevel).toBeLessThan(0.95)
+  })
+
+  it('role "out" silences the part regardless of Flow state (composer sits it out)', () => {
+    const physics = makePhysics()
+    gen.setRole('out')
+    gen.onStateTransition(OState.Flow, physics)
+
+    const organism = makeOrganism({ current: OState.Flow, flowDepth: 1.0 })
+    for (let i = 0; i < 400; i++) {
+      gen.processFrame(physics, organism)
+    }
+
+    const report = gen.getActivityReport(Date.now())
+    expect(report.activityLevel).toBeLessThan(0.001)
   })
 
   it('processFrame with high presence → hat velocity reduced (pocket behavior)', () => {

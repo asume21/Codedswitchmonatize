@@ -167,7 +167,8 @@ export class DrumGenerator extends GeneratorBase {
     this.currentPresence = physics.presence
     this.currentPocket   = physics.pocket
 
-    const targetLevel = this.computeTargetLevel(organism)
+    // Composer's role caps activity; reactive curve adds feel under the ceiling.
+    const targetLevel = this.computeTargetLevel(organism) * this.roleCeiling()
     this.activityLevel += this.smoothingCoeff(80) * (targetLevel - this.activityLevel)
     this.setOutputLevel(this.activityLevel)
   }

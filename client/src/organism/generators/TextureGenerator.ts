@@ -117,8 +117,9 @@ export class TextureGenerator extends GeneratorBase {
     const layer    = TEXTURE_BY_MODE[modeName]
     if (!layer) return
 
-    // Target level based on state + density thinning
-    let targetLevel = this.computeTargetLevel(organism)
+    // Target level based on state + density thinning.
+    // Composer's role caps activity; reactive curve adds feel under the ceiling.
+    let targetLevel = this.computeTargetLevel(organism) * this.roleCeiling()
     if (this.thinningActive) targetLevel *= 0.4   // organism breathing out
 
     this.activityLevel += this.smoothingCoeff(130) * (targetLevel - this.activityLevel)
