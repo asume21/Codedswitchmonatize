@@ -1,0 +1,87 @@
+# Master Duplicate Kill-List — the complete inventory
+
+_2026-06-17. The app launch is blocked by DUPLICATE/competing systems and hidden
+duplicate UI elements ("doubles that haunt us") that break already-built features.
+Goal: ONE accounting of every duplicate, so they're eliminated methodically — not
+discovered piecemeal over months. Winner = the one to keep; everything else dies.
+Measured live (window.__orgDebug + AudioNode.connect probe + import tracing)._
+
+**Rule for execution:** delete losers ONE at a time, verify behavior unchanged
+(tsc + `npm run test:unit` + the live path still works), commit. Never bundle.
+Confidence tags: ✅CONFIRMED · 🔶STRONG (verify root dead) · ❓NEEDS-TRACE.
+
+---
+
+## Category 1 — Audio engines / sound sources
+| Duplicate | Where | Status | Verdict |
+|---|---|---|---|
+| GeneratorOrchestrator (Tone.js generators) | `organism/generators/` | ✅ live (the AI band) | **WINNER** for the Organism |
+| Legacy studio engine | `lib/audioEngine.ts` (431L) + `hooks/use-audio.ts` (240L) + `lib/audio.ts` | ✅ live; ~10 studio components consume it | Coexists w/ Organism — decide: one engine or clearly-separated roles |
+| **OrganismV2LoopPlayer** | `organism/v2/OrganismV2LoopPlayer.ts` | ✅ FOSSIL — instantiated, `.stop()`/`.setMasterGain()`/status-subscribed, but **play method NEVER called** → makes no sound | **DELETE** (separate the dead player from `v2Status` UI state first — §4) |
+| Melody source #1 — synth MelodyGenerator | `organism/generators/MelodyGenerator.ts` | ✅ live | **WINNER** (real-instrument lead) |
+| Melody source #2 — MelodicLoopPlayer | `organism/loops/MelodicLoopPlayer.ts` | ✅ live, routes to melody channel; mostly parked (USE_CHOP_LAYER/USE_LOOP_LEAD=false) | Demote to texture or delete — melody-doubles decision |
+| Sample/instrument LOADING | `organism/instruments/SamplerUtils.ts` | ✅ CONSOLIDATED — single path | **NOT a double** (good) |
+
+## Category 2 — Transports & clocks
+| Duplicate | Where | Status | Verdict |
+|---|---|---|---|
+| `Tone.Transport` start/stop callers | 10 files: App, GlobalTransportBar, MakeSurface, VerticalPianoRoll, TransportContext, CountInEngine, OrganismProvider, use-audio, audioEngine, packAudioSynthesizer | 🔶 sprawl vs "TransportContext = sole owner" rule | **TransportContext = WINNER**; route every other caller through it (or gate so only one drives the singleton) |
+| Transport UI — `GlobalTransportBar` | studio chrome (StudioShell) | ✅ live | **WINNER** |
+| Transport UI — `TransportControls` | only via `DAWLayoutWorkspace` (legacy tabs) | 🔶 dies with studioTabs subtree | **DELETE** (with §6) |
+| Organism Start panel | OrganismProvider | ✅ live, second play button on /studio/mix | Make it DRIVE TransportContext, not a parallel clock |
+| Schedulers | `arrangementScheduler`, `pianoRollScheduler`, transport bar, TransportContext | ❓ confirm one owns scheduling | TransportContext owns lifecycle per architecture |
+
+## Category 3 — Mixers (THREE live)
+| Duplicate | Where | Status | Verdict |
+|---|---|---|---|
+| `ProfessionalMixer` | UnifiedStudioWorkspace (5 importers) | ✅ live, main | **WINNER** |
+| `MixerWithBuses` | StudioWindowRenderer (pop-out windows) — live | ✅ live in a 2nd surface | **MERGE into ProfessionalMixer** or make pop-out reuse it |
+| `Mixer` | studioTabs (legacy flat tabs) | 🔶 dies with studioTabs | **DELETE** (with §6) |
+| Mix authority | MixEngine `setChannelGainDb` vs per-generator multipliers vs `professionalAudio`/`astutelyMixerBridge` | 🔶 inconsistent (some faders dead) | **MixEngine channel strips = WINNER**; remove per-generator gain path |
+
+## Category 4 — State / sources of truth
+| Duplicate | Where | Status | Verdict |
+|---|---|---|---|
+| Track/note store #1 | `stores/useStudioStore.ts` (zustand): `tracks: Record<GeneratorType,StudioNote[]>` + `currentTracks: any[]` + `currentMelody`/`pendingMelodyNotes` | ✅ live | candidate **WINNER** (the "one document" spine) |
+| Track/note store #2 | `contexts/TrackStoreContext.tsx`: `tracks: TrackClip[]` (+ server save/load) | ✅ live, DIFFERENT shape | reconcile to ONE track model |
+| Multiple note buckets inside useStudioStore | `tracks` vs `currentTracks` vs `currentMelody` vs `pendingMelodyNotes` | 🔶 several note arrays | collapse to one |
+| Session contexts ×3 | `StudioSessionContext`, `SongWorkSessionContext`, `SessionDestinationContext` | ❓ overlap? | trace; collapse overlap |
+| `v2Status` state | OrganismProvider (set ~1707/1852) drives "Live Generator" UI panel | ⚠️ may be repurposed to show orchestrator status, separate from dead v2 player | keep the status display, cut the dead player it implies |
+
+## Category 5 — Duplicate UI components / surfaces
+| Duplicate | Where | Status | Verdict |
+|---|---|---|---|
+| Workspace shells: `UnifiedStudioWorkspace` vs `DAWLayoutWorkspace` vs legacy `studioTabs` tabs | StudioShell mounts UnifiedStudioWorkspace; studioTabs still in App/Sidebar/MobileNav | 🔶 TWO navigation/surface systems coexist | **UnifiedStudioWorkspace = WINNER**; retire studioTabs flat-tab system + DAWLayoutWorkspace |
+| `MobileStudioLayout` | 1 importer | ❓ legit mobile variant? | keep if it's the real mobile path; else delete |
+| `DawArrangementView` | rendered by UnifiedStudioWorkspace | ✅ live (timeline) | **KEEP** |
+| Beat makers: `BeatLab` (container) + `ProBeatMaker` (its 'pro' tab) | UnifiedStudioWorkspace | ✅ live, nested (not rival) | **KEEP both** (container + tab) |
+| Two transport bars on one screen (`/studio/mix`) | GlobalTransportBar (bottom) + Organism Start (panel) | ✅ user-visible double | see §2 |
+| `MelodyComposerV2` (implies a V1) | — | ❓ trace V1 | delete V1 if present |
+
+## Category 6 — The legacy `studioTabs` subtree (one root, whole subtree)
+`studioTabs.tsx` (imported by App, Sidebar, MobileNav) pulls in `Mixer`, `DAWLayoutWorkspace`,
+and via it `TransportControls`. If the consolidated `UnifiedStudioWorkspace` is the real
+studio (CLAUDE.md: "4 core surfaces, not a flat tab list"), this entire subtree is legacy.
+**ACTION:** confirm whether Sidebar/MobileNav still route users into studioTabs surfaces; if
+not, delete `studioTabs` + `DAWLayoutWorkspace` + `TransportControls` + `Mixer` together.
+This is the single biggest line-reduction in the app.
+
+## Category 7 — Generation / AI paths
+| Duplicate | Where | Verdict |
+|---|---|---|
+| `AIProviderSelector` dropdowns (MusicGen/Suno/Grok/OpenAI/Local) vs Organism vs ACE-Step | AstutelyChatbot panels, OrganismCommandCenter, ACE render | clarify: editable-notes generation vs audio render vs live band — name one path per output type |
+
+---
+
+## Recommended kill order (lowest risk → highest leverage)
+1. **v2 fossil** (§1) — confirmed dead, delete player, keep `v2Status` display. Zero audible change.
+2. **studioTabs subtree** (§6) — if confirmed unrouted: deletes Mixer + DAWLayoutWorkspace + TransportControls + the legacy nav in one swing. Biggest reduction.
+3. **Mixer consolidation** (§3) — pop-out reuses ProfessionalMixer; remove per-generator gain path.
+4. **Transport consolidation** (§2) — all callers through TransportContext; Organism Start drives it.
+5. **State reconciliation** (§4) — one track model (the spine for the AI-uses-tools vision).
+6. **Melody-doubles decision** (§1) — which lead source wins.
+
+Each step: delete → tsc + test:unit + live-path check → commit. Then re-audit to confirm
+the category is truly closed. When the list is exhausted, the app is consolidated and
+launch-ready; THEN new ideas (AI-uses-all-tools, pads, pluckable instruments) build on
+the single spine.
