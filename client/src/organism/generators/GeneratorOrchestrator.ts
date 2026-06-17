@@ -1473,6 +1473,16 @@ export class GeneratorOrchestrator {
     this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
     this.chord.applyArrangementMultiplier(section.chord)
 
+    // Composer roles: who plays / how forward this section. Absent orchestration
+    // (old plans / jam mode) defaults every instrument to 'support' so behavior
+    // matches today minus the full-time-everyone problem.
+    const orch = section.orchestration
+    this.drum.setRole(orch?.drums ?? 'support')
+    this.bass.setRole(orch?.bass ?? 'support')
+    this.melody.setRole(orch?.melody ?? 'support')
+    this.chord.setRole(orch?.chord ?? 'support')
+    this.texture.setRole(orch?.texture ?? 'support')
+
     if (aiOverride) {
       this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * aiOverride.hatDensity)
       this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * aiOverride.kickPunch)

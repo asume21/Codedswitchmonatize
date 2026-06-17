@@ -1,5 +1,5 @@
 import type { ArrangementSection } from './MusicalState'
-import type { ArrangementSection as PlanSection } from '@shared/arrangement'
+import type { ArrangementSection as PlanSection, SectionOrchestration } from '@shared/arrangement'
 
 export interface ProducerArrangementSlot {
   name: ArrangementSection
@@ -13,6 +13,9 @@ export interface ProducerArrangementSlot {
   drumDropout: boolean
   bassDropout: boolean
   melodyDropout: boolean
+  /** Composer's per-instrument roles for this section (plan mode only).
+   *  Absent in jam mode / template slots → orchestrator defaults to 'support'. */
+  orchestration?: SectionOrchestration
 }
 
 // Producer-grade 18-bar beat form shared by the director and the audio
@@ -288,6 +291,7 @@ export function slotFromPlanSection(section: PlanSection): ProducerArrangementSl
     drumDropout:   false,
     bassDropout:   false,
     melodyDropout: false,
+    orchestration: section.orchestration,
   }
 }
 
