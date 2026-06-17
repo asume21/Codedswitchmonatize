@@ -85,12 +85,18 @@ user-facing change.
 ---
 
 ## Recommended kill order (lowest risk → highest leverage)
-1. **v2 fossil** (§1) — confirmed dead, delete player, keep `v2Status` display. Zero audible change.
-2. **studioTabs subtree** (§6) — if confirmed unrouted: deletes Mixer + DAWLayoutWorkspace + TransportControls + the legacy nav in one swing. Biggest reduction.
-3. **Mixer consolidation** (§3) — pop-out reuses ProfessionalMixer; remove per-generator gain path.
-4. **Transport consolidation** (§2) — all callers through TransportContext; Organism Start drives it.
-5. **State reconciliation** (§4) — one track model (the spine for the AI-uses-tools vision).
-6. **Melody-doubles decision** (§1) — which lead source wins.
+1. ✅ **DONE** **v2 fossil** (§1) — deleted player + whole organism/v2/ dir, kept v2Status display. (commit)
+2. ✅ **DONE** **studioTabs subtree** (§6) — deleted studioTabs+Sidebar+MobileNav+Mixer+DAWLayoutWorkspace+TransportControls (−2424 lines) + 7 orphaned tools it exposed (−3416 lines). (2 commits)
+   — KEPT in-tree: MIDIController, CodeTranslator, MusicToCode (near-term intent).
+   — DELETED orphans recoverable from git: MelodyComposerV2, OutputSequencer, SongStructureManager, DynamicLayering, GranularEngine, WavetableOscillator, PerformanceMetrics.
+3. ⬜ **Mixer consolidation** (§3) — pop-out reuses ProfessionalMixer; remove per-generator gain path. (MERGE — needs care)
+4. ⬜ **Transport consolidation** (§2) — all callers through TransportContext; Organism Start drives it. (MERGE)
+5. ⬜ **State reconciliation** (§4) — one track model (the spine for the AI-uses-tools vision). (MERGE — design decision)
+6. ⬜ **Melody-doubles decision** (§1) — which lead source wins. (DECISION)
+
+**Run 2026-06-17 tally:** 14 files deleted, ~5,840 lines, 431 tests green throughout, zero
+user-facing change. Remaining items (3-6) shift from "delete dead weight" (done) to "merge
+LIVE duplicates" — riskier, need decisions, not pure deletes.
 
 Each step: delete → tsc + test:unit + live-path check → commit. Then re-audit to confirm
 the category is truly closed. When the list is exhausted, the app is consolidated and
