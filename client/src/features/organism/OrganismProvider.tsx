@@ -334,9 +334,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Switches-not-modes: the Organism is a steady beat machine by default.
   // Everything "smart" is an explicit opt-in toggle.
   const [reactToVoiceEnabled, setReactToVoiceEnabledState] = useState(false)
-  const [songModeEnabled,     setSongModeEnabledState]     = useState(false)
+  // Conducting on by default — the band loads a composed arrangement on start so
+  // it plays as an arranged ensemble (intro drums out, drop full, melody leads
+  // verses…), not five reactors. Toggle off = jam mode (no plan, all 'support').
+  const [songModeEnabled,     setSongModeEnabledState]     = useState(true)
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
-  const songModeEnabledRef = useRef(false)
+  const songModeEnabledRef = useRef(true)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -1699,7 +1702,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           bpm: plan.bpm,
           key: plan.key,
         })
-      })
+      }).catch(err => orgLog('compose:failed-jam-fallback', { presetId, err: String(err) }))
 
       setV2Status({
         active:       true,
@@ -1844,7 +1847,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           key: plan.key,
           via: 'swap',
         })
-      })
+      }).catch(err => orgLog('compose:failed-jam-fallback', { presetId, err: String(err), via: 'swap' }))
 
       setV2Status({
         active:       true,
