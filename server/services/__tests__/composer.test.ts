@@ -61,4 +61,23 @@ describe('composeDeterministic', () => {
     expect(a.acePrompt.length).toBeGreaterThan(0)
     expect(b.acePrompt.length).toBeGreaterThan(0)
   })
+
+  it('every section has a full orchestration (lead/support/out per instrument)', () => {
+    const plan = composeDeterministic({ subGenre: 'trap' })
+    for (const s of plan.sections) {
+      expect(s.orchestration).toBeDefined()
+      for (const k of ['drums', 'bass', 'chord', 'melody', 'texture'] as const) {
+        expect(['lead', 'support', 'out']).toContain(s.orchestration![k])
+      }
+    }
+  })
+
+  it('intro sits the drums out; the drop puts drums and bass forward', () => {
+    const plan = composeDeterministic({})
+    const intro = plan.sections.find(s => s.name === 'intro')
+    const drop = plan.sections.find(s => s.name === 'drop')
+    expect(intro?.orchestration?.drums).toBe('out')
+    expect(drop?.orchestration?.drums).toBe('lead')
+    expect(drop?.orchestration?.bass).toBe('lead')
+  })
 })

@@ -22,6 +22,7 @@ import {
   type ArrangementPlan,
   type ArrangementSection,
   type ArrangementSectionName,
+  type SectionOrchestration,
   type Composer,
   type ComposerInput,
 } from '../../shared/arrangement'
@@ -83,6 +84,28 @@ const DEFAULT_SECTION_SKELETON: Array<{
   { name: 'drop2',     bars: 4, energy: 0.95, density: 0.92 },
 ]
 
+// Per-section orchestration — the composer's "who plays / how forward" call,
+// the categorical intent the section-intent comments above always described
+// but only ever encoded as a density number. The live engine reads this so
+// instruments actually sit out / lead instead of all playing full-time.
+const SECTION_ORCHESTRATION: Record<ArrangementSectionName, SectionOrchestration> = {
+  intro:     { drums: 'out',     bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
+  verse:     { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
+  build:     { drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support' },
+  drop:      { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
+  drop2:     { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
+  breakdown: { drums: 'out',     bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
+  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'out'     },
+}
+
+/** Orchestration for a section name, defaulting to all-'support' for any name
+ *  not in the map. A plan must NEVER ship a section without orchestration. */
+function fillOrchestration(name: ArrangementSectionName): SectionOrchestration {
+  return SECTION_ORCHESTRATION[name] ?? {
+    drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support',
+  }
+}
+
 // Sensible defaults when ComposerInput leaves a field unset.
 function resolveDefaults(input: ComposerInput): Required<Pick<ArrangementPlan,
   'key' | 'bpm' | 'subGenre' | 'mood'>> {
@@ -137,6 +160,7 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
       energy:      slot.energy,
       density:     slot.density,
       style:       style?.id,
+      orchestration: fillOrchestration(slot.name),
     }
   })
 
@@ -272,6 +296,11 @@ async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan>
           const fallbackStyle = scaffold.sections[i]?.style ?? allowedStyleIds[0]
           console.warn(`[composer] Ollama picked unknown style "${section.style}" for section "${section.name}"; falling back to "${fallbackStyle}"`)
           section.style = fallbackStyle
+        }
+        // A plan must never ship a section without orchestration — the live
+        // engine relies on it to decide who plays. Fill from the section name.
+        if (section && typeof section === 'object' && !section.orchestration) {
+          section.orchestration = fillOrchestration(section.name)
         }
       }
     }
