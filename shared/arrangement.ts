@@ -22,6 +22,25 @@ export type ArrangementSectionName =
   | 'drop2'
   | 'outro'
 
+/** A single instrument's direction for a section. */
+export type InstrumentRole = 'lead' | 'support' | 'out'
+
+/**
+ * Per-instrument direction for a section — the composer's "who plays / how
+ * forward" call. Absent instrument, or absent `orchestration` entirely, =
+ * 'support' (back-compat with plans that predate this field).
+ *   - 'out'     → the part sits out (real arrangement silence)
+ *   - 'support' → restrained, the bed
+ *   - 'lead'    → foreground; at most one or two instruments lead a section
+ */
+export interface SectionOrchestration {
+  drums:   InstrumentRole
+  bass:    InstrumentRole
+  chord:   InstrumentRole
+  melody:  InstrumentRole
+  texture: InstrumentRole
+}
+
 export interface ArrangementSection {
   name: ArrangementSectionName
   /** Length of the section in bars. */
@@ -45,6 +64,9 @@ export interface ArrangementSection {
    *  their mode-default articulations. See client/src/organism/styles/
    *  StylePresets.ts for the bank. */
   style?: string
+  /** Who plays / how forward, per instrument, this section. Optional for
+   *  back-compat; absent = every instrument 'support'. */
+  orchestration?: SectionOrchestration
 }
 
 export interface ArrangementPlan {

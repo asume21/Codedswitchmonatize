@@ -95,3 +95,22 @@ describe('validateArrangementPlan', () => {
     expect(validateArrangementPlan('plan')).toMatch(/object/)
   })
 })
+
+describe('section orchestration', () => {
+  const planNoOrch: ArrangementPlan = {
+    id: 't', key: 'C', bpm: 90, subGenre: 'boom-bap', mood: 'dark', acePrompt: '',
+    sections: [{ name: 'verse', bars: 4, progression: ['i', 'VI'], energy: 0.6, density: 0.5 }],
+  }
+
+  it('plans WITHOUT orchestration still validate (back-compat)', () => {
+    expect(validateArrangementPlan(planNoOrch)).toBeNull()
+  })
+
+  it('plans WITH a full orchestration validate', () => {
+    const p = structuredClone(planNoOrch)
+    p.sections[0].orchestration = {
+      drums: 'out', bass: 'support', chord: 'support', melody: 'lead', texture: 'support',
+    }
+    expect(validateArrangementPlan(p)).toBeNull()
+  })
+})
