@@ -4,14 +4,30 @@ import type { GeneratorName, GeneratorActivityReport } from './types'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import type { OState }        from '../state/types'
+import { roleCeiling, type InstrumentRole } from './arrangementRole'
 
 export abstract class GeneratorBase {
   readonly name: GeneratorName
   protected activityLevel: number = 0
   protected arrangementMultiplier: number = 1.0
 
+  /** Composer-assigned role for the current section. Default 'support' so a
+   *  generator with no plan loaded behaves like today (jam mode). */
+  protected role: InstrumentRole = 'support'
+
   constructor(name: GeneratorName) {
     this.name = name
+  }
+
+  /** Set by the orchestrator on section entry from the plan's orchestration. */
+  setRole(role: InstrumentRole): void {
+    this.role = role
+  }
+
+  /** Activity ceiling for the current role — generators multiply their reactive
+   *  target by this so the composer caps who plays / how forward. */
+  protected roleCeiling(): number {
+    return roleCeiling(this.role)
   }
 
   /** Called by the orchestrator's arrangement logic to shape section dynamics. */
