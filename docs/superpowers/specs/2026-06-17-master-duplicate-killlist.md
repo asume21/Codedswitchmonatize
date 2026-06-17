@@ -52,19 +52,30 @@ Confidence tags: ✅CONFIRMED · 🔶STRONG (verify root dead) · ❓NEEDS-TRACE
 | Duplicate | Where | Status | Verdict |
 |---|---|---|---|
 | Workspace shells: `UnifiedStudioWorkspace` vs `DAWLayoutWorkspace` vs legacy `studioTabs` tabs | StudioShell mounts UnifiedStudioWorkspace; studioTabs still in App/Sidebar/MobileNav | 🔶 TWO navigation/surface systems coexist | **UnifiedStudioWorkspace = WINNER**; retire studioTabs flat-tab system + DAWLayoutWorkspace |
-| `MobileStudioLayout` | 1 importer | ❓ legit mobile variant? | keep if it's the real mobile path; else delete |
+| `MobileStudioLayout` | inside UnifiedStudioWorkspace | ✅ live mobile variant (portrait Mix = few buttons), no legacy-tab deps | **KEEP** |
 | `DawArrangementView` | rendered by UnifiedStudioWorkspace | ✅ live (timeline) | **KEEP** |
 | Beat makers: `BeatLab` (container) + `ProBeatMaker` (its 'pro' tab) | UnifiedStudioWorkspace | ✅ live, nested (not rival) | **KEEP both** (container + tab) |
 | Two transport bars on one screen (`/studio/mix`) | GlobalTransportBar (bottom) + Organism Start (panel) | ✅ user-visible double | see §2 |
 | `MelodyComposerV2` (implies a V1) | — | ❓ trace V1 | delete V1 if present |
 
-## Category 6 — The legacy `studioTabs` subtree (one root, whole subtree)
-`studioTabs.tsx` (imported by App, Sidebar, MobileNav) pulls in `Mixer`, `DAWLayoutWorkspace`,
-and via it `TransportControls`. If the consolidated `UnifiedStudioWorkspace` is the real
-studio (CLAUDE.md: "4 core surfaces, not a flat tab list"), this entire subtree is legacy.
-**ACTION:** confirm whether Sidebar/MobileNav still route users into studioTabs surfaces; if
-not, delete `studioTabs` + `DAWLayoutWorkspace` + `TransportControls` + `Mixer` together.
-This is the single biggest line-reduction in the app.
+## Category 6 — The legacy `studioTabs` subtree (✅ CONFIRMED DEAD — safe delete)
+RESOLVED 2026-06-17 by live render tracing:
+- `/studio/:surface*` → `StudioShell` → `UnifiedStudioWorkspace` (App.tsx:309 comment:
+  "StudioShell owns the 4-surface routing MAKE/MIX/SHARE/LIBRARY"). All old routes
+  (/beat-studio, /unified-studio, /music-studio, …) REDIRECT away.
+- `Sidebar` rendered NOWHERE. `MobileNav` rendered NOWHERE. Both DEAD.
+- `studioTabs.tsx` appears in App.tsx only in a COMMENT; its only importers are the dead
+  Sidebar + MobileNav. ORPHANED.
+- `MobileStudioLayout` = the LIVE mobile variant, but it lives INSIDE UnifiedStudioWorkspace
+  and does NOT use studioTabs/old tabs → **KEEP** (confirmed real; user: "mobile mostly
+  mirrors desktop except the Mix studio in portrait = a few buttons").
+**ACTION (safe):** delete `studioTabs.tsx` + `Sidebar.tsx` + `MobileNav.tsx` +
+`Mixer.tsx` + `DAWLayoutWorkspace.tsx` + `TransportControls.tsx` (TransportControls is
+imported only by DAWLayoutWorkspace). Before deleting `MelodyComposerV2` and other
+studioTabs-listed components, verify each isn't ALSO imported by a live file (e.g.
+ProfessionalMixer/BeatLab/VerticalPianoRoll/LyricLab/SongUploader/AIAssistant ARE live
+elsewhere — keep those). This is the single biggest line-reduction in the app, zero
+user-facing change.
 
 ## Category 7 — Generation / AI paths
 | Duplicate | Where | Verdict |
