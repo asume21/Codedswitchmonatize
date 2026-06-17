@@ -35,6 +35,7 @@ import {
 import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from './melody/melodyPhrase'
+import { assignMelodyVoice } from './melody/melodyVoice'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -77,6 +78,10 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSectionMotif: MelodyMotif | null = null
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
+  // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
+  // by default: timbre variety only pays off once the LINE is good, and we don't
+  // want to debug a jumping voice while the note logic is still settling.
+  private melodySectionHandoffEnabled = false
 
   // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats.
   // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
@@ -453,6 +458,25 @@ export class MelodyGenerator extends GeneratorBase {
     // doesn't loop the same phrase across the whole arrangement.
     this.scaleDirty = true
     this.lastRebuildTime = -Infinity // bypass throttle for section changes
+
+    // New section -> commit to a FRESH motif. Chorus/hook gets a deliberately
+    // contrasting bank (fills = bigger, more active) so the song has shape
+    // section-to-section; everything else uses the smoother ostinato/arp banks.
+    this.currentSectionMotif = null
+    const isHook = /chorus|hook|drop/i.test(_sectionName)
+    this.preferredMotifBankKey = isHook ? 'fills' : null  // null = existing default choice
+
+    // Optional instrument hand-off between sections (default OFF).
+    if (this.melodySectionHandoffEnabled) {
+      const voice = assignMelodyVoice(_sectionName, this.sessionSeed, this.availablePerformerIds())
+      if (voice && voice !== this.explicitPerformerId) this.setInstrumentPerformer(voice)
+    }
+  }
+
+  /** Performer ids the melody may hand off to. Stub returns the current one only
+   *  until a richer catalog is wired; keeps hand-off safe + deterministic. */
+  private availablePerformerIds(): InstrumentPerformerId[] {
+    return this.explicitPerformerId ? [this.explicitPerformerId] : []
   }
 
   /**
@@ -843,7 +867,10 @@ export class MelodyGenerator extends GeneratorBase {
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
     let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
-    if (!this.voiceActive) {
+    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
+      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
+      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
+    } else if (!this.voiceActive) {
       motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
     }
     
