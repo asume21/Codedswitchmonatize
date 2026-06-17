@@ -65,7 +65,7 @@ import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
 import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
-import { OrganismV2LoopPlayer, type OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
+import type { OrganismV2Status } from './OrganismContext'
 import { MelodicLoopPlayer } from '../../organism/loops/MelodicLoopPlayer'
 import { getConductor } from '../../organism/conductor/Conductor'
 
@@ -166,7 +166,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const physicsRef     = useRef<PhysicsEngine            | null>(null)
   const stateMachRef   = useRef<StateMachine             | null>(null)
   const orchestrRef    = useRef<GeneratorOrchestrator    | null>(null)
-  const v2PlayerRef    = useRef<OrganismV2LoopPlayer     | null>(null)
   const reactiveRef    = useRef<ReactiveBehaviorEngine   | null>(null)
   const mixRef         = useRef<MixEngine                | null>(null)
   const captureRef     = useRef<CaptureEngine            | null>(null)
@@ -334,7 +333,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       inputSource === 'autoGenerate' ? { autoBreathingToFlowBars: 1 } : {}
     )
     const orchestr    = new GeneratorOrchestrator()
-    const v2Player    = new OrganismV2LoopPlayer()
     const reactive    = new ReactiveBehaviorEngine()
     const mix         = new MixEngine()
     const capture     = new CaptureEngine()
@@ -347,11 +345,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (profile) physics.setProfile(profile)
     stateMachRef.current = machine
     orchestrRef.current  = orchestr
-    v2PlayerRef.current  = v2Player
     reactiveRef.current  = reactive
     mixRef.current       = mix
     captureRef.current   = capture
-    const unsubV2Status  = v2Player.onStatusChange(setV2Status)
 
     // 3. Wire in correct order:
     //    input → physics → state machine
@@ -572,8 +568,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     let patternGenAbort: AbortController | null = null
 
     return () => {
-      unsubV2Status()
-      v2Player.stop()
       setV2Status(ORGANISM_V2_INITIAL_STATUS)
       patternGenAbort?.abort()
       unsubPhysicsState()
@@ -1150,7 +1144,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
-    v2PlayerRef.current?.stop()
     setV2Status(ORGANISM_V2_INITIAL_STATUS)
     orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.clearAIDirectives()
@@ -1438,7 +1431,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // TEMP DIAGNOSTIC — prints the stack so we can find the exact Tone call
       // that throws "[0, Infinity]". Remove after root cause is fixed.
       console.error('[organism] QUICKSTART THREW →', err, '\nSTACK:\n', (err as any)?.stack)
-      v2PlayerRef.current?.stop()
       setV2Status(ORGANISM_V2_INITIAL_STATUS)
       endPhase({ presetId, error: err instanceof Error ? err.message : String(err) })
       orgLog('quickstart:error', {
@@ -3120,7 +3112,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }, [])
 
   const setV2MasterGain = useCallback((value: number) => {
-    v2PlayerRef.current?.setMasterGain(value)
     const normalized = Math.max(0.001, value / 1.45)
     mixRef.current?.setMasterGainDb(-2 + 20 * Math.log10(normalized))
   }, [])

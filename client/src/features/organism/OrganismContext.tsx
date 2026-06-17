@@ -20,8 +20,28 @@ import type { FreestyleReport }        from './FreestyleReportCard'
 import type { PerformerState }        from '../../organism/audio/types'
 import type { SelfListenReport }      from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
-import type { OrganismV2Status } from '../../organism/v2/OrganismV2LoopPlayer'
 import type { TriggerWordDetector } from './TriggerWordDetector'
+
+// Live "Generator" status shown in the Organism panel. (Formerly defined in the
+// removed OrganismV2LoopPlayer fossil — kept here as the status display still
+// renders preset/section/bpm even though that player no longer exists.)
+export interface OrganismV2Stem {
+  id: 'kick' | 'snare' | 'hats' | 'perc' | 'toms'
+  label: string
+  url: string
+  gain: number
+}
+export interface OrganismV2Status {
+  active: boolean
+  presetId: string | null
+  kitBpm: number | null
+  targetBpm: number | null
+  playbackRate: number
+  section: string | null
+  bar: number
+  cycleBars: number
+  stems: OrganismV2Stem[]
+}
 
 /**
  * High-frequency physics context — updates at ~15fps as the organism runs.
