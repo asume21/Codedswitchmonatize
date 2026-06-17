@@ -911,7 +911,7 @@ export class MelodyGenerator extends GeneratorBase {
       return Tone.Frequency(midi, 'midi').toNote()
     }
 
-    const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number) => {
+    const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number, forceResolve = false) => {
       const out: ScheduledNote[] = []
       let c = cursorStart
       for (const step of m.steps) {
@@ -931,12 +931,13 @@ export class MelodyGenerator extends GeneratorBase {
            degIndex = chordDegs[0] + step.index
         }
 
-        // Phrase arc: bias the line upward toward a single climax ~2/3 in...
+        // Phrase arc: bias the line upward toward a single climax ~2/3 in —
+        // but NEVER the cadence note, which must land "home", not on the curve.
         const posFraction = length16ths > 0 ? c / length16ths : 0
-        degIndex += contourOffset(posFraction, 2)
-        // ...and make a note that lands on a downbeat a CHORD TONE (stable),
-        // leaving passing/neighbour tones for the off-beats.
-        degIndex = resolveDegreeForBeat(degIndex, chordDegs, this.currentScale.length, isStrongBeat(c))
+        if (!forceResolve) degIndex += contourOffset(posFraction, 2)
+        // Make a note that lands on a downbeat — OR the forced cadence — a CHORD
+        // TONE (stable), leaving passing/neighbour tones for the off-beats.
+        degIndex = resolveDegreeForBeat(degIndex, chordDegs, this.currentScale.length, forceResolve || isStrongBeat(c))
 
         const pitch = degreeToPitch(degIndex, transposeOct)
         
@@ -1044,16 +1045,19 @@ export class MelodyGenerator extends GeneratorBase {
     }
 
     if (this.currentBehavior === MelodyBehavior.Lead && notes.length <= 3 && length16ths >= 12) {
-      const answerMotif = motifBank[(chordSeed + 1) % motifBank.length]
+      // Answer with a VARIATION of the same committed motif (call-and-response on
+      // one idea), not a different bank entry — keeps the section coherent.
+      const answerMotif = developMotif(baseMotif, 'invert', 0)
       notes.push(...renderMotif(answerMotif, Math.floor(length16ths / 2), 0).out)
     }
 
     // Cadence: end the sentence on the chord root, held — a "period" so the
     // phrase resolves instead of just stopping when the bar runs out.
+    // forceResolve=true so it lands on a chord tone (home), never on the contour.
     {
       const cad = cadenceStep(4)
       const cadCursor = Math.max(0, length16ths - cad.dur16ths)
-      const cadResult = renderMotif({ name: 'cadence', steps: [cad] }, cadCursor, 0)
+      const cadResult = renderMotif({ name: 'cadence', steps: [cad] }, cadCursor, 0, true)
       notes.push(...cadResult.out)
     }
 
