@@ -2,6 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ Continuity — assume the user is CONTINUING prior work
+
+A new chat almost always continues work from a previous one, and the user will NOT
+always say "this is the thing from before." Treating a continuation as a brand-new
+idea — and designing/building from scratch — is how this repo accumulates duplicate
+specs and competing systems (the "doubles"). Before acting on the first request:
+
+1. **Search before you build.** Check `docs/superpowers/specs/` and
+   `docs/superpowers/plans/`, recent `git log`, the auto-memory `MEMORY.md`
+   pointers, and the relevant code for the topic. A SessionStart hook surfaces
+   recent commits + the specs/plans list at the start of every session — read it.
+2. **Extend, never duplicate.** If a spec/plan already covers the topic, continue
+   THAT file. Do not write a second spec for the same concern — consolidate into
+   the existing one.
+3. **When in doubt, ask if this continues earlier work** before starting a design.
+
 ## Project Overview
 
 **CodedSwitch Studio** — an AI-powered music creation SaaS platform. Users compose multi-track music (beat maker, piano roll, melody composer, mixer), use AI to generate/layer audio, scan code for vulnerabilities, and share songs socially. Billing is via Stripe with a credit system.
