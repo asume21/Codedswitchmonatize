@@ -573,8 +573,6 @@ export class GeneratorOrchestrator {
     )
     this.drum.setKickVelocityMultiplier(kickMult)
 
-    const melodyEnergy = Math.min(1.2, 0.8 + performer.energy * 0.4)
-
     // 2. Syllabic rate → hi-hat density
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
     const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
@@ -582,24 +580,10 @@ export class GeneratorOrchestrator {
       this.hatDensityMultiplier * this.reactiveHatDensityMultiplier * hatPerformance,
     )
 
-    // 3. Breathing / rest → call-and-response
-    // Melody volume is computed ONCE per frame combining energy + breathing.
-    // Previous code wrote melody gain twice per frame, interrupting the 100ms
-    // ramp each time and causing crackling/distortion.
-    const breathingBoost = performer.breathingNow ? 1.2 : 1.0
-    const melodyTarget = Math.min(1.85,
-      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * melodyEnergy * breathingBoost
-    ) * this.selfListenGainCorrection
-    this.melody.applyVolumeMultiplier(melodyTarget)
-
-    if (performer.breathingNow) {
-      this.texture.applyVolumeMultiplier(
-        Math.min(1.2, this.textureVolumeMultiplier * 1.15) * this.selfListenGainCorrection
-      )
-      this.drum.applyArrangementMultiplier(0.6)
-    } else {
-      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier * this.selfListenGainCorrection)
-    }
+    // 3. Breathing / rest — REMOVED (Part 2). Per-frame melody/texture volume
+    // writes (and the breathing drum-duck) were mix-fader meddlers that made the
+    // band swell and duck on its own. The MixEngine owns the mix now; melody and
+    // texture levels are set once via their setters, not per performer frame.
 
     // 4. Phrase downbeat → accent kick (one-shot, not cumulative)
     if (performer.phraseBar === 0 && performer.phrasePosition < 0.1) {
@@ -614,63 +598,13 @@ export class GeneratorOrchestrator {
   applySelfListenReport(report: import('../audio/types').SelfListenReport): void {
     if (report.isSilent) return  // nothing playing yet
 
-    // ── Volume correction ──────────────────────────────────────────────────
-    // Self-listen adjusts a SEPARATE gain correction factor that is applied
-    // multiplicatively alongside (not into) the reactive/performer multipliers.
-    // The correction is clamped to [0.6, 1.15] to prevent runaway gain drift.
-    if (report.needsVolumeReduction) {
-      const reduction = report.clippingPercent > 0.5 ? 0.90 : 0.95
-      this.selfListenGainCorrection = Math.max(0.6, this.selfListenGainCorrection * reduction)
-    } else if (report.needsVolumeBoost) {
-      this.selfListenGainCorrection = Math.min(1.15, this.selfListenGainCorrection * 1.03)
-    } else {
-      // No issues detected — slowly decay correction back toward 1.0
-      this.selfListenGainCorrection += (1.0 - this.selfListenGainCorrection) * 0.1
-    }
-
-    // Sync correction to director so it's part of the unified state
-    this.director.setSelfListenCorrection(this.selfListenGainCorrection)
-
-    // Do NOT write bass gain here — applyPerformerState() already handles
-    // bass via setOutputLevel on every throttled frame. Writing it again here
-    // cancels in-progress ramps and causes crackling.
-    // The selfListenGainCorrection is applied next frame via onFrame → processFrame.
-
-    // ── Producer mix targets ───────────────────────────────────────────────
-    // Apply tiny, bounded trims so WebEar/self-listen can keep the beat in a
-    // usable reference range without fighting the user's base controls.
-    const lowWeight = report.bandEnergy.sub + report.bandEnergy.bass
-    const highWeight = report.bandEnergy.high
-    const lowMidWeight = report.bandEnergy.lowMid + report.bandEnergy.highMid
-
-    if (lowWeight > 0.72) {
-      this.reactiveBassVolumeMultiplier = Math.max(0.82, this.reactiveBassVolumeMultiplier * 0.96)
-      this.reactiveKickVelocityMultiplier = Math.max(0.86, this.reactiveKickVelocityMultiplier * 0.98)
-    } else if (lowWeight < 0.28 && report.rmsDb < -14) {
-      this.reactiveBassVolumeMultiplier = Math.min(1.16, this.reactiveBassVolumeMultiplier * 1.02)
-    } else {
-      this.reactiveBassVolumeMultiplier += (1.0 - this.reactiveBassVolumeMultiplier) * 0.06
-      this.reactiveKickVelocityMultiplier += (1.0 - this.reactiveKickVelocityMultiplier) * 0.06
-    }
-
-    if (highWeight > 0.32 || report.spectralCentroidHz > 6500) {
-      this.reactiveHatDensityMultiplier = Math.max(0.72, this.reactiveHatDensityMultiplier * 0.95)
-      this.reactiveMelodyVolumeMultiplier = Math.max(0.86, this.reactiveMelodyVolumeMultiplier * 0.98)
-    } else if (lowMidWeight > 0.55 && report.spectralCentroidHz < 1400) {
-      this.reactiveMelodyVolumeMultiplier = Math.min(1.12, this.reactiveMelodyVolumeMultiplier * 1.02)
-      this.reactiveHatDensityMultiplier = Math.min(1.08, this.reactiveHatDensityMultiplier * 1.01)
-    } else {
-      this.reactiveHatDensityMultiplier += (1.0 - this.reactiveHatDensityMultiplier) * 0.06
-      this.reactiveMelodyVolumeMultiplier += (1.0 - this.reactiveMelodyVolumeMultiplier) * 0.06
-    }
-
-    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
-    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
-
-    // Frequency balance and diagnostics are logged only in development
-    // to prevent console.info from blocking the main thread (1-2ms per call)
-    // and stealing time from the audio scheduler.
+    // Part 2: self-listen is now READ-ONLY ears. The volume-correction and
+    // band-balancing WRITE paths were an unstable auto-mix loop (no setpoint →
+    // oscillation) that fought the MixEngine. Removed. The report still flows
+    // to the HUD / Astutely via the provider's onReport broadcast; only
+    // non-audio diagnostics remain here.
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      const lowWeight = report.bandEnergy.sub + report.bandEnergy.bass
       if (lowWeight > 0.7) {
         console.debug('[SelfListen] Muddy mix detected')
       }
@@ -726,24 +660,10 @@ export class GeneratorOrchestrator {
     melodyVolumeMultiplier?: number
     textureVolumeMultiplier?: number
   }): void {
-    this.reactiveHatDensityMultiplier = Math.max(0, output.hatDensityMultiplier ?? 1)
-    this.reactiveKickVelocityMultiplier = Math.max(0, output.kickVelocityMultiplier ?? 1)
-    this.reactiveBassVolumeMultiplier = Math.max(0, output.bassVolumeMultiplier ?? 1)
-    this.reactiveMelodyVolumeMultiplier = Math.max(0, output.melodyVolumeMultiplier ?? 1)
-    this.reactiveTextureVolumeMultiplier = Math.max(0, output.textureVolumeMultiplier ?? 1)
-
-    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
-    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
-    this.bass.applyVolumeMultiplier(
-      this.bassVolumeMultiplier * this.reactiveBassVolumeMultiplier * this.selfListenGainCorrection,
-    )
-    this.melody.applyVolumeMultiplier(
-      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * this.selfListenGainCorrection,
-    )
-    this.texture.applyVolumeMultiplier(
-      this.textureEnabled ? this.textureVolumeMultiplier * this.reactiveTextureVolumeMultiplier : 0,
-    )
-
+    // Part 2: the live mix is owned by MixEngine (mastered channel strips +
+    // limiter). The per-frame reactive VOLUME path is removed — it fought the
+    // channel strips and oscillated ("everyone in their own direction").
+    // Only the non-mix pitch offset is still honored.
     if (output.melodyPitchOffsetSemitones != null) {
       this.setMelodyPitchOffset(output.melodyPitchOffsetSemitones)
     }
