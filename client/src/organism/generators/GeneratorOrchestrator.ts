@@ -61,17 +61,8 @@ export class GeneratorOrchestrator {
   private melodyPitchOffset:      number = 0
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
-
-  private reactiveHatDensityMultiplier:   number = 1.0
-  private reactiveKickVelocityMultiplier: number = 1.0
-  private reactiveBassVolumeMultiplier:   number = 1.0
-  private reactiveMelodyVolumeMultiplier: number = 1.0
-  private reactiveTextureVolumeMultiplier: number = 1.0
-
-  // Self-listen correction factor — applied multiplicatively to all generators
-  // but stored separately so it doesn't compound with performer/reactive state.
-  // Decays toward 1.0 over time to prevent permanent volume drift.
-  private selfListenGainCorrection: number = 1.0
+  // Part 2: the reactive*Multiplier and selfListenGainCorrection fields are gone.
+  // The MixEngine owns the mix; generator volume = the user/base multiplier only.
 
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = false  // off by default for hip-hop
@@ -569,7 +560,7 @@ export class GeneratorOrchestrator {
     const energyBias = 0.7 + performer.energy * 0.6   // 0.7–1.3
     const kickMult = Math.min(
       1.4,
-      this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier * energyBias,
+      this.kickVelocityMultiplier * energyBias,
     )
     this.drum.setKickVelocityMultiplier(kickMult)
 
@@ -577,7 +568,7 @@ export class GeneratorOrchestrator {
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
     const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
     this.drum.setHatDensityMultiplier(
-      this.hatDensityMultiplier * this.reactiveHatDensityMultiplier * hatPerformance,
+      this.hatDensityMultiplier * hatPerformance,
     )
 
     // 3. Breathing / rest — REMOVED (Part 2). Per-frame melody/texture volume
@@ -618,19 +609,17 @@ export class GeneratorOrchestrator {
 
   setHatDensityMultiplier(multiplier: number): void {
     this.hatDensityMultiplier = Math.max(0, multiplier)
-    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.reactiveHatDensityMultiplier)
+    this.drum.setHatDensityMultiplier(this.hatDensityMultiplier)
   }
 
   setKickVelocityMultiplier(multiplier: number): void {
     this.kickVelocityMultiplier = Math.max(0, multiplier)
-    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * this.reactiveKickVelocityMultiplier)
+    this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier)
   }
 
   setBassVolumeMultiplier(multiplier: number): void {
     this.bassVolumeMultiplier = Math.max(0, multiplier)
-    this.bass.applyVolumeMultiplier(
-      this.bassVolumeMultiplier * this.reactiveBassVolumeMultiplier * this.selfListenGainCorrection,
-    )
+    this.bass.applyVolumeMultiplier(this.bassVolumeMultiplier)
   }
 
   setMelodyPitchOffset(semitones: number): void {
@@ -640,15 +629,13 @@ export class GeneratorOrchestrator {
 
   setMelodyVolumeMultiplier(multiplier: number): void {
     this.melodyVolumeMultiplier = Math.max(0, multiplier)
-    this.melody.applyVolumeMultiplier(
-      this.melodyVolumeMultiplier * this.reactiveMelodyVolumeMultiplier * this.selfListenGainCorrection,
-    )
+    this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
   }
 
   setTextureVolumeMultiplier(multiplier: number): void {
     this.textureVolumeMultiplier = Math.max(0, multiplier)
     this.texture.applyVolumeMultiplier(
-      this.textureEnabled ? this.textureVolumeMultiplier * this.reactiveTextureVolumeMultiplier : 0,
+      this.textureEnabled ? this.textureVolumeMultiplier : 0,
     )
   }
 
