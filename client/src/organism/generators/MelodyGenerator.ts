@@ -304,7 +304,7 @@ export class MelodyGenerator extends GeneratorBase {
     // Baseline lifted from -9 to -5 dB (~4 dB hotter, ~58% louder perceived).
     // The lower trim left solo leads sounding thin once drums were muted, since
     // there is no master compressor in the generator graph to make up gain.
-    // selfListenGainCorrection still clamps down to 0.6× if the full mix clips.
+    // The MixEngine master limiter handles any clipping downstream.
     this.synth = this.buildDefaultSynth()
     this.synth.volume.value = this.boostLeadGainDb(-5)
 

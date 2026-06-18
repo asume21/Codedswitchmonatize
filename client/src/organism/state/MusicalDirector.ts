@@ -271,11 +271,6 @@ export class MusicalDirector {
     this.state.scaleIntervals = intervals
   }
 
-  /** Apply self-listen gain correction */
-  setSelfListenCorrection(correction: number): void {
-    this.state.selfListenGainCorrection = correction
-  }
-
   /**
    * Apply reactive behavior multipliers — called by the reactive engine
    * or performer state processor.

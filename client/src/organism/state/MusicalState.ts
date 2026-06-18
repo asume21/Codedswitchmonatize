@@ -173,10 +173,6 @@ export interface MusicalState {
   /** Current chord label (e.g. "im7") */
   currentChordLabel: string
 
-  // ── Self-listen corrections ─────────────────────────────────────
-  /** Master gain correction factor from self-listen (0.6–1.15) */
-  selfListenGainCorrection: number
-
   // ── Mutation state ──────────────────────────────────────────────
   /** How many bars since last pattern mutation */
   barsSinceLastMutation: number
@@ -325,7 +321,6 @@ export function createDefaultMusicalState(): MusicalState {
     currentChordIntervals: [0, 4, 7],
     currentChordRootOffset: 0,
     currentChordLabel: 'I',
-    selfListenGainCorrection: 1.0,
     barsSinceLastMutation: 0,
     mutationProbability: 0,
     frameIndex: 0,
