@@ -97,6 +97,57 @@ via the audio-debug MCP before moving on.
       (call-and-answer: state, leave space, answer changed) so no two phrases feel identical.
 - [ ] **Slice 4 — Roll to melody (other leads) + chords**, once violin clears the by-ear bar.
 
+## M2.6 — The Guitar Soloist (hands first, hybrid-ready) — added 2026-06-20
+
+User goal (verbatim intent): "solo melody with a guitar and have it play something — not
+just styles or chords but an actual song." Reuse the EXISTING per-generator Solo ("S")
+buttons — isolation already works; the gap is the *content* ("it only plays the styles it
+can"). The melody already commits to one motif/section, develops it, and targets
+`conductor.chordTones()` — so the notes already FIT the chords. What's missing is a real
+*player*: idiomatic technique + expression, which today only exists for violin (M2.5).
+
+**North star (documented, not built now): a multi-agent music team.** Two layers:
+- **Hands** = rule-based players, real-time (<100ms/note) — *how* to play (technique, feel).
+- **Minds** = an agent team (bandleader/Conductor + soloist + rhythm-section brains),
+  per-bar/section (~1-2s) — *what* to play. `musicMind` (WebLLM, phase 5-6) is the first mind.
+Per-note live AI is infeasible (timing wall); agents DIRECT, hands EXECUTE. Build hands first
+because a smart mind with clumsy hands still sounds like MIDI. The ceiling is RAISABLE: the
+"level-5" creative ceiling is the *pure-rules* ceiling — the user's hybrid raises it through
+the seam below, no rebuild of the hands.
+
+### The split (the seam)
+- **Line Source ("what to play")** — `generatePhrase()` + `developMotif` + Conductor chord
+  tones (EXISTS, keep). This IS the swappable seam: a future hybrid/AI soloist brain supplies
+  notes (+ phrase intent) HERE without touching the Guitar Player. Phase 1 keeps the rule
+  brain; isolate the "what" from the "how" but DON'T over-abstract the interface yet (YAGNI).
+- **Guitar Player ("how to play it")** — NEW `applyGuitarPerformance(notes)` gated on
+  `isGuitar()`, a direct sibling of `applyStringPerformance()` / `isBowedString()`
+  (MelodyGenerator.ts:766, :869, :873). Per-note guitar expression hooks into the `Tone.Part`
+  callback next to `shapeVibrato` (:807). Real-time rules, always.
+
+### Slices (each: build, then capture-test the SOLOED guitar via audio-debug before next)
+- [ ] **Slice 1 — Guitar phrasing + breath.** Hammer-on/pull-off legato on stepwise-close
+      notes; palm-mute damping (shorter dur, lower vel) on repeated/low rhythmic notes;
+      phrase-arc velocity + musically-placed rests so it breathes (not wall-to-wall). Mirror
+      the violin slice-1 dynamics/breath, but with guitar idiom.
+- [ ] **Slice 2 — Bends + slides.** Pitch-bend into accented/peak notes; slide (portamento /
+      detune ramp) between leaps. Confirm the lead voice chain can bend pitch at playback
+      (strings use a Tone.Vibrato node; guitar needs a pitch-ramp path — verify/extend).
+- [ ] **Slice 3 — Solo idea development.** Vary register/density/rhythm phrase-to-phrase
+      (call → space → changed answer) so the solo goes somewhere instead of restating.
+- [ ] **Slice 4 — Roll out.** Other plucked leads (nylon/clean-electric/distortion variants),
+      then generalize the breath/arc helpers shared with strings; chords/bass later.
+
+### Verification gate
+Solo guitar on `/organism`, audio-debug capture + by-ear: the soloed line must read as a real
+guitarist (idiomatic, develops, breathes), not the generic melody algorithm with a guitar
+sample. Only then roll to slice 4 / other instruments.
+
+### Phase-1 non-goals
+The agent/AI brain itself (north star, later); a full Line-Source abstraction layer; lead
+instruments other than guitar (slice 4+); composed "solo sections" in the arrangement
+(separate, later — the existing Solo button is the Phase-1 trigger).
+
 ## Non-goals / notes
 - A sampler playing generated notes won't always beat a hand-played loop on raw "wow"; it
   wins on playing the actual song in any key. Target: real, expressive, musical.
