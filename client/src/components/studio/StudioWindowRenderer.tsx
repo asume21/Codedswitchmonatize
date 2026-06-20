@@ -2,15 +2,15 @@ import React from 'react';
 import { useWindowManager, STUDIO_WINDOWS } from '@/contexts/WindowManagerContext';
 import FloatingWindow from '@/components/studio/FloatingWindow';
 import UndoRedoControls from '@/components/studio/UndoRedoControls';
-import { Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Layers, Wand2 } from 'lucide-react';
-import type { AutomationLane, AudioClip, MixerChannel, MixBus } from '@/lib/projectManager';
+import { Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Wand2 } from 'lucide-react';
+import type { AutomationLane, AudioClip } from '@/lib/projectManager';
 import type { EffectInstance } from '@/lib/effectsChain';
 import type { Note } from '../../../../shared/studioTypes';
 
 const ProjectManagerPanel = React.lazy(() => import('@/components/studio/ProjectManagerPanel'));
 const AutomationLaneEditor = React.lazy(() => import('@/components/studio/AutomationLaneEditor'));
 const EffectsChainPanel = React.lazy(() => import('@/components/studio/EffectsChainPanel'));
-const MixerWithBuses = React.lazy(() => import('@/components/studio/MixerWithBuses'));
+const ProfessionalMixer = React.lazy(() => import('@/components/studio/ProfessionalMixer'));
 const RecordingPanel = React.lazy(() => import('@/components/studio/RecordingPanel'));
 const SampleSlicerPanel = React.lazy(() => import('@/components/studio/SampleSlicerPanel'));
 const FreezeBounceControls = React.lazy(() => import('@/components/studio/FreezeBounceControls'));
@@ -37,16 +37,6 @@ interface StudioWindowRendererProps {
   effectsTrackName?: string;
   effects?: EffectInstance[];
   onEffectsChange?: (effects: EffectInstance[]) => void;
-
-  // Mixer
-  mixerChannels?: MixerChannel[];
-  mixerBuses?: MixBus[];
-  masterVolume?: number;
-  trackNames?: Map<string, string>;
-  trackColors?: Map<string, string>;
-  onMixerChannelsChange?: (channels: MixerChannel[]) => void;
-  onMixerBusesChange?: (buses: MixBus[]) => void;
-  onMasterVolumeChange?: (volume: number) => void;
 
   // Recording
   recordingTrackId?: string;
@@ -156,16 +146,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
 
       case 'mixer':
         return renderDeferred(
-          <MixerWithBuses
-            channels={props.mixerChannels || []}
-            buses={props.mixerBuses || []}
-            masterVolume={props.masterVolume ?? 0.85}
-            trackNames={props.trackNames || new Map()}
-            trackColors={props.trackColors || new Map()}
-            onChannelsChange={props.onMixerChannelsChange || (() => {})}
-            onBusesChange={props.onMixerBusesChange || (() => {})}
-            onMasterVolumeChange={props.onMasterVolumeChange || (() => {})}
-          />
+          <ProfessionalMixer />
         );
 
       case 'recording':

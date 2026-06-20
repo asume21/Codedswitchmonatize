@@ -48,7 +48,7 @@ const OVERLAYS: PaletteEntry[] = [
   {
     label: "Code Translator",
     path: "/studio/mix?modal=translator",
-    keywords: "code music translate codebeat harmony",
+    keywords: "code translate language javascript python convert programming",
   },
   {
     label: "AI Assistant",
