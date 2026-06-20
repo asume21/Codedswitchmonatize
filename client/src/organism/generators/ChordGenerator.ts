@@ -11,8 +11,8 @@ import type { PhysicsState }  from '../physics/types'
 import { OrganismMode }       from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
-import { voiceChord, type ChordEvent } from './patterns/ChordProgressionBank'
-import { getConductor, type ParsedChord } from '../conductor/Conductor'
+import { type ChordEvent } from './patterns/ChordProgressionBank'
+import { getConductor } from '../conductor/Conductor'
 import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
@@ -39,13 +39,9 @@ const MODE_SWING: Record<string, number> = {
   heat: 0.10, gravel: 0.11, smoke: 0.28, ice: 0.24, glow: 0.19,
 }
 
-// Chords live an octave below the lead — octave 3 voicings (C3–G3) are the
-// hip-hop/R&B register. ice/glow previously voiced at octave 4 (C4–G4 close
-// triads), which reads as bright toy-keyboard "kids music" against an 808.
-const MODE_OCTAVES: Record<string, number> = {
-  heat: 3, gravel: 3, smoke: 3, ice: 3, glow: 3,
-}
-
+// Chords live an octave below the lead — octave 3 voicings (C3–G4) are the
+// hip-hop/R&B register. That register now lives in the Conductor's voicing
+// engine (conductor/voicing.ts), which ChordGenerator reads via currentVoicing().
 export class ChordGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
@@ -530,22 +526,14 @@ export class ChordGenerator extends GeneratorBase {
     // per bar relative to Bass.
     const conductor = getConductor()
     const parsedCurrent = conductor.currentChord()
-    const parsedNext    = conductor.nextChord()
     if (!parsedCurrent) {
       this.stopPart()
       return true
     }
-    const keyPC = conductor.getKeyPitchClass()
-    const toEvent = (p: ParsedChord): ChordEvent => ({
-      intervals:  p.intervals,
-      rootOffset: (((p.rootMidi - 60) - keyPC) % 12 + 12) % 12,
-      label:      p.symbol,
-    })
-    const currentChord = toEvent(parsedCurrent)
-    const nextChord    = toEvent(parsedNext)
+    // Part 3 V2: the Conductor owns the voicing now — voice-led, common tones
+    // held — instead of ChordGenerator restacking the chord root-position. One
+    // coordinated voicing for the whole band.
     this.lastProgressionVersion = conductor.getProgressionVersion()
-    const voicingRootPC = keyPC
-    const octave = MODE_OCTAVES[this.currentMode] ?? 4
 
     interface ChordPartEvent {
       time: string
@@ -555,7 +543,7 @@ export class ChordGenerator extends GeneratorBase {
       chordIdx: number
     }
 
-    const midiNotes = voiceChord(currentChord, voicingRootPC, octave)
+    const midiNotes = conductor.currentVoicing().inner
     const noteStrings = midiNotes.map((m) => Tone.Frequency(m, 'midi').toNote())
 
     const events: ChordPartEvent[] = []
@@ -582,7 +570,7 @@ export class ChordGenerator extends GeneratorBase {
         // Pickup to the next chord — Conductor.nextChord() makes this work
         // even though we only render one bar at a time. The pickup sits on
         // the swung last 16th (sub 3 + band swing) leading into the downbeat.
-        const nextMidi = voiceChord(nextChord, voicingRootPC, octave)
+        const nextMidi = conductor.nextVoicing().inner
         const nextNotes = nextMidi.map((m) => Tone.Frequency(m, 'midi').toNote())
         events.push({ time: `0:3:${(3 + this.currentSwing).toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
         break

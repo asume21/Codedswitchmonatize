@@ -45,10 +45,13 @@ export function voiceChord(
   prev: Voicing | null,
   opts: VoicingOptions = {},
 ): Voicing {
+  // Comping register: chords live around octave 3 (C3–G4), an octave below the
+  // lead. Voicing them up at octave 4+ reads as bright "toy-keyboard" against an
+  // 808 (see ChordGenerator's register note). Bass sits below at octave 2.
   const bassBase = opts.bassBase ?? 36   // C2
-  const center = opts.center ?? 60       // C4
+  const center = opts.center ?? 55       // G3
   const low = opts.low ?? 48             // C3
-  const high = opts.high ?? 76           // E5
+  const high = opts.high ?? 67           // G4
 
   const rootPC = pc(chord.rootMidi)
   const bass = bassBase + rootPC          // 36..47

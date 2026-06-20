@@ -379,6 +379,14 @@ export class Conductor {
     return this.voicing
   }
 
+  /**
+   * Part 3 V1 — the NEXT chord's voicing, voice-led from the current one.
+   * Used for anticipatory writes (chord pickups). Derived on demand, not cached.
+   */
+  nextVoicing(): Voicing {
+    return voiceChord(this.nextChord(), this.currentVoicing())
+  }
+
   /** The whole progression — useful for UI display and lookahead planning. */
   getProgression(): ParsedChord[] {
     return [...this.progression]
