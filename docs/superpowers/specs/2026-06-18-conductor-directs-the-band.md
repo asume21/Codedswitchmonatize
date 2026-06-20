@@ -164,22 +164,50 @@ and the `reactive*Multiplier`s. The ears stay; the unstable auto-mix hands go.
 
 ---
 
-## Part 3 — Voicing & the Duet  (captured, NOT built here)
+## Part 3 — Voicing & the Duet  (ACTIVE — Part 2 done 2026-06-20)
 
-To be designed after Part 2 is heard:
+User reframed the goal (2026-06-20): cohesion alone makes the band TIGHT but
+BLAND. A conductor is only as good as its musical KNOWLEDGE. Today the Conductor
+knows the *skeleton* (key, scale, a real progression library, sub-genre grooves,
+who-plays roles) but NOT: **voicing** (which notes, spread how, so two players
+sound good together), **orchestration** (which instruments pair, who sits where),
+**interplay** (how one part carries another). Deepen that knowledge — voicing
+FIRST (most foundational + audible) — so when it leads, it leads *well*.
 
-- **The Conductor assigns who CARRIES the harmony, per preset.** Chords are a
-  *harmony* concern, not a "keys/guitar" sound. The Conductor owns the harmony;
-  it should also decide which player voices it (lo-fi → Rhodes, dark trap → pad or
-  strings, boom-bap → sampled keys) and may spread one chord across multiple
-  players (string/horn section, one note each) instead of a block chord on one patch.
-- **Voicing & voice-leading layer** between chord symbol and actual notes:
-  inversions, open/drop voicings, voice leading (hold common tones, step the rest),
-  register split with the bass (bass = root), per-style comping rhythm. This is
-  what separates "MIDI demo" chords from "a record."
+Today each player voices the same symbol independently (bass = `rootMidi`, chords
+= `currentChord().pitches` stacked at octave 4, melody = a `chordTones()` pick).
+The fix: the Conductor voices the chord ONCE and assigns voices, so the harmonic
+core sounds like one instrument breathing, not three near-misses.
+
+### Build plan — the Voicing layer (do first)
+Conductor API already in place to build on: `currentChord()`/`nextChord()`
+(ParsedChord: rootMidi, intervals, pitches), `chordTones()`, `getScale()`,
+`getKeyPitchClass()`. `nextChord()` gives the look-ahead voice-leading needs.
+
+- [ ] **V1 — Voicing + voice-leading core.** New pure `conductor/voicing.ts`:
+      `voiceChord(chord, prevVoicing | null, opts) → Voicing { bass, inner[], guideTones[] }`.
+      Pick inversion/octaves of the inner notes that MINIMISE movement from the
+      previous voicing (hold common tones, step the rest); `bass` = root in the bass
+      register; `guideTones` = 3rd/7th (what melody should complement, not double).
+      Conductor computes `currentVoicing()` on chord change (using the previous as the
+      voice-leading anchor). Pure → TDD the voice-leading (total semitone movement
+      drops vs. naive root-position).
+- [ ] **V2 — Chords read the voicing.** ChordGenerator plays `voicing.inner`
+      (voice-led, register-split above the bass) instead of root-position `pitches`.
+- [ ] **V3 — Bass + melody align to it.** Bass uses `voicing.bass`; melody targets
+      tones that COMPLEMENT `guideTones` (don't mud-double the comp) — "one carries
+      the other." Verify by ear/capture: the core sounds like one coordinated chord.
+- [ ] **V4 — Orchestration & spread.** Conductor assigns WHICH player carries the
+      harmony per preset (lo-fi → Rhodes, dark → pad/strings) and may spread one chord
+      across players (section, one note each) instead of a block chord. Register/EQ
+      pairing so they don't clash.
+
+### Still captured for later (after voicing is heard)
 - **The duet / musical call-and-response.** The band answers the MC musically
   (fills, melodic phrases, hits) — quantized to land on the beat and in the gaps of
   the flow — all cued by the Conductor. Conversation in the music, not the faders.
+- The deeper source of "taste" (orchestration/voicing it wasn't explicitly told) is
+  the AI "minds"/musicMind layer — the hybrid. Rules give the floor; AI raises it.
 
 ---
 
@@ -195,5 +223,7 @@ To be designed after Part 2 is heard:
 
 ## Sequencing
 
-Part 1 ✅ → **Part 2 (now)** → hear it → Part 3. Conductor first so the players'
-skill isn't wasted; better players pay off only once the band plays as one.
+Part 1 ✅ → Part 2 ✅ (mix churn killed, heard 2026-06-20) → **Part 3 (now): Voicing**
+→ orchestration/spread → the duet. Conductor first so the players' skill isn't
+wasted; better players pay off only once the band plays as one. Voicing is the
+foundation of Part 3 — the most audible knowledge to give the band's brain.
