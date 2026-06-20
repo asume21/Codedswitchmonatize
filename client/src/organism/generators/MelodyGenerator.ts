@@ -756,8 +756,13 @@ export class MelodyGenerator extends GeneratorBase {
     if (!lengths || lengths.length === 0) return true
 
     const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
+    // Leads play ≥2-bar phrases (32 sixteenths). A 1-bar phrase replays identical
+    // once before the PHRASE_REFRESH_BARS=2 refresh — the "short loop" feel. Two
+    // bars fills with a developing statement→answer idea (the motif-chaining below)
+    // that lines up with the 2-bar chord cycle. Same fix the bowed strings already
+    // had; now applied to guitar and every other lead.
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
-      ? Math.max(16, selectedLength)
+      ? Math.max(32, selectedLength)
       : selectedLength
     // Strings: force ≥2-bar phrases so the phrase length lines up with the
     // PHRASE_REFRESH_BARS=2 refresh. A 1-bar phrase would loop (replay identical)
