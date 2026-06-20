@@ -126,17 +126,24 @@ the seam below, no rebuild of the hands.
   callback next to `shapeVibrato` (:807). Real-time rules, always.
 
 ### Slices (each: build, then capture-test the SOLOED guitar via audio-debug before next)
-- [ ] **Slice 1 — Guitar phrasing + breath.** Hammer-on/pull-off legato on stepwise-close
-      notes; palm-mute damping (shorter dur, lower vel) on repeated/low rhythmic notes;
-      phrase-arc velocity + musically-placed rests so it breathes (not wall-to-wall). Mirror
-      the violin slice-1 dynamics/breath, but with guitar idiom.
-- [ ] **Slice 2 — Bends + slides.** Pitch-bend into accented/peak notes; slide (portamento /
-      detune ramp) between leaps. Confirm the lead voice chain can bend pitch at playback
-      (strings use a Tone.Vibrato node; guitar needs a pitch-ramp path — verify/extend).
-- [ ] **Slice 3 — Solo idea development.** Vary register/density/rhythm phrase-to-phrase
-      (call → space → changed answer) so the solo goes somewhere instead of restating.
-- [ ] **Slice 4 — Roll out.** Other plucked leads (nylon/clean-electric/distortion variants),
-      then generalize the breath/arc helpers shared with strings; chords/bass later.
+- [x] **Slice 1 — Picking dynamics.** `shapeGuitarDynamics()` — arch swell across the phrase
+      + downbeat picking accents (non-destructive, velocity only). Gated on `isGuitar()`,
+      sibling of the violin pass. Committed 4a10003e; verified on /organism (14 dB DR).
+- [x] **Slice 2 — Guitar idiom, per note.** `planGuitarArticulations()` picks an ornament per
+      note via the EXISTING articulation engine: scoop-up (bend into peaks), grace-flick
+      (hammer-on stepwise-up), fall-off (release at phrase end), else clean pluck. The id
+      rides each Tone.Part event, overriding the global articulation for guitar only.
+      Committed f6531378. NOTE: true *continuous* pitch bends are deferred — the melody voice
+      (PolySynth/Sampler) has no rampable detune (uses inline Tone.Vibrato); these note-based
+      ornaments approximate the feel. Continuous bend = a separate audio-chain spike (add a
+      pitch-ramp node) if/when wanted.
+- [x] **Slice 3 — Call-and-answer development.** `developGuitarPhrase()` — even phrases state
+      the idea, odd phrases answer it sparser (thin weak-beat notes, keep downbeats) so
+      consecutive phrases contrast instead of looping. Per-guitar phrase counter; runs on the
+      LINE before dynamics. Committed c29cda0f.
+- [ ] **Slice 4 — Roll out.** Other plucked leads (clean-electric/distortion), then generalize
+      the breath/arc/development helpers shared with strings; chords/bass later. Also: optional
+      continuous-bend audio spike (see slice 2 note). Do AFTER the user by-ears guitar slices 1-3.
 
 ### Verification gate
 Solo guitar on `/organism`, audio-debug capture + by-ear: the soloed line must read as a real
