@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shapeGuitarDynamics, noteToMidi, planGuitarArticulations } from '../guitarPerformance'
+import { shapeGuitarDynamics, noteToMidi, planGuitarArticulations, developGuitarPhrase } from '../guitarPerformance'
 import type { ScheduledNote } from '../../types'
 
 // A flat 8-note phrase on a 16th grid (every other 16th), all velocity 0.7.
@@ -107,5 +107,41 @@ describe('planGuitarArticulations', () => {
     const notes = [at('C5', 0.5), at('C3', 0.5), at('C4', 0.5)]
     const ids = planGuitarArticulations(notes, { accentThreshold: 0.8 })
     expect(ids[1]).toBe('none')
+  })
+})
+
+describe('developGuitarPhrase', () => {
+  // 8 notes on a 16th grid: positions 0..7 → downbeats at sixteenthPos 0 and 4.
+  const phrase = (): ScheduledNote[] => {
+    const notes: ScheduledNote[] = []
+    for (let i = 0; i < 8; i++) {
+      const beat = Math.floor(i / 4)
+      const sub = i % 4
+      notes.push({ pitch: 'C4', duration: '16n', velocity: 0.6, time: `0:${beat}:${sub}` })
+    }
+    return notes
+  }
+  const isDownbeat = (n: ScheduledNote) => {
+    const p = n.time.split(':'); return (Math.floor(+p[1] * 4 + +p[2]) % 16) % 4 === 0
+  }
+
+  it('states the idea unchanged on even (statement) phrases', () => {
+    const input = phrase()
+    expect(developGuitarPhrase(input, 0)).toEqual(input)
+    expect(developGuitarPhrase(input, 2)).toEqual(input)
+  })
+
+  it('thins weak-beat notes on odd (answer) phrases — leaves space', () => {
+    const input = phrase()
+    const answer = developGuitarPhrase(input, 1)
+    expect(answer.length).toBeLessThan(input.length)
+  })
+
+  it('always keeps the downbeats (structure survives the thinning)', () => {
+    const input = phrase()
+    const downbeats = input.filter(isDownbeat)
+    const answer = developGuitarPhrase(input, 1)
+    const keptDownbeats = answer.filter(isDownbeat)
+    expect(keptDownbeats.length).toBe(downbeats.length)
   })
 })

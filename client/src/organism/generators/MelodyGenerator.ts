@@ -36,7 +36,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
-import { shapeGuitarDynamics, planGuitarArticulations } from './melody/guitarPerformance'
+import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -425,6 +425,10 @@ export class MelodyGenerator extends GeneratorBase {
   // shift between phrases (slice 1 of the violin performer).
   private phraseCounter: number = 0
 
+  // Advances every guitar-performance phrase — drives M2.6 slice 3 call-and-answer
+  // (even = statement, odd = sparser answer).
+  private guitarPhraseCounter: number = 0
+
   reseed(): void {
     this.sessionSeed = Math.floor(Math.random() * 97)
   }
@@ -766,10 +770,16 @@ export class MelodyGenerator extends GeneratorBase {
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
     if (this.isBowedString()) this.applyStringPerformance(notes)
 
-    // Pro-instruments M2.6 slice 1: the Guitar Player shapes flat velocities into
-    // a real picking performance (arch swell + downbeat accents). Gated to guitar
-    // voices so other leads are untouched. Non-destructive (velocity only).
-    if (this.isGuitar()) notes = shapeGuitarDynamics(notes)
+    // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
+    // leads are untouched. Order matters: develop the LINE first (what to play),
+    // then shape dynamics (how loud) — articulations (how to play) come below.
+    if (this.isGuitar()) {
+      // Slice 3: call-and-answer development — odd phrases answer the statement
+      // with more space so consecutive phrases don't loop identically.
+      notes = developGuitarPhrase(notes, this.guitarPhraseCounter++)
+      // Slice 1: arch swell + downbeat picking accents (non-destructive velocity).
+      notes = shapeGuitarDynamics(notes)
+    }
 
     // Pro-instruments M2.6 slice 2: guitar idiom, per note. Choose a note-based
     // ornament per note (bend into peaks, hammer-on stepwise, release at the end)

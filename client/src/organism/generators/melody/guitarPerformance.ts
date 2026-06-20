@@ -57,6 +57,35 @@ export function planGuitarArticulations(
   })
 }
 
+export interface GuitarDevelopOptions {
+  /** Keep 1 of every N weak-beat notes on answer phrases (N=2 → drop half). Default 2. */
+  keepEvery?: number
+}
+
+/**
+ * Pro-instruments M2.6 slice 3 — call-and-answer development.
+ *
+ * A soloist doesn't restate the same phrase every cycle. Even (statement)
+ * phrases play the idea as composed; odd (answer) phrases thin the weak-beat
+ * notes to leave space — so consecutive phrases contrast (full → spacious)
+ * instead of looping identically. Downbeats are always kept so the structure
+ * and chord-tone targeting survive.
+ */
+export function developGuitarPhrase(
+  notes: ScheduledNote[],
+  phraseIndex: number,
+  opts: GuitarDevelopOptions = {},
+): ScheduledNote[] {
+  if (phraseIndex % 2 === 0) return notes // statement — play it straight
+  const keepEvery = Math.max(2, Math.round(opts.keepEvery ?? 2))
+  let weakSeen = 0
+  return notes.filter((n) => {
+    if (sixteenthPosOf(n.time) % 4 === 0) return true // always keep downbeats
+    weakSeen++
+    return weakSeen % keepEvery !== 0 // drop every keepEvery-th weak-beat note
+  })
+}
+
 /** sixteenth-grid position (0..15) from a "bar:beat:sub" Tone time string. */
 function sixteenthPosOf(time: string): number {
   const parts = String(time).split(':')
