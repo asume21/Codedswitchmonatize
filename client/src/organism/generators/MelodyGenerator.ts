@@ -36,6 +36,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
+import { shapeGuitarDynamics } from './melody/guitarPerformance'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -759,11 +760,16 @@ export class MelodyGenerator extends GeneratorBase {
     // once before refreshing — the "looping" the violin lead was criticised for.
     // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
     if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
-    const notes        = this.generatePhrase(phraseLength, physics)
+    let notes          = this.generatePhrase(phraseLength, physics)
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
     if (this.isBowedString()) this.applyStringPerformance(notes)
+
+    // Pro-instruments M2.6 slice 1: the Guitar Player shapes flat velocities into
+    // a real picking performance (arch swell + downbeat accents). Gated to guitar
+    // voices so other leads are untouched. Non-destructive (velocity only).
+    if (this.isGuitar()) notes = shapeGuitarDynamics(notes)
 
     if (notes.length === 0) return true
 
@@ -868,6 +874,11 @@ export class MelodyGenerator extends GeneratorBase {
   /** True when the current lead voice is a bowed string (violin / cello / viola). */
   private isBowedString(): boolean {
     return /violin|cello|viola|string/i.test(this.currentVoiceName)
+  }
+
+  /** True when the current lead voice is a guitar (nylon / clean / distortion). */
+  private isGuitar(): boolean {
+    return /guitar|nylon/i.test(this.currentVoiceName)
   }
 
   /**
