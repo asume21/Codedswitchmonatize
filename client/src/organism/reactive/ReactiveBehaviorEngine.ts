@@ -171,6 +171,13 @@ export class ReactiveBehaviorEngine {
   private applyToOrchestrator(output: BehaviorOutput): void {
     if (!this.orchestrator) return
 
+    // PART 3 RE-WIRE POINT (MC duet). Since Part 2A, the orchestrator's
+    // applyReactiveMultipliers is a no-op — MixEngine owns the mix, so the
+    // per-frame reactive volume path was removed to stop the churn. The engine
+    // still COMPUTES mic-reactive ducking/pitch-empathy above (and the tests
+    // cover that math), but it currently drives nothing. When Part 3 builds the
+    // musical call-and-response with the MC, re-hook voice-reactivity HERE —
+    // routed through the Conductor, not back into per-generator volume.
     this.orchestrator.applyReactiveMultipliers(output)
   }
 }

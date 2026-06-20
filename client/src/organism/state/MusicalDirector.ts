@@ -271,34 +271,9 @@ export class MusicalDirector {
     this.state.scaleIntervals = intervals
   }
 
-  /**
-   * Apply reactive behavior multipliers — called by the reactive engine
-   * or performer state processor.
-   */
-  applyReactiveMultipliers(multipliers: {
-    hatDensityMult?: number
-    kickVelocityMult?: number
-    bassVolumeMult?: number
-    melodyVolumeMult?: number
-    melodyPitchOffset?: number
-    textureVolumeMult?: number
-    chordVolumeMult?: number
-  }): void {
-    if (multipliers.hatDensityMult !== undefined)
-      this.state.drums.hatDensityMult = multipliers.hatDensityMult
-    if (multipliers.kickVelocityMult !== undefined)
-      this.state.drums.kickVelocityMult = multipliers.kickVelocityMult
-    if (multipliers.bassVolumeMult !== undefined)
-      this.state.bass.volumeMult = multipliers.bassVolumeMult
-    if (multipliers.melodyVolumeMult !== undefined)
-      this.state.melody.volumeMult = multipliers.melodyVolumeMult
-    if (multipliers.melodyPitchOffset !== undefined)
-      this.state.melody.pitchOffsetSemitones = multipliers.melodyPitchOffset
-    if (multipliers.textureVolumeMult !== undefined)
-      this.state.texture.volumeMult = multipliers.textureVolumeMult
-    if (multipliers.chordVolumeMult !== undefined)
-      this.state.chords.volumeMult = multipliers.chordVolumeMult
-  }
+  // applyReactiveMultipliers was deleted (Part 2): it wrote state.*.volumeMult
+  // which nothing read — MixEngine owns the mix now. Per-frame reactive volume
+  // was the churn Part 2 removed. Had zero callers.
 
   /** Force a specific sub-genre (from Astutely bridge command) */
   forceSubGenre(subGenre: HipHopSubGenre): void {

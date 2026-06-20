@@ -81,8 +81,6 @@ export interface BassDirective {
   portamentoTime: number
   /** Filter cutoff target (Hz) */
   filterCutoff: number
-  /** Volume multiplier from reactivity */
-  volumeMult: number
   /** Should bass be muted this section (instrument dropout) */
   dropout: boolean
 }
@@ -92,8 +90,6 @@ export interface MelodyDirective {
   behavior: MelodyBehavior
   /** Pitch offset in semitones from reactivity */
   pitchOffsetSemitones: number
-  /** Volume multiplier from reactivity */
-  volumeMult: number
   /** Current chord tones to target on strong beats */
   chordTones: number[]
   /** Should melody be muted this section (instrument dropout) */
@@ -101,8 +97,6 @@ export interface MelodyDirective {
 }
 
 export interface ChordDirective {
-  /** Volume multiplier */
-  volumeMult: number
   /** Should chords be muted this section */
   dropout: boolean
 }
@@ -110,8 +104,6 @@ export interface ChordDirective {
 export interface TextureDirective {
   /** Whether texture is enabled */
   enabled: boolean
-  /** Volume multiplier */
-  volumeMult: number
 }
 
 // ── Arrangement Section ───────────────────────────────────────────────
@@ -300,23 +292,19 @@ export function createDefaultMusicalState(): MusicalState {
       slideEnabled: false,
       portamentoTime: 0,
       filterCutoff: 350,
-      volumeMult: 1.0,
       dropout: false,
     },
     melody: {
       behavior: 'rest' as MelodyBehavior,
       pitchOffsetSemitones: 0,
-      volumeMult: 1.0,
       chordTones: [0, 4, 7],
       dropout: false,
     },
     chords: {
-      volumeMult: 1.0,
       dropout: false,
     },
     texture: {
       enabled: false,
-      volumeMult: 1.0,
     },
     currentChordIntervals: [0, 4, 7],
     currentChordRootOffset: 0,
