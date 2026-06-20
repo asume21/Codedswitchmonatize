@@ -36,7 +36,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
-import { shapeGuitarDynamics } from './melody/guitarPerformance'
+import { shapeGuitarDynamics, planGuitarArticulations } from './melody/guitarPerformance'
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -771,6 +771,12 @@ export class MelodyGenerator extends GeneratorBase {
     // voices so other leads are untouched. Non-destructive (velocity only).
     if (this.isGuitar()) notes = shapeGuitarDynamics(notes)
 
+    // Pro-instruments M2.6 slice 2: guitar idiom, per note. Choose a note-based
+    // ornament per note (bend into peaks, hammer-on stepwise, release at the end)
+    // — applied via the existing articulation engine, no audio-chain change.
+    // Computed AFTER dynamics so accent velocities drive the bend choice.
+    const guitarArtIds = this.isGuitar() ? planGuitarArticulations(notes) : null
+
     if (notes.length === 0) return true
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
@@ -808,12 +814,16 @@ export class MelodyGenerator extends GeneratorBase {
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
 
+      // Guitar (M2.6 slice 2): a per-note idiomatic ornament overrides the global
+      // articulation. Non-guitar leads keep their single currentArticulationId.
+      const artId = (event.art as string | undefined) ?? this.currentArticulationId
+
       // Slice 2 — expressive vibrato. Done at the top so it applies on BOTH the
       // fast-path and the articulation path (violin runs legato-slur, not default).
       if (this.isBowedString()) this.shapeVibrato(event.dur, Math.max(0, time))
 
       // Fast-path: default articulation skips the transform for zero overhead.
-      if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
+      if (artId === DEFAULT_ARTICULATION_ID) {
         voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, time), finalVel)
         return
       }
@@ -834,7 +844,7 @@ export class MelodyGenerator extends GeneratorBase {
       }
 
       const scheduled = applyArticulation(
-        this.currentArticulationId,
+        artId,
         playableNote,
         event.dur,
         finalVel,
@@ -846,7 +856,7 @@ export class MelodyGenerator extends GeneratorBase {
         const t = Math.max(0, time + n.timeOffset)
         voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
       }
-    }, notes.map(n => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity })))
+    }, notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined })))
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
