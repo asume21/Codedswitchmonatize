@@ -1,23 +1,11 @@
 import * as Tone from 'tone'
 import { DrumInstrument } from './types'
 import { OrganismMode } from '../physics/types'
+import { loadOrganismKits, type OrganismKitSample } from '../instruments/OrganismKitCache'
 
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
 type SampleKitDefinition = Record<SampleVoice, string>
-type PrivateKitSample = {
-  role: 'kick' | 'snare' | 'hat' | 'perc' | 'tom' | 'bass808' | 'loop'
-  fileName: string
-  url: string
-}
-type PrivateKitResponse = {
-  success: boolean
-  bestKitId: string | null
-  kits: Array<{
-    id: string
-    samples: PrivateKitSample[]
-  }>
-}
 type SampleVoiceSlot = {
   gain: Tone.Gain
   player: Tone.Player
@@ -232,13 +220,10 @@ export class SampledDrumKit {
 
   private async hydratePrivateKit(): Promise<void> {
     try {
-      if (typeof window === 'undefined' || !window.location?.origin) return
+      const response = await loadOrganismKits()
+      if (!response) return
 
-      const response = await fetch(new URL('/api/organism/kits', window.location.origin).toString())
-      if (!response.ok) return
-
-      const data = await response.json() as PrivateKitResponse
-      const kit = data.kits.find((candidate) => candidate.id === data.bestKitId) ?? data.kits[0]
+      const kit = response.kits.find((candidate) => candidate.id === response.bestKitId) ?? response.kits[0]
       if (!kit) return
 
       const definition = this.buildDefinitionFromPrivateKit(kit.samples)
@@ -254,8 +239,8 @@ export class SampledDrumKit {
     }
   }
 
-  private buildDefinitionFromPrivateKit(samples: PrivateKitSample[]): SampleKitDefinition | null {
-    const byRole = (role: PrivateKitSample['role'], match?: RegExp) =>
+  private buildDefinitionFromPrivateKit(samples: OrganismKitSample[]): SampleKitDefinition | null {
+    const byRole = (role: OrganismKitSample['role'], match?: RegExp) =>
       samples.find((sample) => sample.role === role && (!match || match.test(sample.fileName)))?.url
 
     const kick = byRole('kick')

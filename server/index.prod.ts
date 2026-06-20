@@ -197,6 +197,7 @@ app.use((req, res, next) => {
     "/api/social/feed/public",
     "/api/songs/public",
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
+    "/api/organism/kits",     // shared drum kits + 808 bass samples (static instruments, not user data). Raw fetch / Tone.Sampler media fetches can't attach a bearer token, so this MUST be public or the kit collapses to the synth fallback.
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
   ]));

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { requireAuth } from "../middleware/auth";
 import { findOrganismKitSample, getOrganismKitRoot, listOrganismKits, pickBestOrganismKit } from "../services/organismKitLibrary";
 
 const router = Router();
@@ -7,7 +6,12 @@ const router = Router();
 const sampleUrl = (kitId: string, relativePath: string) =>
   `/api/organism/kits/${encodeURIComponent(kitId)}/samples/${relativePath.split("/").map(encodeURIComponent).join("/")}`;
 
-router.get("/kits", requireAuth(), (_req, res) => {
+// PUBLIC: these are shared static instrument samples (drum kits + 808 bass),
+// not user data — like /api/loops and /api/neumann-bass. They MUST be public:
+// the client loads them with a raw fetch / Tone.Sampler media fetch that can't
+// attach a Bearer token, so gating them collapses the bass to the synth
+// fallback (the documented neumann-bass trap). Whitelisted in requireAuthExcept.
+router.get("/kits", (_req, res) => {
   const kits = listOrganismKits().map((kit) => {
     const counts = kit.samples.reduce((acc, sample) => {
       acc[sample.role] = (acc[sample.role] || 0) + 1;
@@ -25,6 +29,7 @@ router.get("/kits", requireAuth(), (_req, res) => {
         fileName: sample.fileName,
         relativePath: sample.relativePath,
         url: sampleUrl(kit.id, sample.relativePath),
+        rootNote: sample.rootNote,
       })),
     };
   });
@@ -40,9 +45,9 @@ router.get("/kits", requireAuth(), (_req, res) => {
   });
 });
 
-router.get("/kits/:kitId/samples/*", requireAuth(), (req, res) => {
+router.get("/kits/:kitId/samples/*", (req, res) => {
   const kitId = req.params.kitId;
-  const relativePath = req.params[0];
+  const relativePath = (req.params as Record<string, string>)[0];
   const sample = findOrganismKitSample(kitId, relativePath);
 
   if (!sample) {

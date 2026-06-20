@@ -2,6 +2,7 @@ import React from 'react'
 import * as Tone from 'tone'
 import { Link } from 'wouter'
 import { Activity, Clock, Lock, Mic, Play, Radio, Square, UserPlus, Volume2, Zap } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { OrganismCommandCenter } from './OrganismCommandCenter'
 import { useOrganismPhysics } from './OrganismContext'
 import { useOrganismActivation, useOrganismSafe } from './GlobalOrganismWrapper'
@@ -9,6 +10,7 @@ import { useOrganismActivation, useOrganismSafe } from './GlobalOrganismWrapper'
 export function OrganismGuestPage() {
   const { isActivated, activate } = useOrganismActivation()
   const organism = useOrganismSafe()
+  const { isAuthenticated } = useAuth()
 
   React.useEffect(() => {
     if (!isActivated) activate()
@@ -27,14 +29,18 @@ export function OrganismGuestPage() {
 
   return (
     <main className="relative h-screen bg-black">
-      {/* On mobile, offset content so the fixed GuestTrialBanner (≈130px) doesn't cover it */}
-      <div className="h-full pt-[130px] md:pt-0">
-        <OrganismCommandCenter />
-      </div>
-      <GuestTrialBanner organism={organism} />
-      <TalkToOrganismCoach organism={organism} />
-      <WowLiveConsole organism={organism} />
-      {organism.isGuestLocked && <GuestLockOverlay />}
+      {isAuthenticated ? (
+        <div className="h-full">
+          <OrganismCommandCenter />
+        </div>
+      ) : (
+        <>
+          <GuestTrialBanner organism={organism} />
+          <TalkToOrganismCoach organism={organism} />
+          <WowLiveConsole organism={organism} />
+          {organism.isGuestLocked && <GuestLockOverlay />}
+        </>
+      )}
     </main>
   )
 }

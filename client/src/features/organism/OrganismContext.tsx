@@ -117,6 +117,8 @@ export interface OrganismContextValue {
   quickStart:         (presetId: string) => Promise<void>
   /** Live-swap the active preset without tearing down engines (starts cold if not running). */
   swapPreset:         (presetId: string) => Promise<void>
+  /** Start a curated "Real Beat" preset tuned for the given sub-genre. */
+  startRealBeat:      (subGenre: 'trap' | 'boom-bap' | 'drill') => Promise<void>
   quickStartPresets:  QuickStartPreset[]
   activePresetId:     string | null
   v2Status:           OrganismV2Status

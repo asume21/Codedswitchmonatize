@@ -23,6 +23,7 @@ import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { createNeumannBassSampler } from '../instruments/NeumannBassSampler'
+import { Real808BassSampler, findBass808Sample } from '../instruments/Real808BassSampler'
 import {
   applyArticulation,
   DEFAULT_ARTICULATION_ID,
@@ -91,6 +92,18 @@ export class BassGenerator extends GeneratorBase {
   private isCurrentVoiceSampler: boolean = false
   private currentPerformer: InstrumentPerformerProfile | null = null
   private explicitPerformerId: InstrumentPerformerId | null = null
+
+  // Real recorded 808 bass sample — loaded from the premium private kit when
+  // available. Falls back to the synthesised 808 MonoSynth until loading finishes.
+  private real808Sampler: Real808BassSampler | null = null
+  // True only while the current voice is an 808 mode. The 808 sampler loads
+  // async; this flag (plus voiceGeneration) guards against a late load landing
+  // on a voice that has since switched away from 808 (would play an 808 sample
+  // over an acoustic/electric style).
+  private use808Active: boolean = false
+  // Bumped on every voice switch (applyBassPreset). A pending 808 load captures
+  // this token and bails if the voice changed while its kit fetch was in flight.
+  private voiceGeneration: number = 0
 
   // Articulation — per-note transform. Defaults to 'none' (legacy behavior).
   private currentArticulationId: string = DEFAULT_ARTICULATION_ID
@@ -360,6 +373,8 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private applyBassPreset(): void {
+    // Each voice switch invalidates any in-flight async 808 load.
+    this.voiceGeneration++
     const performer = selectInstrumentPerformer({
       role: 'bass',
       mode: this.currentMode.toString(),
@@ -414,24 +429,45 @@ export class BassGenerator extends GeneratorBase {
     this.setSubLevel(use808 ? 0 : 0.5)
 
     if (use808) {
-      // fatsine gives the fundamental sine sub plus subtle harmonics for audibility
-      // on smaller speakers — pure sine disappears below 80Hz on laptop speakers.
+      // Modern 808: prefer a real recorded 808 bass sample when the premium kit
+      // provides one. The synth 808 stays as the live fallback while the sample
+      // streams in, so the beat never goes silent during cold-start.
+      const isSlide = this.currentBehavior === BassBehavior.Slide808 || this.currentBehavior === BassBehavior.Trap
       const s808 = new Tone.MonoSynth({
         oscillator: { type: 'fatsine', count: 2, spread: 6 } as any,
-        filter:     { Q: 1, type: 'lowpass', rolloff: -24 },
-        envelope:   { attack: 0.001, decay: 1.3, sustain: 0.15, release: 1.8 },
-        filterEnvelope: {
-          attack: 0.001, decay: 0.55, sustain: 0.0, release: 0.5,
-          baseFrequency: 55, octaves: 3.5,
+        filter:     { Q: 1.2, type: 'lowpass', rolloff: -24 },
+        envelope:   {
+          attack:  0.001,
+          decay:   1.5,
+          sustain: 0.08,
+          release: 2.2,
         },
-        portamento: 0.07,
+        filterEnvelope: {
+          attack: 0.001,
+          decay:  0.45,
+          sustain: 0.0,
+          release: 0.6,
+          baseFrequency: 55,
+          octaves: 4.0,
+        },
+        portamento: isSlide ? 0.10 : 0.04,
       })
       s808.volume.value = -4
       s808.connect(this.compressor)
       this.synth = s808
       this.isCurrentVoiceSampler = false
+      this.use808Active = true
+
+      // Kick off the real 808 sampler load. If the kit has no bass808 sample or
+      // the fetch fails, the synth 808 above remains the active voice.
+      this.loadReal808Sampler(this.voiceGeneration)
       return
     }
+
+    // Leaving an 808 mode: dispose any real sampler so the next bass voice isn't
+    // polluted by a lingering 808 tail.
+    this.use808Active = false
+    this.disposeReal808Sampler()
 
     this.isCurrentVoiceSampler = true
     // Use Neumann bass samples for all acoustic/electric modes — real recorded
@@ -457,6 +493,38 @@ export class BassGenerator extends GeneratorBase {
   applyVolumeMultiplier(multiplier: number): void {
     this.volumeMultiplier = Math.max(0, multiplier)
     this.setOutputLevel(this.activityLevel)
+  }
+
+  /**
+   * Load the real recorded 808 bass sample from the premium kit.
+   * @param generation the voiceGeneration captured at call time; if the voice
+   *   switches (use808 → !use808, or another 808 reload) while the kit fetch is
+   *   in flight, this load is stale and must not assign/keep the sampler.
+   */
+  private async loadReal808Sampler(generation: number): Promise<void> {
+    if (this.real808Sampler) return
+    const sample = await findBass808Sample()
+    // Bail if the voice changed while the kit fetch was in flight.
+    if (!sample || generation !== this.voiceGeneration || !this.use808Active) return
+    // Route through the bass compressor (like the synth 808 on line ~446), NOT
+    // straight to output — otherwise the real 808's hot recorded transients hit
+    // the mix bus undynamically and stack with the kick into master clipping.
+    const sampler = new Real808BassSampler(this.compressor)
+    await sampler.load(sample)
+    // Re-check after the (async) sample decode: the voice may have switched
+    // during load. If so, drop this sampler instead of leaving it active.
+    if (generation !== this.voiceGeneration || !this.use808Active) {
+      sampler.dispose()
+      return
+    }
+    this.real808Sampler = sampler
+  }
+
+  private disposeReal808Sampler(): void {
+    if (this.real808Sampler) {
+      this.real808Sampler.dispose()
+      this.real808Sampler = null
+    }
   }
 
   /**
@@ -550,7 +618,7 @@ export class BassGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
-      const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+      const voice = this.getActiveVoice()
       const scheduledTime = time + LAY_BACK_SEC
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
@@ -618,7 +686,9 @@ export class BassGenerator extends GeneratorBase {
   private generateNotes(physics: PhysicsState): ScheduledNote[] {
     const slideActive = shouldEnableSlide(this.currentBehavior)
     const portTime = getPortamentoTime(this.currentBehavior)
-    if (!this.isCurrentVoiceSampler) {
+    if (this.use808Active && this.real808Sampler?.isLoaded()) {
+      this.real808Sampler.setPortamento(slideActive ? portTime : 0)
+    } else if (!this.isCurrentVoiceSampler) {
       try {
         (this.synth as Tone.MonoSynth).portamento = slideActive ? portTime : 0
       } catch { /* */ }
@@ -631,8 +701,10 @@ export class BassGenerator extends GeneratorBase {
     this.stopPart()
     const subMidi = Math.max(28, this.rootMidi - 12)
     const subRoot = Tone.Frequency(subMidi, 'midi').toNote()
-    
-    if (!this.isCurrentVoiceSampler) {
+
+    if (this.use808Active && this.real808Sampler?.isLoaded()) {
+      this.real808Sampler.triggerAttackRelease(subRoot, '2m', Tone.now(), 0.01)
+    } else if (!this.isCurrentVoiceSampler) {
       (this.synth as Tone.MonoSynth).triggerAttack(subRoot, Tone.now(), 0.01)
       this.synth.volume.rampTo(-14, 2)
     } else {
@@ -677,6 +749,12 @@ export class BassGenerator extends GeneratorBase {
     return (this.synth as LoadableSampler).isLoaded === true
   }
 
+  /** Return the best available bass voice: real 808 sampler > loaded sampler > synth > fallback. */
+  private getActiveVoice(): Tone.MonoSynth | LoadableSampler | Real808BassSampler {
+    if (this.use808Active && this.real808Sampler?.isLoaded()) return this.real808Sampler
+    return this.isSamplerReady() ? this.synth : this.fallbackSynth
+  }
+
   dispose(): void {
     this.stopPart()
     if (this.unsubscribeConductor) {
@@ -696,6 +774,7 @@ export class BassGenerator extends GeneratorBase {
     this.lfoGain.dispose()
     this.synth.dispose()
     this.fallbackSynth.dispose()
+    this.disposeReal808Sampler()
     this.subSynth.dispose()
     this.subGain.dispose()
     this.filter.dispose()

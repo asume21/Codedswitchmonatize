@@ -39,11 +39,16 @@ function classifyFamily(id: string): string {
 
 class MultisampleInstrumentLibrary {
   private loopsDir: string;
+  private externalRoots: string[];
   private instruments: PlayableInstrument[] = [];
   private initialized = false;
 
   constructor() {
     this.loopsDir = path.join(process.cwd(), 'audio', 'loops');
+    // Optional external sample libraries (e.g. D:\Wav\VSCO2). Set via env
+    // MULTISAMPLE_ROOTS as a comma-separated list of absolute paths.
+    const envRoots = process.env.MULTISAMPLE_ROOTS?.split(',').map((s) => s.trim()).filter(Boolean) ?? [];
+    this.externalRoots = envRoots;
   }
 
   private walk(dir: string, acc: string[]): void {
@@ -60,26 +65,47 @@ class MultisampleInstrumentLibrary {
   scan(force = false): PlayableInstrument[] {
     if (this.initialized && !force) return this.instruments;
     this.instruments = [];
-    if (!fs.existsSync(this.loopsDir)) { this.initialized = true; return this.instruments; }
 
     const files: string[] = [];
-    this.walk(this.loopsDir, files);
+    if (fs.existsSync(this.loopsDir)) this.walk(this.loopsDir, files);
+    for (const root of this.externalRoots) {
+      if (fs.existsSync(root)) this.walk(root, files);
+    }
+    if (files.length === 0) { this.initialized = true; return this.instruments; }
+
     // Prefer compressed (ogg/mp3) over wav for the same note — production ships the
     // small ogg; wav stays local. Sorting compressed-first makes first-write win.
     const rank = (f: string) => (/\.wav$/i.test(f) ? 1 : 0);
     files.sort((a, b) => rank(a) - rank(b));
 
-    // Group note-sample files by instrument id.
+    // Group note-sample files by instrument id. Supports note-NAME schemes only
+    // (a token like A1 / C#3 / D#1):
+    //   - Soulful Keys: SK_ElPiano01_A1.wav (note is the LAST token)
+    //   - Sonatina-style: MOHorn_mute_A#1_v1_1.wav (note is an earlier token)
+    // We scan tokens from right to left and use the first token that looks like
+    // a note name. Everything before that token becomes the instrument id.
+    // NOTE: VSCO2's MIDI-number filenames (e.g. ..._036.wav) are NOT parsed —
+    // only spelled note names are recognized (see NOTE_RE).
     const byInstrument = new Map<string, Record<string, string>>();
     for (const full of files) {
       const base = path.basename(full).replace(/\.(wav|ogg|mp3)$/i, '');
       const tokens = base.split('_');
       if (tokens.length < 2) continue;
-      const last = tokens[tokens.length - 1];
-      const m = last.match(NOTE_RE);
-      if (!m) continue;                       // not a single-note sample (skip chords/loops)
-      const note = `${m[1]}${m[2] ?? ''}${m[3].replace('-', '')}`; // C-2 -> C2
-      const id = tokens.slice(0, -1).join('_');
+
+      let note: string | null = null;
+      let noteIndex = -1;
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        const m = tokens[i].match(NOTE_RE);
+        if (m) {
+          note = `${m[1]}${m[2] ?? ''}${m[3].replace('-', '')}`; // C-2 -> C2
+          noteIndex = i;
+          break;
+        }
+      }
+      if (!note || noteIndex <= 0) continue;  // need at least one id token
+
+      const id = tokens.slice(0, noteIndex).join('_');
+      if (!id) continue;
       const relPath = path.relative(this.loopsDir, full).split(path.sep).join('/');
       const map = byInstrument.get(id) ?? {};
       // Prefer the first sample seen for a note (ignore velocity/round-robin dupes).

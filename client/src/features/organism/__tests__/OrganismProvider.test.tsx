@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import React from 'react'
 import { OrganismProvider } from '../OrganismProvider'
 import { useOrganism } from '../OrganismContext'
@@ -63,6 +63,9 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     getMusicalState = vi.fn().mockReturnValue(null)
     onChordChange = vi.fn().mockReturnValue(noop)
     getCurrentChord = vi.fn().mockReturnValue(null)
+    // Methods used by quickStart / real-beat flow
+    primeFrame = vi.fn()
+    swapSubGenre = vi.fn()
     // Drum/groove/voice controls invoked by control handlers in OrganismProvider
     lockDrumPattern = vi.fn()
     unlockDrumPattern = vi.fn()
@@ -79,6 +82,7 @@ vi.mock('../../../organism/reactive/ReactiveBehaviorEngine', () => ({
   ReactiveBehaviorEngine: class {
     wire = vi.fn()
     processFrame = vi.fn()
+    setEnabled = vi.fn()
   },
 }))
 
@@ -151,5 +155,30 @@ describe('OrganismProvider', () => {
   it('lastSessionDNA starts as null', () => {
     const { result } = renderHook(() => useOrganism(), { wrapper })
     expect(result.current.lastSessionDNA).toBeNull()
+  })
+
+  it('enabling React to Voice from Auto selects Mic and opens the monitor', () => {
+    const { result } = renderHook(() => useOrganism(), { wrapper })
+
+    expect(result.current.inputSource).toBe('autoGenerate')
+    expect(result.current.micMonitoringEnabled).toBe(false)
+
+    act(() => {
+      result.current.setReactToVoiceEnabled(true)
+    })
+
+    expect(result.current.reactToVoiceEnabled).toBe(true)
+    expect(result.current.inputSource).toBe('mic')
+    expect(result.current.micMonitoringEnabled).toBe(true)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('startRealBeat exposes the three Real Beat presets', async () => {
+    const { result } = renderHook(() => useOrganism(), { wrapper })
+
+    expect(result.current.startRealBeat).toBeDefined()
+    expect(result.current.quickStartPresets.map(p => p.id)).toContain('real-beat-trap-140')
+    expect(result.current.quickStartPresets.map(p => p.id)).toContain('real-beat-boombap-90')
+    expect(result.current.quickStartPresets.map(p => p.id)).toContain('real-beat-drill-144')
   })
 })

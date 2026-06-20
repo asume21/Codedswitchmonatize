@@ -369,6 +369,90 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
       density:  0.2,     // Extremely sparse — piano pad + drums + upright bass
     }),
   },
+
+  // ── REAL BEAT PRESETS ─────────────────────────────────────────────────
+  // These presets are tuned to push the existing generator architecture to
+  // its realistic ceiling: a coherent, genre-authentic beat that sounds like
+  // a real producer's demo. They use the strongest arrangement templates,
+  // the best style presets, and physics values chosen for the genre.
+
+  // ── Real Beat: Trap ───────────────────────────────────────────────────
+  // Modern 140 BPM trap. Hard 808, tight hats, sparse melody hook. The
+  // sub-genre forces Slide808 bass behavior, trap drum patterns, and the
+  // trap-tag arrangement gives a verse → verse → hook → breakdown → hook arc.
+  {
+    id:     'real-beat-trap-140',
+    label:  'Real Beat: Trap',
+    genre:  'Real Beat / Trap',
+    bpm:    140,
+    mode:   OrganismMode.Heat,
+    subGenre: 'trap',
+    allowedTemplateIds: ['trap-tag', 'hook-heavy', 'dropfirst'],
+    allowedStyleIds:    ['trap-aggressive', 'trap-bounce-hook', 'trap-melodic'],
+    energy: 'high',
+    icon:   '🔥',
+    physics: makePhysics({
+      mode:     OrganismMode.Heat,
+      pulse:    140,
+      bounce:   0.72,
+      swing:    0.12,
+      pocket:   0.32,
+      presence: 0.78,
+      density:  0.60,
+    }),
+  },
+
+  // ── Real Beat: Boom-bap ───────────────────────────────────────────────
+  // Classic 90 BPM boom-bap. Dusty drums, walking bass, jazzy chords, and a
+  // melody that stays out of the rapper's way. Uses storytelling/cypher-flow
+  // templates so the form is voice-first, not hook-heavy.
+  {
+    id:     'real-beat-boombap-90',
+    label:  'Real Beat: Boom-bap',
+    genre:  'Real Beat / Boom-bap',
+    bpm:    90,
+    mode:   OrganismMode.Smoke,
+    subGenre: 'boom-bap',
+    allowedTemplateIds: ['storytelling', 'cypher-flow', 'classic'],
+    allowedStyleIds:    ['boombap-classic', 'boombap-pocket', 'jazz-rap'],
+    energy: 'medium',
+    icon:   '💿',
+    physics: makePhysics({
+      mode:     OrganismMode.Smoke,
+      pulse:    90,
+      bounce:   0.58,
+      swing:    0.52,
+      pocket:   0.62,
+      presence: 0.55,
+      density:  0.42,
+    }),
+  },
+
+  // ── Real Beat: Drill ──────────────────────────────────────────────────
+  // Dark 144 BPM drill. Sliding 808s, off-beat snare ghosting, sharp stabs.
+  // The drill-slide-hook style brings the signature downbeat bass drop and
+  // a sparse hook melody that lets the vocal be the main event.
+  {
+    id:     'real-beat-drill-144',
+    label:  'Real Beat: Drill',
+    genre:  'Real Beat / Drill',
+    bpm:    144,
+    mode:   OrganismMode.Gravel,
+    subGenre: 'drill',
+    allowedTemplateIds: ['trap-tag', 'dropfirst', 'classic'],
+    allowedStyleIds:    ['drill-relentless', 'drill-slide-hook', 'trap-aggressive'],
+    energy: 'high',
+    icon:   '⚡',
+    physics: makePhysics({
+      mode:     OrganismMode.Gravel,
+      pulse:    144,
+      bounce:   0.68,
+      swing:    0.10,
+      pocket:   0.28,
+      presence: 0.80,
+      density:  0.62,
+    }),
+  },
 ]
 
 /** Look up a preset by id, returns undefined if not found. */

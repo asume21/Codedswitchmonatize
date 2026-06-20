@@ -420,6 +420,10 @@ export class MelodyGenerator extends GeneratorBase {
   // so two sessions over the same progression don't play identical phrases.
   private sessionSeed: number = Math.floor(Math.random() * 97)
 
+  // Advances every string-performance phrase so the dynamic peak + breath slots
+  // shift between phrases (slice 1 of the violin performer).
+  private phraseCounter: number = 0
+
   reseed(): void {
     this.sessionSeed = Math.floor(Math.random() * 97)
   }
@@ -747,10 +751,19 @@ export class MelodyGenerator extends GeneratorBase {
     if (!lengths || lengths.length === 0) return true
 
     const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
-    const phraseLength = this.currentBehavior === MelodyBehavior.Lead
+    let phraseLength = this.currentBehavior === MelodyBehavior.Lead
       ? Math.max(16, selectedLength)
       : selectedLength
+    // Strings: force ≥2-bar phrases so the phrase length lines up with the
+    // PHRASE_REFRESH_BARS=2 refresh. A 1-bar phrase would loop (replay identical)
+    // once before refreshing — the "looping" the violin lead was criticised for.
+    // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
+    if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
     const notes        = this.generatePhrase(phraseLength, physics)
+
+    // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
+    // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
+    if (this.isBowedString()) this.applyStringPerformance(notes)
 
     if (notes.length === 0) return true
 
@@ -788,6 +801,10 @@ export class MelodyGenerator extends GeneratorBase {
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
+
+      // Slice 2 — expressive vibrato. Done at the top so it applies on BOTH the
+      // fast-path and the articulation path (violin runs legato-slur, not default).
+      if (this.isBowedString()) this.shapeVibrato(event.dur, Math.max(0, time))
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
@@ -846,6 +863,103 @@ export class MelodyGenerator extends GeneratorBase {
       )
     }
     return true
+  }
+
+  /** True when the current lead voice is a bowed string (violin / cello / viola). */
+  private isBowedString(): boolean {
+    return /violin|cello|viola|string/i.test(this.currentVoiceName)
+  }
+
+  /**
+   * Pro-instruments spec M2.5, slice 2 — expressive vibrato.
+   *
+   * A real violinist doesn't vibrate every note evenly: fast passing notes are
+   * dead-straight, and on a held note the vibrato BLOOMS IN shortly after the
+   * bow lands (delayed onset) and widens with the note's length. Drives the
+   * shared Tone.Vibrato depth signal per note at the scheduled audio time.
+   */
+  private shapeVibrato(dur: Tone.Unit.Time, time: number): void {
+    const depth = this.vibrato.depth
+    let durSec = 0.25
+    try { durSec = Tone.Time(dur).toSeconds() } catch { /* keep default */ }
+
+    try {
+      depth.cancelScheduledValues(time)
+      if (durSec < 0.22) {
+        // Fast passing note — straight tone, no vibrato.
+        depth.setValueAtTime(0.012, time)
+      } else {
+        // Sustained note — straight attack, then vibrato blooms in and widens
+        // with length (capped so it stays musical, not seasick).
+        const target = Math.min(0.35, 0.16 + durSec * 0.12)
+        const bloomAt = time + Math.min(0.35, durSec * 0.45)
+        depth.setValueAtTime(0.02, time)
+        depth.linearRampToValueAtTime(target, bloomAt)
+      }
+    } catch { /* signal busy / negative time — skip this note's vibrato shaping */ }
+  }
+
+  /**
+   * Pro-instruments spec M2.5, slice 1 — the violin/string PERFORMER.
+   *
+   * A real string player does NOT play every slot at a flat dynamic and never
+   * rests. This mutates the phrase in place to add the two most audible human
+   * traits, and shifts them every phrase (phraseCounter) so consecutive phrases
+   * don't feel identical:
+   *   • velocity ARC — crescendo toward a phrase peak (~2/3 through), then ease
+   *     back at the cadence, instead of a flat dynamic.
+   *   • BREATH — drop a few weak interior notes to open space so the line lands
+   *     and rings rather than filling every bar.
+   * (Legato note-ring + vibrato/rubato are slice 2; idea-development is slice 3.)
+   */
+  private applyStringPerformance(notes: ScheduledNote[]): void {
+    const n = notes.length
+    if (n < 3) return
+    this.phraseCounter++
+
+    // DEVELOPMENT — a real soloist states an idea, then answers it / varies it /
+    // builds on it; they don't replay it. Each phrase commits to a different
+    // CHARACTER so a recurring motif is genuinely re-cast, not looped:
+    //   0 statement  — as written, mid register, lightly thinned
+    //   1 answer     — leaps an octave up, airier (more rests) = a question answered
+    //   2 variation  — drops an octave, breathier, lower/darker restatement
+    //   3 climb      — denser & driving, fewer rests, pushing to a peak
+    const character = this.phraseCounter % 4
+
+    // Register shift recasts the actual melodic line (conformNoteToInstrument in
+    // the Part callback keeps it inside the violin's range).
+    const octaveShift = character === 1 ? 12 : character === 2 ? -12 : 0
+    if (octaveShift !== 0) {
+      for (let i = 0; i < n; i++) {
+        try { notes[i].pitch = Tone.Frequency(notes[i].pitch).transpose(octaveShift).toNote() }
+        catch { /* leave the pitch as-is if it can't be parsed */ }
+      }
+    }
+
+    // Velocity ARC — crescendo toward a drifting peak, ease at the cadence.
+    const peak = 0.58 + 0.12 * ((this.phraseCounter % 3) / 2)
+    for (let i = 0; i < n; i++) {
+      const pos = i / (n - 1)
+      const g = pos <= peak
+        ? 0.78 + 0.22 * (pos / peak)
+        : 1.0 - 0.20 * ((pos - peak) / (1 - peak))
+      notes[i].velocity = Math.max(0.05, Math.min(1, notes[i].velocity * g))
+    }
+
+    // BREATH — rest weak interior notes (never the first/last). Density varies by
+    // character: the answer is airy, the climb is driving.
+    const dropMod = character === 1 ? 3 : character === 3 ? 6 : 4  // smaller = more rests
+    const kept: ScheduledNote[] = []
+    for (let i = 0; i < n; i++) {
+      const interior = i > 0 && i < n - 1
+      const weak = notes[i].velocity < 0.55
+      const restHere = interior && weak && ((i + this.phraseCounter) % dropMod === 0)
+      if (!restHere) kept.push(notes[i])
+    }
+    if (kept.length >= 2 && kept.length < n) {
+      notes.length = 0
+      notes.push(...kept)
+    }
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {

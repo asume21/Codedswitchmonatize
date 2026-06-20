@@ -1572,6 +1572,20 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }, [quickStart, applyStablePlaybackDefaults, waitForStartupParts])
 
   /**
+   * Real Beat — curated one-click start for the given rap sub-genre.
+   * Picks the preset that pushes the existing generators to their realistic
+   * ceiling (genre-authentic drums, bass, and sparse harmony) and starts it.
+   */
+  const startRealBeat = useCallback(async (subGenre: 'trap' | 'boom-bap' | 'drill') => {
+    const presetId =
+      subGenre === 'trap' ? 'real-beat-trap-140'
+      : subGenre === 'boom-bap' ? 'real-beat-boombap-90'
+      : 'real-beat-drill-144'
+    orgLog('realbeat:start', { subGenre, presetId })
+    await quickStart(presetId)
+  }, [quickStart])
+
+  /**
    * Natural Language Vibe Interpreter
    *
    * Takes a free-text description ("dark drill beat like Kendrick, fired up")
@@ -1833,6 +1847,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       vocalRecorder.start(1000)
     } catch (err) {
       console.warn('[OrganismProvider] Vocal recording failed (mic access):', err)
+      setError(err instanceof Error ? `Mic recording failed: ${err.message}` : 'Mic recording failed')
       orgLog('recording:vocal-error', { error: String(err) }, 'warn')
     }
 
@@ -3135,6 +3150,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Quick Start
     quickStart,
     swapPreset,
+    startRealBeat,
     quickStartPresets: QUICK_START_PRESETS,
     activePresetId,
     v2Status,
@@ -3307,6 +3323,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Switches-not-modes toggles
     reactToVoiceEnabled,
     setReactToVoiceEnabled: (enabled: boolean) => {
+      if (enabled && inputSource !== 'mic') {
+        if (isRunningRef.current || startInFlightRef.current) {
+          setError('React to Voice needs Mic input. Stop playback, switch to Mic, then start again.')
+          return
+        }
+        handleSetInputSource('mic')
+        setMicMonitoringEnabled(true)
+      } else if (enabled) {
+        setMicMonitoringEnabled(true)
+      }
+      setError(null)
       setReactToVoiceEnabledState(enabled)
       reactiveRef.current?.setEnabled(enabled)
     },
@@ -3354,7 +3381,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   }), [
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
-    quickStart, swapPreset, activePresetId, v2Status, setV2MasterGain,
+    quickStart, swapPreset, startRealBeat, activePresetId, v2Status, setV2MasterGain,
     countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     cadenceLockEnabled, cadenceSnapshot,

@@ -74,6 +74,29 @@ LOOP that trap/orchestral styles still trigger (`OrganismProvider.tsx:1134`). St
 - **Guitar multisample** still unsourced (VCSL has none). Options: source another CC0
   guitar pack, or slice the musicradar acoustic-guitar loops.
 
+## M2.5 — The Performer: breathe, develop, shape (added 2026-06-19, VIOLIN FIRST)
+
+User's core dissatisfaction: "there is no violin player that just plays the violin like
+this over and over." The engine already develops a motif (transpose/invert/augment, fresh
+motif per section, 2-bar phrase refresh) AND has a pro-violin envelope + inline Tone.Vibrato.
+So the gap is NOT "no variation" — it's that the variation is *mechanical*, there is *no
+breath*, and the expression is *static* (flat across the phrase). Two layers of sameness:
+content (looped shape) + delivery (fixed articulation). See memory `project_organism_expression_engine`.
+
+Build as a **violin/string performance pass** in `MelodyGenerator` (extend, don't replace the
+motif system). Instrument-gated to strings first; capture-test each slice on the soloed violin
+via the audio-debug MCP before moving on.
+
+- [ ] **Slice 1 — Breath + phrase-arc dynamics.** Insert musically-placed rests (phrase-end
+      "hangs", occasional 1-2 bar drop-outs) so it never fills every bar. Shape velocity as an
+      arc across the phrase (swell toward the peak note, ease at the cadence) instead of flat.
+- [ ] **Slice 2 — Expressive vibrato + rubato.** Drive vibrato depth/onset from note length &
+      phrase position (straight on fast passing notes, blooming on held/peak notes); micro-timing
+      leans into the peak, relaxes at the cadence. (Vibrato node already in the chain — modulate it.)
+- [ ] **Slice 3 — Idea development, not transform.** Vary density/register/rhythm between phrases
+      (call-and-answer: state, leave space, answer changed) so no two phrases feel identical.
+- [ ] **Slice 4 — Roll to melody (other leads) + chords**, once violin clears the by-ear bar.
+
 ## Non-goals / notes
 - A sampler playing generated notes won't always beat a hand-played loop on raw "wow"; it
   wins on playing the actual song in any key. Target: real, expressive, musical.

@@ -9,6 +9,7 @@ export interface OrganismKitSample {
   relativePath: string;
   fileName: string;
   sourceKit: string;
+  rootNote?: string;
 }
 
 export interface OrganismKit {
@@ -17,6 +18,7 @@ export interface OrganismKit {
   licenseNote: string;
   root: string;
   samples: OrganismKitSample[];
+  priority: number;
 }
 
 const DEFAULT_PRIVATE_KIT_ROOT =
@@ -79,6 +81,20 @@ function readLicenseNote(root: string): string {
   return "No license file found in kit folder. Treat as private/internal only until license is verified.";
 }
 
+function readPriority(root: string): number {
+  const candidate = path.join(root, "priority.txt");
+  if (!fs.existsSync(candidate)) return 0;
+  const raw = fs.readFileSync(candidate, "utf8").trim();
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function readKitRootNote(root: string): string | undefined {
+  const candidate = path.join(root, "bass808-root.txt");
+  if (!fs.existsSync(candidate)) return undefined;
+  return fs.readFileSync(candidate, "utf8").trim() || undefined;
+}
+
 export function getOrganismKitRoot(): string {
   return DEFAULT_PRIVATE_KIT_ROOT;
 }
@@ -91,6 +107,7 @@ export function listOrganismKits(): OrganismKit[] {
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
       const kitRoot = path.join(root, entry.name);
+      const kitRootNote = readKitRootNote(kitRoot);
       const samples = walkWavs(kitRoot)
         .map((filePath): OrganismKitSample | null => {
           const fileName = path.basename(filePath);
@@ -102,6 +119,7 @@ export function listOrganismKits(): OrganismKit[] {
             relativePath: path.relative(kitRoot, filePath).split(path.sep).join("/"),
             fileName,
             sourceKit: entry.name,
+            rootNote: role === "bass808" ? kitRootNote : undefined,
           };
         })
         .filter((sample): sample is OrganismKitSample => Boolean(sample));
@@ -112,6 +130,7 @@ export function listOrganismKits(): OrganismKit[] {
         licenseNote: readLicenseNote(kitRoot),
         root: kitRoot,
         samples,
+        priority: readPriority(kitRoot),
       };
     })
     .filter((kit) => kit.samples.length > 0);
@@ -134,7 +153,7 @@ export function pickBestOrganismKit(preferredRoles: OrganismKitRole[] = ["kick",
       const roles = new Set(kit.samples.map((sample) => sample.role));
       const roleScore = preferredRoles.reduce((score, role) => score + (roles.has(role) ? 10 : 0), 0);
       const sizeScore = Math.min(kit.samples.length, 100) / 10;
-      return { kit, score: roleScore + sizeScore };
+      return { kit, score: roleScore + sizeScore + kit.priority };
     })
     .sort((a, b) => b.score - a.score || b.kit.samples.length - a.kit.samples.length)[0]?.kit ?? null;
 }
