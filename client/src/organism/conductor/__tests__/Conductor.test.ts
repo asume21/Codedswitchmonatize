@@ -223,4 +223,27 @@ describe('Conductor', () => {
       expect(calls).toBe(3)
     })
   })
+
+  it('voices the current chord and voice-leads on advanceChord (V1)', () => {
+    const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
+    const pcOf = (m: number) => ((m % 12) + 12) % 12
+
+    const chord0 = conductor.currentChord()
+    const v0 = conductor.currentVoicing()
+    expect(pcOf(v0.bass)).toBe(pcOf(chord0.rootMidi))  // bass tracks the root
+    expect(v0.inner.length).toBeGreaterThan(0)
+
+    const chord0PCs = new Set(chord0.intervals.map((i) => pcOf(chord0.rootMidi + i)))
+    conductor.advanceChord()
+    const chord1 = conductor.currentChord()
+    const v1 = conductor.currentVoicing()
+    expect(pcOf(v1.bass)).toBe(pcOf(chord1.rootMidi))
+
+    // Common tones between the two chords are HELD at the same MIDI note.
+    const chord1PCs = new Set(chord1.intervals.map((i) => pcOf(chord1.rootMidi + i)))
+    for (const p of [...chord0PCs].filter((x) => chord1PCs.has(x))) {
+      const held = v0.inner.find((n) => pcOf(n) === p)
+      if (held !== undefined) expect(v1.inner).toContain(held)
+    }
+  })
 })

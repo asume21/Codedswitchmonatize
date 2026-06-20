@@ -31,6 +31,7 @@ import {
   type ArrangementPlan,
 } from '@shared/arrangement'
 import { setActiveArrangementTemplate, setArrangementFromPlan } from '../state/ProducerArrangement'
+import { voiceChord, type Voicing } from './voicing'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -284,6 +285,11 @@ export class Conductor {
   // advanceChord() does NOT bump it. Consumers (e.g. ChordGenerator) compare
   // the cached value to know when to rebuild their Tone.Part.
   private progressionVersion: number = 0
+  // Part 3 V1 — the coordinated voicing of the current chord, voice-led from the
+  // previous one. Chained on advanceChord; reset to a fresh anchor when the
+  // progression is replaced (progressionVersion changes). null = not yet computed.
+  private voicing: Voicing | null = null
+  private voicingVersion: number = -1
   // When true, pickNewProgression() is a no-op. Used by the user-facing
   // "lock progression" toggle so an Astutely / arrangement section change
   // can't pull the harmonic rug while a verse is being captured.
@@ -357,6 +363,20 @@ export class Conductor {
   /** Chord tones of the current chord — melody emphasizes these on strong beats. */
   chordTones(): number[] {
     return this.currentChord().pitches
+  }
+
+  /**
+   * Part 3 V1 — the current chord's COORDINATED voicing (bass / inner comping /
+   * guide tones), voice-led from the previous chord. Computed lazily; chained on
+   * advanceChord. Players read this so the harmonic core voices ONE chord
+   * together instead of each restacking the symbol independently.
+   */
+  currentVoicing(): Voicing {
+    if (this.voicing === null || this.voicingVersion !== this.progressionVersion) {
+      this.voicing = voiceChord(this.currentChord(), null)
+      this.voicingVersion = this.progressionVersion
+    }
+    return this.voicing
   }
 
   /** The whole progression — useful for UI display and lookahead planning. */
@@ -480,6 +500,12 @@ export class Conductor {
   advanceChord(): void {
     this.chordIndex = (this.chordIndex + 1) % this.progression.length
     const chord = this.currentChord()
+    // Chain the voicing: voice-lead from the previous voicing — UNLESS the
+    // progression was replaced since it was last computed, in which case start
+    // a fresh anchor (voice-leading from a stale key makes no sense).
+    const anchor = this.voicingVersion === this.progressionVersion ? this.voicing : null
+    this.voicing = voiceChord(chord, anchor)
+    this.voicingVersion = this.progressionVersion
     for (const cb of this.chordChangeListeners) cb(chord)
   }
 
