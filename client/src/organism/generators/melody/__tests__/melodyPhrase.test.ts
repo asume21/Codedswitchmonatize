@@ -33,21 +33,34 @@ describe('resolveDegreeForBeat', () => {
 describe('resolveDegreeComplementing', () => {
   // Cmaj7 over a 7-note scale: chord degrees root/3rd/5th/7th = [0, 2, 4, 6].
   // The comp's guide tones are the 3rd (deg 2) and 7th (deg 6), so the melody
-  // should COMPLEMENT them by leaning on the remaining tones: root/5th = [0, 4].
+  // should LEAN toward the remaining tones: root/5th = [0, 4].
   const chordDegs = [0, 2, 4, 6]
   const preferred = [0, 4]
 
-  it('snaps a strong beat to the nearest COMPLEMENT tone, skipping the guide tones', () => {
-    // deg 2 IS the 3rd (a guide tone). Plain resolveDegreeForBeat would keep it;
-    // complementing pulls it to the nearest of root/5th.
-    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, true)).toBe(0)
-    // deg 3 → nearest complement is the 5th (deg 4), not the 3rd (deg 2).
+  it('biases a strong beat toward a COMPLEMENT tone when one is no further away', () => {
+    // deg 3 sits between the 3rd (guide, deg 2) and the 5th (complement, deg 4) —
+    // both one step away. The complement wins the tie, so the lead doubles the 5th
+    // (in the comp's quiet register) rather than the 3rd (its loud colour).
     expect(resolveDegreeComplementing(3, chordDegs, preferred, 7, true)).toBe(4)
   })
 
-  it('preserves octave region when snapping to a complement tone', () => {
-    // deg 9 = oct1 + deg2 (the 3rd, a guide tone) → oct1 + nearest complement.
-    expect(resolveDegreeComplementing(9, chordDegs, preferred, 7, true)).toBe(7) // oct1 + root
+  it('STILL allows a guide tone when the line lands squarely on it (soft, not banned)', () => {
+    // deg 2 IS the 3rd. The first cut yanked it to root/5th, which greyed the line.
+    // Now, when the contour targets the 3rd exactly, the lead is allowed to sing it
+    // — the soft penalty only redirects when a complement is as close or closer.
+    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, true)).toBe(2)
+  })
+
+  it('the penalty dial controls how hard it avoids guide tones', () => {
+    // penalty 0 = no preference (nearest chord tone wins outright): the 3rd stays.
+    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, true, 0)).toBe(2)
+    // a large penalty = the old hard exclusion: the 3rd is pushed to root/5th.
+    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, true, 10)).toBe(0)
+  })
+
+  it('preserves octave region when redirecting to a complement tone', () => {
+    // deg 10 = oct1 + deg3 → oct1 + the 5th (deg 4), the nearer complement.
+    expect(resolveDegreeComplementing(10, chordDegs, preferred, 7, true)).toBe(11) // oct1 + 5th
   })
 
   it('leaves weak beats untouched so guide tones still pass through', () => {

@@ -31,13 +31,18 @@ export function resolveDegreeForBeat(deg: number, chordDegs: number[], scaleLen:
  * Conductor Part 3 V3 — strong-beat resolution that COMPLEMENTS the comp.
  *
  * The Conductor's voicing emphasises the 3rd & 7th (guide tones) in the comp.
- * To keep the lead from mud-doubling that colour, the melody PREFERS the other
- * chord tones (root / 5th / extensions = `preferredDegs`) on strong beats —
- * "one carries the other." Weak beats are untouched, so the guide tones still
- * appear as passing/neighbour tones and the line stays melodic. Falls back to
- * the full chord-tone set when there is no complement tone (e.g. a bare shape
- * whose only chord tones ARE guide tones) so the melody never loses its stable
- * landing notes.
+ * The melody LEANS toward the other chord tones (root / 5th / extensions =
+ * `preferredDegs`) so the lead and the comp spell the harmony together instead
+ * of mud-doubling the colour — "one carries the other."
+ *
+ * V3.1 (tuning): this is a SOFT preference, not a ban. The first cut excluded the
+ * guide tones outright, which forced every strong beat onto root/5th and bled the
+ * colour out of the line (it sounded grey). Now a guide tone is allowed when the
+ * melodic contour genuinely lands on it — we add `penalty` scale-steps to a guide
+ * tone's distance, so it only wins when it is clearly the nearest target. The
+ * line keeps its complement bias but can still hit a 3rd/7th when that's where it
+ * wants to go. Weak beats are untouched. `penalty` is the dial: 0 = no preference,
+ * large = the old hard exclusion.
  */
 export function resolveDegreeComplementing(
   deg: number,
@@ -45,10 +50,28 @@ export function resolveDegreeComplementing(
   preferredDegs: number[],
   scaleLen: number,
   strong: boolean,
+  penalty = 1.5,
 ): number {
-  if (!strong) return deg
-  const pool = preferredDegs.length > 0 ? preferredDegs : chordDegs
-  return nearestChordDegree(deg, pool, scaleLen)
+  if (!strong || chordDegs.length === 0) return deg
+  const oct = Math.floor(deg / scaleLen)
+  const within = ((deg % scaleLen) + scaleLen) % scaleLen
+  const preferred = new Set(preferredDegs)
+  let best = chordDegs[0]
+  let bestScore = Infinity
+  for (const c of chordDegs) {
+    const dist = Math.abs(c - within)
+    const score = preferred.has(c) ? dist : dist + penalty
+    // Strictly-less wins; on a tie prefer the complement tone (deterministic, and
+    // it keeps the bias toward root/5th when a guide tone is no closer).
+    const better =
+      score < bestScore - 1e-9 ||
+      (Math.abs(score - bestScore) < 1e-9 && preferred.has(c) && !preferred.has(best))
+    if (better) {
+      bestScore = score
+      best = c
+    }
+  }
+  return oct * scaleLen + best
 }
 
 /** Arch curve: rises to a single climax ~2/3 through, falls back to ~0 at the end. */
