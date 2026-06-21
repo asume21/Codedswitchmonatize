@@ -184,28 +184,41 @@ Conductor API already in place to build on: `currentChord()`/`nextChord()`
 (ParsedChord: rootMidi, intervals, pitches), `chordTones()`, `getScale()`,
 `getKeyPitchClass()`. `nextChord()` gives the look-ahead voice-leading needs.
 
-- [ ] **V1 — Voicing + voice-leading core.** New pure `conductor/voicing.ts`:
+- [x] **V1 — Voicing + voice-leading core.** ✅ `conductor/voicing.ts`:
       `voiceChord(chord, prevVoicing | null, opts) → Voicing { bass, inner[], guideTones[] }`.
-      Pick inversion/octaves of the inner notes that MINIMISE movement from the
-      previous voicing (hold common tones, step the rest); `bass` = root in the bass
-      register; `guideTones` = 3rd/7th (what melody should complement, not double).
-      Conductor computes `currentVoicing()` on chord change (using the previous as the
-      voice-leading anchor). Pure → TDD the voice-leading (total semitone movement
-      drops vs. naive root-position).
-- [ ] **V2 — Chords read the voicing.** ChordGenerator plays `voicing.inner`
-      (voice-led, register-split above the bass) instead of root-position `pitches`.
-- [ ] **V3 — Bass + melody align to it.** Bass uses `voicing.bass`; melody targets
-      tones that COMPLEMENT `guideTones` (don't mud-double the comp) — "one carries
-      the other." Verify by ear/capture: the core sounds like one coordinated chord.
-- [ ] **V4 — Orchestration & spread.** Conductor assigns WHICH player carries the
-      harmony per preset (lo-fi → Rhodes, dark → pad/strings) and may spread one chord
-      across players (section, one note each) instead of a block chord. Register/EQ
-      pairing so they don't clash.
+      Inner notes MINIMISE movement from the previous voicing (hold common tones, step
+      the rest); `bass` = root in the bass register; `guideTones` = 3rd/7th. Conductor
+      caches `currentVoicing()`, chains on `advanceChord`. TDD'd (movement < naive).
+- [x] **V2 — Chords read the voicing.** ✅ ChordGenerator plays `voicing.inner`
+      (voice-led) instead of root-position `pitches`; its local `MODE_OCTAVES` +
+      `voiceChord` import deleted.
+- [x] **V3 — Bass + melody align to it.** ✅ Bass plays `voicing.bass` (root in the
+      bass register, ~C2); melody COMPLEMENTS `guideTones` on strong beats via the pure
+      `resolveDegreeComplementing()` (prefers root/5th/extensions, leaves the 3rd/7th
+      colour to the comp; 'beautiful' intent excepted). TDD'd in melodyPhrase.test.ts.
+- [x] **V4 — Orchestration & spread.** ✅ Conductor picks a per-sub-genre voicing
+      STYLE (`SUB_GENRE_VOICING_STYLE`): lush genres (lo-fi/R&B/soul/chill/west-coast)
+      comp with an open **drop-2 spread**, the rest stay close. `voicing.ts` gained
+      `VoicingStyle` + `applySpread()` (drop-2, stays above the bass). TDD'd.
+      **NOT duplicated:** "WHICH instrument carries the harmony per preset (lo-fi →
+      Rhodes, dark → strings/pad)" ALREADY exists in `InstrumentPerformerRouter`
+      (mode/sub-genre-keyed), which the Conductor feeds via sub-genre. Re-deciding it
+      in the Conductor would be a rival authority (a "double") — so the Conductor owns
+      only the voicing (style/spread), not the instrument choice. The optional
+      "spread one chord across players, one note each" is left for later (the router +
+      role system already separate who plays; per-note hand-off is a bigger change).
 
-### Still captured for later (after voicing is heard)
-- **The duet / musical call-and-response.** The band answers the MC musically
-  (fills, melodic phrases, hits) — quantized to land on the beat and in the gaps of
-  the flow — all cued by the Conductor. Conversation in the music, not the faders.
+### The Duet — musical call-and-response  (ACTIVE — voicing V1–V4 done 2026-06-20)
+- [ ] **D1 — The cue decision (pure).** New `conductor/duet.ts`: `planAnswer(performer,
+      ctx) → DuetCue | null`. The band answers the MC in the GAPS — when the performer
+      breathes / ends a phrase — never over the top of the flow. Decide answer TYPE
+      (drum fill / melodic phrase / stab hit) from energy + phrase position; throttle so
+      it answers once per gap, not every frame. Pure → TDD.
+- [ ] **D2 — Execute the cue.** Orchestrator's `applyPerformerState` runs the cue: drum
+      fill via `triggerImmediateHit`/`triggerImpact`, melodic answer via the melody
+      generator, all quantized to land on the beat. Cued by the Conductor, in the gaps.
+
+### Still captured for later (after the duet is heard)
 - The deeper source of "taste" (orchestration/voicing it wasn't explicitly told) is
   the AI "minds"/musicMind layer — the hybrid. Rules give the floor; AI raises it.
 

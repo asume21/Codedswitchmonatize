@@ -31,7 +31,7 @@ import {
   type ArrangementPlan,
 } from '@shared/arrangement'
 import { setActiveArrangementTemplate, setArrangementFromPlan } from '../state/ProducerArrangement'
-import { voiceChord, type Voicing } from './voicing'
+import { voiceChord, type Voicing, type VoicingStyle } from './voicing'
 
 // ── Music-theory primitives ──────────────────────────────────────────
 
@@ -199,6 +199,32 @@ const SUB_GENRE_SCALES: Record<string, ScaleType> = {
   'bounce':      'minor',
   'reggaeton':   'minor',
   'hip-hop':     'dorian',
+}
+
+// Part 3 V4 — comp voicing style per sub-genre. Lush, jazz-leaning genres comp
+// with an open (drop-2) spread; the rest keep the close block. The Conductor
+// owns this (it owns the voicing); the instrument that CARRIES the harmony is a
+// separate, already-existing decision (InstrumentPerformerRouter, mode-keyed) —
+// not duplicated here. Default 'close'.
+const SUB_GENRE_VOICING_STYLE: Record<string, VoicingStyle> = {
+  'lo-fi':       'spread',
+  'r&b':         'spread',
+  'r&b-soul':    'spread',
+  'soul':        'spread',
+  'chill':       'spread',
+  'west-coast':  'spread',
+  'jersey-club': 'close',
+  'boom-bap':    'close',
+  'boom bap':    'close',
+  'trap':        'close',
+  'drill':       'close',
+  'phonk':       'close',
+  'dirty-south': 'close',
+  'afrobeat':    'close',
+  'afrobeats':   'close',
+  'bounce':      'close',
+  'reggaeton':   'close',
+  'hip-hop':     'close',
 }
 
 // ── The Conductor ────────────────────────────────────────────────────
@@ -373,7 +399,7 @@ export class Conductor {
    */
   currentVoicing(): Voicing {
     if (this.voicing === null || this.voicingVersion !== this.progressionVersion) {
-      this.voicing = voiceChord(this.currentChord(), null)
+      this.voicing = voiceChord(this.currentChord(), null, this.voicingOpts())
       this.voicingVersion = this.progressionVersion
     }
     return this.voicing
@@ -384,7 +410,16 @@ export class Conductor {
    * Used for anticipatory writes (chord pickups). Derived on demand, not cached.
    */
   nextVoicing(): Voicing {
-    return voiceChord(this.nextChord(), this.currentVoicing())
+    return voiceChord(this.nextChord(), this.currentVoicing(), this.voicingOpts())
+  }
+
+  /**
+   * Part 3 V4 — the comp voicing style for the active sub-genre. Lush genres
+   * spread (drop-2), the rest stay close. The Conductor owns the voicing, so it
+   * owns this; it does NOT pick the carrying instrument (that's the router).
+   */
+  private voicingOpts(): { style: VoicingStyle } {
+    return { style: SUB_GENRE_VOICING_STYLE[this.subGenre] ?? 'close' }
   }
 
   /** The whole progression — useful for UI display and lookahead planning. */
@@ -512,7 +547,7 @@ export class Conductor {
     // progression was replaced since it was last computed, in which case start
     // a fresh anchor (voice-leading from a stale key makes no sense).
     const anchor = this.voicingVersion === this.progressionVersion ? this.voicing : null
-    this.voicing = voiceChord(chord, anchor)
+    this.voicing = voiceChord(chord, anchor, this.voicingOpts())
     this.voicingVersion = this.progressionVersion
     for (const cb of this.chordChangeListeners) cb(chord)
   }

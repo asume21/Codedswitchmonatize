@@ -6,6 +6,14 @@ export interface Voicing {
   guideTones: number[]  // the 3rd & 7th — the chord's colour (MIDI)
 }
 
+/**
+ * How the comp voices the chord. 'close' = packed block (boom-bap, trap).
+ * 'spread' = an open drop-2 voicing (the 2nd-from-top voice dropped an octave) —
+ * the lush, airy comping lo-fi / R&B / soul live on. The Conductor picks the
+ * style per sub-genre; the notes are identical, only the register spreads.
+ */
+export type VoicingStyle = 'close' | 'spread'
+
 export interface VoicingOptions {
   /** Base MIDI for the bass root (C2 = 36). */
   bassBase?: number
@@ -14,9 +22,24 @@ export interface VoicingOptions {
   /** Register the inner voices live in. */
   low?: number
   high?: number
+  /** Comp voicing style; defaults to 'close'. */
+  style?: VoicingStyle
 }
 
 const pc = (m: number) => ((m % 12) + 12) % 12
+
+/**
+ * Open a close voicing into a drop-2 spread: drop the SECOND-from-top voice an
+ * octave. Same pitch classes, wider register — the open comp sound. Needs ≥3
+ * voices to have a meaningful inner voice to drop; smaller shapes pass through.
+ * Returns a fresh sorted array.
+ */
+function applySpread(closeInner: number[], style: VoicingStyle): number[] {
+  if (style === 'close' || closeInner.length < 3) return closeInner
+  const v = [...closeInner].sort((a, b) => a - b)
+  v[v.length - 2] -= 12 // drop-2: the 2nd-from-top voice down an octave
+  return v.sort((a, b) => a - b)
+}
 
 /** The MIDI note of pitch-class `p` nearest to `target`, within [low, high]. */
 function nearestWithPC(p: number, target: number, low: number, high: number): number {
@@ -87,5 +110,5 @@ export function voiceChord(
   }
   const guideTones = [...new Set(guidePCs)].map((p) => nearestWithPC(p, center, low, high))
 
-  return { bass, inner, guideTones }
+  return { bass, inner: applySpread(inner, opts.style ?? 'close'), guideTones }
 }

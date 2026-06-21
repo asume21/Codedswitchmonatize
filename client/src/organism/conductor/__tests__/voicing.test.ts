@@ -56,3 +56,29 @@ describe('voiceChord', () => {
     expect(movement(led.inner, prev.inner)).toBeLessThan(movement(naive, prev.inner))
   })
 })
+
+// V4 — the Conductor picks a voicing STYLE per preset: lush genres comp with an
+// open (drop-2) spread, the rest keep the close block. Same notes, wider register.
+describe('voiceChord — spread style', () => {
+  const span = (a: number[]) => Math.max(...a) - Math.min(...a)
+
+  it('defaults to the close block voicing when no style is given', () => {
+    expect(voiceChord(Cmaj7, null).inner).toEqual(voiceChord(Cmaj7, null, { style: 'close' }).inner)
+  })
+
+  it('spread is wider than the close block voicing', () => {
+    const close = voiceChord(Cmaj7, null, { style: 'close' })
+    const spread = voiceChord(Cmaj7, null, { style: 'spread' })
+    expect(span(spread.inner)).toBeGreaterThan(span(close.inner))
+  })
+
+  it('spread keeps the same chord pitch classes (it re-registers, not re-harmonises)', () => {
+    const spread = voiceChord(Cmaj7, null, { style: 'spread' })
+    expect(new Set(spread.inner.map(pcOf))).toEqual(new Set([0, 4, 7, 11]))
+  })
+
+  it('spread stays above the bass register (no voice collides with the C2 bass)', () => {
+    const spread = voiceChord(Cmaj7, null, { style: 'spread' })
+    expect(Math.min(...spread.inner)).toBeGreaterThanOrEqual(spread.bass + 1)
+  })
+})

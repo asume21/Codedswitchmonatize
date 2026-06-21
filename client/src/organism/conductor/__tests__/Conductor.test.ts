@@ -224,6 +224,25 @@ describe('Conductor', () => {
     })
   })
 
+  it('comps lush genres with a wider (spread) voicing than boom-bap (V4)', () => {
+    const span = (v: { inner: number[] }) => Math.max(...v.inner) - Math.min(...v.inner)
+    const lofi = new Conductor({ key: 'C', subGenre: 'lo-fi' })       // → spread
+    const boomBap = new Conductor({ key: 'C', subGenre: 'boom-bap' }) // → close
+    expect(span(lofi.currentVoicing())).toBeGreaterThan(span(boomBap.currentVoicing()))
+  })
+
+  it('keeps the spread voicing through advanceChord (V4)', () => {
+    const lofi = new Conductor({ key: 'C', subGenre: 'lo-fi' })
+    const closeSpanBoom = (() => {
+      const b = new Conductor({ key: 'C', subGenre: 'boom-bap' })
+      b.advanceChord()
+      return Math.max(...b.currentVoicing().inner) - Math.min(...b.currentVoicing().inner)
+    })()
+    lofi.advanceChord()
+    const v = lofi.currentVoicing()
+    expect(Math.max(...v.inner) - Math.min(...v.inner)).toBeGreaterThan(closeSpanBoom)
+  })
+
   it('voices the current chord and voice-leads on advanceChord (V1)', () => {
     const conductor = new Conductor({ key: 'C', subGenre: 'trap' })
     const pcOf = (m: number) => ((m % 12) + 12) % 12
