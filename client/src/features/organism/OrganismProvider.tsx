@@ -215,6 +215,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [v2Status, setV2Status] = useState<OrganismV2Status>(ORGANISM_V2_INITIAL_STATUS)
   const startTokenRef = useRef(0)
   const startInFlightRef = useRef<Promise<void> | null>(null)
+  const swapPresetTokenRef = useRef(0)
+  const vibeInterpretTokenRef = useRef(0)
 
   // Count-In state
   const [countInBeat, setCountInBeat] = useState<number | null>(null)
@@ -1122,6 +1124,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   const stop = useCallback(() => {
     startTokenRef.current += 1
+    swapPresetTokenRef.current += 1
+    vibeInterpretTokenRef.current += 1
     startInFlightRef.current = null
     setIsStarting(false)
     // If any recording is in progress, clean it up before stopping generators.
@@ -1460,6 +1464,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    * regenerates patterns immediately. The beat never stops.
    */
   const swapPreset = useCallback(async (presetId: string) => {
+    const swapToken = ++swapPresetTokenRef.current
     const preset = getQuickStartPreset(presetId)
     if (!preset) {
       setError(`Unknown preset: ${presetId}`)
@@ -1485,6 +1490,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const endSwap = orgPhase('swapPreset', 100)
     try {
       await Tone.start()
+      if (swapPresetTokenRef.current !== swapToken) return
       physics.lockMode(preset.mode)
       orchestr.setBpm(preset.bpm)
       useStudioStore.getState().setBpm(preset.bpm)
@@ -1522,12 +1528,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         orchestr.swapSubGenre(preset.subGenre, preset.bpm)
       }
       await waitForStartupParts()
+      if (swapPresetTokenRef.current !== swapToken) return
       await orchestr.start(preset.bpm, true)
+      if (swapPresetTokenRef.current !== swapToken) return
       applyStablePlaybackDefaults()
       Tone.getDestination().volume.value = 0
 
       // Re-compose for the new preset — Song Mode only (see quickStart note).
       if (songModeEnabledRef.current) void composeForPreset(preset).then(plan => {
+        if (swapPresetTokenRef.current !== swapToken) return
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
         orgLog('compose:loaded', {
@@ -1599,6 +1608,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    * and then overrides with the interpreted params.
    */
   const interpretVibe = useCallback(async (text: string) => {
+    const vibeToken = ++vibeInterpretTokenRef.current
     let params: VibeParams | null = null
 
     // 1. Try server AI (Ollama → Grok fallback).
@@ -1629,6 +1639,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orgLog('interpretVibe:ruleBased', { text: text.slice(0, 60), interpretation: params.interpretation })
     }
 
+    if (vibeInterpretTokenRef.current !== vibeToken) return
+
     // Update UI state so CommandCenter can show what was understood
     setVibeInterpretation({
       text,
@@ -1645,6 +1657,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await quickStart(closestPreset.id)
       // Small delay to ensure engines have fully initialized before applying overrides
       await new Promise<void>(resolve => setTimeout(resolve, 200))
+      if (vibeInterpretTokenRef.current !== vibeToken) return
     }
 
     const physics = physicsRef.current

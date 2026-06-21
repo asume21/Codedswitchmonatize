@@ -52,8 +52,17 @@ export default function MakeSurface() {
   }, [takes]);
 
   const handleTransportClick = () => {
-    if (isPlaying) pause();
-    else play();
+    if (isPlaying) {
+      pause();
+      window.dispatchEvent(new CustomEvent('stopAllTools'));
+    } else {
+      play();
+    }
+  };
+
+  const handleTransportStop = () => {
+    stop();
+    window.dispatchEvent(new CustomEvent('stopAllTools'));
   };
 
   return (
@@ -98,7 +107,7 @@ export default function MakeSurface() {
               {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {isPlaying ? 'Pause' : 'Play'}
             </Button>
-            <Button type="button" variant="ghost" size="icon" onClick={stop} title="Stop">
+            <Button type="button" variant="ghost" size="icon" onClick={handleTransportStop} title="Stop">
               <Square className="h-4 w-4" />
             </Button>
           </div>
