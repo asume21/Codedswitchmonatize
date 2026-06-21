@@ -29,11 +29,10 @@ export function OrganismGuestPage() {
 
   return (
     <main className="relative h-screen bg-black">
-      {isAuthenticated ? (
-        <div className="h-full">
-          <OrganismCommandCenter />
-        </div>
-      ) : (
+      <div className={`h-full ${isAuthenticated ? '' : 'pt-[130px] md:pt-0'}`}>
+        <OrganismCommandCenter />
+      </div>
+      {!isAuthenticated && (
         <>
           <GuestTrialBanner organism={organism} />
           <TalkToOrganismCoach organism={organism} />

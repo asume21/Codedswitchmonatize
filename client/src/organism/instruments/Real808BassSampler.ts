@@ -107,5 +107,3 @@ export class Real808BassSampler {
     this.loadPromise = null
   }
 }
-
-
