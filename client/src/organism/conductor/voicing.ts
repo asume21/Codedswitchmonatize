@@ -32,13 +32,24 @@ const pc = (m: number) => ((m % 12) + 12) % 12
  * Open a close voicing into a drop-2 spread: drop the SECOND-from-top voice an
  * octave. Same pitch classes, wider register — the open comp sound. Needs ≥3
  * voices to have a meaningful inner voice to drop; smaller shapes pass through.
- * Returns a fresh sorted array.
+ *
+ * The drop must NOT push a comp voice into the bass octave (that's low-end mud,
+ * the comp fighting the 808 in the same range). If the dropped voice falls below
+ * the comp floor `low`, lift the whole open shape up by octaves until it clears
+ * the floor — same intervals, just re-registered above the bass. Returns a fresh
+ * sorted array.
  */
-function applySpread(closeInner: number[], style: VoicingStyle): number[] {
+function applySpread(closeInner: number[], style: VoicingStyle, low: number): number[] {
   if (style === 'close' || closeInner.length < 3) return closeInner
   const v = [...closeInner].sort((a, b) => a - b)
   v[v.length - 2] -= 12 // drop-2: the 2nd-from-top voice down an octave
-  return v.sort((a, b) => a - b)
+  v.sort((a, b) => a - b)
+  // Keep the open voicing out of the bass octave: lift by whole octaves until the
+  // lowest comp voice clears the comp floor. Preserves the spread; clears the mud.
+  while (v[0] < low) {
+    for (let i = 0; i < v.length; i++) v[i] += 12
+  }
+  return v
 }
 
 /** The MIDI note of pitch-class `p` nearest to `target`, within [low, high]. */
@@ -110,5 +121,5 @@ export function voiceChord(
   }
   const guideTones = [...new Set(guidePCs)].map((p) => nearestWithPC(p, center, low, high))
 
-  return { bass, inner: applySpread(inner, opts.style ?? 'close'), guideTones }
+  return { bass, inner: applySpread(inner, opts.style ?? 'close', low), guideTones }
 }

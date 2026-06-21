@@ -77,8 +77,10 @@ describe('voiceChord — spread style', () => {
     expect(new Set(spread.inner.map(pcOf))).toEqual(new Set([0, 4, 7, 11]))
   })
 
-  it('spread stays above the bass register (no voice collides with the C2 bass)', () => {
+  it('spread stays in the comp register, out of the bass OCTAVE (not just the bass note)', () => {
     const spread = voiceChord(Cmaj7, null, { style: 'spread' })
-    expect(Math.min(...spread.inner)).toBeGreaterThanOrEqual(spread.bass + 1)
+    // The real anti-mud guarantee: no comp voice drops into the bass octave
+    // (C2–B2, 36–47). The default comp floor is C3 (48).
+    expect(Math.min(...spread.inner)).toBeGreaterThanOrEqual(48)
   })
 })
