@@ -21,6 +21,8 @@ import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { planAnswer, type DuetCue } from '../conductor/duet'
+import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
 import { getStylePreset } from '@shared/stylePresets'
@@ -63,6 +65,13 @@ export class GeneratorOrchestrator {
   private textureVolumeMultiplier: number = 1.0
   // Part 2: the reactive*Multiplier and selfListenGainCorrection fields are gone.
   // The MixEngine owns the mix; generator volume = the user/base multiplier only.
+
+  // ── The Duet (Part 3) — call-and-response state ───────────────────
+  // The band answers the MC in the gaps of the flow. The Conductor's planAnswer()
+  // is pure; the orchestrator owns the edge-detect + throttle timing here.
+  private duetEnabled: boolean = true
+  private duetWasBreathing: boolean = false
+  private duetLastAnswerMs: number = 0
 
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = false  // off by default for hip-hop
@@ -380,6 +389,9 @@ export class GeneratorOrchestrator {
 
   stop(): void {
     this.running = false
+    // Reset Duet edge/throttle so a new session doesn't fire a stale answer.
+    this.duetWasBreathing = false
+    this.duetLastAnswerMs = 0
     // Silence all generators immediately — continuous sources like the pink
     // noise in TextureGenerator keep producing audio after Transport stops.
     // Silence all generators immediately — continuous sources like the pink
@@ -580,6 +592,54 @@ export class GeneratorOrchestrator {
     if (performer.phraseBar === 0 && performer.phrasePosition < 0.1) {
       this.drum.setKickVelocityMultiplier(Math.min(1.5, kickMult * 1.15))
     }
+
+    // 5. The Duet — answer the MC in the gaps (call-and-response). Distinct from
+    // the WOW layer (which mimics beatbox onsets in the drum layer); this is the
+    // band's HARMONIC/MELODIC reply, cued by the Conductor.
+    this.maybeAnswerInGap(performer)
+  }
+
+  /**
+   * The Duet decision + execution. The Conductor's planAnswer() decides WHAT to
+   * play (and whether now is the moment); the orchestrator owns the rising-edge
+   * detection + throttle, and schedules the answer on the next 8th so it lands on
+   * the beat, inside the gap.
+   */
+  private maybeAnswerInGap(performer: PerformerState): void {
+    if (!this.duetEnabled) return
+    const now = performance.now()
+    const cue = planAnswer(performer, {
+      wasBreathing:      this.duetWasBreathing,
+      msSinceLastAnswer: now - this.duetLastAnswerMs,
+    })
+    this.duetWasBreathing = performer.breathingNow
+    if (!cue) return
+    this.duetLastAnswerMs = now
+    this.executeDuetCue(cue)
+  }
+
+  /** Fire a Duet cue, quantized to the next 8th so the reply lands on the beat. */
+  private executeDuetCue(cue: DuetCue): void {
+    const fire = (time: number) => {
+      if (cue.answer === 'phrase' && this.melodyEnabled) {
+        this.melody.triggerAnswerLick(time, cue.velocity)
+      } else if (cue.answer === 'stab' && this.chordEnabled) {
+        this.chord.triggerAnswerStab(time, cue.velocity)
+      }
+    }
+
+    const transport = Tone.getTransport()
+    if (transport.state === 'started') {
+      // Quantize to the next 8th-note boundary (ticks) so the answer is on-grid.
+      const ticksPerEighth = transport.PPQ / 2
+      const nextEighth = Math.ceil((transport.ticks + 1) / ticksPerEighth) * ticksPerEighth
+      try {
+        transport.scheduleOnce((time) => fire(time), `${nextEighth}i`)
+        return
+      } catch { /* scheduling raced a stop — fall through to immediate */ }
+    }
+    // Transport idle: just answer now (still musical against a held gap).
+    fire(Tone.now() + 0.02)
   }
 
   /**
@@ -760,6 +820,14 @@ export class GeneratorOrchestrator {
   }
 
   isMelodyOnly(): boolean { return this.melodyOnlyMode }
+
+  /** Enable/disable the Duet (the band answering the MC in the gaps). On by
+   *  default; a UI toggle or a "no interruptions" recording mode can turn it off. */
+  setDuetEnabled(enabled: boolean): void {
+    this.duetEnabled = enabled
+  }
+
+  isDuetEnabled(): boolean { return this.duetEnabled }
 
   // ── Mix engine connection methods (Section 06) ────────────────────
 

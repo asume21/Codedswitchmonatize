@@ -509,6 +509,32 @@ export class MelodyGenerator extends GeneratorBase {
     this.applyModeVoice(this.currentModeName)
   }
 
+  /**
+   * Conductor Duet — answer the MC with a short ascending lick (call-and-response)
+   * cued in the gap after a phrase. A one-shot on the active lead voice, OUTSIDE
+   * the looping phrase Part, built from the current chord tones so it agrees with
+   * the harmony. Lifted an octave for a bright "answer" register that sits above
+   * the comp. Never throws — a not-ready voice just drops the lick.
+   */
+  triggerAnswerLick(time: number, velocity: number): void {
+    const tones = getConductor().chordTones()   // MIDI, ~octave 4
+    if (tones.length === 0) return
+    const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+    const vel = Math.max(0.1, Math.min(1, velocity))
+    let eighth = 0.25
+    try { eighth = Tone.Time('8n').toSeconds() } catch { /* keep default */ }
+    // Up to 3 chord tones, ascending, an octave up — each an 8th apart, building
+    // toward the top note as the answer's accent.
+    const pick = tones.slice(0, 3).map((m) => m + 12)
+    pick.forEach((m, i) => {
+      const raw = Tone.Frequency(m, 'midi').toNote()
+      const note = this.currentPerformer ? conformNoteToInstrument(raw, this.currentPerformer) : raw
+      try {
+        voice.triggerAttackRelease(note, '8n', Math.max(0, time + i * eighth), vel * (0.85 + i * 0.06))
+      } catch { /* not ready / collision — drop this note of the lick */ }
+    })
+  }
+
   private applyModeVoice(mode: string): void {
     {
     const performer = selectInstrumentPerformer({

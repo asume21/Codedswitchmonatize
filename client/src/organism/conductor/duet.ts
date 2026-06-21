@@ -1,0 +1,53 @@
+// Conductor Part 3 — the Duet (musical call-and-response).
+//
+// The band answers the MC in the GAPS of the flow: when the performer breathes
+// or ends a phrase, the Conductor cues a short musical reply — a lead lick or a
+// comp stab — that lands on the beat. "Conversation in the music, not the
+// faders." This is the DECISION layer (pure); the orchestrator executes the cue.
+//
+// Division of labour (no doubles): the WOW layer (useWowMoments) owns DRUM
+// MIMICRY — it echoes the performer's beatbox onsets into drum hits WHILE they
+// happen. The Duet owns the HARMONIC/MELODIC REPLY — the band's own idea, played
+// back AFTER the phrase. Different layer, different moment; they don't overlap.
+
+import type { PerformerState } from '../audio/types'
+
+/** What the band plays back. 'phrase' = a lead lick; 'stab' = a comp punctuation. */
+export type DuetAnswer = 'phrase' | 'stab'
+
+export interface DuetCue {
+  answer: DuetAnswer
+  /** 0–1 trigger velocity for the answer, scaled from performer energy. */
+  velocity: number
+}
+
+export interface DuetContext {
+  /** breathingNow from the PREVIOUS frame — so the cue fires on the rising edge
+   *  of the gap (the moment the MC stops), not on every frame of the silence. */
+  wasBreathing: boolean
+  /** ms since the last answer fired — throttle so the band answers once per gap. */
+  msSinceLastAnswer: number
+  /** Minimum spacing between answers (ms). Default 1500 — one reply per breath. */
+  minGapMs?: number
+}
+
+/**
+ * Decide the band's musical answer to the MC, or null if now is not the moment.
+ * Pure: same inputs → same cue. The orchestrator owns the timing/throttle state
+ * and passes it in via `ctx`.
+ */
+export function planAnswer(performer: PerformerState, ctx: DuetContext): DuetCue | null {
+  // Never answer over an active phrase — the flow keeps the floor.
+  if (performer.isInPhrase) return null
+  // Fire once, on the rising edge of the breath (the moment the MC just stopped).
+  const gapJustOpened = performer.breathingNow && !ctx.wasBreathing
+  if (!gapJustOpened) return null
+  // One reply per gap window — don't pile answers into a flurry of short breaths.
+  if (ctx.msSinceLastAnswer < (ctx.minGapMs ?? 1500)) return null
+
+  const energy = Math.max(0, Math.min(1, performer.energy))
+  // A lively bar earns a melodic lick back; a calm gap gets a soft comp stab.
+  const answer: DuetAnswer = energy >= 0.45 ? 'phrase' : 'stab'
+  const velocity = Math.max(0.3, Math.min(0.95, 0.4 + energy * 0.5))
+  return { answer, velocity }
+}

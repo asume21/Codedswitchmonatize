@@ -698,6 +698,26 @@ export class ChordGenerator extends GeneratorBase {
     this.applyVoice(this.currentMode)
   }
 
+  /**
+   * Conductor Duet — punctuate a gap with a short stab of the CURRENT voicing.
+   * A one-shot (outside the looping comp Part) the Conductor cues when the MC
+   * breathes, so the band answers harmonically without stepping on the flow.
+   * Uses the active comp voice + the same voicing the band is on, so the stab
+   * sits right inside the harmony.
+   */
+  triggerAnswerStab(time: number, velocity: number): void {
+    const inner = getConductor().currentVoicing().inner
+    if (inner.length === 0) return
+    const notes = inner.map((m) => Tone.Frequency(m, 'midi').toNote())
+    const playable = this.currentPerformer
+      ? conformChordToInstrument(notes, this.currentPerformer)
+      : notes
+    const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
+    const vel = Math.max(0.05, Math.min(1, velocity))
+    try { voice.triggerAttackRelease(playable, '8n', Math.max(0, time), vel) }
+    catch { /* voice not ready / negative time — drop the answer, never throw */ }
+  }
+
   private applyVoice(mode: string): void {
     // When a real multisample instrument is locked in (e.g. a keys style using a
     // Soulful Keys e-piano), don't let the performer/soundfont path overwrite it.

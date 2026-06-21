@@ -164,7 +164,7 @@ and the `reactive*Multiplier`s. The ears stay; the unstable auto-mix hands go.
 
 ---
 
-## Part 3 — Voicing & the Duet  (ACTIVE — Part 2 done 2026-06-20)
+## Part 3 — Voicing & the Duet  ✅ DONE 2026-06-20 (V1–V4 + the Duet shipped)
 
 User reframed the goal (2026-06-20): cohesion alone makes the band TIGHT but
 BLAND. A conductor is only as good as its musical KNOWLEDGE. Today the Conductor
@@ -208,15 +208,22 @@ Conductor API already in place to build on: `currentChord()`/`nextChord()`
       "spread one chord across players, one note each" is left for later (the router +
       role system already separate who plays; per-note hand-off is a bigger change).
 
-### The Duet — musical call-and-response  (ACTIVE — voicing V1–V4 done 2026-06-20)
-- [ ] **D1 — The cue decision (pure).** New `conductor/duet.ts`: `planAnswer(performer,
-      ctx) → DuetCue | null`. The band answers the MC in the GAPS — when the performer
-      breathes / ends a phrase — never over the top of the flow. Decide answer TYPE
-      (drum fill / melodic phrase / stab hit) from energy + phrase position; throttle so
-      it answers once per gap, not every frame. Pure → TDD.
-- [ ] **D2 — Execute the cue.** Orchestrator's `applyPerformerState` runs the cue: drum
-      fill via `triggerImmediateHit`/`triggerImpact`, melodic answer via the melody
-      generator, all quantized to land on the beat. Cued by the Conductor, in the gaps.
+### The Duet — musical call-and-response  ✅ DONE 2026-06-20 (voicing V1–V4 + Duet)
+- [x] **D1 — The cue decision (pure).** ✅ `conductor/duet.ts`: `planAnswer(performer,
+      ctx) → DuetCue | null`. Answers only on the RISING EDGE of a gap (the moment the MC
+      stops: `breathingNow && !wasBreathing && !isInPhrase`), throttled to one reply per
+      gap window (default 1500ms). Answer TYPE from energy: lively bar → `'phrase'` (lead
+      lick), calm gap → `'stab'` (comp punctuation); velocity scales with energy. TDD'd.
+- [x] **D2 — Execute the cue.** ✅ Orchestrator's `applyPerformerState` owns the edge/
+      throttle state and runs the cue, quantized to the next 8th (ticks) so it lands on
+      the beat. `MelodyGenerator.triggerAnswerLick()` (ascending chord-tone lick an octave
+      up) and `ChordGenerator.triggerAnswerStab()` (one-shot of the current voicing) are
+      one-shots OUTSIDE the looping Parts. `setDuetEnabled()` toggle; state reset on stop.
+- **Division of labour (no double):** the WOW layer (`useWowMoments`) owns DRUM MIMICRY —
+      it echoes the MC's beatbox onsets into drum hits WHILE they happen. The Duet owns the
+      HARMONIC/MELODIC REPLY — the band's own idea, played AFTER the phrase, in the gap.
+      Different layer, different moment; they don't collide. Drum fills as a Duet answer are
+      intentionally deferred so the Duet never competes with WOW for the drum layer.
 
 ### Still captured for later (after the duet is heard)
 - The deeper source of "taste" (orchestration/voicing it wasn't explicitly told) is
@@ -236,7 +243,11 @@ Conductor API already in place to build on: `currentChord()`/`nextChord()`
 
 ## Sequencing
 
-Part 1 ✅ → Part 2 ✅ (mix churn killed, heard 2026-06-20) → **Part 3 (now): Voicing**
-→ orchestration/spread → the duet. Conductor first so the players' skill isn't
-wasted; better players pay off only once the band plays as one. Voicing is the
-foundation of Part 3 — the most audible knowledge to give the band's brain.
+Part 1 ✅ → Part 2 ✅ (mix churn killed, heard 2026-06-20) → Part 3 ✅ (V1 voicing core →
+V2 chords read it → V3 bass+melody align → V4 per-preset spread → the Duet, all
+2026-06-20). Conductor first so the players' skill isn't wasted; better players pay
+off only once the band plays as one.
+
+**Next (separate efforts):** verify the whole Part 3 chain BY EAR (the real
+acceptance test — voicing cohesion + the Duet answering in live freestyle); then the
+AI "minds"/musicMind hybrid that gives the Conductor taste it wasn't explicitly told.
