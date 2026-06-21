@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from '../melodyPhrase'
+import {
+  isStrongBeat,
+  resolveDegreeForBeat,
+  resolveDegreeComplementing,
+  contourOffset,
+  cadenceStep,
+} from '../melodyPhrase'
 
 describe('isStrongBeat', () => {
   it('is true on beat 1 and beat 3 downbeats, false elsewhere', () => {
@@ -21,6 +27,37 @@ describe('resolveDegreeForBeat', () => {
   })
   it('preserves octave region when snapping', () => {
     expect(resolveDegreeForBeat(10, chordDegs, 7, true)).toBe(9) // 10 = oct1+deg3 -> oct1+deg2 = 9
+  })
+})
+
+describe('resolveDegreeComplementing', () => {
+  // Cmaj7 over a 7-note scale: chord degrees root/3rd/5th/7th = [0, 2, 4, 6].
+  // The comp's guide tones are the 3rd (deg 2) and 7th (deg 6), so the melody
+  // should COMPLEMENT them by leaning on the remaining tones: root/5th = [0, 4].
+  const chordDegs = [0, 2, 4, 6]
+  const preferred = [0, 4]
+
+  it('snaps a strong beat to the nearest COMPLEMENT tone, skipping the guide tones', () => {
+    // deg 2 IS the 3rd (a guide tone). Plain resolveDegreeForBeat would keep it;
+    // complementing pulls it to the nearest of root/5th.
+    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, true)).toBe(0)
+    // deg 3 → nearest complement is the 5th (deg 4), not the 3rd (deg 2).
+    expect(resolveDegreeComplementing(3, chordDegs, preferred, 7, true)).toBe(4)
+  })
+
+  it('preserves octave region when snapping to a complement tone', () => {
+    // deg 9 = oct1 + deg2 (the 3rd, a guide tone) → oct1 + nearest complement.
+    expect(resolveDegreeComplementing(9, chordDegs, preferred, 7, true)).toBe(7) // oct1 + root
+  })
+
+  it('leaves weak beats untouched so guide tones still pass through', () => {
+    expect(resolveDegreeComplementing(2, chordDegs, preferred, 7, false)).toBe(2)
+  })
+
+  it('falls back to the full chord-tone set when there is no complement tone', () => {
+    // A bare shape whose only chord tones ARE guide tones — never strip the melody
+    // of every stable landing note.
+    expect(resolveDegreeComplementing(3, [2, 6], [], 7, true)).toBe(2)
   })
 })
 

@@ -34,7 +34,7 @@ import {
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
-import { isStrongBeat, resolveDegreeForBeat, contourOffset, cadenceStep } from './melody/melodyPhrase'
+import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 
@@ -88,6 +88,10 @@ export class MelodyGenerator extends GeneratorBase {
   // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
   // external API stays as an override path.
   private currentChordTones: number[] = []
+  // Conductor Part 3 V3 — the comp's guide tones (3rd & 7th, pitch classes 0-11).
+  // The melody COMPLEMENTS these on strong beats (leans on root/5th/extensions)
+  // so the lead doesn't mud-double the colour the chords are already stating.
+  private currentGuideTones: number[] = []
   private unsubscribeConductor: (() => void) | null = null
 
   // Physics cache
@@ -375,6 +379,14 @@ export class MelodyGenerator extends GeneratorBase {
       if (!pcs.includes(pc)) pcs.push(pc)
     }
     this.currentChordTones = pcs
+    // Guide tones (3rd & 7th) the comp is voicing — collapsed to pitch classes so
+    // the melody can prefer their COMPLEMENT on strong beats.
+    const guidePcs: number[] = []
+    for (const midi of conductor.currentVoicing().guideTones) {
+      const pc = ((midi % 12) + 12) % 12
+      if (!guidePcs.includes(pc)) guidePcs.push(pc)
+    }
+    this.currentGuideTones = guidePcs
     if (triggerRebuild) this.scaleDirty = true
   }
 
@@ -1048,6 +1060,20 @@ export class MelodyGenerator extends GeneratorBase {
       chordDegs.push(6, 8)
     }
 
+    // Conductor Part 3 V3 — the comp's guide tones (3rd/7th) as scale degrees, so
+    // the melody can prefer their COMPLEMENT (root/5th/extensions) on strong beats
+    // and stop mud-doubling the colour the chords already state. 'beautiful' intent
+    // is the deliberate exception — it leans INTO the lush 7th/9th, so leave its
+    // preferred set wide open (no complement filtering).
+    const guideDegs: number[] = []
+    if (this.emotionalIntent !== 'beautiful' && this.currentGuideTones.length > 0) {
+      for (let d = 0; d < this.currentScale.length; d++) {
+        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
+        if (this.currentGuideTones.includes(pc)) guideDegs.push(d)
+      }
+    }
+    const preferredDegs = chordDegs.filter((d) => !guideDegs.includes(d))
+
     const performer = this.currentPerformer
     const isBowedLead = performer?.family === 'bowed'
     const melodicOctave = isBowedLead
@@ -1087,8 +1113,10 @@ export class MelodyGenerator extends GeneratorBase {
         const posFraction = length16ths > 0 ? c / length16ths : 0
         if (!forceResolve) degIndex += contourOffset(posFraction, 2)
         // Make a note that lands on a downbeat — OR the forced cadence — a CHORD
-        // TONE (stable), leaving passing/neighbour tones for the off-beats.
-        degIndex = resolveDegreeForBeat(degIndex, chordDegs, this.currentScale.length, forceResolve || isStrongBeat(c))
+        // TONE (stable), leaving passing/neighbour tones for the off-beats. V3:
+        // among the chord tones, prefer the ones that COMPLEMENT the comp's guide
+        // tones so the lead and the chords spell the harmony together.
+        degIndex = resolveDegreeComplementing(degIndex, chordDegs, preferredDegs, this.currentScale.length, forceResolve || isStrongBeat(c))
 
         const pitch = degreeToPitch(degIndex, transposeOct)
         

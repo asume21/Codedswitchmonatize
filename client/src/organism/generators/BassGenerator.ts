@@ -239,13 +239,13 @@ export class BassGenerator extends GeneratorBase {
     // call moves the bass with the harmony. Until the Orchestrator advances the
     // Conductor on its bar tick, this just seeds a sensible starting root.
     const conductor = getConductor()
-    this.rootMidi = this.bassRootFromMidi(conductor.currentChord().rootMidi)
+    this.rootMidi = this.currentBassRoot()
     this.unsubscribeConductor = conductor.onChordChange((chord) => {
       // Push the chord QUALITY before the same-root early-return — patterns
       // must play the chord's actual third/seventh (a minor-pent bass over
       // the progression's major chords is the "off notes" clash).
       setBassChordQuality(chord.intervals)
-      const newRoot = this.bassRootFromMidi(chord.rootMidi)
+      const newRoot = this.currentBassRoot()
       if (newRoot === this.rootMidi) return
       this.rootMidi = newRoot
       this.chordRootPitchClass = chord.rootMidi % 12
@@ -264,6 +264,15 @@ export class BassGenerator extends GeneratorBase {
     while (root > 48) root -= 12
     while (root < 33) root += 12
     return Math.max(33, Math.min(48, root))
+  }
+
+  // Conductor Part 3 V3 — the bass plays the SAME root the voicing engine
+  // assigned (root in the bass register), so the low end agrees with the comp
+  // instead of each player dropping the chord symbol into its own octave. The
+  // voicing is computed on advanceChord BEFORE chord-change listeners fire, so
+  // it's always fresh here; bassRootFromMidi is kept only as a defensive clamp.
+  private currentBassRoot(): number {
+    return this.bassRootFromMidi(getConductor().currentVoicing().bass)
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -339,7 +348,7 @@ export class BassGenerator extends GeneratorBase {
       // Phase 4: Conductor is the only chord source. The legacy setCurrentChord
       // override path was removed when the Orchestrator's chord-bridge was
       // replaced with a Conductor subscription.
-      this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
+      this.rootMidi = this.currentBassRoot()
       this.currentMode     = physics.mode
       this.currentOrganismState = to
       // Swing comes from the orchestrator's sub-genre sync (setBassSwingFromSubGenre)
@@ -352,7 +361,7 @@ export class BassGenerator extends GeneratorBase {
       return
     }
 
-    this.rootMidi = this.bassRootFromMidi(getConductor().currentChord().rootMidi)
+    this.rootMidi = this.currentBassRoot()
     this.currentMode = physics.mode
     this.currentOrganismState = to
     this.currentBehavior = this.resolveBassBehavior(to)

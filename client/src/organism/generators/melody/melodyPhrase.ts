@@ -27,6 +27,30 @@ export function resolveDegreeForBeat(deg: number, chordDegs: number[], scaleLen:
   return strong ? nearestChordDegree(deg, chordDegs, scaleLen) : deg
 }
 
+/**
+ * Conductor Part 3 V3 — strong-beat resolution that COMPLEMENTS the comp.
+ *
+ * The Conductor's voicing emphasises the 3rd & 7th (guide tones) in the comp.
+ * To keep the lead from mud-doubling that colour, the melody PREFERS the other
+ * chord tones (root / 5th / extensions = `preferredDegs`) on strong beats —
+ * "one carries the other." Weak beats are untouched, so the guide tones still
+ * appear as passing/neighbour tones and the line stays melodic. Falls back to
+ * the full chord-tone set when there is no complement tone (e.g. a bare shape
+ * whose only chord tones ARE guide tones) so the melody never loses its stable
+ * landing notes.
+ */
+export function resolveDegreeComplementing(
+  deg: number,
+  chordDegs: number[],
+  preferredDegs: number[],
+  scaleLen: number,
+  strong: boolean,
+): number {
+  if (!strong) return deg
+  const pool = preferredDegs.length > 0 ? preferredDegs : chordDegs
+  return nearestChordDegree(deg, pool, scaleLen)
+}
+
 /** Arch curve: rises to a single climax ~2/3 through, falls back to ~0 at the end. */
 export function contourOffset(posFraction: number, intensity: number): number {
   const peak = 0.66
