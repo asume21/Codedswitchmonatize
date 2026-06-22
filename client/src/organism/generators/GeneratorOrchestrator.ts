@@ -101,6 +101,27 @@ export class GeneratorOrchestrator {
   private scheduledBreakEventIds: number[] = []
   private lastScheduledBreakBar: number = -1
 
+  // ── Progressive Intro ─────────────────────────────────────────────
+  // Musician-style instrument stacking: instead of every generator entering
+  // at bar 1, they layer in over the first 6 bars so the listener hears the
+  // "idea" first (melody solo), then harmony, then bass, then drums.
+  // Only applies when arrangementEnabled === false (jam mode).
+  private progressiveIntroEnabled: boolean = false
+  private introStartBar: number = -1
+
+  private static readonly INTRO_STACK: ReadonlyArray<{
+    atBar: number; drum: number; bass: number; chord: number; melody: number
+  }> = [
+    // Bar 0-1: melody + chords play alone — the idea, the seed
+    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0 },
+    // Bar 2-3: bass enters — the foundation grounds the melody
+    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0 },
+    // Bar 4-5: drums enter softly — the pulse begins
+    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0 },
+    // Bar 6+: full groove — everything playing and building
+    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0 },
+  ]
+
   // AI Director overrides — keyed by section name, applied next time that section starts
   private aiDirectiveOverrides: Map<string, {
     drumsArrangement: number; bassVolume: number; melodyVolume: number; melodyBehavior?: MelodyBehavior; chordTechnique: string
@@ -373,6 +394,10 @@ export class GeneratorOrchestrator {
       const startPattern = buildSubGenrePattern(startSubGenre, this.director.getState().drums.variantIndex)
       this.drum.loadGeneratedPattern(startPattern.hits, true)
     }
+
+    // Reset the progressive intro counter so every fresh start replays the
+    // instrument-stacking sequence from bar 0.
+    this.introStartBar = -1
 
     // Roll the dice once per start — without this, every cold start played
     // the SAME instrument (deterministic performer scoring), the SAME phrases
@@ -845,6 +870,31 @@ export class GeneratorOrchestrator {
   }
 
   isDuetEnabled(): boolean { return this.duetEnabled }
+
+  /**
+   * Enable musician-style staggered instrument entry for the next start.
+   * When true, melody+chords enter first; bass follows at bar 2; drums at bar 4;
+   * full groove from bar 6. Disabled instantly restores all multipliers to 1.
+   */
+  setProgressiveIntroEnabled(enabled: boolean): void {
+    if (this.progressiveIntroEnabled === enabled) return
+    this.progressiveIntroEnabled = enabled
+    this.introStartBar = -1
+    if (!enabled && !this.arrangementEnabled && !this.melodyOnlyMode) {
+      this.drum.applyArrangementMultiplier(1.0)
+      this.bass.applyArrangementMultiplier(1.0)
+      this.chord.applyArrangementMultiplier(1.0)
+      this.melody.applyArrangementMultiplier(1.0)
+    }
+  }
+
+  isProgressiveIntroEnabled(): boolean { return this.progressiveIntroEnabled }
+
+  /** Set the emotional intent on the melody — shapes dynamics and scale.
+   *  'sad' = natural minor, contained velocity; 'beautiful' = lush 7ths/9ths. */
+  setMelodyEmotionalIntent(intent: 'sad' | 'beautiful' | null): void {
+    this.melody.setEmotionalIntent(intent)
+  }
 
   // ── Mix engine connection methods (Section 06) ────────────────────
 
@@ -1365,6 +1415,22 @@ export class GeneratorOrchestrator {
       // Advance on the bar before each 4-bar boundary so the new harmony
       // lands exactly on the even downbeat (see arrangement path comment).
       if (barNumber % 4 === 3) getConductor().advanceChord()
+
+      // Progressive intro: stagger instrument entry like a real musician building a beat.
+      // Only when not in melody-only mode (which has its own multiplier logic).
+      if (this.progressiveIntroEnabled && !this.melodyOnlyMode) {
+        if (this.introStartBar === -1) this.introStartBar = barNumber
+        const barsElapsed = barNumber - this.introStartBar
+        const stack = GeneratorOrchestrator.INTRO_STACK
+        let stage = stack[0]
+        for (const s of stack) {
+          if (barsElapsed >= s.atBar) stage = s
+        }
+        this.drum.applyArrangementMultiplier(stage.drum)
+        this.bass.applyArrangementMultiplier(stage.bass)
+        this.chord.applyArrangementMultiplier(stage.chord)
+        this.melody.applyArrangementMultiplier(stage.melody)
+      }
       return
     }
 

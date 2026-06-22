@@ -1769,9 +1769,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyInstrument('bass',  params.instrumentBass)
       applyInstrument('chord', params.instrumentChord)
 
+      // Emotional intent shapes melody dynamics and scale choice.
+      // Progressive intro staggers instrument entry like a real musician building a beat.
+      if (params.emotionalIntent !== undefined) {
+        orchestr.setMelodyEmotionalIntent(params.emotionalIntent)
+      }
+      orchestr.setProgressiveIntroEnabled(params.progressiveIntro === true)
+
       orgLog('interpretVibe:applied', {
         bpm: params.bpm, mode, subGenre: params.subGenre,
         confidence: params.confidence,
+        emotionalIntent: params.emotionalIntent,
+        progressiveIntro: params.progressiveIntro,
         instruments: { lead: params.instrumentLead, bass: params.instrumentBass, chord: params.instrumentChord },
       })
     }
