@@ -1,0 +1,4 @@
+99Sounds license is included with this kit as "99Sounds License.pdf".
+
+This kit is bundled as a shared Organism drum sample library for server-side
+sample hosting. Review the included PDF before changing the distribution model.

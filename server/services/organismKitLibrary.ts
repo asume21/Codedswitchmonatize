@@ -21,11 +21,10 @@ export interface OrganismKit {
   priority: number;
 }
 
-const DEFAULT_PRIVATE_KIT_ROOT =
-  process.env.ORGANISM_KIT_ROOT ||
-  (fs.existsSync("/data")
-    ? path.resolve("/data", "organism-kits")
-    : path.resolve(process.cwd(), "private", "organism-kits"));
+const PRIVATE_KIT_ROOT = path.resolve(process.cwd(), "private", "organism-kits");
+const COMMITTED_KIT_ROOT = path.resolve(process.cwd(), "server", "Assets", "organism-kits");
+const RAILWAY_OBJECTS_KIT_ROOT = path.resolve("/app", "objects", "organism-kits");
+const DATA_VOLUME_KIT_ROOT = path.resolve("/data", "organism-kits");
 
 // Like \b but treats underscore as a separator. Sample-pack filenames
 // commonly use snake_case (E808_BD-01.wav, MV1_SD_02.wav) where the
@@ -64,6 +63,36 @@ function walkWavs(root: string): string[] {
   return out;
 }
 
+function hasKitSamples(root: string): boolean {
+  if (!fs.existsSync(root)) return false;
+  try {
+    return fs.readdirSync(root, { withFileTypes: true }).some((entry) => {
+      if (!entry.isDirectory()) return false;
+      return walkWavs(path.join(root, entry.name)).length > 0;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function getDefaultKitRootCandidates(): string[] {
+  const productionCandidates = [
+    RAILWAY_OBJECTS_KIT_ROOT,
+    DATA_VOLUME_KIT_ROOT,
+    COMMITTED_KIT_ROOT,
+    PRIVATE_KIT_ROOT,
+  ];
+
+  const developmentCandidates = [
+    PRIVATE_KIT_ROOT,
+    COMMITTED_KIT_ROOT,
+    RAILWAY_OBJECTS_KIT_ROOT,
+    DATA_VOLUME_KIT_ROOT,
+  ];
+
+  return process.env.NODE_ENV === "production" ? productionCandidates : developmentCandidates;
+}
+
 function roleForFile(fileName: string): OrganismKitRole | null {
   for (const [role, pattern] of ROLE_PATTERNS) {
     if (pattern.test(fileName)) return role;
@@ -96,7 +125,10 @@ function readKitRootNote(root: string): string | undefined {
 }
 
 export function getOrganismKitRoot(): string {
-  return DEFAULT_PRIVATE_KIT_ROOT;
+  if (process.env.ORGANISM_KIT_ROOT) return process.env.ORGANISM_KIT_ROOT;
+
+  const candidates = getDefaultKitRootCandidates();
+  return candidates.find(hasKitSamples) ?? candidates[0];
 }
 
 export function listOrganismKits(): OrganismKit[] {
