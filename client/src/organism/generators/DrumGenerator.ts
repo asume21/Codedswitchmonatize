@@ -119,7 +119,7 @@ export class DrumGenerator extends GeneratorBase {
       // wash instead of a boom-bap crack. Tighter tail = snap, not sweep.
       envelope: { attack: 0.001, decay: 0.08, sustain: 0 },
     })
-    this.snareBody.volume.value = -9   // was -6
+    this.snareBody.volume.value = -12  // was -9: cut the washy noise body further toward a crack
     this.snareBody.connect(this.snareBus)
 
     this.snareTone = new Tone.MembraneSynth({
@@ -142,10 +142,12 @@ export class DrumGenerator extends GeneratorBase {
     this.hat.volume.value = -20
     this.hat.connect(this.hatFilter)
 
-    // Open hat — longer decay gives the "tsss" tail for groove breathing
+    // Open hat — a SHORT "tss", not a long sweep. decay 0.12 (was 0.22): the
+    // 220ms white-noise tail read as an off-beat "woosh" in boom-bap (the user's
+    // off-beat woosh). Shorter tail = a hat tick that breathes without sweeping.
     this.hatOpen = new Tone.NoiseSynth({
       noise:    { type: 'white' },
-      envelope: { attack: 0.001, decay: 0.22, sustain: 0, release: 0.06 },
+      envelope: { attack: 0.001, decay: 0.12, sustain: 0, release: 0.04 },
     })
     this.hatOpen.volume.value = -22
     this.hatOpen.connect(this.hatFilter)
