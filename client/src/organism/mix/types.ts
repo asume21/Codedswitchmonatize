@@ -52,7 +52,11 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // sample at +3 dBFS BEFORE summing, and Tone.Limiter's 3ms attack lets that
       // transient through. +4 with master -6 gives the loudest kick real headroom.
       name: 'drum', pan: 0, gainDb: 4,
-      compThresholdDb: -18, compRatio: 4, compAttackMs: 5,
+      // Punch tuning (2026-06-22): live prod captures (Cypher + Violin Trap) measured
+      // crest factor 3.3-3.7 and "no clear beat" — 4:1 @ 5ms was squashing the kick/snare
+      // transient into the bed (low crest = no thwack). Ease to 2:1 and slow the attack to
+      // 20ms so the hit punches THROUGH before the comp clamps. Glue, not squash.
+      compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 80, compKneeDb: 6,
       eq: { highpassHz: 30, midHz: 300, midGain: -2, midQ: 0.8 },  // scoop low-mid mud
     },
@@ -61,8 +65,11 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // 20-80 Hz sub band (trap wants the sub forward, just under the kick). -4
       // was burying it; bring it to unity so the 808 has authority.
       name: 'bass', pan: 0, gainDb: 0,
-      compThresholdDb: -20, compRatio: 5, compAttackMs: 10,
-      compReleaseMs: 150, compKneeDb: 4,
+      // Punch tuning (2026-06-22): 5:1 smoothed the 808 into a sustained mid-rangey
+      // "grunt" (prod captures: sub 14% vs lowMid 30%). Ease to 3:1 + faster release so
+      // the sub breathes and sits under the kick instead of filling the mud zone.
+      compThresholdDb: -20, compRatio: 3, compAttackMs: 10,
+      compReleaseMs: 120, compKneeDb: 4,
       eq: { highpassHz: 24, highShelfHz: 2000, highShelfGain: -6 },  // HP at 24Hz keeps the 808 sub (was 35 = cut the sub); roll off highs
     },
     melody: {
