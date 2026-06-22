@@ -217,8 +217,7 @@ const GENRE_REFS: Array<{ keys: string[]; partial: Partial<VibeParams> & { inter
   {
     keys: ['fire beat', 'freestyle beat', 'hard beat', 'banger'],
     partial: { bpm: 95, mode: 'smoke', subGenre: 'boom-bap', energy: 0.75, swing: 0.45, bounce: 0.65, density: 0.58,
-      interpretation: 'Fire beat — hard-hitting, everything in from bar 1', confidence: 0.82,
-      progressiveIntro: false },
+      interpretation: 'Fire beat — hard-hitting, builds fast into a full groove', confidence: 0.82 },
   },
 ]
 

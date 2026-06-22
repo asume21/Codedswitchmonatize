@@ -106,7 +106,7 @@ export class GeneratorOrchestrator {
   // at bar 1, they layer in over the first 6 bars so the listener hears the
   // "idea" first (melody solo), then harmony, then bass, then drums.
   // Only applies when arrangementEnabled === false (jam mode).
-  private progressiveIntroEnabled: boolean = false
+  private progressiveIntroEnabled: boolean = true
   private introStartBar: number = -1
 
   private static readonly INTRO_STACK: ReadonlyArray<{
