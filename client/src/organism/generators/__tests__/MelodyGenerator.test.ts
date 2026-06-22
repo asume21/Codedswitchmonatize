@@ -9,7 +9,7 @@ import * as Tone from 'tone'
 
 vi.mock('tone', () => createToneMock())
 
-import { MelodyGenerator } from '../MelodyGenerator'
+import { MelodyGenerator, snapNoteToScale } from '../MelodyGenerator'
 import { getMelodyBehavior } from '../patterns/MelodyPatternLibrary'
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -124,6 +124,14 @@ describe('MelodyGenerator', () => {
     }
     const events = partMock.mock.calls.at(-1)?.[1] ?? []
     expect(Math.max(...events.map(event => event.vel))).toBeGreaterThan(0.5)
+  })
+
+  it('snaps wind ornament pitches back into the active scale', () => {
+    const majorScale = [0, 2, 4, 5, 7, 9, 11]
+
+    expect(snapNoteToScale('Bb3', 0, majorScale)).toBe('A3')
+    expect(snapNoteToScale('C#4', 0, majorScale)).toBe('C4')
+    expect(snapNoteToScale('D4', 0, majorScale)).toBe('D4')
   })
 
   it('onStateTransition to DORMANT stops part and zeros activity', () => {

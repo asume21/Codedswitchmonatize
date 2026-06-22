@@ -152,7 +152,7 @@ export const INSTRUMENT_PERFORMERS: InstrumentPerformerProfile[] = [
     envelope: { attack: 0.035, release: 0.28 },
     volume: -6,
     defaultTechnique: 'wind-legato',
-    defaultLeadArticulation: 'grace-flick',
+    defaultLeadArticulation: 'legato-slur',
     defaultBassArticulation: 'none',
     modeBias: ['ice', 'glow', 'smoke'],
     tags: ['wind', 'air', 'ornament'],

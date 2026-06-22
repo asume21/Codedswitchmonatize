@@ -46,6 +46,7 @@ export class DrumGenerator extends GeneratorBase {
   private sampledKit: SampledDrumKit
 
   private part: Tone.Part | null = null
+  private breakFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
 
   // Physics cache
@@ -392,15 +393,45 @@ export class DrumGenerator extends GeneratorBase {
     }))
     this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
 
-    const events = quantizedHits.map(h => ({
-      time:       h.time,
-      instrument: h.instrument,
-      velocity:   h.velocity,
-      // Timing is grid-locked here. Pattern swing is represented in the BBS
-      // time before quantization; runtime randomness made the full generator
-      // stack feel "almost together" instead of locked.
-      microShift: 0,
-    }))
+    const events = quantizedHits.map(h => {
+      const parts = h.time.split(':')
+      const beat = parseInt(parts[1] ?? '0', 10)
+      const sub = parseFloat(parts[2] ?? '0')
+      
+      let microShift = 0
+      let velocity = h.velocity
+
+      // 1. Lazy Snare: On beats 2 and 4 (beat index 1 and 3), delay snare by 5ms–15ms
+      if (h.instrument === DrumInstrument.Snare && (beat === 1 || beat === 3) && sub === 0) {
+        microShift = 0.005 + Math.random() * 0.010 // 5ms to 15ms
+      }
+
+      // 2. Closed Hi-Hat adjustments
+      if (h.instrument === DrumInstrument.Hat) {
+        const sixteenthPos = Math.floor(beat * 4 + sub) % 16
+        
+        // Cyclic velocity pattern [1.0, 0.4, 0.75, 0.5]
+        const patternIndex = sixteenthPos % 4
+        const patternVel = [1.0, 0.4, 0.75, 0.5][patternIndex]
+        velocity = h.velocity * patternVel
+
+        // Hat Shuffle: Shift off-beat 16th notes late by 1.5% to 3% of a 16th duration
+        const isOffBeat = sixteenthPos % 2 !== 0
+        if (isOffBeat) {
+          const bpm = Tone.getTransport().bpm.value || 120
+          const sixteenthDurationSec = 60 / (bpm * 4)
+          const shiftPct = 0.015 + Math.random() * 0.015
+          microShift = shiftPct * sixteenthDurationSec
+        }
+      }
+
+      return {
+        time:       h.time,
+        instrument: h.instrument,
+        velocity,
+        microShift,
+      }
+    })
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -626,12 +657,42 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private stopPart(): void {
+    this.clearBarEndBreakFill()
     if (this.part) {
       this.part.stop()
       this.part.dispose()
       this.part = null
     }
     this.lastTriggerByVoice.clear()
+  }
+
+  triggerBarEndBreakFill(time: number): void {
+    this.clearBarEndBreakFill()
+
+    const bpm = Tone.getTransport().bpm.value || 120
+    const beatDurationSec = 60 / bpm
+    const step32ndSec = beatDurationSec / 8
+
+    // Generate 16 steps of 32nd notes (for 2 beats total break duration)
+    const events = Array.from({ length: 16 }, (_, i) => ({
+      time: i * step32ndSec,
+      velocity: i % 2 === 0 ? 0.75 : 0.4 // bouncy hi-hat pattern
+    }))
+
+    this.breakFillPart = new Tone.Part((hitTime, event) => {
+      // Trigger a closed hi-hat hit on the grid
+      this.triggerDrum(DrumInstrument.Hat, time + hitTime, event.velocity)
+    }, events)
+
+    this.breakFillPart.start(time)
+  }
+
+  clearBarEndBreakFill(): void {
+    if (this.breakFillPart) {
+      try { this.breakFillPart.stop() } catch { /* */ }
+      try { this.breakFillPart.dispose() } catch { /* */ }
+      this.breakFillPart = null
+    }
   }
 
   /** Register a callback fired on every kick hit — used for sidechain ducking. */

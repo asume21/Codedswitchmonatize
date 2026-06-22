@@ -28,6 +28,8 @@ import type { ArticulationContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import {
   conformNoteToInstrument,
+  midiToNote,
+  noteToMidi,
   selectInstrumentPerformer,
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
@@ -37,6 +39,37 @@ import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+
+const normalizePitchClass = (pitchClass: number): number =>
+  ((Math.round(pitchClass) % 12) + 12) % 12
+
+export function snapNoteToScale(
+  note: string | number,
+  rootPitchClass: number,
+  scaleIntervals: number[],
+  pitchOffsetSemitones = 0,
+): string | number {
+  const midi = noteToMidi(note)
+  if (midi == null || scaleIntervals.length === 0) return note
+
+  const root = normalizePitchClass(rootPitchClass + pitchOffsetSemitones)
+  const allowed = new Set(scaleIntervals.map(interval => normalizePitchClass(root + interval)))
+  if (allowed.has(normalizePitchClass(midi))) return note
+
+  for (let delta = 1; delta <= 6; delta++) {
+    const lower = midi - delta
+    if (allowed.has(normalizePitchClass(lower))) {
+      return typeof note === 'number' ? lower : midiToNote(lower)
+    }
+
+    const upper = midi + delta
+    if (allowed.has(normalizePitchClass(upper))) {
+      return typeof note === 'number' ? upper : midiToNote(upper)
+    }
+  }
+
+  return note
+}
 
 export class MelodyGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -904,10 +937,11 @@ export class MelodyGenerator extends GeneratorBase {
         artCtx
       )
       for (const n of scheduled) {
+        const note = this.conformArticulatedNote(n.note)
         // Clamp to ≥0 — float-negative times (and pre-beat offsets) throw
         // Tone's "value must be within [0, Infinity]" and silence the voice.
         const t = Math.max(0, time + n.timeOffset)
-        voice.triggerAttackRelease(n.note, n.duration, t, n.velocity)
+        voice.triggerAttackRelease(note, n.duration, t, n.velocity)
       }
     }, notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined })))
 
@@ -1034,6 +1068,16 @@ export class MelodyGenerator extends GeneratorBase {
       notes.length = 0
       notes.push(...kept)
     }
+  }
+
+  private conformArticulatedNote(note: string | number): string | number {
+    if (!this.currentPerformer) return note
+
+    const pitch = this.currentPerformer.family === 'wind'
+      ? snapNoteToScale(note, this.rootPitchClass, this.currentScale, this.pitchOffsetSemitones)
+      : note
+
+    return conformNoteToInstrument(pitch, this.currentPerformer)
   }
 
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {

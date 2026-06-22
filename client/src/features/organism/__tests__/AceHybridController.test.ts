@@ -26,7 +26,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
   it('defaults to live: band not silenced, stems inactive, no render', () => {
     const { layer } = makeFakeLayer()
     const fetchStems = vi.fn()
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
     expect(c.getMode()).toBe('live')
     expect(fetchStems).not.toHaveBeenCalled()
     expect(band).not.toHaveBeenCalledWith(true)
@@ -35,7 +35,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
   it('ace mode renders, then silences the band and activates stems on arrival', async () => {
     const { layer, calls } = makeFakeLayer()
     const fetchStems = vi.fn(async () => STEMS)
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
 
     c.setRequest({ prompt: 'trap', bpm: 140 })
     c.setMode('ace')
@@ -53,7 +53,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
     const { layer } = makeFakeLayer()
     let resolveFetch: (s: AceStem[]) => void
     const fetchStems = vi.fn(() => new Promise<AceStem[]>((res) => { resolveFetch = res }))
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
 
     c.setRequest({ prompt: 'trap', bpm: 140 })
     c.setMode('ace')
@@ -70,7 +70,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
   it('both mode: stems active AND band NOT silenced', async () => {
     const { layer } = makeFakeLayer()
     const fetchStems = vi.fn(async () => STEMS)
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
 
     c.setRequest({ prompt: 'trap', bpm: 140 })
     c.setMode('both')
@@ -83,7 +83,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
   it('switching back to live deactivates stems and restores the band', async () => {
     const { layer } = makeFakeLayer()
     const fetchStems = vi.fn(async () => STEMS)
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
 
     c.setRequest({ prompt: 'trap', bpm: 140 })
     c.setMode('ace')
@@ -97,7 +97,7 @@ describe('AceHybridController — live/ace/both mode switch', () => {
   it('does not double-fetch when already requesting', async () => {
     const { layer } = makeFakeLayer()
     const fetchStems = vi.fn(async () => STEMS)
-    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: band, fetchStems })
+    const c = new AceHybridController({ stemLayer: layer, setBandSilenced: (silenced) => band(silenced), fetchStems })
 
     c.setRequest({ prompt: 'trap', bpm: 140 })
     c.setMode('ace')

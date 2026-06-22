@@ -19,7 +19,7 @@ const NOTE_TO_PC: Record<string, number> = {
 const PC_TO_NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 const DEFAULT_BY_ROLE: Record<PerformerRole, InstrumentPerformerId> = {
-  lead: 'flute',
+  lead: 'piano',
   bass: 'bass-electric',
   chord: 'piano',
   texture: 'strings',
@@ -42,12 +42,12 @@ const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, I
     chord: ['rhodes', 'piano', 'guitar-nylon'],
   },
   ice: {
-    lead: ['flute', 'harp', 'violin', 'sitar'],
+    lead: ['harp', 'violin', 'sitar', 'flute'],
     bass: ['bass-synth', 'bass-electric'],
     chord: ['harp', 'strings', 'guitar-nylon'],
   },
   glow: {
-    lead: ['violin', 'flute', 'guitar-nylon', 'clarinet'],
+    lead: ['violin', 'guitar-nylon', 'clarinet', 'flute'],
     bass: ['bass-electric', 'bass-upright'],
     chord: ['rhodes', 'strings', 'guitar-nylon'],
   },

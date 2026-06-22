@@ -1,5 +1,6 @@
 // Section 06 — Mix Engine
 
+import * as Tone from 'tone'
 import { ChannelStrip }              from './channels/ChannelStrip'
 import { MasterBus }                 from './channels/MasterBus'
 import {
@@ -21,6 +22,15 @@ export class MixEngine {
 
   readonly master: MasterBus
 
+  // Parallel buses and spatialization
+  readonly bandMaster:      Tone.Gain
+  readonly drumBus:         Tone.Gain
+  readonly drumCompressor:  Tone.Compressor
+  readonly melodyBus:       Tone.Gain
+  readonly melodySplit:     Tone.Split
+  readonly melodyMerge:     Tone.Merge
+  readonly haasDelay:       Tone.Delay
+
   private meterCallbacks: Set<MeterCallback> = new Set()
   private meterInterval:  ReturnType<typeof setInterval> | null = null
 
@@ -39,12 +49,46 @@ export class MixEngine {
       this.config.master.saturationAmount,
     )
 
-    // Wire channels to master bus
-    this.drumChannel.output.connect(this.master.input)
-    this.bassChannel.output.connect(this.master.input)
-    this.melodyChannel.output.connect(this.master.input)
-    this.textureChannel.output.connect(this.master.input)
-    this.chordChannel.output.connect(this.master.input)
+    // 1. Initialize band master gain node (for silencing the generative engine)
+    this.bandMaster = new Tone.Gain(1)
+
+    // 2. Drum Bus (Kick, Snare, Percussion, Bass/808) with parallel compression
+    this.drumBus = new Tone.Gain(1)
+    this.drumCompressor = new Tone.Compressor({
+      threshold: -12,
+      ratio: 4,
+      attack: 0.04,  // 40ms attack lets transients pop
+      release: 0.1,  // 100ms release induces pumping
+    })
+
+    this.drumChannel.output.connect(this.drumBus)
+    this.bassChannel.output.connect(this.drumBus)
+    this.drumBus.connect(this.drumCompressor)
+    this.drumCompressor.connect(this.bandMaster)
+
+    // 3. Melody Bus (Keys, Chords, Textures) with Haas stereo widening
+    this.melodyBus = new Tone.Gain(1)
+    this.melodySplit = new Tone.Split(2)
+    this.melodyMerge = new Tone.Merge()
+    this.haasDelay = new Tone.Delay({
+      delayTime: 0.018, // 18ms delay on the Right channel
+      maxDelay: 0.1,
+    })
+
+    this.melodyChannel.output.connect(this.melodyBus)
+    this.chordChannel.output.connect(this.melodyBus)
+    this.textureChannel.output.connect(this.melodyBus)
+
+    // Haas Effect routing: Left directly to Merge; Right through Delay to Merge
+    this.melodyBus.connect(this.melodySplit)
+    this.melodySplit.connect(this.melodyMerge, 0, 0) // Left -> Left
+    this.melodySplit.connect(this.haasDelay, 1, 0)  // Right -> Delay
+    this.haasDelay.connect(this.melodyMerge, 0, 1)  // Delay -> Right
+
+    this.melodyMerge.connect(this.bandMaster)
+
+    // 4. Connect the summed bandMaster output to the master bus input
+    this.bandMaster.connect(this.master.input)
   }
 
   wire(orchestrator: GeneratorOrchestrator): void {
@@ -131,6 +175,10 @@ export class MixEngine {
     this.master.setGainDb(db)
   }
 
+  setBandSilenced(silenced: boolean): void {
+    this.bandMaster.gain.rampTo(silenced ? 0 : 1, 0.05)
+  }
+
   connectMasterOutput(destination: import('tone').InputNode): void {
     this.master.connectOutput(destination)
   }
@@ -141,18 +189,35 @@ export class MixEngine {
 
   dispose(): void {
     this.stopMetering()
-    // Explicitly disconnect channel outputs from master before disposing so
-    // stale audio edges don't linger in the Web Audio graph across re-mounts.
-    try { this.drumChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
-    try { this.bassChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
-    try { this.melodyChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
-    try { this.textureChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
-    try { this.chordChannel.output.disconnect(this.master.input) } catch { /* already disconnected */ }
+    // Explicitly disconnect all outputs to prevent stale audio graph leaks
+    try { this.drumChannel.output.disconnect() } catch { /* */ }
+    try { this.bassChannel.output.disconnect() } catch { /* */ }
+    try { this.melodyChannel.output.disconnect() } catch { /* */ }
+    try { this.textureChannel.output.disconnect() } catch { /* */ }
+    try { this.chordChannel.output.disconnect() } catch { /* */ }
+    
+    try { this.drumBus.disconnect() } catch { /* */ }
+    try { this.drumCompressor.disconnect() } catch { /* */ }
+    try { this.melodyBus.disconnect() } catch { /* */ }
+    try { this.melodySplit.disconnect() } catch { /* */ }
+    try { this.haasDelay.disconnect() } catch { /* */ }
+    try { this.melodyMerge.disconnect() } catch { /* */ }
+    try { this.bandMaster.disconnect() } catch { /* */ }
+
     this.drumChannel.dispose()
     this.bassChannel.dispose()
     this.melodyChannel.dispose()
     this.textureChannel.dispose()
     this.chordChannel.dispose()
+
+    this.drumBus.dispose()
+    this.drumCompressor.dispose()
+    this.melodyBus.dispose()
+    this.melodySplit.dispose()
+    this.melodyMerge.dispose()
+    this.haasDelay.dispose()
+    this.bandMaster.dispose()
+
     this.master.dispose()
   }
 

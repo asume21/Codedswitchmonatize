@@ -14,12 +14,20 @@ describe('InstrumentPerformerRouter', () => {
   // winner stays WITHIN the mode's idiomatic preferred list (the jitter is too
   // small to lift a non-preferred candidate over the preference gap).
   it('selects idiomatic lead instruments by mode', () => {
-    expect(['flute', 'harp', 'violin', 'sitar'])
+    expect(['harp', 'violin', 'sitar', 'flute'])
       .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'ice', energy: 0.4 }).id)
-    expect(['violin', 'flute', 'guitar-nylon', 'clarinet'])
+    expect(['violin', 'guitar-nylon', 'clarinet', 'flute'])
       .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'glow', energy: 0.5 }).id)
     expect(['piano', 'trumpet', 'rhodes'])
       .toContain(selectInstrumentPerformer({ role: 'lead', mode: 'heat', energy: 0.9 }).id)
+  })
+
+  it('keeps flute as an optional color instead of the generic lead fallback', () => {
+    expect(selectInstrumentPerformer({ role: 'lead', mode: 'unknown', energy: 0.5 }).id)
+      .toBe('piano')
+
+    const flute = INSTRUMENT_PERFORMERS_BY_ID.get('flute')!
+    expect(flute.defaultLeadArticulation).toBe('legato-slur')
   })
 
   it('selects idiomatic bass instruments by mode', () => {

@@ -104,6 +104,7 @@ export class BassGenerator extends GeneratorBase {
   // Bumped on every voice switch (applyBassPreset). A pending 808 load captures
   // this token and bails if the voice changed while its kit fetch was in flight.
   private voiceGeneration: number = 0
+  private glideRate: number = 0.15 // default 150ms
 
   // Articulation — per-note transform. Defaults to 'none' (legacy behavior).
   private currentArticulationId: string = DEFAULT_ARTICULATION_ID
@@ -124,6 +125,14 @@ export class BassGenerator extends GeneratorBase {
 
   getArticulation(): string {
     return this.currentArticulationId
+  }
+
+  setGlideRate(rate: number): void {
+    this.glideRate = Math.max(0.01, Math.min(1.0, rate))
+  }
+
+  getGlideRate(): number {
+    return this.glideRate
   }
 
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
@@ -625,6 +634,9 @@ export class BassGenerator extends GeneratorBase {
     // can come back later as a deliberate per-subgenre setting.
     const LAY_BACK_SEC = 0
 
+    let lastNoteEndTime = 0
+    let lastNoteFreq = 0
+
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
       const voice = this.getActiveVoice()
@@ -632,6 +644,8 @@ export class BassGenerator extends GeneratorBase {
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
+
+      const noteFreq = Tone.Frequency(playableNote).toFrequency()
 
       // Sub layer — reinforce the fundamental in octave 1 so the style has weight.
       // Once per note (independent of articulation); skipped when level is 0.
@@ -645,7 +659,20 @@ export class BassGenerator extends GeneratorBase {
 
       // Fast-path: default articulation skips the transform.
       if (this.currentArticulationId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, scheduledTime), pocketVelocity)
+        const isOverlap = lastNoteEndTime > 0 && scheduledTime < lastNoteEndTime
+        if (isOverlap && voice instanceof Tone.MonoSynth) {
+          // Slide the frequency using Tone's audio-rate scheduling (smooth glide, no envelope retrigger)
+          voice.frequency.cancelScheduledValues(scheduledTime)
+          voice.frequency.setValueAtTime(lastNoteFreq, scheduledTime)
+          voice.frequency.rampTo(noteFreq, this.glideRate, scheduledTime)
+        } else {
+          // Normal attack
+          voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, scheduledTime), pocketVelocity)
+        }
+
+        const durSec = Tone.Time(event.dur).toSeconds()
+        lastNoteEndTime = scheduledTime + durSec
+        lastNoteFreq = noteFreq
         return
       }
 

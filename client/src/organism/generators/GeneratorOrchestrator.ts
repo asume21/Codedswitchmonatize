@@ -98,6 +98,8 @@ export class GeneratorOrchestrator {
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
+  private scheduledBreakEventIds: number[] = []
+  private lastScheduledBreakBar: number = -1
 
   // AI Director overrides — keyed by section name, applied next time that section starts
   private aiDirectiveOverrides: Map<string, {
@@ -402,6 +404,14 @@ export class GeneratorOrchestrator {
     this.melody.reset()
     this.chord.reset()
 
+    // Clear any pending scheduled break events
+    const transport = Tone.getTransport()
+    this.scheduledBreakEventIds.forEach(id => {
+      try { transport.clear(id) } catch { /* */ }
+    })
+    this.scheduledBreakEventIds = []
+    this.lastScheduledBreakBar = -1
+
     // Single-owner contract: if Organism started Transport, Organism stops it.
     // Without this, generators go silent but Tone.Transport keeps ticking and
     // any leftover scheduled events (Tone.Parts, scheduleRepeat) keep firing
@@ -520,6 +530,13 @@ export class GeneratorOrchestrator {
     this.unsubDirectorSection  = null
     this.unsubDirectorMutation = null
     this.director.dispose()
+
+    const transport = Tone.getTransport()
+    this.scheduledBreakEventIds.forEach(id => {
+      try { transport.clear(id) } catch { /* */ }
+    })
+    this.scheduledBreakEventIds = []
+    this.lastScheduledBreakBar = -1
 
     this.stop()
     this.drum.dispose()
@@ -1254,6 +1271,14 @@ export class GeneratorOrchestrator {
     this.arrangementEnabled = enabled
     orgLog('arrangement:toggle', { enabled })
     if (!enabled) {
+      // Clear any pending scheduled break events
+      const transport = Tone.getTransport()
+      this.scheduledBreakEventIds.forEach(id => {
+        try { transport.clear(id) } catch { /* */ }
+      })
+      this.scheduledBreakEventIds = []
+      this.lastScheduledBreakBar = -1
+
       // Restore full multipliers so the drums don't stay at whatever reduced
       // level the last arrangement section applied.
       this.drum.applyArrangementMultiplier(1.0)
@@ -1362,6 +1387,51 @@ export class GeneratorOrchestrator {
     this.lastArrangementBar = barNumber
 
     const { slot: section, cycleBar, sectionBar } = getProducerArrangementSlot(barNumber)
+
+    // Schedule 2-beat bar-end break on the final bar of a section
+    if (sectionBar === section.bars - 1 && this.lastScheduledBreakBar !== barNumber) {
+      this.lastScheduledBreakBar = barNumber
+      const nextBarNumber = barNumber + 1
+      const nextSlotInfo = getProducerArrangementSlot(nextBarNumber)
+      const nextSection = nextSlotInfo.slot
+
+      const breakStartId = transport.scheduleOnce((time) => {
+        // Ramp out gains to 0 to avoid clicks
+        this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
+        this.bass.output.gain.linearRampToValueAtTime(0, time + 0.02)
+
+        this.melody.output.gain.setValueAtTime(this.melody.output.gain.value, time)
+        this.melody.output.gain.linearRampToValueAtTime(0, time + 0.02)
+
+        this.chord.output.gain.setValueAtTime(this.chord.output.gain.value, time)
+        this.chord.output.gain.linearRampToValueAtTime(0, time + 0.02)
+
+        this.texture.output.gain.setValueAtTime(this.texture.output.gain.value, time)
+        this.texture.output.gain.linearRampToValueAtTime(0, time + 0.02)
+
+        // Set multipliers to 0 so processFrame keeps them muted during the break
+        this.bass.applyArrangementMultiplier(0)
+        this.melody.applyArrangementMultiplier(0)
+        this.chord.applyArrangementMultiplier(0)
+        this.texture.applyArrangementMultiplier(0)
+
+        // Trigger hi-hat roll fill
+        this.drum.triggerBarEndBreakFill(time)
+      }, `${barNumber}:2:0`)
+
+      const breakEndId = transport.scheduleOnce((time) => {
+        // Clear the hi-hat roll fill
+        this.drum.clearBarEndBreakFill()
+
+        // Restore multipliers to next section's values
+        this.bass.applyArrangementMultiplier(nextSection.bass)
+        this.melody.applyArrangementMultiplier(nextSection.melody)
+        this.chord.applyArrangementMultiplier(nextSection.chord)
+        this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
+      }, `${nextBarNumber}:0:0`)
+
+      this.scheduledBreakEventIds.push(breakStartId, breakEndId)
+    }
 
     // Merge AI directive if one was buffered for this section
     const aiOverride = this.aiDirectiveOverrides.get(section.name)

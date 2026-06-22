@@ -68,6 +68,10 @@ import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
 import type { OrganismV2Status } from './OrganismContext'
 import { MelodicLoopPlayer } from '../../organism/loops/MelodicLoopPlayer'
 import { getConductor } from '../../organism/conductor/Conductor'
+import { requestAceStems } from './requestAceStems'
+import { AceStemLayer } from '../../organism/loops/AceStemLayer'
+import { AceHybridController } from './AceHybridController'
+import { getProducerArrangementTotalBars } from '../../organism/state/ProducerArrangement'
 
 interface Props {
   children:  React.ReactNode
@@ -294,6 +298,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   })
   const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
+  // ACE Hybrid Stems Mode state
+  const [aceHybridMode, setAceHybridModeState] = useState<import('./AceHybridController').AceHybridMode>('live')
+  const [aceStemsLoading, setAceStemsLoading] = useState(false)
+
+  const stemLayerRef  = useRef<AceStemLayer | null>(null)
+  const controllerRef = useRef<AceHybridController | null>(null)
+
   // Multi-take producer state
   const [isProgressionLocked,   setIsProgressionLocked]   = useState(false)
   const [recordingBarsTotal,     setRecordingBarsTotal]    = useState<number | null>(null)
@@ -339,6 +350,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const mix         = new MixEngine()
     const capture     = new CaptureEngine()
 
+    const stemLayer  = new AceStemLayer(mix.master.input)
+    const controller = new AceHybridController({
+      stemLayer,
+      setBandSilenced: (silenced) => {
+        mix.setBandSilenced(silenced)
+      },
+      fetchStems: async (req) => {
+        setAceStemsLoading(true)
+        try {
+          const stems = await requestAceStems(req)
+          return stems
+        } finally {
+          setAceStemsLoading(false)
+        }
+      }
+    })
+
+    stemLayerRef.current = stemLayer
+    controllerRef.current = controller
+
     // 2. Store refs
     physicsRef.current   = physics
 
@@ -371,6 +402,37 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (now - lastPhysicsUIUpdate >= ORGANISM_UI_INTERVAL_MS) {
         lastPhysicsUIUpdate = now
         setPhysicsState(state)
+
+        setV2Status(prev => {
+          if (!prev.active) return prev
+          const transport = Tone.getTransport()
+          const currentBpm = Math.round(transport.bpm.value)
+          const pos = transport.position as string
+          const currentBar = parseInt(pos.split(':')[0], 10) || 0
+          
+          const activePlan = orchestrRef.current?.getArrangementPlan()
+          const totalBars = activePlan ? getProducerArrangementTotalBars() : 32
+          
+          const currentSection = orchestrRef.current?.getCurrentSection() || 'none'
+          
+          const stemNames = stemLayerRef.current ? stemLayerRef.current.getStemNames() : []
+          const mappedStems = stemNames.map(name => ({
+            id: name,
+            label: name.charAt(0).toUpperCase() + name.slice(1),
+            url: '',
+            gain: stemLayerRef.current && !stemLayerRef.current.isStemMuted(name) ? 1.0 : 0.0
+          }))
+
+          return {
+            ...prev,
+            kitBpm: currentBpm,
+            targetBpm: currentBpm,
+            section: currentSection,
+            bar: currentBar,
+            cycleBars: totalBars,
+            stems: mappedStems,
+          }
+        })
 
         window.dispatchEvent(new CustomEvent('organism:physics-update', {
           detail: {
@@ -584,6 +646,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       unregisterAudioDebugSource()
 
       aiDirector.dispose()
+      controller.dispose()
+      stemLayerRef.current = null
+      controllerRef.current = null
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
       mix.dispose()
       capture.reset()
@@ -1149,6 +1214,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const bpm = orchestrRef.current?.getBpm()
     inputRef.current?.stop()
     setV2Status(ORGANISM_V2_INITIAL_STATUS)
+    stemLayerRef.current?.stop()
+    mixRef.current?.setBandSilenced(false)
     orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.clearAIDirectives()
     orchestrRef.current?.stop()
@@ -1391,6 +1458,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         if (startTokenRef.current !== token) return
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
+
+        // Trigger stems render/fetch on the hybrid controller
+        if (controllerRef.current) {
+          const req = {
+            prompt: plan.acePrompt || `A ${plan.subGenre} track in ${plan.key} at ${plan.bpm} bpm. Mood: ${plan.mood}`,
+            bpm: plan.bpm,
+            key: plan.key
+          }
+          controllerRef.current.setRequest(req)
+        }
+
         orgLog('compose:loaded', {
           presetId,
           planId: plan.id,
@@ -1539,6 +1617,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         if (swapPresetTokenRef.current !== swapToken) return
         if (!plan) return
         orchestr.loadArrangementPlan(plan)
+
+        // Trigger stems render/fetch on the hybrid controller
+        if (controllerRef.current) {
+          const req = {
+            prompt: plan.acePrompt || `A ${plan.subGenre} track in ${plan.key} at ${plan.bpm} bpm. Mood: ${plan.mood}`,
+            bpm: plan.bpm,
+            key: plan.key
+          }
+          controllerRef.current.setRequest(req)
+        }
+
         orgLog('compose:loaded', {
           presetId,
           planId: plan.id,
@@ -3144,6 +3233,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     mixRef.current?.setMasterGainDb(-2 + 20 * Math.log10(normalized))
   }, [])
 
+  const setAceHybridMode = useCallback((mode: import('./AceHybridController').AceHybridMode) => {
+    setAceHybridModeState(mode)
+    controllerRef.current?.setMode(mode)
+  }, [])
+
   const value: OrganismContextValue = useMemo(() => ({
     analysisEngine:    inputSource === 'mic' && inputRef.current && 'getStream' in inputRef.current
       ? inputRef.current as unknown as AudioAnalysisEngine
@@ -3168,6 +3262,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     activePresetId,
     v2Status,
     setV2MasterGain,
+    aceHybridMode,
+    setAceHybridMode,
+    aceStemsLoading,
 
     // Count-In Start
     countInStart,
@@ -3395,6 +3492,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
     quickStart, swapPreset, startRealBeat, activePresetId, v2Status, setV2MasterGain,
+    aceHybridMode, setAceHybridMode, aceStemsLoading,
     countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     cadenceLockEnabled, cadenceSnapshot,

@@ -358,6 +358,10 @@ export function OrganismCommandCenter() {
     physicsEngine,
     orchestrator,
     reactiveBehaviors,
+    // ACE Hybrid Stems
+    aceHybridMode,
+    setAceHybridMode,
+    aceStemsLoading,
   } = useOrganism()
 
   const { physicsState, organismState } = useOrganismPhysics()
@@ -1046,6 +1050,52 @@ export function OrganismCommandCenter() {
               step={0.05}
               color={C.green}
             />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.text2 }}>Playback Mode:</span>
+              <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.2)', padding: 2, borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)' }}>
+                {(['live', 'ace', 'both'] as const).map((mode) => {
+                  const isActive = aceHybridMode === mode;
+                  const labels = { live: 'Live Band', ace: 'ACE Stems', both: 'Layered' };
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => setAceHybridMode(mode)}
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: '4px 8px',
+                        borderRadius: 4,
+                        border: 'none',
+                        background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                        color: isActive ? C.text : C.text3,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {labels[mode]}
+                    </button>
+                  );
+                })}
+              </div>
+              {aceStemsLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                  <style>{`
+                    @keyframes ace-spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <div style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    border: '1.5px solid rgba(255,255,255,0.15)',
+                    borderTopColor: C.green,
+                    animation: 'ace-spin 1s linear infinite',
+                  }} />
+                  <span style={{ fontSize: 9, color: C.green, fontWeight: 600 }}>rendering stems...</span>
+                </div>
+              )}
+            </div>
             {v2Status.stems.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
                 {v2Status.stems.map(stem => (

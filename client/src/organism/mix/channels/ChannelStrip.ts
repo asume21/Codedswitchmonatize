@@ -19,6 +19,12 @@ export class ChannelStrip {
 
   private  sidechain:  SidechainDucker | null = null
 
+  // Bass parallel saturation crossover
+  private  bassLowpass?:    Tone.Filter
+  private  bassBandpass?:   Tone.Filter
+  private  bassDistortion?: Tone.Distortion
+  private  bassSum?:        Tone.Gain
+
   constructor(config: ChannelConfig) {
     this.name = config.name
 
@@ -49,13 +55,44 @@ export class ChannelStrip {
 
     this.output = new Tone.Gain(1)
 
-    // Signal chain: input → HP → lowShelf → midPeak → highShelf → comp → panner → fader → analyser → output
+    // Signal chain: input → HP → lowShelf → midPeak → highShelf → comp → [Bass Saturation Split if bass] → panner → fader → analyser → output
     this.input.connect(this.highpass)
     this.highpass.connect(this.lowShelf)
     this.lowShelf.connect(this.midPeak)
     this.midPeak.connect(this.highShelf)
     this.highShelf.connect(this.compressor)
-    this.compressor.connect(this.panner)
+
+    if (this.name === 'bass') {
+      this.bassLowpass = new Tone.Filter({
+        frequency: 120,
+        type: 'lowpass',
+        rolloff: -12
+      })
+      this.bassBandpass = new Tone.Filter({
+        frequency: 575, // Center between 150Hz and 1000Hz
+        Q: 0.5,
+        type: 'bandpass'
+      })
+      this.bassDistortion = new Tone.Distortion({
+        distortion: 0.25,
+        oversample: '4x',
+        wet: 1.0
+      })
+      this.bassSum = new Tone.Gain(1)
+
+      // Crossover routing
+      this.compressor.connect(this.bassLowpass)
+      this.compressor.connect(this.bassBandpass)
+
+      this.bassLowpass.connect(this.bassSum)
+      this.bassBandpass.connect(this.bassDistortion)
+      this.bassDistortion.connect(this.bassSum)
+
+      this.bassSum.connect(this.panner)
+    } else {
+      this.compressor.connect(this.panner)
+    }
+
     this.panner.connect(this.fader)
     this.fader.connect(this.analyser)
     this.analyser.connect(this.output)
@@ -122,5 +159,11 @@ export class ChannelStrip {
     this.analyser.dispose()
     this.output.dispose()
     this.sidechain?.dispose()
+    if (this.name === 'bass') {
+      this.bassLowpass?.dispose()
+      this.bassBandpass?.dispose()
+      this.bassDistortion?.dispose()
+      this.bassSum?.dispose()
+    }
   }
 }

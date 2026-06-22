@@ -26,7 +26,7 @@ import type { TriggerWordDetector } from './TriggerWordDetector'
 // removed OrganismV2LoopPlayer fossil — kept here as the status display still
 // renders preset/section/bpm even though that player no longer exists.)
 export interface OrganismV2Stem {
-  id: 'kick' | 'snare' | 'hats' | 'perc' | 'toms'
+  id: string
   label: string
   url: string
   gain: number
@@ -250,6 +250,11 @@ export interface OrganismContextValue {
   shareSession:       (caption: string) => Promise<{ postUrl: string } | null>
   isSharingSession:   boolean
   lastSharedPostUrl:  string | null
+
+  // ACE Hybrid Stems Mode
+  aceHybridMode:      import('./AceHybridController').AceHybridMode
+  setAceHybridMode:   (mode: import('./AceHybridController').AceHybridMode) => void
+  aceStemsLoading:    boolean
 
   // Status
   isRunning:    boolean

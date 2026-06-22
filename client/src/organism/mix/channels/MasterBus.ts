@@ -17,6 +17,7 @@ export class MasterBus {
   private  compressor: Tone.Compressor
   private  saturator:  Tone.Distortion
   private  limiter:    Tone.Limiter
+  private  safetyClip: Tone.WaveShaper  // TRUE ceiling — catches the transients the limiter overshoots
   private  tapGain:    Tone.Gain        // pass-through for the audio-debug tap
   private  analyser:   Tone.Analyser
 
@@ -61,10 +62,33 @@ export class MasterBus {
     })
 
     this.limiter  = new Tone.Limiter(limiterThreshDb)
+
+    // TRUE ceiling. Tone.Limiter wraps a DynamicsCompressorNode — a compressor
+    // with finite attack, NOT a brickwall — so fast transients (kick/808/snare
+    // attacks) overshoot its threshold for a few ms and reach the DAC above 0
+    // dBFS (measured: +2.4 dBFS / 0.81% clipped even at limiterThresh -1, master
+    // -6). Lowering levels only shrinks the overshoot; it never removes it. This
+    // WaveShaper is the absolute ceiling the limiter can't be: linear below the
+    // knee (the bulk of the program is untouched), soft-saturating only the peaks
+    // above it, and — because a WaveShaper curve is defined over [-1,1] and clamps
+    // out-of-range inputs to its endpoints — anything past ±1 is pinned to the
+    // ceiling value. So no sample can exceed it, guaranteed. 4× oversampled to
+    // keep the peak-rounding from aliasing back down as harshness.
+    const ceiling = Tone.dbToGain(-0.3)  // ~0.966 — just under 0 dBFS
+    const knee    = 0.85                  // below this (~-1.4 dB) the signal is linear
+    this.safetyClip = new Tone.WaveShaper((x: number) => {
+      const a = Math.abs(x)
+      if (a <= knee) return x
+      const over  = Math.min(a, 1) - knee
+      const range = 1 - knee
+      return Math.sign(x) * (knee + (ceiling - knee) * Math.tanh(over / range))
+    }, 4096)
+    this.safetyClip.oversample = '4x'
+
     this.tapGain  = new Tone.Gain(1)
     this.analyser = new Tone.Analyser('waveform', 256)
 
-    // Signal chain: input → gain → EQ → hiCut → comp → sat → limiter → tap → analyser → SharedMasterBus
+    // Signal chain: input → gain → EQ → hiCut → comp → sat → limiter → safetyClip → tap → analyser → destination
     this.input.connect(this.masterGain)
     this.masterGain.connect(this.lowShelf)
     this.lowShelf.connect(this.midCut)
@@ -73,7 +97,8 @@ export class MasterBus {
     this.hiCut.connect(this.compressor)
     this.compressor.connect(this.saturator)
     this.saturator.connect(this.limiter)
-    this.limiter.connect(this.tapGain)
+    this.limiter.connect(this.safetyClip)
+    this.safetyClip.connect(this.tapGain)
     this.tapGain.connect(this.analyser)
     // Final hop: Tone's destination (audioContext.destination via Tone.js).
     // We tried routing through SharedMasterBus and it broke Tone.Part scheduling
@@ -125,6 +150,7 @@ export class MasterBus {
     this.compressor.dispose()
     this.saturator.dispose()
     this.limiter.dispose()
+    this.safetyClip.dispose()
     this.tapGain.dispose()
     this.analyser.dispose()
   }

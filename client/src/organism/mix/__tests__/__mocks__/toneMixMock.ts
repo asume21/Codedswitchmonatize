@@ -55,6 +55,18 @@ export function createMixToneMock() {
     Limiter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, makeDisposable())
     }),
+    WaveShaper: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeDisposable())
+    }),
+    Split: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeDisposable())
+    }),
+    Merge: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeDisposable())
+    }),
+    Delay: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, makeDisposable())
+    }),
     dbToGain: vi.fn().mockImplementation((db: number) => Math.pow(10, db / 20)),
     // SharedMasterBus uses these to wire its chain into the hardware destination
     // and to reroute Tone.Destination through itself. Tests only need them to

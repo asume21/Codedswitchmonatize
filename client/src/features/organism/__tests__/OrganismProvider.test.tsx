@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
+import { createToneMock } from '../../../organism/generators/__tests__/__mocks__/toneMock'
+vi.mock('tone', () => createToneMock())
+
 import { act, renderHook } from '@testing-library/react'
 import React from 'react'
 import { OrganismProvider } from '../OrganismProvider'
@@ -92,6 +95,8 @@ vi.mock('../../../organism/mix/MixEngine', () => ({
     startMetering = vi.fn()
     onMeter = vi.fn().mockReturnValue(noop)
     dispose = vi.fn()
+    master = { input: {} }
+    setBandSilenced = vi.fn()
   },
 }))
 
