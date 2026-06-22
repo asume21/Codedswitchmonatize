@@ -219,6 +219,42 @@ const GENRE_REFS: Array<{ keys: string[]; partial: Partial<VibeParams> & { inter
     partial: { bpm: 95, mode: 'smoke', subGenre: 'boom-bap', energy: 0.75, swing: 0.45, bounce: 0.65, density: 0.58,
       interpretation: 'Fire beat — hard-hitting, builds fast into a full groove', confidence: 0.82 },
   },
+  // ── Natural language / conversational mood phrases ─────────────────────────
+  {
+    keys: ['bad day', 'rough day', 'hard day', 'stressed', 'frustrated', 'moody'],
+    partial: { bpm: 78, mode: 'smoke', subGenre: 'chill', energy: 0.30, swing: 0.52, bounce: 0.33, density: 0.25,
+      interpretation: 'Heavy day — slow, moody, minor groove to match the mood', confidence: 0.80,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['sad', 'hurt', 'pain', 'broken', 'lonely', 'missing'],
+    partial: { bpm: 74, mode: 'smoke', subGenre: 'chill', energy: 0.25, swing: 0.55, bounce: 0.30, density: 0.20,
+      interpretation: 'Sad — sparse, minor key, builds from a single melody', confidence: 0.80,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['happy', 'joy', 'excited', 'celebrating', 'good vibes'],
+    partial: { bpm: 110, mode: 'glow', subGenre: 'bounce', energy: 0.68, swing: 0.40, bounce: 0.65, density: 0.52,
+      interpretation: 'Good vibes — bright, major key, energetic groove', confidence: 0.80,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  {
+    keys: ['aggressive', 'angry', 'mad', 'venting', 'rage'],
+    partial: { bpm: 140, mode: 'heat', subGenre: 'trap', energy: 0.88, swing: 0.25, bounce: 0.78, density: 0.78,
+      interpretation: 'Aggressive — hard trap, heavy 808, relentless', confidence: 0.80 },
+  },
+  {
+    keys: ['late night', 'midnight', 'sleepy', 'tired', 'winding down'],
+    partial: { bpm: 75, mode: 'ice', subGenre: 'lo-fi', energy: 0.28, swing: 0.62, bounce: 0.30, density: 0.22,
+      interpretation: 'Late night lo-fi — dusty, hazy, quiet', confidence: 0.80,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  {
+    keys: ['motivated', 'grind', 'work', 'focused', 'locked in'],
+    partial: { bpm: 95, mode: 'smoke', subGenre: 'boom-bap', energy: 0.62, swing: 0.50, bounce: 0.55, density: 0.48,
+      interpretation: 'Locked in — steady boom-bap, focused energy', confidence: 0.80,
+      progressiveIntro: true },
+  },
 ]
 
 // ── Mood modifiers ─────────────────────────────────────────────────────────
@@ -249,6 +285,9 @@ const MOOD_MODS: Array<{ keys: string[]; mod: MoodMod }> = [
   { keys: ['melodic'],                                   mod: { mode: 'glow', energyDelta: -0.05 } },
   { keys: ['faster', 'fast', 'double time'],             mod: { bpmDelta: 20 } },
   { keys: ['slower', 'slow', 'half time'],               mod: { bpmDelta: -20 } },
+  { keys: ['something moody', 'moody'],                  mod: { energyDelta: -0.15, mode: 'smoke', swingDelta: 0.10 } },
+  { keys: ['emotional', 'heavy'],                        mod: { energyDelta: -0.12, swingDelta: 0.08, bpmDelta: -10 } },
+  { keys: ['vibe', 'vibes'],                             mod: { energyDelta: -0.05, swingDelta: 0.05 } },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────

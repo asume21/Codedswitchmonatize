@@ -1698,39 +1698,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    */
   const interpretVibe = useCallback(async (text: string) => {
     const vibeToken = ++vibeInterpretTokenRef.current
-    let params: VibeParams | null = null
 
-    // 1. Try server AI (Ollama → Grok fallback).
-    // 4s timeout via AbortController — Ollama can hang on cold model load,
-    // and we'd rather drop to the instant rule-based path than freeze the UI.
-    const controller = new AbortController()
-    const timeoutId  = setTimeout(() => controller.abort(), 4000)
-    try {
-      const res = await fetch('/api/organism/interpret-vibe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-        signal: controller.signal,
-      })
-      if (res.ok) {
-        params = await res.json() as VibeParams
-        orgLog('interpretVibe:ai', { text: text.slice(0, 60), interpretation: params.interpretation })
-      }
-    } catch {
-      // Network error, abort, or timeout — fall through to rule-based
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    // 2. Rule-based fallback
-    if (!params) {
-      params = interpretVibeRuleBased(text)
-      orgLog('interpretVibe:ruleBased', { text: text.slice(0, 60), interpretation: params.interpretation })
-    }
+    // 1. Rule-based interpretation is synchronous — fires INSTANTLY so the
+    //    beat responds the moment the user presses Enter or finishes speaking.
+    //    (The previous pattern tried the AI API first with a 4-second timeout,
+    //    which made the feature feel completely broken — nothing happened for
+    //    4 full seconds before any sound or visual feedback arrived.)
+    const params = interpretVibeRuleBased(text)
+    orgLog('interpretVibe:ruleBased', { text: text.slice(0, 60), interpretation: params.interpretation })
 
     if (vibeInterpretTokenRef.current !== vibeToken) return
 
-    // Update UI state so CommandCenter can show what was understood
+    // Show what was understood
     setVibeInterpretation({
       text,
       result: params.interpretation,
@@ -1770,11 +1749,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       applyInstrument('chord', params.instrumentChord)
 
       // Emotional intent shapes melody dynamics and scale choice.
-      // Progressive intro staggers instrument entry like a real musician building a beat.
       if (params.emotionalIntent !== undefined) {
         orchestr.setMelodyEmotionalIntent(params.emotionalIntent)
       }
-      orchestr.setProgressiveIntroEnabled(params.progressiveIntro === true)
+      // Only override progressive intro if the rule explicitly set it — don't
+      // touch the current value when the vibe has no opinion (undefined).
+      if (params.progressiveIntro !== undefined) {
+        orchestr.setProgressiveIntroEnabled(params.progressiveIntro)
+      }
 
       orgLog('interpretVibe:applied', {
         bpm: params.bpm, mode, subGenre: params.subGenre,
@@ -1783,6 +1765,33 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         progressiveIntro: params.progressiveIntro,
         instruments: { lead: params.instrumentLead, bass: params.instrumentBass, chord: params.instrumentChord },
       })
+    }
+
+    // 2. Background AI label enhancement — only updates the UI label if the AI
+    //    returns a more confident, descriptive result. Does NOT re-apply beat
+    //    params so there's no jarring double-change. Uses a short 1.5s timeout
+    //    so it either arrives quickly or is abandoned gracefully.
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 1500)
+    try {
+      const res = await fetch('/api/organism/interpret-vibe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      })
+      if (res.ok) {
+        const aiParams = await res.json() as VibeParams
+        if (vibeInterpretTokenRef.current !== vibeToken) return
+        if (aiParams.confidence > params.confidence + 0.05 && aiParams.interpretation) {
+          orgLog('interpretVibe:ai-label', { text: text.slice(0, 60), label: aiParams.interpretation })
+          setVibeInterpretation({ text, result: aiParams.interpretation, confidence: aiParams.confidence })
+        }
+      }
+    } catch {
+      // AI unavailable or timed out — rule-based label already shown, no action needed
+    } finally {
+      clearTimeout(timeoutId)
     }
   }, [quickStart])
 
