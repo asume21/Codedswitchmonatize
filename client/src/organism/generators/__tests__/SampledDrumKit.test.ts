@@ -13,12 +13,12 @@ const sample = (role: OrganismKitSample['role'], fileName: string): OrganismKitS
   role,
   fileName,
   relativePath: fileName,
-  url: `/api/organism/kits/99sounds-vol2/samples/${encodeURIComponent(fileName)}`,
+  url: `/api/organism/kits/infinity-real-beat/samples/${encodeURIComponent(fileName)}`,
 })
 
 describe('buildSampleKitDefinitionFromSamples', () => {
-  it('builds controlled pools for 99sounds-vol2 instead of one rigid sample', () => {
-    const definition = buildSampleKitDefinitionFromSamples('99sounds-vol2', [
+  it('builds controlled pools for infinity-real-beat using preferred sample pools', () => {
+    const definition = buildSampleKitDefinitionFromSamples('infinity-real-beat', [
       sample('perc', 'Clap - Crackle 1.wav'),
       sample('kick', 'Kick - Tight.wav'),
       sample('kick', 'Kick - Hard.wav'),
