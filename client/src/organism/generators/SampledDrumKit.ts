@@ -12,7 +12,7 @@ type SampleVoiceSlot = {
 }
 
 const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>> = {
-  '99sounds-vol2': {
+  'infinity-real-beat': {
     kick: [
       /^Kick - Tight\.wav$/i,
       /^Kick - Hard\.wav$/i,
