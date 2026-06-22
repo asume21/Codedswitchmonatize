@@ -1298,27 +1298,16 @@ export class GeneratorOrchestrator {
    * enters. Skipped in melodyOnlyMode (freestyle) where flourishes would compete
    * with vocal performance, and skipped if the drum kit is soloed off.
    */
-  private fireSectionFx(sectionName: string, bpm: number): void {
+  private fireSectionFx(sectionName: string, _bpm: number): void {
     if (this.melodyOnlyMode) return
     if (!this.arrangementEnabled) return
 
-    const beatSec = 60 / Math.max(40, bpm)
-    const barSec  = beatSec * 4   // assumes 4/4 — matches the rest of the engine
-
     switch (sectionName) {
-      case 'build': {
-        // Build is 2 bars now (was 4) — sweep duration must match so the
-        // riser peak lands on the drop entry, not in the middle of the drop.
-        // Without this fix, the wind sound bleeds into the first half of the
-        // drop and "fires off in the middle of the beat."
-        if (this.textureEnabled) {
-          this.texture.triggerRiser(barSec * 2)
-        } else {
-          this.texture.setEnabled(true)
-          this.texture.triggerRiser(barSec * 2)
-        }
-        break
-      }
+      // 'build': the rising "woosh" riser was REMOVED (2026-06-22) at the user's
+      // request. It read as a random sweep firing mid-performance — worst in
+      // boom-bap / lo-fi, where risers simply don't belong — and it force-enabled
+      // the texture generator even when the user had turned texture off. The drop
+      // impact below is section flourish enough; no synthetic wind sweep.
       case 'drop':
       case 'drop2': {
         // Schedule impact ~10ms after the bar boundary so the hit lands

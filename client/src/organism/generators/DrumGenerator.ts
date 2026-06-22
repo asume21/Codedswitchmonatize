@@ -115,7 +115,9 @@ export class DrumGenerator extends GeneratorBase {
 
     this.snareBody = new Tone.NoiseSynth({
       noise:    { type: 'pink' },
-      envelope: { attack: 0.001, decay: 0.15, sustain: 0 },
+      // decay 0.08 (was 0.15): a 150ms unfiltered noise tail read as a "woosh"
+      // wash instead of a boom-bap crack. Tighter tail = snap, not sweep.
+      envelope: { attack: 0.001, decay: 0.08, sustain: 0 },
     })
     this.snareBody.volume.value = -9   // was -6
     this.snareBody.connect(this.snareBus)
