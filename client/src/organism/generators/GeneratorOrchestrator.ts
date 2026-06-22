@@ -1362,9 +1362,9 @@ export class GeneratorOrchestrator {
       const barNumber = parseInt(String(transport.position).split(':')[0], 10) || 0
       if (barNumber === this.lastArrangementBar) return
       this.lastArrangementBar = barNumber
-      // Same convention as the arrangement path: advance on ODD bars so the
-      // rebuilt parts SOUND the new chord exactly on the even downbeat.
-      if (barNumber % 2 === 1) getConductor().advanceChord()
+      // Advance on the bar before each 4-bar boundary so the new harmony
+      // lands exactly on the even downbeat (see arrangement path comment).
+      if (barNumber % 4 === 3) getConductor().advanceChord()
       return
     }
 
@@ -1479,21 +1479,18 @@ export class GeneratorOrchestrator {
       } else {
         conductor.pickNewProgression()
       }
-    } else if (sectionBar % 2 === 1) {
-      // Harmonic rhythm = one chord per TWO bars (real hip-hop/R&B pacing —
-      // advanceChord's own doc says "typically every 2 bars" but this called
-      // it every bar). Per-bar chord changes forced chord/melody/bass to
-      // rebuild their parts every ~1.8s at trap tempos, so no generator ever
-      // completed a musical phrase — the core of the "everyone playing
-      // blindfolded" feel.
+    } else if (sectionBar % 4 === 3) {
+      // Harmonic rhythm = one chord per FOUR bars. Two-bar changes rebuilt the
+      // melody/bass/chord parts every ~3s at trap tempos — no phrase ever
+      // completed, producing the "constant restart" feel. Four bars matches
+      // real hip-hop pacing: the groove locks in, the melody develops over
+      // it, and the chord shift on bar 5 feels like a natural musical breath.
       //
-      // Advance on ODD bars deliberately: generators rebuild on the NEXT
-      // processFrame and their new parts start at the NEXT downbeat
-      // (getLivePartStart). Advancing on the even boundary itself made the
-      // audible chord change land a full bar LATE — the band played the old
-      // chord for the first half of every new chord, and the chord stab's
-      // beat-4 pickup anticipated a grid nobody was playing. Advancing one
-      // bar early means the new harmony SOUNDS exactly on the even downbeat.
+      // Advance on the bar BEFORE the 4-bar boundary (sectionBar % 4 === 3)
+      // so generators rebuild on the next processFrame and their new parts
+      // land exactly on the even downbeat (getLivePartStart adds one bar of
+      // lead). Advancing on the boundary itself shifted the audible chord
+      // change a full bar late.
       conductor.advanceChord()
     }
 

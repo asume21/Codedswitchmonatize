@@ -126,6 +126,11 @@ export class MelodyGenerator extends GeneratorBase {
   // so the lead doesn't mud-double the colour the chords are already stating.
   private currentGuideTones: number[] = []
   private unsubscribeConductor: (() => void) | null = null
+  // Tracks the last conductor progression version we rebuilt for. Used to
+  // distinguish a chord ADVANCE (same key, same progression) from a key/scale
+  // CHANGE (sub-genre swap, key change, new progression). Chord advances do not
+  // warrant a phrase rebuild — the running loop keeps playing through them.
+  private lastProgressionVersion: number = -1
 
   // Physics cache
   private currentPresence: number  = 0
@@ -158,10 +163,10 @@ export class MelodyGenerator extends GeneratorBase {
   private lastRebuildTime: number = -Infinity
   private static readonly MIN_REBUILD_INTERVAL_MS = 600
   private static readonly LEAD_GAIN_BOOST_DB = 5
-  // Refresh the phrase every N bars while playing. 2 bars feels musical: short
-  // motifs cycle once before regenerating; long motifs (Lead at 16 sixteenths)
-  // get fresh material right at the natural breath point.
-  private static readonly PHRASE_REFRESH_BARS = 2
+  // Refresh the phrase every N bars while playing. 8 bars lets a motif develop
+  // and repeat before fresh material arrives — shorter values caused audible hard
+  // resets that interrupted the listener's sense of a continuous melody.
+  private static readonly PHRASE_REFRESH_BARS = 8
 
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
   private pendingBehavior: MelodyBehavior | null = null
@@ -392,6 +397,7 @@ export class MelodyGenerator extends GeneratorBase {
     // emotional override still wins over the Conductor's scale — it's a
     // deliberate user intent.
     this.syncFromConductor(false)
+    this.lastProgressionVersion = getConductor().getProgressionVersion()
     this.unsubscribeConductor = getConductor().onChordChange(() => {
       this.syncFromConductor(true)
     })
@@ -420,7 +426,17 @@ export class MelodyGenerator extends GeneratorBase {
       if (!guidePcs.includes(pc)) guidePcs.push(pc)
     }
     this.currentGuideTones = guidePcs
-    if (triggerRebuild) this.scaleDirty = true
+    // Only rebuild when the KEY or SCALE changes (sub-genre swap, explicit key
+    // change, new progression). A plain chord advance (advanceChord) increments
+    // the chord index but does NOT bump progressionVersion — the running phrase
+    // keeps playing through it so the melody builds continuously over the beat
+    // rather than hard-resetting every 2 bars.
+    const progressionVersion = conductor.getProgressionVersion()
+    const progressionChanged = progressionVersion !== this.lastProgressionVersion
+    if (triggerRebuild && progressionChanged) {
+      this.lastProgressionVersion = progressionVersion
+      this.scaleDirty = true
+    }
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
