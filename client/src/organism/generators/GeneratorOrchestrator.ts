@@ -1396,24 +1396,14 @@ export class GeneratorOrchestrator {
       const nextSection = nextSlotInfo.slot
 
       const breakStartId = transport.scheduleOnce((time) => {
-        // Ramp out gains to 0 to avoid clicks
+        // Bass drops out briefly — the classic hip-hop "snare break" moment.
+        // Melody and chords do NOT mute: wiping them caused a jarring complete
+        // dropout that interrupted the listener's sense of a continuous melody.
+        // The hi-hat roll fill covers the transition; the melodic instruments
+        // cross-fade into the next section's levels at the bar boundary instead.
         this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
         this.bass.output.gain.linearRampToValueAtTime(0, time + 0.02)
-
-        this.melody.output.gain.setValueAtTime(this.melody.output.gain.value, time)
-        this.melody.output.gain.linearRampToValueAtTime(0, time + 0.02)
-
-        this.chord.output.gain.setValueAtTime(this.chord.output.gain.value, time)
-        this.chord.output.gain.linearRampToValueAtTime(0, time + 0.02)
-
-        this.texture.output.gain.setValueAtTime(this.texture.output.gain.value, time)
-        this.texture.output.gain.linearRampToValueAtTime(0, time + 0.02)
-
-        // Set multipliers to 0 so processFrame keeps them muted during the break
         this.bass.applyArrangementMultiplier(0)
-        this.melody.applyArrangementMultiplier(0)
-        this.chord.applyArrangementMultiplier(0)
-        this.texture.applyArrangementMultiplier(0)
 
         // Trigger hi-hat roll fill
         this.drum.triggerBarEndBreakFill(time)
@@ -1423,7 +1413,7 @@ export class GeneratorOrchestrator {
         // Clear the hi-hat roll fill
         this.drum.clearBarEndBreakFill()
 
-        // Restore multipliers to next section's values
+        // Restore multipliers to next section's values (all instruments)
         this.bass.applyArrangementMultiplier(nextSection.bass)
         this.melody.applyArrangementMultiplier(nextSection.melody)
         this.chord.applyArrangementMultiplier(nextSection.chord)
