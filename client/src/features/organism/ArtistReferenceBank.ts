@@ -22,6 +22,11 @@ export interface VibeParams {
   instrumentLead?:  string | null
   instrumentBass?:  string | null
   instrumentChord?: string | null
+  // Emotional intent shapes melody dynamics and scale (sad = minor, beautiful = lush 7ths)
+  emotionalIntent?: 'sad' | 'beautiful' | null
+  // Progressive intro: instruments enter one at a time (melody → chords → bass → drums)
+  // instead of all at once. True for reflective/storytelling/emotional moods.
+  progressiveIntro?: boolean
 }
 
 // ── Artist reference map ───────────────────────────────────────────────────
@@ -163,7 +168,56 @@ const GENRE_REFS: Array<{ keys: string[]; partial: Partial<VibeParams> & { inter
   {
     keys: ['chill', 'relaxed', 'laid back', 'laid-back'],
     partial: { bpm: 80, mode: 'glow', subGenre: 'chill', energy: 0.35, swing: 0.50, bounce: 0.40, density: 0.30,
-      interpretation: 'Chill — sparse, atmospheric, 80 BPM', confidence: 0.80 },
+      interpretation: 'Chill — sparse, atmospheric, 80 BPM', confidence: 0.80,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  // ── Mood / emotion keywords ────────────────────────────────────────────────
+  {
+    keys: ['reflective', 'self-reflective', 'introspective', 'contemplative'],
+    partial: { bpm: 80, mode: 'glow', subGenre: 'chill', energy: 0.30, swing: 0.52, bounce: 0.35, density: 0.25,
+      interpretation: 'Reflective — quiet, introspective, starts with a melody and builds slowly', confidence: 0.83,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['melancholy', 'melancholic'],
+    partial: { bpm: 72, mode: 'smoke', subGenre: 'boom-bap', energy: 0.28, swing: 0.50, bounce: 0.33, density: 0.25,
+      interpretation: 'Melancholy — dark, cinematic, minor key, builds from piano', confidence: 0.83,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['sad beat', 'emotional beat', 'heartbreak', 'grief'],
+    partial: { bpm: 75, mode: 'smoke', subGenre: 'chill', energy: 0.28, swing: 0.55, bounce: 0.32, density: 0.22,
+      interpretation: 'Emotional — slow, heavy, minor key', confidence: 0.82,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['upbeat', 'feel good', 'feelgood', 'positive', 'happy beat', 'bright'],
+    partial: { bpm: 115, mode: 'glow', subGenre: 'bounce', energy: 0.70, swing: 0.38, bounce: 0.68, density: 0.55,
+      interpretation: 'Upbeat — bright, positive, major key, punchy groove', confidence: 0.80,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  {
+    keys: ['storytelling', 'story beat', 'narrative', 'poetic'],
+    partial: { bpm: 92, mode: 'smoke', subGenre: 'west-coast', energy: 0.55, swing: 0.52, bounce: 0.48, density: 0.42,
+      interpretation: 'Storytelling — deep groove, narrative feel, builds into the bars', confidence: 0.82,
+      emotionalIntent: 'sad', progressiveIntro: true },
+  },
+  {
+    keys: ['epic', 'dramatic', 'grand', 'orchestral beat', 'cinematic beat'],
+    partial: { bpm: 100, mode: 'glow', subGenre: 'afrobeat', energy: 0.72, swing: 0.35, bounce: 0.60, density: 0.52,
+      interpretation: 'Epic — cinematic, builds dramatically from strings', confidence: 0.82,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  {
+    keys: ['beautiful', 'lush', 'gorgeous', 'beautiful beat'],
+    partial: { bpm: 85, mode: 'glow', subGenre: 'chill', energy: 0.42, swing: 0.48, bounce: 0.42, density: 0.35,
+      interpretation: 'Beautiful — lush, warm, 7th and 9th chord colors, builds gently', confidence: 0.82,
+      emotionalIntent: 'beautiful', progressiveIntro: true },
+  },
+  {
+    keys: ['fire beat', 'freestyle beat', 'hard beat', 'banger'],
+    partial: { bpm: 95, mode: 'smoke', subGenre: 'boom-bap', energy: 0.75, swing: 0.45, bounce: 0.65, density: 0.58,
+      interpretation: 'Fire beat — hard-hitting, builds fast into a full groove', confidence: 0.82 },
   },
 ]
 
