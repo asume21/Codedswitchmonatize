@@ -5,10 +5,47 @@ import { loadOrganismKits, type OrganismKitSample } from '../instruments/Organis
 
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
-type SampleKitDefinition = Record<SampleVoice, string>
+type SampleKitDefinition = Record<SampleVoice, string[]>
 type SampleVoiceSlot = {
   gain: Tone.Gain
   player: Tone.Player
+}
+
+const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>> = {
+  '99sounds-vol2': {
+    kick: [
+      /^Kick - Tight\.wav$/i,
+      /^Kick - Hard\.wav$/i,
+      /^Kick - Thumpster\.wav$/i,
+      /^Kick - Grandmaster\.wav$/i,
+      /^Kick - Juicy\.wav$/i,
+    ],
+    snare: [
+      /^Snare - Tight\.wav$/i,
+      /^Snare - OG\.wav$/i,
+      /^Snare - Snapper\.wav$/i,
+      /^Snare - Analog\.wav$/i,
+      /^Snare - Vinyl\.wav$/i,
+    ],
+    hatClosed: [
+      /^Hat - Sizzle\.wav$/i,
+      /^Hat - Noise\.wav$/i,
+      /^Hat - Micro\.wav$/i,
+      /^Hat - Sweet\.wav$/i,
+    ],
+    hatOpen: [
+      /^Hat - Vinyl\.wav$/i,
+      /^Hat - Sweet\.wav$/i,
+      /^Hat - Wonky\.wav$/i,
+      /^Hat - Springwater\.wav$/i,
+    ],
+    perc: [
+      /^Perc - Analog 1\.wav$/i,
+      /^Perc - Retrostick\.wav$/i,
+      /^Perc - Skipper\.wav$/i,
+      /^Perc - Tambo\.wav$/i,
+    ],
+  },
 }
 
 const sampleUrl = (filenameOrUrl: string): string =>
@@ -16,39 +53,39 @@ const sampleUrl = (filenameOrUrl: string): string =>
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
-    kick:      'kick_808.wav',
-    snare:     'snare_e808_sd-01.wav',
-    hatClosed: 'hihat_cycdh_eleck01-cl01.wav',
-    hatOpen:   'hihat_cycdh_eleck01-op01.wav',
-    perc:      'percussion_perc-808.wav',
+    kick:      ['kick_808.wav'],
+    snare:     ['snare_e808_sd-01.wav'],
+    hatClosed: ['hihat_cycdh_eleck01-cl01.wav'],
+    hatOpen:   ['hihat_cycdh_eleck01-op01.wav'],
+    perc:      ['percussion_perc-808.wav'],
   },
   [OrganismMode.Gravel]: {
-    kick:      'kick_acoustic01.wav',
-    snare:     'snare_e808_sd-05.wav',
-    hatClosed: 'hihat_cycdh_k1close_cl03.wav',
-    hatOpen:   'hihat_cycdh_k1close_op03.wav',
-    perc:      'percussion_cycdh_kurz08-perc03.wav',
+    kick:      ['kick_acoustic01.wav'],
+    snare:     ['snare_e808_sd-05.wav'],
+    hatClosed: ['hihat_cycdh_k1close_cl03.wav'],
+    hatOpen:   ['hihat_cycdh_k1close_op03.wav'],
+    perc:      ['percussion_cycdh_kurz08-perc03.wav'],
   },
   [OrganismMode.Smoke]: {
-    kick:      'kick_1985.wav',
-    snare:     'snare_e808_sd-08.wav',
-    hatClosed: 'hihat_vinyl.wav',
-    hatOpen:   'hihat_cycdh_k2room_op02.wav',
-    perc:      'percussion_cycdh_kurz08-perc01.wav',
+    kick:      ['kick_1985.wav'],
+    snare:     ['snare_e808_sd-08.wav'],
+    hatClosed: ['hihat_vinyl.wav'],
+    hatOpen:   ['hihat_cycdh_k2room_op02.wav'],
+    perc:      ['percussion_cycdh_kurz08-perc01.wav'],
   },
   [OrganismMode.Ice]: {
-    kick:      'kick_low_rez.wav',
-    snare:     'snare_e808_sd-10.wav',
-    hatClosed: 'hihat_micro.wav',
-    hatOpen:   'hihat_sizzle.wav',
-    perc:      'percussion_perc-metal.wav',
+    kick:      ['kick_low_rez.wav'],
+    snare:     ['snare_e808_sd-10.wav'],
+    hatClosed: ['hihat_micro.wav'],
+    hatOpen:   ['hihat_sizzle.wav'],
+    perc:      ['percussion_perc-metal.wav'],
   },
   [OrganismMode.Glow]: {
-    kick:      'kick_classic.wav',
-    snare:     'snare_e808_sd-03.wav',
-    hatClosed: 'hihat_acoustic_01.wav',
-    hatOpen:   'hihat_cycdh_k2room_op01.wav',
-    perc:      'percussion_cycdh_kurz08-perc08.wav',
+    kick:      ['kick_classic.wav'],
+    snare:     ['snare_e808_sd-03.wav'],
+    hatClosed: ['hihat_acoustic_01.wav'],
+    hatOpen:   ['hihat_cycdh_k2room_op01.wav'],
+    perc:      ['percussion_cycdh_kurz08-perc08.wav'],
   },
 }
 
@@ -74,6 +111,61 @@ const VOICE_POOL_SIZE: Record<SampleVoice, number> = {
   hatClosed: 10,
   hatOpen: 5,
   perc: 4,
+}
+
+const MAX_PRIVATE_POOL_SIZE: Record<SampleVoice, number> = {
+  kick: 5,
+  snare: 5,
+  hatClosed: 6,
+  hatOpen: 4,
+  perc: 4,
+}
+
+export function buildSampleKitDefinitionFromSamples(
+  kitId: string,
+  samples: OrganismKitSample[],
+): SampleKitDefinition | null {
+  const preferred = PREFERRED_KIT_POOLS[kitId] ?? {}
+  const urlsByRole = (
+    role: OrganismKitSample['role'],
+    fallbackMatch?: RegExp,
+    voice: SampleVoice = role as SampleVoice,
+  ) => {
+    const urls: string[] = []
+    for (const match of preferred[voice] ?? []) {
+      const preferredSample = samples.find((sample) => sample.role === role && match.test(sample.fileName))
+      if (preferredSample && !urls.includes(preferredSample.url)) urls.push(preferredSample.url)
+    }
+    if (urls.length) return urls.slice(0, MAX_PRIVATE_POOL_SIZE[voice])
+
+    const fallback = samples
+      .filter((sample) => sample.role === role && (!fallbackMatch || fallbackMatch.test(sample.fileName)))
+      .map((sample) => sample.url)
+
+    for (const url of fallback) {
+      if (urls.length >= MAX_PRIVATE_POOL_SIZE[voice]) break
+      if (!urls.includes(url)) urls.push(url)
+    }
+
+    return urls.slice(0, MAX_PRIVATE_POOL_SIZE[voice])
+  }
+
+  const kick = urlsByRole('kick', undefined, 'kick')
+  const snare = urlsByRole('snare', undefined, 'snare')
+  const hatClosed = urlsByRole('hat', /\b(cl|closed|close|ch)\b/i, 'hatClosed')
+  const hatOpen = urlsByRole('hat', /\b(op|open|oh)\b/i, 'hatOpen')
+  const perc = urlsByRole('perc', undefined, 'perc')
+  const tomPerc = perc.length ? perc : urlsByRole('tom', undefined, 'perc')
+
+  if (!kick.length || !snare.length || !hatClosed.length || !tomPerc.length) return null
+
+  return {
+    kick,
+    snare,
+    hatClosed,
+    hatOpen: hatOpen.length ? hatOpen : hatClosed,
+    perc: tomPerc,
+  }
 }
 
 export class SampledDrumKit {
@@ -115,12 +207,13 @@ export class SampledDrumKit {
     this.warnedVoices.clear()
 
     const definition = this.privateKitDefinition ?? KIT_DEFINITIONS[mode] ?? KIT_DEFINITIONS[OrganismMode.Glow]
-    for (const [voice, filename] of Object.entries(definition) as [SampleVoice, string][]) {
+    for (const [voice, urls] of Object.entries(definition) as [SampleVoice, string[]][]) {
       const voiceSlots: SampleVoiceSlot[] = []
-      const poolSize = VOICE_POOL_SIZE[voice]
+      const poolSize = Math.max(VOICE_POOL_SIZE[voice], urls.length)
 
       for (let i = 0; i < poolSize; i++) {
         const slotKey = `${voice}:${i}`
+        const filename = urls[i % urls.length]
         const gain = new Tone.Gain(0)
         gain.connect(this.output)
 
@@ -226,7 +319,7 @@ export class SampledDrumKit {
       const kit = response.kits.find((candidate) => candidate.id === response.bestKitId) ?? response.kits[0]
       if (!kit) return
 
-      const definition = this.buildDefinitionFromPrivateKit(kit.samples)
+      const definition = buildSampleKitDefinitionFromSamples(kit.id, kit.samples)
       if (!definition) return
 
       this.privateKitDefinition = definition
@@ -237,20 +330,5 @@ export class SampledDrumKit {
     } catch (error) {
       console.warn('[Organism] private drum kit discovery failed; using bundled kit', error)
     }
-  }
-
-  private buildDefinitionFromPrivateKit(samples: OrganismKitSample[]): SampleKitDefinition | null {
-    const byRole = (role: OrganismKitSample['role'], match?: RegExp) =>
-      samples.find((sample) => sample.role === role && (!match || match.test(sample.fileName)))?.url
-
-    const kick = byRole('kick')
-    const snare = byRole('snare')
-    const hatClosed = byRole('hat', /\b(cl|closed|close|ch)\b/i) ?? byRole('hat')
-    const hatOpen = byRole('hat', /\b(op|open|oh)\b/i) ?? hatClosed
-    const perc = byRole('perc') ?? byRole('tom') ?? snare
-
-    if (!kick || !snare || !hatClosed || !hatOpen || !perc) return null
-
-    return { kick, snare, hatClosed, hatOpen, perc }
   }
 }
