@@ -10,7 +10,9 @@ export class PocketComputer {
   }
 
   process(presence: number, voiceActive: boolean): number {
-    const target = voiceActive ? presence : 0
+    // In auto/non-voice mode pocket tracks rhythmic energy at reduced weight so
+    // the display stays alive and meaningful rather than pinning at pocketBias.
+    const target = voiceActive ? presence : presence * 0.35
 
     const coeff   = target > this.smoothed ? this.attackCoeff : this.releaseCoeff
     this.smoothed += coeff * (target - this.smoothed)
