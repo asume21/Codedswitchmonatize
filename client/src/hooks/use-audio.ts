@@ -57,7 +57,7 @@ function getNoteFrequency(note: string, octave: number = 4): number {
 }
 
 interface UseAudioReturn {
-  playNote: (note: string | number, octave?: number, duration?: number | string, instrument?: string, velocity?: number, sustainEnabled?: boolean, targetNode?: AudioNode) => void;
+  playNote: (note: string | number, octave?: number, duration?: number | string, instrument?: string, velocity?: number, sustainEnabled?: boolean, targetNode?: AudioNode, when?: number) => void;
   playDrum: (type: DrumType, velocity?: number, targetNode?: AudioNode) => void;
   setMasterVolume: (volume: number) => void;
   isInitialized: boolean;
@@ -168,7 +168,7 @@ export function useAudio(): UseAudioReturn {
     };
   }, []);
 
-  const playNote = useCallback(async (note: string | number, octave: number = 4, duration: number | string = 0.5, instrument: string = 'piano', velocity: number = 0.7, sustainEnabled: boolean = true, targetNode?: AudioNode) => {
+  const playNote = useCallback(async (note: string | number, octave: number = 4, duration: number | string = 0.5, instrument: string = 'piano', velocity: number = 0.7, sustainEnabled: boolean = true, targetNode?: AudioNode, when?: number) => {
     try {
       if (!globalAudioInitialized) {
         await initialize();
@@ -187,7 +187,7 @@ export function useAudio(): UseAudioReturn {
       }
 
       const fullNote = `${noteString}${octave}`;
-      audioEngine.playNote(fullNote, duration, velocity, instrument as any, targetNode);
+      audioEngine.playNote(fullNote, duration, velocity, instrument as any, targetNode, when);
     } catch (error) {
       console.error('Error playing note:', error);
     }

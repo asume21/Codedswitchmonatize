@@ -125,7 +125,7 @@ class AudioEngine {
   // the transport, it must do so via the React-side useTransport() API.
 
 // Note playback - ALWAYS use RealisticAudioEngine when available
-  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano', targetNode?: AudioNode) {
+  playNote(note: string, duration: string | number = '8n', velocity = 0.8, instrument: string = 'piano', targetNode?: AudioNode, when?: number) {
     if (!this.isInitialized) {
       console.warn('AudioEngine not initialized');
       return;
@@ -152,7 +152,7 @@ class AudioEngine {
       const realInstrument = instrumentMap[instrument] ?? instrument;
       
       // Use RealisticAudioEngine for high-quality playback with optional routing
-      realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity, true, targetNode);
+      realisticAudio.playNote(noteName, octave, durationSec, realInstrument, velocity, true, targetNode, when);
       return;
     }
     

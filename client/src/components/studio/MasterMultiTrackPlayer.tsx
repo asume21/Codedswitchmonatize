@@ -612,6 +612,8 @@ export default function MasterMultiTrackPlayer() {
     const instrument = (track.instrument || 'piano').toLowerCase().includes('bass') ? 'bass' : (track.instrument || 'piano');
     const volume = Math.max(0, Math.min(1, (track.volume ?? 80) / 100));
 
+    const ctx = getAudioContext();
+
     track.midiNotes.forEach((n) => {
       const startBeat = (n.step ?? 0) / 4;
       const durBeat = (n.length ?? 1) / 4;
@@ -623,10 +625,15 @@ export default function MasterMultiTrackPlayer() {
         return;
       }
 
+      // Calculate absolute AudioContext play time
+      const audioTime = ctx ? (ctx.currentTime + startSeconds - startOffsetSeconds) : undefined;
+      const lookaheadMs = 200;
+      const timeoutMs = Math.max(0, whenMs - lookaheadMs);
+
       const timeout = setTimeout(() => {
         if (!isPlayingRef.current) return;
-        void playNote(n.note, n.octave, durationSeconds, instrument, volume);
-      }, whenMs);
+        void playNote(n.note, n.octave, durationSeconds, instrument, volume, true, undefined, audioTime);
+      }, timeoutMs);
       midiTimeoutsRef.current.push(timeout);
     });
   }, [initialize, isPlayingRef, playNote, tempo]);

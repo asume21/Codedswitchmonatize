@@ -17,6 +17,7 @@ import { GlobalOrganismWrapper } from "@/features/organism/GlobalOrganismWrapper
 import { IOSAudioEnable } from "@/components/IOSAudioEnable";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { CommandPalette } from "@/components/CommandPalette";
+import { DesktopBridgeProvider } from "@/contexts/DesktopBridgeContext";
 
 // TransportProvider + TrackStoreProvider are hoisted to wrap the entire app so
 // TransportContext can act as the single owner of Tone.Transport everywhere
@@ -212,10 +213,11 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <TrackStoreProvider>
-          <TransportProvider>
-          <GlobalOrganismWrapper>
-          <TooltipProvider>
+          <DesktopBridgeProvider>
+            <TrackStoreProvider>
+            <TransportProvider>
+            <GlobalOrganismWrapper>
+            <TooltipProvider>
             <Toaster />
             {/* Cmd/Ctrl+K command palette — available everywhere, mounts only the dialog shell until invoked */}
             <CommandPalette />
@@ -368,6 +370,7 @@ function App() {
           </GlobalOrganismWrapper>
           </TransportProvider>
           </TrackStoreProvider>
+          </DesktopBridgeProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

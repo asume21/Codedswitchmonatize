@@ -3,6 +3,7 @@ import { SubscriptionButton } from "./SubscriptionButton";
 import { UserAccountMenu } from "@/components/UserAccountMenu";
 import { useState } from "react";
 import { UpgradeModal, useLicenseGate } from "@/lib/LicenseGuard";
+import { DesktopBridgeToggle } from "./DesktopBridgeToggle";
 
 export default function Header() {
   const { requirePro, startUpgrade } = useLicenseGate();
@@ -259,6 +260,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center space-x-4">
+        <DesktopBridgeToggle />
         <SubscriptionButton />
         <Button
           className="bg-studio-accent hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-medium transition-colors"

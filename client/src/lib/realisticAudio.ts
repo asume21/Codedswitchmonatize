@@ -1,5 +1,6 @@
 import Soundfont from 'soundfont-player';
 import { getAudioContext } from './audioContext';
+import { exportNoteToBridge, exportDrumToBridge } from './bridgeExporter';
 
 /**
  * Default destination for raw Web Audio nodes synthesized in this engine.
@@ -434,6 +435,10 @@ export class RealisticAudioEngine {
     targetNode?: AudioNode,
     when?: number  // AudioContext.currentTime to schedule ahead — undefined = play now
   ): Promise<void> {
+    if (exportNoteToBridge(note, octave, duration, instrument, velocity, when)) {
+      return;
+    }
+
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -533,6 +538,10 @@ export class RealisticAudioEngine {
   }
 
   async playDrumSound(drumType: string, velocity: number = 0.7, kit: string = 'default', targetNode?: AudioNode): Promise<void> {
+    if (exportDrumToBridge(drumType, velocity)) {
+      return;
+    }
+
     if (!this.isInitialized) {
       await this.initialize();
     }
