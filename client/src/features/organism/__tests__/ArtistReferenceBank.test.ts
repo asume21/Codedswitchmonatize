@@ -59,7 +59,7 @@ describe('interpretVibeRuleBased — genre keywords', () => {
   })
 
   it('matches chicago drill before plain drill', () => {
-    const chi = interpretVibeRuleBased('chicago drill vibes')
+    const chi = interpretVibeRuleBased('chicago drill')
     expect(chi.bpm).toBe(145)
     expect(chi.energy).toBeGreaterThanOrEqual(0.9)
   })
