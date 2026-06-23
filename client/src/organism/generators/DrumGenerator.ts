@@ -178,6 +178,13 @@ export class DrumGenerator extends GeneratorBase {
     this.setOutputLevel(this.activityLevel)
   }
 
+  // Tunable micro-timing and groove settings
+  private lazySnareMinMs: number = 5
+  private lazySnareMaxMs: number = 15
+  private hatCyclicPattern: number[] = [1.0, 0.4, 0.75, 0.5]
+  private hatShuffleMinPct: number = 1.5
+  private hatShuffleMaxPct: number = 3.0
+
   private enabled: boolean = true
 
   setEnabled(enabled: boolean): void {
@@ -189,6 +196,22 @@ export class DrumGenerator extends GeneratorBase {
       // directly from the saved hits so the Part resumes immediately.
       this.rebuildPart(this.lockedHits)
     }
+  }
+
+  setLazySnareRange(minMs: number, maxMs: number): void {
+    this.lazySnareMinMs = Math.max(0, minMs)
+    this.lazySnareMaxMs = Math.max(minMs, maxMs)
+  }
+
+  setHatCyclicPattern(pattern: number[]): void {
+    if (pattern.length > 0) {
+      this.hatCyclicPattern = [...pattern]
+    }
+  }
+
+  setHatShuffleRange(minPct: number, maxPct: number): void {
+    this.hatShuffleMinPct = Math.max(0, minPct)
+    this.hatShuffleMaxPct = Math.max(minPct, maxPct)
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
@@ -401,26 +424,30 @@ export class DrumGenerator extends GeneratorBase {
       let microShift = 0
       let velocity = h.velocity
 
-      // 1. Lazy Snare: On beats 2 and 4 (beat index 1 and 3), delay snare by 5ms–15ms
+      // 1. Lazy Snare: On beats 2 and 4 (beat index 1 and 3), delay snare
       if (h.instrument === DrumInstrument.Snare && (beat === 1 || beat === 3) && sub === 0) {
-        microShift = 0.005 + Math.random() * 0.010 // 5ms to 15ms
+        const minSec = this.lazySnareMinMs / 1000
+        const maxSec = this.lazySnareMaxMs / 1000
+        microShift = minSec + Math.random() * (maxSec - minSec)
       }
 
       // 2. Closed Hi-Hat adjustments
       if (h.instrument === DrumInstrument.Hat) {
         const sixteenthPos = Math.floor(beat * 4 + sub) % 16
         
-        // Cyclic velocity pattern [1.0, 0.4, 0.75, 0.5]
-        const patternIndex = sixteenthPos % 4
-        const patternVel = [1.0, 0.4, 0.75, 0.5][patternIndex]
+        // Cyclic velocity pattern
+        const patternIndex = sixteenthPos % this.hatCyclicPattern.length
+        const patternVel = this.hatCyclicPattern[patternIndex] ?? 1.0
         velocity = h.velocity * patternVel
 
-        // Hat Shuffle: Shift off-beat 16th notes late by 1.5% to 3% of a 16th duration
+        // Hat Shuffle: Shift off-beat 16th notes late by shuffle bounds percentage of a 16th duration
         const isOffBeat = sixteenthPos % 2 !== 0
         if (isOffBeat) {
           const bpm = Tone.getTransport().bpm.value || 120
           const sixteenthDurationSec = 60 / (bpm * 4)
-          const shiftPct = 0.015 + Math.random() * 0.015
+          const minPct = this.hatShuffleMinPct / 100
+          const maxPct = this.hatShuffleMaxPct / 100
+          const shiftPct = minPct + Math.random() * (maxPct - minPct)
           microShift = shiftPct * sixteenthDurationSec
         }
       }

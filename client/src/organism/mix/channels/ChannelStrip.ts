@@ -139,6 +139,17 @@ export class ChannelStrip {
     return { peakDb, rmsDb }
   }
 
+  setBassDistortion(amount: number): void {
+    if (this.bassDistortion) {
+      this.bassDistortion.distortion = Math.max(0, Math.min(1, amount))
+    }
+  }
+
+  setBassCrossover(lowpassFreq: number, bandpassFreq: number): void {
+    if (this.bassLowpass) this.bassLowpass.frequency.value = lowpassFreq
+    if (this.bassBandpass) this.bassBandpass.frequency.value = bandpassFreq
+  }
+
   setGainDb(db: number): void {
     this.fader.gain.rampTo(Tone.dbToGain(db), 0.15)
   }

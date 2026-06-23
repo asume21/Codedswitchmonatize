@@ -179,6 +179,25 @@ export class MixEngine {
     this.bandMaster.gain.rampTo(silenced ? 0 : 1, 0.05)
   }
 
+  setParallelCompression(thresholdDb: number, ratio: number, attackMs: number, releaseMs: number): void {
+    this.drumCompressor.threshold.value = thresholdDb
+    this.drumCompressor.ratio.value = ratio
+    this.drumCompressor.attack.value = attackMs / 1000
+    this.drumCompressor.release.value = releaseMs / 1000
+  }
+
+  setHaasDelayMs(ms: number): void {
+    this.haasDelay.delayTime.value = ms / 1000
+  }
+
+  setBassDistortion(amount: number): void {
+    this.bassChannel.setBassDistortion(amount)
+  }
+
+  setBassCrossover(lowpassFreq: number, bandpassFreq: number): void {
+    this.bassChannel.setBassCrossover(lowpassFreq, bandpassFreq)
+  }
+
   connectMasterOutput(destination: import('tone').InputNode): void {
     this.master.connectOutput(destination)
   }
