@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
 import FloatingAIAssistant from './FloatingAIAssistant';
+import { DesktopBridgeToggle } from './DesktopBridgeToggle';
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
 const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m => ({ default: m.ProAudioGenerator })));
 const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
@@ -3343,6 +3344,7 @@ export default function UnifiedStudioWorkspace() {
       <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
+          <DesktopBridgeToggle />
           <div className="flex space-x-0.5 flex-wrap md:flex-nowrap" ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
