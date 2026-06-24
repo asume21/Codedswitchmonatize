@@ -14,7 +14,7 @@ import { OState }              from '../state/types'
 import type { GeneratorOutput, MelodyBehavior } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
-import { getProducerArrangementTotalBars, getProducerArrangementSlot } from '../state/ProducerArrangement'
+import { getProducerArrangementTotalBars, getProducerArrangementSlot, setArrangementFromPlan, clearArrangementFromPlan } from '../state/ProducerArrangement'
 import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
@@ -994,6 +994,12 @@ export class GeneratorOrchestrator {
    */
   loadArrangementPlan(plan: ArrangementPlan): void {
     getConductor().loadPlan(plan)
+    // Make the live arrangement actually FOLLOW the composer's plan: section
+    // durations come from plan.sections[].bars and per-channel levels from
+    // slotFromPlanSection (energy/density). Without this call the plan only swapped
+    // chords while section TIMING + dynamics ran off the generic PRODUCER_ARRANGEMENT
+    // skeleton — i.e. "Song Mode" never really played the composed song.
+    setArrangementFromPlan(plan.sections)
     // Force the next applyArrangement tick to treat this as a section
     // change so loadSection(0) actually fires through the bar-tick path
     // (the Conductor already loaded section 0 inside loadPlan, but
@@ -1006,6 +1012,7 @@ export class GeneratorOrchestrator {
   /** Drop the active plan and return to jam mode (bank picker). */
   clearArrangementPlan(): void {
     getConductor().clearPlan()
+    clearArrangementFromPlan()   // back to the named-template skeleton (jam mode)
     this.lastArrangementSection = ''
     this.lastPlanSectionLoadBar = -1
   }
