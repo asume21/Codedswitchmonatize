@@ -103,7 +103,7 @@ const FULL_MATRIX: GenreMatrix = {
   'west-coast': {
     intro:     ['i7', 'bVIImaj7', 'bVImaj7', 'V7'],
     verse:     ['i7', 'iv7', 'bVII7', 'bVI7'],
-    build:     ['ii7b5', 'V7', 'i7', 'bVII7'],
+    build:     ['iim7-5', 'V7', 'i7', 'bVII7'],
     drop:      ['i7', 'bVImaj7', 'bVIImaj7', 'V7'],
     breakdown: ['bVImaj7', 'bVIImaj7', 'i7', 'iv7'],
     drop2:     ['i7', 'bVII7', 'bVImaj7', 'V7'],
@@ -192,9 +192,9 @@ export function getProgressionForSection(
   subGenre: string,
   sectionName: string,
 ): string[] {
-  return (
-    FULL_MATRIX[subGenre]?.[sectionName as ArrangementSectionName] ??
-    GENERIC_FALLBACK[sectionName] ??
-    GENERIC_FALLBACK['verse']
-  )
+  return [
+    ...(FULL_MATRIX[subGenre]?.[sectionName as ArrangementSectionName] ??
+      GENERIC_FALLBACK[sectionName] ??
+      GENERIC_FALLBACK['verse'])
+  ]
 }
