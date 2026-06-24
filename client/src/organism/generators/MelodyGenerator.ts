@@ -117,6 +117,12 @@ export class MelodyGenerator extends GeneratorBase {
   // want to debug a jumping voice while the note logic is still settling.
   private melodySectionHandoffEnabled = false
 
+  // Cross-phrase memory — carries the ending pitch into the next phrase so the
+  // melodic line CONTINUES instead of resetting to home register every
+  // PHRASE_REFRESH_BARS. Persists across section changes so register continuity
+  // is maintained even when the motif idea changes.
+  private lastPhraseEndMidi: number | null = null
+
   // Chord-awareness — chord tones (pitch classes 0-11) to target on strong beats.
   // Sourced from the Conductor (Phase 3 wiring); the legacy setCurrentChord
   // external API stays as an override path.
@@ -862,6 +868,12 @@ export class MelodyGenerator extends GeneratorBase {
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
     if (this.isBowedString()) this.applyStringPerformance(notes)
 
+    // M2.5 slice 4: expressive legato + rubato for the "sad violin" — connects
+    // notes (bow never lifts) and stretches cadence notes so the line breathes.
+    if (this.isBowedString() && this.emotionalIntent === 'sad') {
+      this.applyExpressiveLegato(notes)
+    }
+
     // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
     // leads are untouched. Order matters: develop the LINE first (what to play),
     // then shape dynamics (how loud) — articulations (how to play) come below.
@@ -1086,6 +1098,54 @@ export class MelodyGenerator extends GeneratorBase {
     }
   }
 
+  /**
+   * M2.5 slice 4 — expressive legato for sustained leads (the "blending/
+   * stretching" gap). Gated to emotionalIntent === 'sad' + bowed strings.
+   *
+   * Two transforms (order matters — legato first, then rubato):
+   *   • LEGATO overlap — extend each note's duration so it overlaps the
+   *     start of the next note, creating a seamless bow-on-string feel.
+   *   • RUBATO stretch — cadence notes and long held notes are stretched
+   *     so the phrasing breathes at phrase ends (agogic accent).
+   */
+  private applyExpressiveLegato(notes: ScheduledNote[]): void {
+    if (notes.length < 2) return
+
+    // Legato: extend each note to overlap with the next by a small margin
+    for (let i = 0; i < notes.length - 1; i++) {
+      try {
+        const currDurSec = Tone.Time(notes[i].duration).toSeconds()
+        const currTimeSec = Tone.Time(notes[i].time).toSeconds()
+        const nextTimeSec = Tone.Time(notes[i + 1].time).toSeconds()
+        const gap = nextTimeSec - (currTimeSec + currDurSec)
+        if (gap > 0.01 && gap < 0.8) {
+          // Fill the gap + overlap by 25% into the next note's attack
+          const newDur = currDurSec + gap + Math.min(0.12, gap * 0.25)
+          notes[i].duration = newDur
+        } else if (gap <= 0.01 && gap >= -0.05) {
+          // Notes already nearly touching — add a small overlap
+          notes[i].duration = currDurSec + 0.06
+        }
+      } catch { /* time parsing failed — leave as-is */ }
+    }
+
+    // Rubato: stretch the last note (cadence) and any long held notes
+    for (let i = 0; i < notes.length; i++) {
+      try {
+        const durSec = typeof notes[i].duration === 'number'
+          ? notes[i].duration as number
+          : Tone.Time(notes[i].duration).toSeconds()
+        const isLast = i === notes.length - 1
+        const quarterSec = Tone.Time('4n').toSeconds()
+        const isHeld = durSec >= quarterSec
+        if (isLast || isHeld) {
+          const stretch = isLast ? 1.18 : 1.10
+          notes[i].duration = durSec * stretch
+        }
+      } catch { /* leave as-is */ }
+    }
+  }
+
   private conformArticulatedNote(note: string | number): string | number {
     if (!this.currentPerformer) return note
 
@@ -1174,7 +1234,7 @@ export class MelodyGenerator extends GeneratorBase {
       return Tone.Frequency(midi, 'midi').toNote()
     }
 
-    const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number, forceResolve = false) => {
+    const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number, forceResolve = false, degreeOffset = 0) => {
       const out: ScheduledNote[] = []
       let c = cursorStart
       for (const step of m.steps) {
@@ -1193,6 +1253,7 @@ export class MelodyGenerator extends GeneratorBase {
            // Just a relative scale degree
            degIndex = chordDegs[0] + step.index
         }
+        degIndex += degreeOffset
 
         // Phrase arc: bias the line upward toward a single climax ~2/3 in —
         // but NEVER the cadence note, which must land "home", not on the curve.
@@ -1276,6 +1337,18 @@ export class MelodyGenerator extends GeneratorBase {
       return { out, newCursor: c }
     }
 
+    // Cross-phrase continuity: compute a degree offset so the first motif
+    // starts near where the previous phrase ended instead of resetting to
+    // the home register. The shift is in scale degrees, capped to avoid
+    // wild jumps that would break the harmonic framework.
+    let continuityShift = 0
+    if (this.lastPhraseEndMidi !== null) {
+      const homeMidi = (melodicOctave * 12) + 12 + this.rootPitchClass + this.pitchOffsetSemitones
+      const semitoneDiff = this.lastPhraseEndMidi - homeMidi
+      const scaleLen = this.currentScale.length
+      continuityShift = Math.max(-4, Math.min(4, Math.round(semitoneDiff * scaleLen / 12)))
+    }
+
     let cursor = 0
     let phraseIndex = 0
     // Space between motifs IS the musical statement — a lead that never
@@ -1299,7 +1372,8 @@ export class MelodyGenerator extends GeneratorBase {
       const transposeAmount = variation === 'transpose' ? 1 + (chordSeed % 3) : 0
       const motif = developMotif(baseMotif, variation, transposeAmount)
       const transposeOct = this.currentBehavior === MelodyBehavior.Lead && phraseIndex % 4 === 3 ? 1 : 0
-      const result = renderMotif(motif, cursor, transposeOct)
+      const phraseDegOffset = phraseIndex === 0 ? continuityShift : 0
+      const result = renderMotif(motif, cursor, transposeOct, false, phraseDegOffset)
 
       notes.push(...result.out)
 
@@ -1324,6 +1398,14 @@ export class MelodyGenerator extends GeneratorBase {
       const cadCursor = Math.max(0, length16ths - cad.dur16ths)
       const cadResult = renderMotif({ name: 'cadence', steps: [cad] }, cadCursor, 0, true)
       notes.push(...cadResult.out)
+    }
+
+    // Cross-phrase memory: save where this phrase ended so the next phrase
+    // continues from here instead of resetting to the home register.
+    if (notes.length >= 2) {
+      this.lastPhraseEndMidi = noteToMidi(notes[notes.length - 1].pitch)
+    } else if (notes.length === 1) {
+      this.lastPhraseEndMidi = noteToMidi(notes[0].pitch)
     }
 
     // Safety net: if the generated phrase collapsed to a single pitch (motif

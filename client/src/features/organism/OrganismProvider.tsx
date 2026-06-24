@@ -285,12 +285,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Switches-not-modes: the Organism is a steady beat machine by default.
   // Everything "smart" is an explicit opt-in toggle.
   const [reactToVoiceEnabled, setReactToVoiceEnabledState] = useState(false)
-  // Jam mode by default — all generators play and build off each other
-  // continuously with no section breaks or volume multiplier swings.
-  // Toggle on = Song Mode (structured DJ arrangement: intro→verse→build→drop).
-  const [songModeEnabled,     setSongModeEnabledState]     = useState(false)
+  // Song Mode by default — structured DJ arrangement (intro→verse→build→drop)
+  // so the Organism builds itself into a song instead of looping. The compose
+  // endpoint always has a deterministic fallback, so a plan is always available.
+  // Toggle off = Jam Mode (all generators play and loop continuously).
+  const [songModeEnabled,     setSongModeEnabledState]     = useState(true)
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
-  const songModeEnabledRef = useRef(false)
+  const songModeEnabledRef = useRef(true)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
