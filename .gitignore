@@ -83,6 +83,7 @@ audio/loops/*
 !audio/loops/SSO_*/
 !audio/loops/VCSL_*/
 !audio/loops/SK_*/
+!audio/loops/VSCO2_*/
 private/organism-kits/
 private/ace-step/
 private/ace-step-cache/
