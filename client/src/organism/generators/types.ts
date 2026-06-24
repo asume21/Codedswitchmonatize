@@ -52,7 +52,7 @@ export enum DrumInstrument {
 
 export interface ScheduledNote {
   pitch:    string
-  duration: string
+  duration: string | number
   velocity: number
   time:     string
 }
