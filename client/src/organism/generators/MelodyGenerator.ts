@@ -40,6 +40,7 @@ import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } 
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import { applyVoiceLeading } from './melody/voiceLeading'
+import { selectMotifBankKey } from './melody/motifSelection'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -1124,13 +1125,19 @@ export class MelodyGenerator extends GeneratorBase {
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
-    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
-    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
-      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
-      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
-    } else if (!this.voiceActive) {
-      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
-    }
+    // Singing leads (violin/cello/wind/brass) draw from the lyrical bank — in
+    // auto AND live — instead of bell arps. Non-lyrical leads keep the existing
+    // arps/fills/ostinatos behavior. (preferredMotifBankKey = chorus/hook override.)
+    const bankKey = selectMotifBankKey({
+      family: this.currentPerformer?.family,
+      voiceActive: this.voiceActive,
+      preferredBankKey:
+        this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]
+          ? this.preferredMotifBankKey
+          : null,
+      chordSeed,
+    })
+    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[bankKey] ?? HIP_HOP_MOTIFS.ostinatos
     
     // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
     const chordDegs: number[] = []

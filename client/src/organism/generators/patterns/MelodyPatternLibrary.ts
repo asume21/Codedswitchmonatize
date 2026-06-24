@@ -126,10 +126,44 @@ export const HIP_HOP_MOTIFS: Record<string, MelodyMotif[]> = {
       ] 
     },
     { name: "Soul Flourish", steps: [
-        {index: 1, isChordTone: true, dur16ths: 2}, 
-        {index: 2, isChordTone: false, dur16ths: 1}, 
+        {index: 1, isChordTone: true, dur16ths: 2},
+        {index: 2, isChordTone: false, dur16ths: 1},
         {index: 0, isChordTone: true, dur16ths: 5}
-      ] 
+      ]
     },
+  ],
+  // Lyrical bank — for SINGING leads (violin/cello/wind/brass), not bell arps.
+  // The win vs. the arp banks: motion is mostly STEPWISE (isChordTone:false steps
+  // = scale steps from the root) with chord-tone anchors and HELD notes, plus a
+  // suspension that resolves down by step (the emotional "sigh"). Reads as a tune
+  // a person could hum, in both auto and live modes.
+  lyrical: [
+    { name: "Cantabile Rise", steps: [
+        {index: 0, isChordTone: true,  dur16ths: 2},  // root — anchor
+        {index: 1, isChordTone: false, dur16ths: 2},  // step up (2nd)
+        {index: 2, isChordTone: false, dur16ths: 2},  // step up
+        {index: 2, isChordTone: true,  dur16ths: 6}   // land on a chord tone, held — the singing note
+      ]
+    },
+    { name: "Sigh", steps: [
+        {index: 3, isChordTone: false, dur16ths: 4},  // reach up to a tension tone, held
+        {index: 2, isChordTone: false, dur16ths: 2},  // resolve DOWN by step (the sigh)
+        {index: 0, isChordTone: true,  dur16ths: 6}   // settle home on a chord tone, held
+      ]
+    },
+    { name: "Gentle Wave", steps: [
+        {index: 0, isChordTone: true,  dur16ths: 3},
+        {index: 1, isChordTone: false, dur16ths: 1},  // upper neighbour
+        {index: 0, isChordTone: true,  dur16ths: 2},
+        {index: -1, isChordTone: false, dur16ths: 2}, // lower neighbour
+        {index: 0, isChordTone: true,  dur16ths: 4}   // home, held
+      ]
+    },
+    { name: "Held Question", steps: [
+        {index: 0, isChordTone: true,  dur16ths: 6},  // long, intimate — sparse/emotional
+        {index: 1, isChordTone: false, dur16ths: 2},  // a single step
+        {index: 2, isChordTone: true,  dur16ths: 8}   // held answer
+      ]
+    }
   ]
 };
