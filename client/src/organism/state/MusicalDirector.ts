@@ -87,6 +87,7 @@ export class MusicalDirector {
   private lastSubGenre: HipHopSubGenre = 'chill'
   private subGenreLockBars = 0  // don't change sub-genre too often
   private isGrooveLocked = false // Story Mode: lock the rhythm once in Flow
+  private arrangementEnabled = false
 
   // ── Change listeners ────────────────────────────────────────────
   private subGenreChangeListeners: Array<(subGenre: HipHopSubGenre) => void> = []
@@ -98,6 +99,27 @@ export class MusicalDirector {
   /** Set Story Mode (Groove Lock) status */
   setGrooveLocked(locked: boolean): void {
     this.isGrooveLocked = locked
+  }
+
+  /**
+   * Set whether song/arrangement sections are active. Jam mode must be truly
+   * sectionless: no hidden intro/build/drop state, no section listeners, and no
+   * dropout/fill masks. Harmony can still advance elsewhere.
+   */
+  setArrangementEnabled(enabled: boolean): void {
+    if (this.arrangementEnabled === enabled) return
+    this.arrangementEnabled = enabled
+    this.lastArrangementBar = -1
+
+    if (!enabled) {
+      this.state.section = 'none'
+      this.state.sectionBar = 0
+      this.state.arrangementTotalBars = 0
+      this.state.drums.dropout = false
+      this.state.bass.dropout = false
+      this.state.melody.dropout = false
+      this.state.drums.fillRequested = false
+    }
   }
 
   /** Get the current unified musical state (read-only snapshot) */
@@ -121,7 +143,9 @@ export class MusicalDirector {
     this.state.density = physics.density
     this.state.voiceActive = physics.voiceActive
     this.state.flowDepth = organism.flowDepth
-    this.state.arrangementTotalBars = getProducerArrangementTotalBars()
+    this.state.arrangementTotalBars = this.arrangementEnabled
+      ? getProducerArrangementTotalBars()
+      : 0
 
     // ── Sub-genre classification ──────────────────────────────────
     // STORY MODE: If groove is locked or we're in Flow state, freeze the
@@ -161,42 +185,51 @@ export class MusicalDirector {
         )
       }
 
-      const { slot, sectionBar } = getProducerArrangementSlot(currentBar)
-
-      if (slot.name !== this.state.section) {
-        this.state.section = slot.name
+      if (!this.arrangementEnabled) {
+        this.state.section = 'none'
         this.state.sectionBar = 0
-        needsRebuild = true
-
-        // Advance section-local state before listeners run so callbacks rebuild
-        // from the completed Conductor decision, not the previous section.
-        this.state.drums.variantIndex = (this.state.drums.variantIndex + 1)
-        this.state.drums.dropout = slot.drumDropout
-        this.state.bass.dropout = slot.bassDropout
-        this.state.melody.dropout = slot.melodyDropout
-        this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
-
-        // Notify section change listeners after state is complete.
-        for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
-
-        // Check for pattern mutation on section change
-        if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
-          this.state.barsSinceLastMutation = 0
-          this.state.mutationProbability = 0
-          for (const cb of this.mutationListeners) cb()
-        }
+        this.state.drums.dropout = false
+        this.state.bass.dropout = false
+        this.state.melody.dropout = false
+        this.state.drums.fillRequested = false
       } else {
-        this.state.sectionBar++
+        const { slot, sectionBar } = getProducerArrangementSlot(currentBar)
 
-        // Section masks are intentional song structure. Groove lock freezes
-        // the pattern pocket, but it should not flatten the arrangement into a
-        // loop.
-        this.state.drums.dropout = slot.drumDropout
-        this.state.bass.dropout = slot.bassDropout
-        this.state.melody.dropout = slot.melodyDropout
+        if (slot.name !== this.state.section) {
+          this.state.section = slot.name
+          this.state.sectionBar = 0
+          needsRebuild = true
 
-        // Fill request on last bar of each section
-        this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
+          // Advance section-local state before listeners run so callbacks rebuild
+          // from the completed Conductor decision, not the previous section.
+          this.state.drums.variantIndex = (this.state.drums.variantIndex + 1)
+          this.state.drums.dropout = slot.drumDropout
+          this.state.bass.dropout = slot.bassDropout
+          this.state.melody.dropout = slot.melodyDropout
+          this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
+
+          // Notify section change listeners after state is complete.
+          for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
+
+          // Check for pattern mutation on section change
+          if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
+            this.state.barsSinceLastMutation = 0
+            this.state.mutationProbability = 0
+            for (const cb of this.mutationListeners) cb()
+          }
+        } else {
+          this.state.sectionBar++
+
+          // Section masks are intentional song structure. Groove lock freezes
+          // the pattern pocket, but it should not flatten the arrangement into a
+          // loop.
+          this.state.drums.dropout = slot.drumDropout
+          this.state.bass.dropout = slot.bassDropout
+          this.state.melody.dropout = slot.melodyDropout
+
+          // Fill request on last bar of each section
+          this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
+        }
       }
     }
 

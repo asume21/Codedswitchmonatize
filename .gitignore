@@ -92,3 +92,6 @@ private/tools/
 AI_HANDOFF.md
 .audio-debug/
 .playwright-mcp/
+
+# Crash-safe brainstorm/decision checkpoints (Stop-hook scratchpad)
+CHECKPOINT.md

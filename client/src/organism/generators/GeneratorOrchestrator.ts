@@ -1326,6 +1326,7 @@ export class GeneratorOrchestrator {
   setArrangementEnabled(enabled: boolean): void {
     if (this.arrangementEnabled === enabled) return
     this.arrangementEnabled = enabled
+    this.director.setArrangementEnabled(enabled)
     orgLog('arrangement:toggle', { enabled })
     if (!enabled) {
       // Clear any pending scheduled break events
