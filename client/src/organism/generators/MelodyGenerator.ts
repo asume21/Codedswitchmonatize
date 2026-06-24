@@ -39,6 +39,7 @@ import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+import { applyVoiceLeading } from './melody/voiceLeading'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -860,7 +861,15 @@ export class MelodyGenerator extends GeneratorBase {
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
-    if (this.isBowedString()) this.applyStringPerformance(notes)
+    if (this.isBowedString()) {
+      // §4 Voice-leading FIRST (what to play): keep the line mostly stepwise and
+      // in a sane register so it sings instead of zig-zagging high↔low across
+      // octaves. Pitch classes (harmony) are preserved — only octaves move.
+      // ~MIDI 55 (G3) floor, ~MIDI 81 (A5, ≈880Hz) ceiling = a singing violin
+      // register with no shrieking highs. THEN shape dynamics on the smoothed line.
+      notes = applyVoiceLeading(notes, { maxLeapSemitones: 5, floorMidi: 55, ceilingMidi: 81 })
+      this.applyStringPerformance(notes)
+    }
 
     // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
     // leads are untouched. Order matters: develop the LINE first (what to play),
