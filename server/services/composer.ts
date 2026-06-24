@@ -33,30 +33,9 @@ import {
 } from '../../shared/stylePresets'
 import { ARRANGEMENT_TEMPLATE_CATALOG } from '../../shared/arrangementTemplates'
 import { localAI } from './localAI'
+import { getProgressionForSection } from './musicMind'
 
 // ── Defaults / fallback library ──────────────────────────────────────
-
-// Per-sub-genre default progression — Roman numerals against the plan's
-// `key`. These are the same progressions the live Conductor uses today via
-// its DEFAULT_PROGRESSIONS table, just expressed in numeral form so they
-// transpose for free when the composer picks a non-C key.
-const DEFAULT_PROGRESSIONS: Record<string, string[]> = {
-  'boom-bap':    ['i',     'iv',    'V',     'i'],
-  'lo-fi':       ['Imaj7', 'iii7',  'IVmaj7','V7'],
-  'trap':        ['i',     'VI',    'VII',   'i'],
-  'drill':       ['i',     'v',     'VII',   'VI'],
-  'r&b':         ['Imaj7', 'vi7',   'ii7',   'V7'],
-  'soul':        ['vi7',   'ii7',   'V7',    'Imaj7'],
-  'chill':       ['Imaj7', 'iii7',  'vi7',   'IVmaj7'],
-  'west-coast':  ['i7',    'bVIImaj7', 'bVImaj7', 'V7'],
-  'dirty-south': ['i',     'iv',    'V',     'i'],
-  'phonk':       ['i',     'bVII',  'bVI',   'V7'],
-  'afrobeat':    ['i',     'bVII',  'bVI',   'bVII'],
-  'jersey-club': ['i',     'iv',    'i',     'V'],
-  'bounce':      ['i',     'bIII',  'bVII',  'i'],
-  'reggaeton':   ['i',     'V',     'bVI',   'V'],
-  'hip-hop':     ['i',     'iv',    'V',     'i'],
-}
 
 // Producer-style 32-bar arrangement skeleton. Matches the live engine's
 // PRODUCER_ARRANGEMENT layout so the same plan can drive both surfaces
@@ -133,8 +112,6 @@ function resolveDefaults(input: ComposerInput): Required<Pick<ArrangementPlan,
  */
 export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
   const defaults = resolveDefaults(input)
-  const progression = DEFAULT_PROGRESSIONS[defaults.subGenre]
-                    ?? DEFAULT_PROGRESSIONS['hip-hop']
 
   // Filter the StylePreset bank to allowed ids if the caller supplied a
   // whitelist (UI lock). Empty allowedStyleIds = use the full bank.
@@ -156,7 +133,7 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
     return {
       name:        slot.name,
       bars:        slot.bars,
-      progression: [...progression],
+      progression: getProgressionForSection(defaults.subGenre, slot.name),
       energy:      slot.energy,
       density:     slot.density,
       style:       style?.id,

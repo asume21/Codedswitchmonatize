@@ -18,15 +18,22 @@ describe('composeDeterministic', () => {
     expect(trap.subGenre).toBe('trap')
     expect(trap.bpm).toBe(140)
     expect(validateArrangementPlan(trap)).toBeNull()
-    // Trap uses i-VI-VII-i; verify the progression carries through to every section
-    for (const section of trap.sections) {
-      expect(section.progression).toEqual(['i', 'VI', 'VII', 'i'])
-    }
+    // Each section now has its own progression — intro ≠ verse ≠ build ≠ drop
+    const progressions = trap.sections.map(s => JSON.stringify(s.progression))
+    const unique = new Set(progressions)
+    expect(unique.size).toBeGreaterThan(1)
+    // Drop is the hardest section — verify it has content
+    const drop = trap.sections.find(s => s.name === 'drop')
+    expect(drop?.progression.length).toBeGreaterThan(0)
   })
 
-  it('falls back to hip-hop progression for unknown sub-genres', () => {
+  it('falls back to a section-appropriate progression for unknown sub-genres', () => {
     const weird = composeDeterministic({ subGenre: 'breakcore' })
-    expect(weird.sections[0].progression).toEqual(['i', 'iv', 'V', 'i'])
+    // Generic fallback is still section-varied — intro ≠ drop
+    const intro = weird.sections.find(s => s.name === 'intro')?.progression
+    const drop  = weird.sections.find(s => s.name === 'drop')?.progression
+    expect(intro?.length).toBeGreaterThan(0)
+    expect(JSON.stringify(intro)).not.toBe(JSON.stringify(drop))
   })
 
   it('user-supplied key + bpm override defaults', () => {
