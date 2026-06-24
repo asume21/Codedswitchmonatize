@@ -10,6 +10,7 @@ import {
   DEFAULT_MIX_CONFIG,
 }                                    from './types'
 import type { GeneratorOrchestrator } from '../generators/GeneratorOrchestrator'
+import { getExpressiveEngine }        from '../instruments/ExpressiveEngine'
 
 export class MixEngine {
   private config: MixConfig
@@ -97,6 +98,12 @@ export class MixEngine {
     orchestrator.connectMelodyOutput(this.melodyChannel.input)
     orchestrator.connectTextureOutput(this.textureChannel.input)
     orchestrator.connectChordOutput(this.chordChannel.input)
+
+    // Route ExpressiveEngine (MIDI keyboard + InstrumentEditor) through the
+    // melody channel so it hits the master limiter instead of bypassing it.
+    // Without this, MIDI notes sum directly into Tone.Destination unconstrained
+    // and clip the output (24%+ clipping measured in production).
+    getExpressiveEngine().connectTo(this.melodyChannel.input)
 
     // Wire kick → bass sidechain ducking
     this.wireSidechain(orchestrator, 'bass')

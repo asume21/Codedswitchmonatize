@@ -2,6 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { createMixToneMock, mockGainRampTo, mockPanRampTo, mockDispose } from './__mocks__/toneMixMock'
 
 vi.mock('tone', () => createMixToneMock())
+vi.mock('../../instruments/ExpressiveEngine', () => ({
+  getExpressiveEngine: () => ({ connectTo: vi.fn() }),
+}))
 
 import { MixEngine } from '../MixEngine'
 import type { MixMeterReading } from '../types'
