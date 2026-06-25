@@ -1,0 +1,24 @@
+{
+  "id": "hip-hop-classic",
+  "genre": "hip-hop",
+  "bpm": 90,
+  "key": "C",
+  "label": "Hip-Hop Classic",
+  "loops": {
+    "drums": [
+      { "id": "drums-boom-1", "url": "/api/loops/audio/drums-boom-90bpm.wav", "bars": 4, "label": "Boom Bap Kit" }
+    ],
+    "bass": [
+      { "id": "bass-funk-1", "url": "/api/loops/audio/bass-funk-90bpm-C.wav", "bars": 4, "label": "Funk Bass" }
+    ],
+    "melody": [
+      { "id": "melody-soul-1", "url": "/api/loops/audio/melody-soul-90bpm-C.wav", "bars": 4, "label": "Soul Lead" }
+    ],
+    "chords": [
+      { "id": "chords-pad-1", "url": "/api/loops/audio/chords-pad-90bpm-C.wav", "bars": 4, "label": "Warm Pad" }
+    ],
+    "texture": [
+      { "id": "texture-vinyl-1", "url": "/api/loops/audio/texture-vinyl.wav", "bars": 4, "label": "Vinyl Crackle" }
+    ]
+  }
+}

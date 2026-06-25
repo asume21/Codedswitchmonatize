@@ -1,7 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { createReadStream } from 'fs';
+import { createReadStream, readdirSync, readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { melodicLoopLibrary } from '../services/melodicLoopLibrary';
 import { multisampleInstruments } from '../services/multisampleInstruments';
+
+const PACKS_DIR = join(process.cwd(), 'server', 'data', 'loop-packs');
 
 /**
  * Melodic Loop Routes — real instrument loop packs for the Organism's loop layer.
@@ -54,6 +57,34 @@ router.get('/file', (req: Request, res: Response) => {
     createReadStream(abs).pipe(res);
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// List all available packs (id, genre, label, bpm, key only — no loop URLs)
+router.get('/packs', (_req: Request, res: Response) => {
+  try {
+    if (!existsSync(PACKS_DIR)) return res.json({ packs: [] });
+    const packs = readdirSync(PACKS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => {
+        const raw = JSON.parse(readFileSync(join(PACKS_DIR, f), 'utf-8'));
+        return { id: raw.id, genre: raw.genre, label: raw.label, bpm: raw.bpm, key: raw.key };
+      });
+    res.json({ packs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Full pack manifest including loop URLs
+router.get('/packs/:id', (req: Request, res: Response) => {
+  try {
+    const file = join(PACKS_DIR, `${req.params.id}.json`);
+    if (!existsSync(file)) return res.status(404).json({ error: 'Pack not found' });
+    const pack = JSON.parse(readFileSync(file, 'utf-8'));
+    res.json({ pack });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
