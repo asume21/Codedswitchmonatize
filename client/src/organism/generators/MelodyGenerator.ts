@@ -1,6 +1,7 @@
 // Section 04 — Melody Generator
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, MelodyBehavior } from './types'
 import type { ScheduledNote } from './types'
@@ -1419,6 +1420,26 @@ export class MelodyGenerator extends GeneratorBase {
   private isSamplerReady(): boolean {
     if (this.synth instanceof Tone.PolySynth) return false
     return (this.synth as LoadableSampler).isLoaded === true
+  }
+
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.output)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
   }
 
   dispose(): void {

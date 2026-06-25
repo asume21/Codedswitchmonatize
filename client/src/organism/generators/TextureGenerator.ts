@@ -1,6 +1,7 @@
 // Section 04 — Texture Generator
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName }      from './types'
 import { TEXTURE_BY_MODE }    from './patterns/TexturePatternLibrary'
@@ -192,6 +193,26 @@ export class TextureGenerator extends GeneratorBase {
       case OState.Awakening:  return 0.05 * organism.awakeningProgress
       case OState.Breathing:  return 0.15 * organism.breathingWarmth
       case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
+    }
+  }
+
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.output)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
     }
   }
 

@@ -1,6 +1,7 @@
 // Section 04 — Drum Generator
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
@@ -48,6 +49,10 @@ export class DrumGenerator extends GeneratorBase {
   private part: Tone.Part | null = null
   private breakFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
+
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
 
   // Physics cache
   private currentBounce:   number = 0
@@ -725,6 +730,22 @@ export class DrumGenerator extends GeneratorBase {
   /** Register a callback fired on every kick hit — used for sidechain ducking. */
   setKickTriggerCallback(cb: ((time: number) => void) | null): void {
     this.onKickTrigger = cb
+  }
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.output)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
   }
 
   private setOutputLevel(level: number): void {

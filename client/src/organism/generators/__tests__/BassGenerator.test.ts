@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import type { LoopClip } from '@shared/loopPack'
 import { OrganismMode } from '../../physics/types'
 import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
@@ -150,5 +151,45 @@ describe('BassGenerator', () => {
     gen.reset()
     const report = gen.getActivityReport(Date.now())
     expect(report.activityLevel).toBe(0)
+  })
+})
+
+describe('BassGenerator — loop mode', () => {
+  let gen: BassGenerator
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetConductor()
+    gen = new BassGenerator()
+  })
+
+  it('loadLoop creates a Tone.Player with loop:true', async () => {
+    const { Player } = await import('tone')
+    const clip: LoopClip = { id: 'b1', url: 'http://cdn.test/bass.wav', bars: 4 }
+    await gen.loadLoop(clip)
+    expect(Player).toHaveBeenCalledWith(expect.objectContaining({ url: clip.url, loop: true }))
+  })
+
+  it('setLoopMode(true) schedules player start at next bar boundary', async () => {
+    const tone = await import('tone')
+    const clip: LoopClip = { id: 'b1', url: 'http://cdn.test/bass.wav', bars: 4 }
+    await gen.loadLoop(clip)
+    gen.setLoopMode(true)
+    expect(tone.getTransport().scheduleOnce).toHaveBeenCalledWith(expect.any(Function), '@1m')
+  })
+
+  it('setLoopMode(false) stops the player', async () => {
+    const tone = await import('tone')
+    const clip: LoopClip = { id: 'b1', url: 'http://cdn.test/bass.wav', bars: 4 }
+    await gen.loadLoop(clip)
+    gen.setLoopMode(true)
+    gen.setLoopMode(false)
+    // Use last Player result — BassGenerator constructor also creates Player instances
+    const mockPlayer = (tone.Player as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value
+    expect(mockPlayer?.stop).toHaveBeenCalled()
+  })
+
+  it('setLoopMode(false) before loadLoop does not throw', () => {
+    expect(() => gen.setLoopMode(false)).not.toThrow()
   })
 })
