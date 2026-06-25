@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { createReadStream, readdirSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, sep } from 'path';
 import { melodicLoopLibrary } from '../services/melodicLoopLibrary';
 import { multisampleInstruments } from '../services/multisampleInstruments';
 
@@ -66,25 +66,37 @@ router.get('/packs', (_req: Request, res: Response) => {
     if (!existsSync(PACKS_DIR)) return res.json({ packs: [] });
     const packs = readdirSync(PACKS_DIR)
       .filter(f => f.endsWith('.json'))
-      .map(f => {
-        const raw = JSON.parse(readFileSync(join(PACKS_DIR, f), 'utf-8'));
-        return { id: raw.id, genre: raw.genre, label: raw.label, bpm: raw.bpm, key: raw.key };
+      .flatMap(f => {
+        try {
+          const raw = JSON.parse(readFileSync(join(PACKS_DIR, f), 'utf-8'));
+          return [{ id: raw.id, genre: raw.genre, label: raw.label, bpm: raw.bpm, key: raw.key }];
+        } catch {
+          return []; // skip malformed pack files rather than failing the whole list
+        }
       });
     res.json({ packs });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // Full pack manifest including loop URLs
 router.get('/packs/:id', (req: Request, res: Response) => {
   try {
+    // Strict id validation — only alphanumeric, hyphens, underscores allowed.
+    // Also verify the resolved path stays within PACKS_DIR to block traversal.
+    if (!/^[a-z0-9_-]+$/i.test(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid pack id' });
+    }
     const file = join(PACKS_DIR, `${req.params.id}.json`);
-    if (!existsSync(file)) return res.status(404).json({ error: 'Pack not found' });
+    if (resolve(file).indexOf(resolve(PACKS_DIR) + sep) !== 0) {
+      return res.status(400).json({ error: 'Invalid pack id' });
+    }
+    if (!existsSync(file)) return res.status(404).json({ success: false, message: 'Pack not found' });
     const pack = JSON.parse(readFileSync(file, 'utf-8'));
     res.json({ pack });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
