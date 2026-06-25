@@ -86,11 +86,11 @@ router.get('/packs/:id', (req: Request, res: Response) => {
     // Strict id validation — only alphanumeric, hyphens, underscores allowed.
     // Also verify the resolved path stays within PACKS_DIR to block traversal.
     if (!/^[a-z0-9_-]+$/i.test(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid pack id' });
+      return res.status(400).json({ success: false, message: 'Invalid pack id' });
     }
     const file = join(PACKS_DIR, `${req.params.id}.json`);
     if (resolve(file).indexOf(resolve(PACKS_DIR) + sep) !== 0) {
-      return res.status(400).json({ error: 'Invalid pack id' });
+      return res.status(400).json({ success: false, message: 'Invalid pack id' });
     }
     if (!existsSync(file)) return res.status(404).json({ success: false, message: 'Pack not found' });
     const pack = JSON.parse(readFileSync(file, 'utf-8'));
