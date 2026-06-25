@@ -759,6 +759,9 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     this.kickSub.dispose()
     this.kickClick.dispose()

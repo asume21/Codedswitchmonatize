@@ -217,6 +217,9 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
     try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()

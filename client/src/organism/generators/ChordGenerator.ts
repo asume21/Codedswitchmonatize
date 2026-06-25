@@ -825,6 +825,9 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     this.unsubscribeConductor?.()
     this.unsubscribeConductor = null

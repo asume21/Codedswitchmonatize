@@ -813,6 +813,9 @@ export class BassGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     if (this.unsubscribeConductor) {
       this.unsubscribeConductor()

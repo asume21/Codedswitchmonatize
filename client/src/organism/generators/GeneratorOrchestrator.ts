@@ -25,6 +25,7 @@ import { planAnswer, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
+import type { LoopPack } from '@shared/loopPack'
 import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
 
@@ -1665,6 +1666,34 @@ export class GeneratorOrchestrator {
    *  from a previous session don't silence generators in the next session). */
   clearAIDirectives(): void {
     this.aiDirectiveOverrides.clear()
+  }
+
+  /**
+   * Load a LoopPack: distribute one clip per generator (first clip of each
+   * type — V1 selection), lock the Transport BPM to the pack's tempo, and
+   * flip all five generators into loop-playback mode.
+   */
+  async loadLoopPack(pack: LoopPack): Promise<void> {
+    await Promise.all([
+      pack.loops.drums[0]   ? this.drum.loadLoop(pack.loops.drums[0])     : Promise.resolve(),
+      pack.loops.bass[0]    ? this.bass.loadLoop(pack.loops.bass[0])      : Promise.resolve(),
+      pack.loops.melody[0]  ? this.melody.loadLoop(pack.loops.melody[0])  : Promise.resolve(),
+      pack.loops.chords[0]  ? this.chord.loadLoop(pack.loops.chords[0])   : Promise.resolve(),
+      pack.loops.texture[0] ? this.texture.loadLoop(pack.loops.texture[0]): Promise.resolve(),
+    ])
+    // Lock BPM to the pack
+    Tone.getTransport().bpm.value = pack.bpm
+    // Flip all generators to loop playback
+    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+      .forEach(g => g.setLoopMode(true))
+  }
+
+  /**
+   * Exit loop-pack mode: revert all generators to their synthesis engines.
+   */
+  clearLoopPack(): void {
+    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+      .forEach(g => g.setLoopMode(false))
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */
