@@ -29,6 +29,7 @@ export interface QuickStartPreset {
   energy:      'low' | 'medium' | 'high'
   icon:        string
   physics:     PhysicsState
+  loopPackId?: string    // ID of the LoopPack to load when Loops Mode is ON
 }
 
 function makePhysics(overrides: Partial<PhysicsState> & { mode: OrganismMode; pulse: number }): PhysicsState {
@@ -235,11 +236,12 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   {
     id:     'boombap-90',
     label:  'Boom-bap',
-    genre:  'Boom-bap / Classic',
+    genre:  'hip-hop',
     bpm:    90,
     mode:   OrganismMode.Smoke,
     subGenre: 'boom-bap',
     allowedTemplateIds: ['storytelling', 'classic', 'bridge-heavy', 'slow-burn'],
+    loopPackId: 'hip-hop-classic',
     energy: 'medium',
     icon:   '💨',
     physics: makePhysics({

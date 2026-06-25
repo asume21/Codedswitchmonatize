@@ -34,6 +34,7 @@ import type { TranscriptionState } from './FreestyleTranscriber'
 import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
 import { useProfile }             from '../../organism/evolution/useProfile'
 import { QUICK_START_PRESETS, getQuickStartPreset } from './QuickStartPresets'
+import type { QuickStartPreset } from './QuickStartPresets'
 import { composeForPreset } from './ComposeArrangement'
 import { useWowMoments } from './hooks/useWowMoments'
 import { CountInEngine }         from './CountInEngine'
@@ -216,6 +217,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
   // Quick Start state
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
+  // Ref mirror so setLoopsModeEnabled can read the live preset without a closure over state
+  const currentPresetRef = useRef<QuickStartPreset | null>(null)
   const [v2Status, setV2Status] = useState<OrganismV2Status>(ORGANISM_V2_INITIAL_STATUS)
   const startTokenRef = useRef(0)
   const startInFlightRef = useRef<Promise<void> | null>(null)
@@ -290,6 +293,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [songModeEnabled,     setSongModeEnabledState]     = useState(true)
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
   const songModeEnabledRef = useRef(true)
+  // Loops Mode — play back loop packs instead of generating audio.
+  const [loopsModeEnabled, setLoopsModeEnabledState] = useState(false)
+  const loopsModeEnabledRef = useRef(false)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -1315,6 +1321,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(`Unknown quick start preset: ${presetId}`)
       return
     }
+    currentPresetRef.current = preset
     // DIAGNOSTIC: stack trace reveals WHO triggered this quickStart (UI click /
     // Astutely bridge / voice / FFOD), so we can see what fires the 2nd call.
     console.trace(`[quickStart] CALLED presetId=${presetId} running=${isRunningRef.current} inFlight=${!!startInFlightRef.current}`)
@@ -1547,6 +1554,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setError(`Unknown preset: ${presetId}`)
       return
     }
+    currentPresetRef.current = preset
 
     // Cold path — not running yet, full quickStart. Trust the orchestrator's
     // running flag too: isRunningRef can be momentarily clobbered to false by a
@@ -3471,6 +3479,37 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current?.setArrangementEnabled(enabled)
     },
 
+    loopsModeEnabled,
+    setLoopsModeEnabled: async (enabled: boolean) => {
+      setLoopsModeEnabledState(enabled)
+      loopsModeEnabledRef.current = enabled
+      const orchestr = orchestrRef.current
+      if (!orchestr) return
+
+      if (enabled) {
+        const preset = currentPresetRef.current     // the active QuickStartPreset
+        const packId = preset?.loopPackId
+        if (!packId) {
+          console.warn('[loops] No loopPackId for preset', preset?.id, '— staying in generate mode')
+          setLoopsModeEnabledState(false)
+          loopsModeEnabledRef.current = false
+          return
+        }
+        try {
+          const res = await fetch(`/api/loops/packs/${packId}`)
+          if (!res.ok) throw new Error(`Pack fetch failed: ${res.status}`)
+          const { pack } = await res.json()
+          await orchestr.loadLoopPack(pack)
+        } catch (err) {
+          console.warn('[loops] Failed to load pack:', err)
+          setLoopsModeEnabledState(false)
+          loopsModeEnabledRef.current = false
+        }
+      } else {
+        orchestr.clearLoopPack()
+      }
+    },
+
     // Instrument picker
     instrumentAssignments,
     setOrganismInstrument,
@@ -3530,7 +3569,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
-    reactToVoiceEnabled, songModeEnabled,
+    reactToVoiceEnabled, songModeEnabled, loopsModeEnabled,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
