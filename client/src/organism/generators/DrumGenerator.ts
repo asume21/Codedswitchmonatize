@@ -173,6 +173,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentBounce   = physics.bounce
     this.currentPresence = physics.presence
     this.currentPocket   = physics.pocket
@@ -220,6 +221,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (this._loopMode) return
     if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()

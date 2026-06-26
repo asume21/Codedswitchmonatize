@@ -102,6 +102,11 @@ export class GeneratorOrchestrator {
   private scheduledBreakEventIds: number[] = []
   private lastScheduledBreakBar: number = -1
 
+  // ── Loop Pack ─────────────────────────────────────────────────────
+  // BPM saved before the pack locks the Transport tempo so clearLoopPack can
+  // restore exactly the session BPM the user had before engaging Loops Mode.
+  private _preLockBpm: number | null = null
+
   // ── Progressive Intro ─────────────────────────────────────────────
   // Musician-style instrument stacking: instead of every generator entering
   // at bar 1, they layer in over the first 6 bars so the listener hears the
@@ -1681,6 +1686,8 @@ export class GeneratorOrchestrator {
       pack.loops.chords[0]  ? this.chord.loadLoop(pack.loops.chords[0])   : Promise.resolve(),
       pack.loops.texture[0] ? this.texture.loadLoop(pack.loops.texture[0]): Promise.resolve(),
     ])
+    // Save session BPM before locking to pack tempo so clearLoopPack can restore it
+    this._preLockBpm = Tone.getTransport().bpm.value
     // Lock BPM to the pack
     Tone.getTransport().bpm.value = pack.bpm
     // Flip all generators to loop playback
@@ -1694,6 +1701,10 @@ export class GeneratorOrchestrator {
   clearLoopPack(): void {
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(false))
+    if (this._preLockBpm !== null) {
+      Tone.getTransport().bpm.value = this._preLockBpm
+      this._preLockBpm = null
+    }
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */

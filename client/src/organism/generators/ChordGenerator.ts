@@ -335,6 +335,7 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentMode = physics.mode.toString()
     // Sub-genre swing (pushed by the orchestrator, matches the DRUM grid) wins;
     // the mode table is only the fallback before the first sub-genre sync.

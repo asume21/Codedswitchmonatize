@@ -109,6 +109,7 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     // Hard gate — when disabled, skip all processing.
     // Gain was already ramped to 0 in setEnabled(false) — don't re-ramp
     // here, as it cancels the in-progress ramp and creates a discontinuity.

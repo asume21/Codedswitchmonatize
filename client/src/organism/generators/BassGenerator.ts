@@ -290,6 +290,7 @@ export class BassGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentPocket = physics.pocket
     this.currentMode   = physics.mode
     this.currentOrganismState = organism.current

@@ -6,19 +6,19 @@
   "label": "Hip-Hop Classic",
   "loops": {
     "drums": [
-      { "id": "drums-boom-1", "url": "/api/loops/audio/drums-boom-90bpm.wav", "bars": 4, "label": "Boom Bap Kit" }
+      { "id": "drums-boom-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/drums-loop-1.wav", "bars": 4, "label": "Boom Bap Kit" }
     ],
     "bass": [
-      { "id": "bass-funk-1", "url": "/api/loops/audio/bass-funk-90bpm-C.wav", "bars": 4, "label": "Funk Bass" }
+      { "id": "bass-funk-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/bass-loop-1.wav", "bars": 4, "label": "Funk Bass" }
     ],
     "melody": [
-      { "id": "melody-soul-1", "url": "/api/loops/audio/melody-soul-90bpm-C.wav", "bars": 4, "label": "Soul Lead" }
+      { "id": "melody-soul-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/melody-loop-1.wav", "bars": 4, "label": "Soul Lead" }
     ],
     "chords": [
-      { "id": "chords-pad-1", "url": "/api/loops/audio/chords-pad-90bpm-C.wav", "bars": 4, "label": "Warm Pad" }
+      { "id": "chords-pad-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/chords-loop-1.wav", "bars": 4, "label": "Warm Pad" }
     ],
     "texture": [
-      { "id": "texture-vinyl-1", "url": "/api/loops/audio/texture-vinyl.wav", "bars": 4, "label": "Vinyl Crackle" }
+      { "id": "texture-vinyl-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/texture-loop-1.wav", "bars": 4, "label": "Vinyl Crackle" }
     ]
   }
 }
