@@ -12,9 +12,9 @@ import { Router, Request, Response } from 'express';
 import express from 'express';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import OpenAI from 'openai';
 import type { IStorage } from '../storage';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
+import { describeAudio } from '../services/audioDescribe';
 import { getCreditService } from '../services/credits';
 
 // ── In-memory stores ──────────────────────────────────────────────────────────
@@ -55,20 +55,6 @@ async function decodeWebmToPcm(buf: Buffer): Promise<{ samples: Float32Array; sa
       const aligned = combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength);
       resolve({ samples: new Float32Array(aligned), sampleRate: SR });
     });
-    ff.on('error', (e) => reject(new Error(`ffmpeg: ${e.message}`)));
-    ff.on('close', (code) => { if (code !== 0 && chunks.length === 0) reject(new Error(`ffmpeg exited ${code}`)); });
-    ff.stdin.write(buf);
-    ff.stdin.end();
-  });
-}
-
-async function convertWebmToWav(buf: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'wav', '-ac', '1', '-ar', '44100', 'pipe:1']);
-    const chunks: Buffer[] = [];
-    ff.stdout.on('data', (c: Buffer) => chunks.push(c));
-    ff.stderr.on('data', () => {});
-    ff.stdout.on('end', () => resolve(Buffer.concat(chunks)));
     ff.on('error', (e) => reject(new Error(`ffmpeg: ${e.message}`)));
     ff.on('close', (code) => { if (code !== 0 && chunks.length === 0) reject(new Error(`ffmpeg exited ${code}`)); });
     ff.stdin.write(buf);
@@ -206,28 +192,17 @@ async function handleMcpMessage(
       const blob = audioBlobs.get(captureId);
       if (!blob) return mcpErr(id, `Capture "${captureId}" not found or expired. Run capture_audio again.`);
 
-      if (!process.env.OPENAI_API_KEY) return mcpErr(id, 'Server configuration error: OPENAI_API_KEY missing.');
-
       const balance = await creditService.getBalance(session.userId);
       if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
 
       try {
-        const wavBuf = await convertWebmToWav(blob.buffer);
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const result = await openai.chat.completions.create({
-          model: 'gpt-4o-audio-preview',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If ambient, describe the textures and frequencies. Be concise but analytical.' },
-              { type: 'input_audio', input_audio: { data: wavBuf.toString('base64'), format: 'wav' } },
-            ],
-          }],
-        });
+        // True audio listening via the Gemini-first provider chain (free tier),
+        // OpenAI fallback. See services/audioDescribe.ts.
+        const description = await describeAudio(blob.buffer);
         await creditService.deductCredits(session.userId, 2, 'webear describe_audio', { tool: 'describe_audio' });
         const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
         if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
-        return mcpText(id, result.choices[0]?.message?.content ?? 'No description returned.');
+        return mcpText(id, description);
       } catch (err: any) {
         return mcpErr(id, `Description failed: ${err.message}`);
       }
