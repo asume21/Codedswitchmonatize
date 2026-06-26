@@ -3,8 +3,28 @@
   "key": "Fm",
   "genre": "lo-fi",
   "loops": {
-    "bass": [],
-    "texture": [],
+    "bass": [
+      {
+        "label": "Melancholy Bass Cm",
+        "id": "bass-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/bass-loop-1.wav"
+      }
+    ],
+    "texture": [
+      {
+        "label": "Melancholy Pad",
+        "id": "texture-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/texture-loop-1.wav"
+      },
+      {
+        "label": "Melancholy Bell",
+        "id": "texture-2",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/texture-loop-2.wav"
+      }
+    ],
     "drums": [
       {
         "label": "Distance Beat 82",
@@ -13,7 +33,14 @@
         "url": "/api/loops/pack-audio?p=cymatics-lofi-82/drums-loop-1.wav"
       }
     ],
-    "chords": [],
+    "chords": [
+      {
+        "label": "Melancholy Cm",
+        "id": "chords-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/chords-loop-1.wav"
+      }
+    ],
     "melody": [
       {
         "label": "Behind Fm",

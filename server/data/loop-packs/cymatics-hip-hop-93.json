@@ -47,7 +47,14 @@
         "id": "bass-1"
       }
     ],
-    "drums": [],
+    "drums": [
+      {
+        "label": "Popcorn Beat 93",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/drums-loop-1.wav",
+        "id": "drums-1"
+      }
+    ],
     "texture": [
       {
         "label": "Synth Strings",

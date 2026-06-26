@@ -3,8 +3,28 @@
   "key": "A#m",
   "genre": "lo-fi",
   "loops": {
-    "bass": [],
-    "texture": [],
+    "bass": [
+      {
+        "label": "Eternity Bass A#m",
+        "id": "bass-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/bass-loop-1.wav"
+      }
+    ],
+    "texture": [
+      {
+        "label": "Eternity Lofi Full",
+        "id": "texture-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/texture-loop-1.wav"
+      },
+      {
+        "label": "Eternity Vocal Atmos",
+        "id": "texture-2",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/texture-loop-2.wav"
+      }
+    ],
     "drums": [
       {
         "label": "Healing Beat 85",
@@ -19,7 +39,14 @@
         "url": "/api/loops/pack-audio?p=cymatics-lofi-85/drums-loop-2.wav"
       }
     ],
-    "chords": [],
+    "chords": [
+      {
+        "label": "Eternity Piano A#m",
+        "id": "chords-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/chords-loop-1.wav"
+      }
+    ],
     "melody": [
       {
         "label": "Still Alive A#m",
