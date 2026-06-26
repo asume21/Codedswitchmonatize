@@ -46,21 +46,25 @@ const DEFAULT_SECTION_SKELETON: Array<{
   energy: number
   density: number
 }> = [
-  // 18-bar skeleton with explicit section intent (matches client-side
-  // ProducerArrangement). First drop hits at bar 6 (~12s at 80 BPM).
+  // 36-bar skeleton with explicit section intent. Sections were doubled from
+  // the old 2–4 bar form: at 2 bars a section is ~3.5s at 140 BPM and flashed
+  // by before the ear could register the intro→build→drop arc (it just felt
+  // "fast, nothing changing"). At 4–8 bars each section lasts long enough to
+  // settle in and to HEAR the build and the drop land. First drop now hits at
+  // bar 16. Total 36 bars ≈ 96s at 90 BPM, ≈ 62s at 140 BPM.
   // Section intent:
-  //   intro     — chords + melody + bass set the mood, drums OUT
-  //   verse     — drums drop, full band
+  //   intro     — chords + melody set the mood, drums OUT (staggered entrance)
+  //   verse     — drums drop in, full band
   //   build     — tension rising into the drop
   //   drop      — full force
   //   breakdown — drums OUT, sparse, gives the next drop weight
-  //   drop2     — return to drop energy
-  { name: 'intro',     bars: 2, energy: 0.30, density: 0.05 },  // density low → drums out
-  { name: 'verse',     bars: 4, energy: 0.60, density: 0.55 },
-  { name: 'build',     bars: 2, energy: 0.80, density: 0.75 },
-  { name: 'drop',      bars: 4, energy: 0.95, density: 0.90 },
-  { name: 'breakdown', bars: 2, energy: 0.45, density: 0.05 },  // density low → drums out
-  { name: 'drop2',     bars: 4, energy: 0.95, density: 0.92 },
+  //   drop2     — return to drop energy, pushed harder
+  { name: 'intro',     bars: 4, energy: 0.26, density: 0.04 },  // density low → drums out
+  { name: 'verse',     bars: 8, energy: 0.60, density: 0.55 },
+  { name: 'build',     bars: 4, energy: 0.82, density: 0.78 },
+  { name: 'drop',      bars: 8, energy: 0.97, density: 0.92 },
+  { name: 'breakdown', bars: 4, energy: 0.40, density: 0.05 },  // density low → drums out
+  { name: 'drop2',     bars: 8, energy: 1.00, density: 0.95 },
 ]
 
 // Per-section orchestration — the composer's "who plays / how forward" call,
@@ -199,8 +203,8 @@ Rules:
 - Return ONLY a JSON object — no markdown fences, no commentary.
 - Roman numerals: I/i for tonic, ii/II for supertonic, … VII/vii for leading tone. Lowercase = minor, uppercase = major. Suffixes: m7, maj7, 7, sus2, sus4, dim, dim7, 9, maj9, m9, add9, 6. Accidentals: bIII, #IV.
 - Sub-genre is one of: boom-bap, lo-fi, trap, drill, r&b, soul, chill, west-coast, dirty-south, phonk, afrobeat, jersey-club, bounce, reggaeton, hip-hop.
-- bars per section: 4, 8, or 16.
-- Sections must flow musically — intro/verse light, build rising, drop hardest, breakdown low, drop2 reprise.
+- bars per section: 8 or 16 (use 4 only for a short intro). Favor LONGER sections — each section must last long enough for a listener to settle in and HEAR the build and the drop land. Total song should be ~32–48 bars.
+- Sections must flow musically with a DRAMATIC dynamic arc — intro sparse (drums out, just chords/melody), verse full band, build rising, drop hardest/fullest, breakdown pulled way down (drums out), drop2 reprise pushed harder. The contrast between sections must be obvious.
 - Include an acePrompt: 8–14 comma-separated tags for the audio renderer.
 
 STRUCTURAL TEMPLATES — pick ONE id for plan.templateId based on the song's overall character:
@@ -214,7 +218,8 @@ JSON shape:
   "templateId": "classic",
   "acePrompt": "boom bap, dusty drums, jazz piano, 90 bpm, mellow, no vocals",
   "sections": [
-    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.3, "density": 0.2, "style": "lofi-warm" },
+    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.26, "density": 0.04, "style": "lofi-warm" },
+    { "name": "verse", "bars": 8, "progression": ["i","iv","VI","III"], "energy": 0.6, "density": 0.55, "style": "..." },
     ...
   ]
 }`
