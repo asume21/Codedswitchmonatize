@@ -60,6 +60,25 @@ router.get('/file', (req: Request, res: Response) => {
   }
 });
 
+// Stream a loop-pack audio file: /api/loops/pack-audio?p=<packId>/<filename>
+router.get('/pack-audio', (req: Request, res: Response) => {
+  try {
+    const rel = String(req.query.p ?? '');
+    if (!rel) return res.status(400).json({ success: false, message: "Missing 'p'" });
+    const PACK_AUDIO_DIR = join(process.cwd(), 'server', 'Assets', 'loop-packs');
+    const abs = resolve(join(PACK_AUDIO_DIR, rel));
+    if (abs.indexOf(resolve(PACK_AUDIO_DIR) + sep) !== 0) {
+      return res.status(400).json({ success: false, message: 'Invalid path' });
+    }
+    if (!existsSync(abs)) return res.status(404).json({ success: false, message: 'File not found' });
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    createReadStream(abs).pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // List all available packs (id, genre, label, bpm, key only — no loop URLs)
 router.get('/packs', (_req: Request, res: Response) => {
   try {

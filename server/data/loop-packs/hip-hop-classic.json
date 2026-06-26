@@ -2,23 +2,28 @@
   "id": "hip-hop-classic",
   "genre": "hip-hop",
   "bpm": 90,
-  "key": "C",
+  "key": "E",
   "label": "Hip-Hop Classic",
   "loops": {
     "drums": [
-      { "id": "drums-boom-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/drums-loop-1.wav", "bars": 4, "label": "Boom Bap Kit" }
+      { "id": "drums-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-1.wav", "bars": 4, "label": "Beat Kit 1" },
+      { "id": "drums-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-2.wav", "bars": 4, "label": "Beat Kit 2" }
     ],
     "bass": [
-      { "id": "bass-funk-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/bass-loop-1.wav", "bars": 4, "label": "Funk Bass" }
+      { "id": "bass-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-1.wav", "bars": 2, "label": "Bassline E" },
+      { "id": "bass-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-2.wav", "bars": 2, "label": "Bassline E Alt" }
     ],
     "melody": [
-      { "id": "melody-soul-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/melody-loop-1.wav", "bars": 4, "label": "Soul Lead" }
+      { "id": "melody-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-1.wav", "bars": 4, "label": "Keys E" },
+      { "id": "melody-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-2.wav", "bars": 4, "label": "Keys E Alt" }
     ],
     "chords": [
-      { "id": "chords-pad-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/chords-loop-1.wav", "bars": 4, "label": "Warm Pad" }
+      { "id": "chords-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-1.wav", "bars": 4, "label": "Guitar E" },
+      { "id": "chords-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-2.wav", "bars": 4, "label": "Guitar E Alt" }
     ],
     "texture": [
-      { "id": "texture-vinyl-1", "url": "https://storage.googleapis.com/codedswitchmonatize-loop-packs/hip-hop-classic/texture-loop-1.wav", "bars": 4, "label": "Vinyl Crackle" }
+      { "id": "texture-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-1.wav", "bars": 4, "label": "Synth Pad" },
+      { "id": "texture-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-2.wav", "bars": 4, "label": "Synth Pad Alt" }
     ]
   }
 }
