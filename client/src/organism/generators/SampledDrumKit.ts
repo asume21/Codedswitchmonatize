@@ -48,8 +48,11 @@ const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>
   },
 }
 
+// Absolute URLs (/api/…, /assets/…) pass through verbatim; bare filenames are
+// resolved against the /api/samples library mount. The Cymatics one-shots live
+// under server/Assets and are served at /assets, so they take the passthrough.
 const sampleUrl = (filenameOrUrl: string): string =>
-  filenameOrUrl.startsWith('/api/') ? filenameOrUrl : `/api/samples/${encodeURIComponent(filenameOrUrl)}`
+  filenameOrUrl.startsWith('/') ? filenameOrUrl : `/api/samples/${encodeURIComponent(filenameOrUrl)}`
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
@@ -87,6 +90,23 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
     hatOpen:   ['hihat_cycdh_k2room_op01.wav'],
     perc:      ['percussion_cycdh_kurz08-perc08.wav'],
   },
+}
+
+// Cymatics "Bang" hip-hop one-shots — producer-grade kick/snare/clap/hat/perc
+// committed under server/Assets/drums/cymatics and served by the public /assets
+// static mount (Tone.Player media fetches can't attach an auth token, so the
+// kit must be reachable without one). These replace the thin per-mode GM samples
+// as the PRIMARY drum kit; they play the same role the premium private kit does
+// (one consistent kit across modes), and any per-slot load failure still falls
+// through to DrumGenerator's synth voices.
+const CYMATICS_BANG_KIT: SampleKitDefinition = {
+  kick:      ['/assets/drums/cymatics/kick.wav'],
+  // Backbeat alternates snare and clap (a common boom-bap variation) via the
+  // round-robin slot cursor.
+  snare:     ['/assets/drums/cymatics/snare.wav', '/assets/drums/cymatics/clap.wav'],
+  hatClosed: ['/assets/drums/cymatics/hat-closed.wav'],
+  hatOpen:   ['/assets/drums/cymatics/hat-open.wav'],
+  perc:      ['/assets/drums/cymatics/perc.wav'],
 }
 
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
@@ -179,6 +199,10 @@ export class SampledDrumKit {
 
   constructor(output: Tone.Gain) {
     this.output = output
+    // Seed the Cymatics Bang kit as the primary definition (like a private kit:
+    // consistent across modes, reuses Tone.Player slots on mode/preset changes).
+    // hydratePrivateKit() may still override it with a discovered premium kit.
+    this.privateKitDefinition = CYMATICS_BANG_KIT
     this.setMode(OrganismMode.Glow)
     void this.hydratePrivateKit()
   }
