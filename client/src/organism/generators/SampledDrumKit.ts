@@ -97,8 +97,7 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
 // static mount (Tone.Player media fetches can't attach an auth token, so the
 // kit must be reachable without one). These replace the thin per-mode GM samples
 // as the PRIMARY drum kit; they play the same role the premium private kit does
-// (one consistent kit across modes), and any per-slot load failure still falls
-// through to DrumGenerator's synth voices.
+// (one consistent kit across modes).
 const CYMATICS_BANG_KIT: SampleKitDefinition = {
   kick:      ['/assets/drums/cymatics/kick.wav'],
   // Backbeat alternates snare and clap (a common boom-bap variation) via the
@@ -107,6 +106,48 @@ const CYMATICS_BANG_KIT: SampleKitDefinition = {
   hatClosed: ['/assets/drums/cymatics/hat-closed.wav'],
   hatOpen:   ['/assets/drums/cymatics/hat-open.wav'],
   perc:      ['/assets/drums/cymatics/perc.wav'],
+}
+
+// Additional Cymatics Bang variations — different pitches/tones from the same
+// one-shot library. These are appended to the primary pool so that when a
+// primary slot permanently errors (404 / network), the round-robin cursor
+// naturally lands on one of these instead of falling through to a synth voice.
+// Fallback chain: primary Bang slot → these variations → silent (no synth).
+const CYMATICS_FALLBACK_KIT: SampleKitDefinition = {
+  kick:      [
+    '/assets/drums/cymatics/kick-2.wav',   // Bang Kick 2 – C# (punchier transient)
+    '/assets/drums/cymatics/kick-3.wav',   // Bang Kick 3 – D  (mid-weight sub)
+  ],
+  snare:     [
+    '/assets/drums/cymatics/snare-2.wav',  // Bang Snare 2 – D
+    '/assets/drums/cymatics/snare-3.wav',  // Bang Snare 3 – F
+    '/assets/drums/cymatics/clap-2.wav',   // Bang Clap 2 (tighter snap)
+    '/assets/drums/cymatics/clap-3.wav',   // Bang Clap 3
+  ],
+  hatClosed: [
+    '/assets/drums/cymatics/hat-closed-2.wav',
+    '/assets/drums/cymatics/hat-closed-3.wav',
+  ],
+  hatOpen:   [
+    '/assets/drums/cymatics/hat-open-2.wav',  // Bang Open Hihat 2 (shorter decay)
+  ],
+  perc:      [
+    '/assets/drums/cymatics/perc-2.wav',   // Bang Percussion 7 (darker)
+    '/assets/drums/cymatics/perc-3.wav',   // Bang Percussion 10
+    '/assets/drums/cymatics/rim-1.wav',    // Bang Rimshot 1 (grooves well in perc slot)
+  ],
+}
+
+// Merged kit used at runtime: primary URLs first, fallback URLs appended.
+// SampledDrumKit.trigger() scans forward through the pool on error, so failed
+// primary slots are transparently replaced by working fallback slots.
+// No synth oscillator fallback anywhere in this chain — see DrumGenerator.
+const CYMATICS_BANG_WITH_FALLBACKS: SampleKitDefinition = {
+  kick:      [...CYMATICS_BANG_KIT.kick,      ...CYMATICS_FALLBACK_KIT.kick],
+  snare:     [...CYMATICS_BANG_KIT.snare,     ...CYMATICS_FALLBACK_KIT.snare],
+  hatClosed: [...CYMATICS_BANG_KIT.hatClosed, ...CYMATICS_FALLBACK_KIT.hatClosed],
+  hatOpen:   [...CYMATICS_BANG_KIT.hatOpen,   ...CYMATICS_FALLBACK_KIT.hatOpen],
+  perc:      [...CYMATICS_BANG_KIT.perc,      ...CYMATICS_FALLBACK_KIT.perc],
 }
 
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
@@ -199,10 +240,11 @@ export class SampledDrumKit {
 
   constructor(output: Tone.Gain) {
     this.output = output
-    // Seed the Cymatics Bang kit as the primary definition (like a private kit:
-    // consistent across modes, reuses Tone.Player slots on mode/preset changes).
-    // hydratePrivateKit() may still override it with a discovered premium kit.
-    this.privateKitDefinition = CYMATICS_BANG_KIT
+    // Seed the merged Cymatics kit (primary + fallback URLs) as the initial
+    // definition. The pool contains enough variations that if a primary URL
+    // errors the cursor naturally lands on a working fallback — no synth.
+    // hydratePrivateKit() may still override this with a discovered premium kit.
+    this.privateKitDefinition = CYMATICS_BANG_WITH_FALLBACKS
     this.setMode(OrganismMode.Glow)
     void this.hydratePrivateKit()
   }
@@ -270,41 +312,54 @@ export class SampledDrumKit {
     const voiceSlots = this.slots.get(voice)
     if (!voiceSlots || voiceSlots.length === 0) return false
 
-    const cursor = this.slotCursor.get(voice) ?? 0
-    const slotIndex = cursor % voiceSlots.length
-    const slot = voiceSlots[slotIndex]
-    this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
-
-    const slotKey = `${voice}:${slotIndex}`
-    // If this slot permanently errored (server returned 404/network fail), fall
-    // through to the synth fallback so drums are never silent.
-    if (this.slotErrored.has(slotKey)) return false
-
-    // Still loading — claim the hit so DrumGenerator does NOT fall back to its
-    // MembraneSynth/NoiseSynth voices. We return true (sampler "owns" this hit)
-    // even though no audio fires; the alternative — synth fallback during the
-    // first 1-2 bars while WAVs stream in — produces a jarring timbre shift
-    // mid-loop once samples finish loading. A handful of silent hits during
-    // cold-start is preferable to "synth drummer → real kit" hand-off in
-    // the listener's ear.
-    if (!slot.player.loaded) return true
-
+    const startCursor = this.slotCursor.get(voice) ?? 0
     const shapedVelocity = Math.max(0, Math.min(1, velocity))
-    try {
-      slot.gain.gain.cancelScheduledValues(time)
-      slot.gain.gain.setValueAtTime(shapedVelocity, time)
-      slot.player.start(time, 0, VOICE_DURATION[voice])
-      return true
-    } catch (error) {
-      if (!this.warnedVoices.has(voice)) {
-        this.warnedVoices.add(voice)
-        console.warn('[Organism] sampled drum voice could not be scheduled; using synth fallback', {
-          voice,
-          error,
-        })
+
+    // Scan forward from cursor for the first usable slot.
+    // Skips permanently-errored slots (404/network) so fallback URLs are used
+    // transparently — no synth oscillator is ever triggered by this path.
+    // The cursor is advanced past the chosen slot to preserve round-robin variation.
+    for (let i = 0; i < voiceSlots.length; i++) {
+      const slotIndex = (startCursor + i) % voiceSlots.length
+      const slotKey = `${voice}:${slotIndex}`
+
+      if (this.slotErrored.has(slotKey)) continue
+
+      const slot = voiceSlots[slotIndex]
+      // Advance cursor past this slot for the next trigger call
+      this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
+
+      // Still loading — claim the hit so DrumGenerator does NOT fall back to
+      // synth. A handful of silent hits during cold-start is preferable to the
+      // jarring "synth drummer → real kit" timbre shift mid-loop.
+      if (!slot.player.loaded) return true
+
+      try {
+        slot.gain.gain.cancelScheduledValues(time)
+        slot.gain.gain.setValueAtTime(shapedVelocity, time)
+        slot.player.start(time, 0, VOICE_DURATION[voice])
+        return true
+      } catch (error) {
+        // Scheduling error — mark as permanently failed and try the next slot
+        this.slotErrored.add(slotKey)
+        if (!this.warnedVoices.has(voice)) {
+          this.warnedVoices.add(voice)
+          console.warn('[Organism] sampled drum slot scheduling failed; trying fallback slot', {
+            voice, slotKey, error,
+          })
+        }
+        // continue scanning fallback slots
       }
-      return false
     }
+
+    // All slots for this voice exhausted — go silent.
+    // No synth fallback: a missing beat in hip-hop is less disruptive than an
+    // oscillator thump that reads as the wrong kit entirely.
+    if (!this.warnedVoices.has(voice)) {
+      this.warnedVoices.add(voice)
+      console.warn('[Organism] all Cymatics drum slots exhausted for voice; going silent (no synth)', { voice })
+    }
+    return false
   }
 
   dispose(): void {
