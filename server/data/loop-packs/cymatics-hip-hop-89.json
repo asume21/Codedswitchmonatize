@@ -1,0 +1,67 @@
+{
+  "bpm": 89,
+  "id": "cymatics-hip-hop-89",
+  "key": "Fm",
+  "loops": {
+    "bass": [
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/bass-loop-1.wav",
+        "label": "Broken Heart Bass",
+        "bars": 4,
+        "id": "bass-1"
+      }
+    ],
+    "drums": [
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/drums-loop-1.wav",
+        "label": "Heart Beat 89",
+        "bars": 4,
+        "id": "drums-1"
+      },
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/drums-loop-2.wav",
+        "label": "Thinking Beat 89",
+        "bars": 4,
+        "id": "drums-2"
+      }
+    ],
+    "texture": [
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/texture-loop-1.wav",
+        "label": "Bell Pad",
+        "bars": 4,
+        "id": "texture-1"
+      },
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/texture-loop-2.wav",
+        "label": "Pluck Atmos",
+        "bars": 4,
+        "id": "texture-2"
+      }
+    ],
+    "chords": [
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/chords-loop-1.wav",
+        "label": "String Synth Fm",
+        "bars": 4,
+        "id": "chords-1"
+      }
+    ],
+    "melody": [
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/melody-loop-1.wav",
+        "label": "Broken Heart Full",
+        "bars": 4,
+        "id": "melody-1"
+      },
+      {
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-89/melody-loop-2.wav",
+        "label": "Broken Heart Lead",
+        "bars": 4,
+        "id": "melody-2"
+      }
+    ]
+  },
+  "genre": "hip-hop",
+  "label": "Cymatics Weekday 89"
+}

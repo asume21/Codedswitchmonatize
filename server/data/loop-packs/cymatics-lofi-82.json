@@ -1,0 +1,28 @@
+{
+  "id": "cymatics-lofi-82",
+  "key": "Fm",
+  "genre": "lo-fi",
+  "loops": {
+    "bass": [],
+    "texture": [],
+    "drums": [
+      {
+        "label": "Distance Beat 82",
+        "id": "drums-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/drums-loop-1.wav"
+      }
+    ],
+    "chords": [],
+    "melody": [
+      {
+        "label": "Behind Fm",
+        "id": "melody-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-82/melody-loop-1.wav"
+      }
+    ]
+  },
+  "label": "Cymatics Lo-Fi 82",
+  "bpm": 82
+}

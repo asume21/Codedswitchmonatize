@@ -1,0 +1,73 @@
+{
+  "key": "Am",
+  "label": "Cymatics Oracle 96",
+  "genre": "hip-hop",
+  "id": "cymatics-hip-hop-96",
+  "loops": {
+    "bass": [
+      {
+        "label": "Oracle Bass Am",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/bass-loop-1.wav",
+        "bars": 4,
+        "id": "bass-1"
+      }
+    ],
+    "melody": [
+      {
+        "label": "Oracle Full",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-1.wav",
+        "bars": 4,
+        "id": "melody-1"
+      },
+      {
+        "label": "Oracle Lead",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-2.wav",
+        "bars": 4,
+        "id": "melody-2"
+      }
+    ],
+    "texture": [
+      {
+        "label": "Oracle Pad",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/texture-loop-1.wav",
+        "bars": 4,
+        "id": "texture-1"
+      },
+      {
+        "label": "Flute Atmos",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/texture-loop-2.wav",
+        "bars": 4,
+        "id": "texture-2"
+      }
+    ],
+    "drums": [
+      {
+        "label": "Cavern Beat 96",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/drums-loop-1.wav",
+        "bars": 4,
+        "id": "drums-1"
+      },
+      {
+        "label": "Forgotten Beat 96",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/drums-loop-2.wav",
+        "bars": 4,
+        "id": "drums-2"
+      }
+    ],
+    "chords": [
+      {
+        "label": "Oracle Arp Am",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/chords-loop-1.wav",
+        "bars": 4,
+        "id": "chords-1"
+      },
+      {
+        "label": "Bell Chords",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/chords-loop-2.wav",
+        "bars": 4,
+        "id": "chords-2"
+      }
+    ]
+  },
+  "bpm": 96
+}

@@ -1,0 +1,40 @@
+{
+  "id": "cymatics-lofi-85",
+  "key": "A#m",
+  "genre": "lo-fi",
+  "loops": {
+    "bass": [],
+    "texture": [],
+    "drums": [
+      {
+        "label": "Healing Beat 85",
+        "id": "drums-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/drums-loop-1.wav"
+      },
+      {
+        "label": "Quilt Beat 85",
+        "id": "drums-2",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/drums-loop-2.wav"
+      }
+    ],
+    "chords": [],
+    "melody": [
+      {
+        "label": "Still Alive A#m",
+        "id": "melody-1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/melody-loop-1.wav"
+      },
+      {
+        "label": "Mirage Am",
+        "id": "melody-2",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/melody-loop-2.wav"
+      }
+    ]
+  },
+  "label": "Cymatics Lo-Fi 85",
+  "bpm": 85
+}

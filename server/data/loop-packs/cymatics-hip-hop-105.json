@@ -1,0 +1,85 @@
+{
+  "id": "cymatics-hip-hop-105",
+  "key": "Cm",
+  "genre": "hip-hop",
+  "loops": {
+    "texture": [
+      {
+        "id": "texture-1",
+        "label": "Dawn Ambience",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-1.wav",
+        "bars": 4
+      },
+      {
+        "id": "texture-2",
+        "label": "Violet Pad Bm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-2.wav",
+        "bars": 4
+      },
+      {
+        "id": "texture-3",
+        "label": "Violet Texture",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-3.wav",
+        "bars": 4
+      }
+    ],
+    "drums": [
+      {
+        "id": "drums-1",
+        "label": "Dawn Beat 105",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/drums-loop-1.wav",
+        "bars": 4
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "label": "Dawn Synth Cm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/chords-loop-1.wav",
+        "bars": 4
+      },
+      {
+        "id": "chords-2",
+        "label": "Dawn Lead 2",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/chords-loop-2.wav",
+        "bars": 4
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "label": "Dawn Full Cm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-1.wav",
+        "bars": 4
+      },
+      {
+        "id": "melody-2",
+        "label": "Violet Full Bm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-2.wav",
+        "bars": 4
+      },
+      {
+        "id": "melody-3",
+        "label": "Dawn Lead",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-3.wav",
+        "bars": 4
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "label": "Dawn Bass Cm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/bass-loop-1.wav",
+        "bars": 4
+      },
+      {
+        "id": "bass-2",
+        "label": "Violet Bass Bm",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/bass-loop-2.wav",
+        "bars": 4
+      }
+    ]
+  },
+  "label": "Cymatics Dawn 105",
+  "bpm": 105
+}

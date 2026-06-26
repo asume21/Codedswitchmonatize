@@ -1,0 +1,66 @@
+{
+  "key": "Cm",
+  "genre": "hip-hop",
+  "id": "cymatics-hip-hop-93",
+  "label": "Cymatics Times Up 93",
+  "bpm": 93,
+  "loops": {
+    "chords": [
+      {
+        "label": "Rhodes Cm",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/chords-loop-1.wav",
+        "id": "chords-1"
+      },
+      {
+        "label": "Synth Brass",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/chords-loop-2.wav",
+        "id": "chords-2"
+      }
+    ],
+    "melody": [
+      {
+        "label": "Times Up Full",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/melody-loop-1.wav",
+        "id": "melody-1"
+      },
+      {
+        "label": "Times Up Lead 1",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/melody-loop-2.wav",
+        "id": "melody-2"
+      },
+      {
+        "label": "Times Up Lead 2",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/melody-loop-3.wav",
+        "id": "melody-3"
+      }
+    ],
+    "bass": [
+      {
+        "label": "Times Up Bass",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/bass-loop-1.wav",
+        "id": "bass-1"
+      }
+    ],
+    "drums": [],
+    "texture": [
+      {
+        "label": "Synth Strings",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/texture-loop-1.wav",
+        "id": "texture-1"
+      },
+      {
+        "label": "Chimes",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/texture-loop-2.wav",
+        "id": "texture-2"
+      }
+    ]
+  }
+}
