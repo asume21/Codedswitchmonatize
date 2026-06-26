@@ -1,0 +1,67 @@
+{
+  "id": "cymatics-lofi-105",
+  "genre": "hip-hop",
+  "bpm": 105,
+  "key": "Cm",
+  "label": "Cymatics Lo-Fi 105 (Dawn)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/drums-loop-1.wav",
+        "bars": 4,
+        "label": "Lo-Fi Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass Cm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead 1"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Lead 2"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Synth"
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-4.wav",
+        "bars": 8,
+        "label": "Full Hook"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Ambience"
+      }
+    ]
+  }
+}

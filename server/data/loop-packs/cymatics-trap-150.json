@@ -1,0 +1,60 @@
+{
+  "id": "cymatics-trap-150",
+  "genre": "hip-hop",
+  "bpm": 150,
+  "key": "Cm",
+  "label": "Cymatics Trap 150 (Abyss)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Trap Drums 1"
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/drums-loop-2.wav",
+        "bars": 8,
+        "label": "Trap Drums 2"
+      },
+      {
+        "id": "drums-3",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/drums-loop-3.wav",
+        "bars": 4,
+        "label": "Trap Drums 3"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/bass-loop-1.wav",
+        "bars": 8,
+        "label": "808 Bass Cm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-1.wav",
+        "bars": 8,
+        "label": "High Synth 1"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-2.wav",
+        "bars": 8,
+        "label": "High Synth 2"
+      }
+    ],
+    "chords": [],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Reversed Synth"
+      }
+    ]
+  }
+}

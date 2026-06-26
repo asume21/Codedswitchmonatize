@@ -1,0 +1,61 @@
+{
+  "id": "cymatics-vintage-81",
+  "genre": "hip-hop",
+  "bpm": 81,
+  "key": "Em",
+  "label": "Cymatics Vintage 81 (Memory Loss)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Vintage Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass Em"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Bells"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Brass"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-81/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Chimes"
+      }
+    ]
+  }
+}

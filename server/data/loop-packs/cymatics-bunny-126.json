@@ -1,0 +1,67 @@
+{
+  "id": "cymatics-bunny-126",
+  "genre": "hip-hop",
+  "bpm": 126,
+  "key": "Gm",
+  "label": "Cymatics BUNNY 126 (Cielo)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass Gm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Keys"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Accent"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Reverse Pad"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Texture"
+      }
+    ]
+  }
+}

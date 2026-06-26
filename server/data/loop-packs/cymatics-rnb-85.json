@@ -1,0 +1,67 @@
+{
+  "id": "cymatics-rnb-85",
+  "genre": "hip-hop",
+  "bpm": 85,
+  "key": "A#m",
+  "label": "Cymatics RnB 85 (Still Alive)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/drums-loop-1.wav",
+        "bars": 4,
+        "label": "RnB Drums 1"
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/drums-loop-2.wav",
+        "bars": 4,
+        "label": "RnB Drums 2"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass A#m"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Vocal 1"
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/texture-loop-2.wav",
+        "bars": 8,
+        "label": "Vocal 2"
+      }
+    ]
+  }
+}

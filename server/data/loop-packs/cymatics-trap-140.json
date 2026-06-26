@@ -1,0 +1,85 @@
+{
+  "id": "cymatics-trap-140",
+  "genre": "hip-hop",
+  "bpm": 140,
+  "key": "Bm",
+  "label": "Cymatics Trap 140 (Eclipse)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/drums-loop-1.wav",
+        "bars": 4,
+        "label": "Trap Drums 1"
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/drums-loop-2.wav",
+        "bars": 4,
+        "label": "Trap Drums 2"
+      },
+      {
+        "id": "drums-3",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/drums-loop-3.wav",
+        "bars": 8,
+        "label": "Trap Drums 3"
+      },
+      {
+        "id": "drums-4",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/drums-loop-4.wav",
+        "bars": 4,
+        "label": "Trap Drums 4"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/bass-loop-1.wav",
+        "bars": 8,
+        "label": "808 Bass Bm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Bell"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Synth Lead"
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/melody-loop-4.wav",
+        "bars": 8,
+        "label": "Synth Arp"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-140/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Reversed Piano"
+      }
+    ]
+  }
+}

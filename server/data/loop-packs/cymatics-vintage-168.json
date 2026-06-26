@@ -1,0 +1,66 @@
+{
+  "id": "cymatics-vintage-168",
+  "genre": "hip-hop",
+  "bpm": 168,
+  "key": "F#m",
+  "label": "Cymatics Vintage Trap 168 (Undercover)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Trap Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/bass-loop-1.wav",
+        "bars": 8,
+        "label": "808 Bass F#m"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Saxophone"
+      }
+    ],
+    "chords": [],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Texture 1"
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/texture-loop-2.wav",
+        "bars": 8,
+        "label": "Texture 2"
+      },
+      {
+        "id": "texture-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/texture-loop-3.wav",
+        "bars": 8,
+        "label": "Strings"
+      },
+      {
+        "id": "texture-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-168/texture-loop-4.wav",
+        "bars": 8,
+        "label": "Vocal"
+      }
+    ]
+  }
+}

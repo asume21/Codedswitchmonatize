@@ -1,0 +1,85 @@
+{
+  "id": "cymatics-rnb-98",
+  "genre": "hip-hop",
+  "bpm": 98,
+  "key": "Dm",
+  "label": "Cymatics RnB 98 (Last)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/drums-loop-1.wav",
+        "bars": 4,
+        "label": "RnB Drums 1"
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/drums-loop-2.wav",
+        "bars": 4,
+        "label": "RnB Drums 2"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass Dm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Keys"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano 1"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Piano 2"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad 1"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Pad 2"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Vocal 1"
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/texture-loop-2.wav",
+        "bars": 8,
+        "label": "Vocal 2"
+      },
+      {
+        "id": "texture-3",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/texture-loop-3.wav",
+        "bars": 8,
+        "label": "Vocal 3"
+      }
+    ]
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "id": "cymatics-trap-160",
+  "genre": "hip-hop",
+  "bpm": 160,
+  "key": "F#m",
+  "label": "Cymatics Trap 160 (Six)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Trap Drums 1"
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/drums-loop-2.wav",
+        "bars": 8,
+        "label": "Trap Drums 2"
+      },
+      {
+        "id": "drums-3",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/drums-loop-3.wav",
+        "bars": 4,
+        "label": "Trap Drums 3"
+      },
+      {
+        "id": "drums-4",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/drums-loop-4.wav",
+        "bars": 8,
+        "label": "Trap Drums 4"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/bass-loop-1.wav",
+        "bars": 8,
+        "label": "808 Bass F#m"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Pad"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Vocal"
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-160/texture-loop-2.wav",
+        "bars": 8,
+        "label": "Intro Section"
+      }
+    ]
+  }
+}
