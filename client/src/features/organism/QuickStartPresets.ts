@@ -221,6 +221,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     subGenre: 'chill',
     allowedTemplateIds: ['lofi-loop', 'storytelling', 'slow-burn', 'bridge-heavy'],
     allowedStyleIds:    ['lofi-warm', 'lofi-tape-echo', 'lofi-keys-bounce', 'cloud-floaty', 'jazz-rap', 'boombap-classic'],
+    loopPackId: 'boom-bap-85',
     energy: 'low',
     icon:   '❄️',
     physics: makePhysics({
@@ -304,6 +305,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     subGenre: 'west-coast',
     allowedTemplateIds: ['back-and-forth', 'classic', 'hook-heavy', 'bridge-heavy'],
     allowedStyleIds:    ['west-coast-funky', 'funk-muted-pocket', 'funk-bounce-keys', 'funk-guitar-roll', 'boombap-pocket'],
+    loopPackId: 'hip-hop-100',
     energy: 'medium',
     icon:   '🎸',
     physics: makePhysics({
