@@ -1296,10 +1296,12 @@ export class MelodyGenerator extends GeneratorBase {
 
     let cursor = 0
     let phraseIndex = 0
-    // Space between motifs IS the musical statement — a lead that never
-    // breathes reads as noise against a busy drum pattern. Lead phrases get a
-    // beat and a half of air; Respond gets a beat and a half; Hint two beats.
-    const restLen = isHint ? 8 : this.currentBehavior === MelodyBehavior.Respond ? 6 : 6
+    // Space between motifs IS the musical statement — but a beat-and-a-half
+    // gap after every short motif left the lead breathing more than playing.
+    // Trimmed so the line stays present and continuous: Lead gets ~3/4 beat of
+    // air, Respond a beat, Hint stays sparser (1.5 beats) since it's meant to
+    // be a background suggestion, not a lead.
+    const restLen = isHint ? 6 : this.currentBehavior === MelodyBehavior.Respond ? 4 : 3
     const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
     // Commit to ONE motif for this section (picked once), then DEVELOP it across
