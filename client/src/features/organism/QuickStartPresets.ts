@@ -54,6 +54,7 @@ function makePhysics(overrides: Partial<PhysicsState> & { mode: OrganismMode; pu
 export const QUICK_START_PRESETS: QuickStartPreset[] = [
   {
     id:       'ref-lucid-dreams-80',
+    loopPackId: 'cymatics-vintage-80',
     label:    'Lucid',
     genre:    'Reference / Melodic Emo Trap',
     bpm:      80,
@@ -74,6 +75,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-dababy-140',
+    loopPackId: 'cymatics-trap-140',
     label:    'DaBaby',
     genre:    'Reference / Bounce Trap',
     bpm:      140,
@@ -94,6 +96,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-violin-trap-130',
+    loopPackId: 'cymatics-bunny-126',
     label:    'Violin Trap',
     genre:    'Reference / Orchestral Trap',
     bpm:      130,
@@ -114,6 +117,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-weekend-110',
+    loopPackId: 'cymatics-soul-115',
     label:    'Weekend',
     genre:    'Reference / R&B Pop Trap',
     bpm:      110,
@@ -134,6 +138,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-alt-pop-120',
+    loopPackId: 'cymatics-soul-115',
     label:    'Ref 05',
     genre:    'Reference / Alt Pop Trap',
     bpm:      120,
@@ -154,6 +159,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-dark-pocket-96',
+    loopPackId: 'cymatics-hip-hop-96',
     label:    'Ref 06',
     genre:    'Reference / Dark Pocket',
     bpm:      96,
@@ -174,6 +180,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:     'trap-140',
+    loopPackId: 'cymatics-trap-140',
     label:  'Trap 144',
     genre:  'Trap / Hard',
     bpm:    144,
@@ -194,6 +201,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:     'melodic-trap-136',
+    loopPackId: 'cymatics-trap-140',
     label:  'Melodic Trap',
     genre:  'Melodic / Reference',
     bpm:    136,
@@ -257,6 +265,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:     'drill-140',
+    loopPackId: 'cymatics-trap-150',
     label:  'Drill 144',
     genre:  'Drill / Dark',
     bpm:    144,
@@ -277,6 +286,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:     'chill-75',
+    loopPackId: 'cymatics-vintage-76',
     label:  'Chill',
     genre:  'Chill / Melodic',
     bpm:    75,
@@ -327,6 +337,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   // pocket with vinyl texture. 2-bar loop that hypnotizes.
   {
     id:     'cypher-90',
+    loopPackId: 'cymatics-hip-hop-89',
     label:  'Cypher',
     genre:  'Cypher / Freestyle',
     bpm:    90,
@@ -354,6 +365,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   // Think Nas "N.Y. State of Mind", Kendrick "Sing About Me", J. Cole.
   {
     id:     'storytelling-80',
+    loopPackId: 'cymatics-vintage-81',
     label:  'Story',
     genre:  'Storytelling / Narrative',
     bpm:    80,
@@ -386,6 +398,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   // trap-tag arrangement gives a verse → verse → hook → breakdown → hook arc.
   {
     id:     'real-beat-trap-140',
+    loopPackId: 'cymatics-trap-140',
     label:  'Real Beat: Trap',
     genre:  'Real Beat / Trap',
     bpm:    140,
@@ -412,6 +425,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   // templates so the form is voice-first, not hook-heavy.
   {
     id:     'real-beat-boombap-90',
+    loopPackId: 'hip-hop-94',
     label:  'Real Beat: Boom-bap',
     genre:  'Real Beat / Boom-bap',
     bpm:    90,
@@ -438,6 +452,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   // a sparse hook melody that lets the vocal be the main event.
   {
     id:     'real-beat-drill-144',
+    loopPackId: 'cymatics-trap-150',
     label:  'Real Beat: Drill',
     genre:  'Real Beat / Drill',
     bpm:    144,
