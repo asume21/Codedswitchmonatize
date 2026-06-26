@@ -292,8 +292,11 @@ export class TextureGenerator extends GeneratorBase {
 
   async loadLoop(clip: LoopClip): Promise<void> {
     this._loopPlayer?.dispose()
+    // Route through loopGain (init at the current arrangement level) so the
+    // section arrangement can swell/duck this loop. See GeneratorBase.
+    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
     this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
-      .connect(this.output)
+      .connect(this.loopGain)
     await Tone.loaded()
   }
 

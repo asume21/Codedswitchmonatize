@@ -1,5 +1,6 @@
 // Section 04 — Abstract base class for all generators
 
+import * as Tone from 'tone'
 import type { GeneratorName, GeneratorActivityReport } from './types'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
@@ -14,6 +15,14 @@ export abstract class GeneratorBase {
   /** Composer-assigned role for the current section. Default 'support' so a
    *  generator with no plan loaded behaves like today (jam mode). */
   protected role: InstrumentRole = 'support'
+
+  /** Per-loop gain node, created lazily by a subclass's loadLoop() and wired
+   *  between the loop Player and `output`. Null until a loop is loaded. The
+   *  arrangement multiplier ramps this so Song Mode shapes LOOPS the same way
+   *  it shapes synthesized parts: intro tucks loops low, build lifts them, the
+   *  drop opens everything up — instead of every loop blaring full-tilt for the
+   *  whole song. In note mode this stays null and nothing changes. */
+  protected loopGain: Tone.Gain | null = null
 
   constructor(name: GeneratorName) {
     this.name = name
@@ -30,9 +39,20 @@ export abstract class GeneratorBase {
     return roleCeiling(this.role)
   }
 
-  /** Called by the orchestrator's arrangement logic to shape section dynamics. */
+  /** Called by the orchestrator's arrangement logic to shape section dynamics.
+   *  Note mode reads `arrangementMultiplier` when scheduling note velocities;
+   *  loop mode skips note scheduling, so the multiplier would never be heard.
+   *  Ramp the loop gain here too so loops follow the section arrangement. */
   applyArrangementMultiplier(multiplier: number): void {
     this.arrangementMultiplier = Math.max(0, Math.min(1.5, multiplier))
+    if (this.loopGain) {
+      const now = Tone.now()
+      const g = this.loopGain.gain
+      g.cancelScheduledValues(now)
+      g.setValueAtTime(g.value, now)
+      // ~80ms glide so section changes swell/duck rather than click.
+      g.linearRampToValueAtTime(this.arrangementMultiplier, now + 0.08)
+    }
   }
 
   /** DIAGNOSTIC (read-only): current arrangement multiplier, so __orgDebug can
