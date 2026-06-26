@@ -1505,7 +1505,7 @@ export default function UnifiedStudioWorkspace() {
         drum: 'beat', bass: 'midi', melody: 'midi', texture: 'midi', chord: 'midi',
       };
       const generatorToName: Record<string, string> = {
-        drum: 'Organism Drums', bass: 'Organism Bass', melody: 'Organism Melody', texture: 'Organism Texture', chord: 'Organism Chords',
+        drum: 'Organism Drums', bass: 'Organism Bass', melody: 'Organism Melody', texture: 'Organism Synth Pads', chord: 'Organism Chords',
       };
       const generatorToInstrument: Record<string, string> = {
         drum: 'drums', bass: 'bass', melody: 'piano', texture: 'synth', chord: 'keys',
