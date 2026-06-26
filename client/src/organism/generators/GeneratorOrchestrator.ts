@@ -1468,13 +1468,20 @@ export class GeneratorOrchestrator {
 
     const { slot: section, cycleBar, sectionBar } = getProducerArrangementSlot(barNumber)
 
-    // Schedule 2-beat bar-end break on the final bar of a section
+    // Schedule 2-beat bar-end break on the final bar of a section — but ONLY
+    // when the NEXT section is a real energy lift (a drop). Firing this at
+    // every section end dropped the bass out every few seconds once sections
+    // are short, which read as "jumping mid-play." Gating it to drops keeps
+    // the dramatic pre-drop snare break and lets ordinary section changes
+    // cross-fade smoothly at the bar line instead.
     if (sectionBar === section.bars - 1 && this.lastScheduledBreakBar !== barNumber) {
       this.lastScheduledBreakBar = barNumber
       const nextBarNumber = barNumber + 1
       const nextSlotInfo = getProducerArrangementSlot(nextBarNumber)
       const nextSection = nextSlotInfo.slot
 
+      const enteringDrop = nextSection.energy >= 0.9 && nextSection.energy > section.energy + 0.05
+      if (enteringDrop) {
       const breakStartId = transport.scheduleOnce((time) => {
         // Bass drops out briefly — the classic hip-hop "snare break" moment.
         // Melody and chords do NOT mute: wiping them caused a jarring complete
@@ -1501,6 +1508,7 @@ export class GeneratorOrchestrator {
       }, `${nextBarNumber}:0:0`)
 
       this.scheduledBreakEventIds.push(breakStartId, breakEndId)
+      }
     }
 
     // Merge AI directive if one was buffered for this section
