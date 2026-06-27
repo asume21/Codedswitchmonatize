@@ -267,3 +267,26 @@ describe('GeneratorOrchestrator — loop pack', () => {
     spies.forEach(spy => expect(spy).toHaveBeenCalledWith(false))
   })
 })
+
+// ── Preset swap: clean cut (no stacking) ─────────────────────────────
+// A live preset swap must silence the OUTGOING preset's parts immediately
+// rather than letting them ride the section-change handoff (which keeps them
+// for ~1-2 bars and makes the old + new presets audibly stack). swapSubGenre
+// is the dedicated live-swap entry, so the clean cut lives there.
+
+describe('GeneratorOrchestrator — preset swap clean cut', () => {
+  it('swapSubGenre hard-cuts every generator part before rebuilding', () => {
+    const orch = new GeneratorOrchestrator()
+    const spies = ['drum', 'bass', 'melody', 'chord', 'texture'].map(g =>
+      vi.spyOn((orch as any)[g], 'stopPart').mockImplementation(() => {})
+    )
+
+    // No bpm arg — setBpm uses Transport.bpm.rampTo which the Tone mock omits,
+    // and BPM is not what this test covers. The clean cut runs regardless.
+    orch.swapSubGenre('boom-bap' as any)
+
+    // All five (including the keys/pad texture) get cut so neither a Tone.Part
+    // loop nor a sustained pad voicing survives into the new preset.
+    spies.forEach(spy => expect(spy).toHaveBeenCalledOnce())
+  })
+})

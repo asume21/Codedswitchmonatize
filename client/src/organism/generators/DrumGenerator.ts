@@ -676,7 +676,9 @@ export class DrumGenerator extends GeneratorBase {
     this.kickSub.volume.rampTo(-24, 2)
   }
 
-  private stopPart(): void {
+  /** Public so the orchestrator can hard-cut the part on a live preset swap
+   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
+  stopPart(): void {
     this.clearBarEndBreakFill()
     if (this.part) {
       this.part.stop()

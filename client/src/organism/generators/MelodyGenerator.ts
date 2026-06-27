@@ -1392,7 +1392,9 @@ export class MelodyGenerator extends GeneratorBase {
     return notes
   }
 
-  private stopPart(): void {
+  /** Public so the orchestrator can hard-cut the part on a live preset swap
+   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
+  stopPart(): void {
     if (this.part) {
       this.part.stop()
       this.part.dispose()

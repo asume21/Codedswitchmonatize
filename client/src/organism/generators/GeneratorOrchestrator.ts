@@ -1370,8 +1370,30 @@ export class GeneratorOrchestrator {
    */
   swapSubGenre(subGenre: HipHopSubGenre, bpm?: number): void {
     if (bpm != null) this.setBpm(bpm)
+    // A preset swap is a CLEAN CUT, not a section crossfade. Stop the outgoing
+    // preset's parts immediately so they can't keep looping for the ~1–2 bars of
+    // the seamless-handoff lead and stack audibly over the incoming preset (the
+    // "presets pile over each other" bug on a live swap). The rebuild below then
+    // builds fresh parts for the new sub-genre.
+    this.cutActivePartsForSwap()
     this.director.forceSubGenre(subGenre)
     this.regenerateAll()
+  }
+
+  /**
+   * Immediately stop + dispose each pitched/rhythmic generator's current Part.
+   * Used ONLY on a live preset swap (swapSubGenre) so the outgoing preset is
+   * silenced at once instead of riding the section-change handoff — which holds
+   * the old part for ~1–2 bars and makes the old and new presets stack. Section
+   * changes still use the seamless crossfade (this is not called there). Texture
+   * has no scheduled Part — its cut releases the sustained keys/pad voicing.
+   */
+  private cutActivePartsForSwap(): void {
+    this.drum.stopPart()
+    this.bass.stopPart()
+    this.melody.stopPart()
+    this.chord.stopPart()
+    this.texture.stopPart()
   }
 
   /**

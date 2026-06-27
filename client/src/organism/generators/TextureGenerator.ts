@@ -266,6 +266,16 @@ export class TextureGenerator extends GeneratorBase {
     // Gain ramp to 0 provides silence; source is disposed in dispose().
   }
 
+  /** Public so the orchestrator can hard-cut the keys/pad on a live preset swap
+   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Texture has no Tone.Part
+   *  — its "part" is the SUSTAINED pad voicing, which otherwise rings for up to
+   *  2 bars (it re-comps every '2m') and drones the old preset's chord under the
+   *  new one. We release the held voicing immediately but leave the pad loop
+   *  scheduler running, so it re-comps the new voicing on the next 2-bar tick. */
+  stopPart(): void {
+    try { this.padSampler.releaseAll() } catch { /* sampler not ready */ }
+  }
+
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
   applyVolumeMultiplier(multiplier: number): void {
