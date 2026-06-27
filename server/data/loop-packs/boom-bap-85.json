@@ -6,34 +6,534 @@
   "label": "Boom Bap 85",
   "loops": {
     "drums": [
-      { "id": "drums-1", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-1.wav", "bars": 4, "label": "Beat K06 1" },
-      { "id": "drums-2", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-2.wav", "bars": 4, "label": "Beat K06 2" },
-      { "id": "drums-3", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-3.wav", "bars": 4, "label": "Beat K06 3" },
-      { "id": "drums-4", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-4.wav", "bars": 4, "label": "Beat K06 4" }
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-1.wav",
+        "bars": 4,
+        "label": "Beat K06 1",
+        "profile": {
+          "description": "This audio clip features a crisp, minimal electronic drum beat, serving as a foundational rhythmic loop.\n\n**Instruments:** The primary instruments are percussive: a punchy **kick drum** with a solid, albeit short, low-end thump; a sharp, somewhat metallic **snare drum** or layered clap on the off-beats; and very tight, crisp **hi-hats** providing high-frequency texture and rhythmic subdivision. No melodic or harmonic instruments are present.\n\n**Genre:** Minimal Techno or Tech House, characterized by its repetitive, driving, and clean electronic percussion.\n\n**Mood:** Energetic, driving, cool, and functional. It feels focused, precise, and propulsive, establishing a hypnotic groove.\n\n**Rhythm:** A clear four-on-the-floor pattern is implied by the kick drum, with the snare/clap accentuating the 2nd and 4th beats. The tempo is moderately fast (likely in the 120-130 BPM range). The rhythm is metronomic and very precise.\n\n**Tone:** Clean, sharp, and digital. The overall tone is balanced, with prominent bright frequencies from the hi-hats and the snap of the snare, grounded by a well-defined low-end kick.\n\n**Structural/Textures/Frequencies:** This is a highly **structural** rhythmic component, not ambient. The textures are sparse and pointillistic, with each percussive hit being distinct and having a clean attack. Frequencies are well-distributed: a strong sub-bass and low-mid presence from the kick, clear mid-range body from the snare, and precise, crisp high-end from the hi-hats. The spectrum feels controlled and articulate.\n\n**Mix Problems:** The mix appears clean and balanced for its minimal arrangement. There is no obvious clipping, muddiness (the sounds are very distinct), or harshness in the high frequencies. The low end from the kick is present and punchy, not weak.",
+          "energy": 0.589,
+          "brightness": 1,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.006,
+            "bass": 0.025,
+            "lowMid": 0.167,
+            "highMid": 0.27,
+            "high": 0.533
+          },
+          "metrics": {
+            "rmsDb": -15.861,
+            "spectralCentroidHz": 7576,
+            "estimatedBpm": null,
+            "onsetCount": 29
+          },
+          "profiledAt": "2026-06-27T10:22:07.838Z"
+        }
+      },
+      {
+        "id": "drums-2",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-2.wav",
+        "bars": 4,
+        "label": "Beat K06 2",
+        "profile": {
+          "description": "This audio clip is a propulsive, rhythmic electronic loop.\n\n**Instruments:** The primary instruments are electronic drums: a punchy **kick drum** (four-on-the-floor), a crisp, sharp **snare/clap** on the backbeat, prominent and intricate **open and closed hi-hats** playing a driving sixteenth-note pattern, and subtle, high-pitched **percussive clicks** (resembling a woodblock or claves) that accent the rhythm. There's a sustained, deep **synth bassline** providing a low-end foundation and a very subtle, high-frequency, shimmering **synth pad** acting as an airy textural layer in the background.\n\n**Genre:** **Tech House** or **Minimal Techno**. It features a classic four-on-the-floor groove with crisp, driving percussion characteristic of these genres.\n\n**Mood:** Energetic, propulsive, driving, clean, and club-ready. It feels designed for constant forward motion.\n\n**Rhythm:** Up-tempo (estimated 120-125 BPM) with a steady, driving four-on-the-floor kick. The rhythm is highly precise and repetitive, built on a strong backbeat snare and busy, syncopated hi-hat patterns that create a constant sense of momentum.\n\n**Tone:** Bright and crisp in the high frequencies, with a tight, controlled, and present low end. Overall, the tone is clean, modern, and punchy.\n\n**Structural/Textures/Frequencies:** This is a **structural** rhythmic loop, forming a clear, repetitive backbone for a track.\n*   **Textures:** The kick is punchy and dry, the snare/clap is sharp and snappy, the hi-hats are sizzling and metallic, the percussion is clicky and precise, the synth bass is smooth and sustained, and the high synth pad is shimmering and airy.\n*   **Frequencies:** The **high end** is very prominent and detailed due to the crisp hi-hats and sharp snare/percussion attacks. The **mid-range** is clean and allows the percussive elements to cut through. The **low end** is solid and present (kick drum and sub-bass), providing a deep foundation without being boomy or muddy.\n\n**Mix Problems:** The mix is generally clean and well-balanced for the style. There is no obvious clipping, muddiness, or weak low end. The high frequencies are very bright and pronounced, stopping just short of harshness, which contributes to the track's modern and driving character.",
+          "energy": 0.693,
+          "brightness": 1,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.018,
+            "bass": 0.067,
+            "lowMid": 0.177,
+            "highMid": 0.274,
+            "high": 0.465
+          },
+          "metrics": {
+            "rmsDb": -13.357,
+            "spectralCentroidHz": 6551,
+            "estimatedBpm": null,
+            "onsetCount": 32
+          },
+          "profiledAt": "2026-06-27T10:22:24.405Z"
+        }
+      },
+      {
+        "id": "drums-3",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-3.wav",
+        "bars": 4,
+        "label": "Beat K06 3",
+        "profile": {
+          "description": "This audio features a precise and driving electronic beat.\n\n**Instruments:**\n*   **Electronic Kick Drum:** Tight, punchy, providing a steady four-on-the-floor foundation.\n*   **Electronic Snare/Clap:** A crisp, high-pitched, layered sound, likely a combination, hitting on the 2 and 4.\n*   **Electronic Hi-Hats:** Very prominent and active, featuring a mix of tight closed hats for constant rhythmic subdivision and shimmering open hats for accents, all contributing significantly to the high-frequency energy.\n*   **Synth Percussion / Short Synth Stab:** A high-frequency, staccato, almost bell-like or processed metallic synth sound playing a short, syncopated rhythmic motif.\n\n**Genre:** Tech House / Minimal House. The clean, percussive focus, four-on-the-floor rhythm, and driving electronic elements strongly align with these genres.\n\n**Mood:** Energetic, driving, clean, focused, and slightly mechanical. It evokes a feeling of forward momentum, suitable for dancing or concentrated activity.\n\n**Rhythm:** Up-tempo (approximately 125-130 BPM) with a strong, propulsive groove. The kick drum maintains a steady four-on-the-floor pulse. The hi-hats provide constant sixteenth-note rhythmic information, creating a sense of urgency. The snare/clap offers clear backbeat emphasis, and the synth percussion adds a syncopated, off-beat layer that enhances the rhythmic complexity and groove.\n\n**Tone:** Bright, crisp, clean, and sharp. The sound is distinctly electronic and synthetic, prioritizing clarity and percussive impact over warmth or organic richness.\n\n**Structural Analysis:**\n*   **Textures:** Sparse but highly defined and punchy. Each instrument occupies its own sonic space with minimal overlap, contributing to a very 'on-off', percussive texture. There's a clear sense of rhythmic precision, with short decays for most elements.\n*   **Frequencies:**\n    *   **Low End:** Tight and impactful, driven by the kick drum. It provides a solid, rhythmic foundation without being boomy or overly resonant.\n    *   **Mid-Range:** Clean and relatively open, allowing the snare and the body of the synth stab to cut through with clarity.\n    *   **High End:** Very prominent and active. The hi-hats and the higher synth percussion sparkle intensely, defining the overall crisp and bright character of the sound.\n\n**Mix Problems:**\n*   The mix is remarkably clean and well-defined; there are no obvious signs of **clipping** or **muddiness**. Each element has its own space.\n*   The low end is **not weak**; it's tight and punchy, perfectly suited for the genre's emphasis on rhythmic drive.\n*   The high end is extremely forward and bright. While not quite crossing into truly **harshness** thanks to the overall clarity, it approaches an aggressive sparkle that some listeners might find slightly fatiguing over longer periods. This seems to be an intentional tonal choice for a sharp, modern electronic sound rather than a mixing error.",
+          "energy": 0.729,
+          "brightness": 1,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.006,
+            "bass": 0.038,
+            "lowMid": 0.143,
+            "highMid": 0.296,
+            "high": 0.517
+          },
+          "metrics": {
+            "rmsDb": -12.495,
+            "spectralCentroidHz": 7284,
+            "estimatedBpm": null,
+            "onsetCount": 35
+          },
+          "profiledAt": "2026-06-27T10:22:42.097Z"
+        }
+      },
+      {
+        "id": "drums-4",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-4.wav",
+        "bars": 4,
+        "label": "Beat K06 4",
+        "profile": {
+          "description": "This audio clip is a **structural, highly rhythmic electronic drum loop**, characteristic of **minimal techno or tech house**.\n\n**Instruments:** I primarily hear a tight, punchy **kick drum**, a sharp, somewhat processed **snare drum**, and very crisp, prominent **closed hi-hats** or **shakers** driving the rhythm. There's also a high-frequency, almost metallic, very short **percussive transient** or synth stab that adds to the bright top end.\n\n**Genre:** Minimal Techno / Tech House.\n\n**Mood:** Energetic, driving, repetitive, functional, and slightly hypnotic. It's designed to propel movement rather than evoke deep emotion.\n\n**Rhythm:** The rhythm is fast-paced (likely around 125-130 BPM) and relentless in a straight 4/4 time signature. It features a consistent kick on the quarter notes, a clear snare on the 2nd and 4th beats, and a persistent, high-frequency pulse from the hi-hats/shakers, giving it a strong forward momentum.\n\n**Tone:** The overall tone is bright, clean, and very percussive. It's sharp and crisp, with a clear emphasis on the attack of each hit.\n\n**Textures & Frequencies:**\n*   **Textures:** The texture is primarily dry, sharp, and digital-sounding, with very little sustain or atmospheric elements. It's a clean, almost sterile percussive texture.\n*   **Frequencies:**\n    *   **Low End:** Present and punchy from the kick drum, providing a solid foundation without being overly boomy or muddy. It's a tight, focused low end.\n    *   **Mid-Range:** Relatively sparse, allowing the percussive elements to cut through clearly. The body of the snare and the initial attack of the kick occupy this range.\n    *   **High End:** Very prominent, crisp, and clean, dominated by the hi-hats/shakers and the high-pitched percussive element. This contributes significantly to the track's driving energy and brightness.\n\n**Obvious Mix Problems:**\n*   There are **no obvious mix problems** in this short segment. The individual elements are well-separated, clean, and balanced within the soundscape presented.\n*   There is no discernible clipping, muddiness, or harshness, despite the bright high end. The low end is tight and present, not weak.",
+          "energy": 0.728,
+          "brightness": 1,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.012,
+            "bass": 0.05,
+            "lowMid": 0.141,
+            "highMid": 0.295,
+            "high": 0.503
+          },
+          "metrics": {
+            "rmsDb": -12.528,
+            "spectralCentroidHz": 7044,
+            "estimatedBpm": null,
+            "onsetCount": 34
+          },
+          "profiledAt": "2026-06-27T10:22:56.699Z"
+        }
+      }
     ],
     "bass": [
-      { "id": "bass-1", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-1.wav", "bars": 2, "label": "Bass D 1" },
-      { "id": "bass-2", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-2.wav", "bars": 2, "label": "Bass D 2" },
-      { "id": "bass-3", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-3.wav", "bars": 2, "label": "Bass D 3" },
-      { "id": "bass-4", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-4.wav", "bars": 2, "label": "Bass D 4" }
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-1.wav",
+        "bars": 2,
+        "label": "Bass D 1",
+        "profile": {
+          "description": "This 2-second audio clip features a heavily distorted electric **bass guitar** playing a low, sustained note, followed by a sustained, ringing **electric guitar** in a higher register.\n\nThe **genre** strongly suggests doom metal, stoner rock, or heavy alternative, characterized by its slow, weighty feel and overdriven instrumentation. The **mood** is dark, ominous, tense, and foreboding.\n\nThe **rhythm** is extremely slow and sustained, establishing a static, atmospheric pulse rather than an active rhythmic pattern within this short excerpt. The **tone** of the bass is gritty, growly, and heavy with a strong low-mid presence. The electric guitar has a metallic, ringing, and slightly abrasive sustain in the mid-high range.\n\nIt functions **structurally**, introducing a distinct musical idea with specific notes rather than pure ambience, though the sustained nature creates an atmospheric texture. The bass provides a heavy, rumbling **low-frequency** foundation, while the guitar adds a shimmering, somewhat dissonant **high-mid texture**.\n\nRegarding **mix problems**, there is very noticeable and severe clipping on the initial attack of the bass note, producing a harsh, digital crackle. This indicates an overload issue in the recording or mix, significantly detracting from the intended heavy tone. The low end, while present, is compromised by this specific clipping event. No other obvious muddiness or overall harshness is apparent beyond this particular issue.",
+          "energy": 0.807,
+          "brightness": 0.378,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.067,
+            "bass": 0.448,
+            "lowMid": 0.244,
+            "highMid": 0.101,
+            "high": 0.14
+          },
+          "metrics": {
+            "rmsDb": -10.623,
+            "spectralCentroidHz": 2395,
+            "estimatedBpm": null,
+            "onsetCount": 33
+          },
+          "profiledAt": "2026-06-27T10:23:10.316Z"
+        }
+      },
+      {
+        "id": "bass-2",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-2.wav",
+        "bars": 2,
+        "label": "Bass D 2",
+        "profile": {
+          "description": "This audio features a **finger-plucked Electric Bass Guitar**.\n\n**Genre:** The short, groovy, and rhythmically defined phrase, along with the warm tone, strongly suggests influences from **Jazz, Blues, or Funk**.\n\n**Mood:** The mood is **relaxed, groovy, and somewhat contemplative**. It's not high-energy or aggressive.\n\n**Rhythm:** There's a clear, moderately slow **rhythmic pulse** established by the two distinct plucked notes, suggesting a steady, simple pattern.\n\n**Tone:** The bass has a **warm, deep, and resonant** tone. It's rounded and full-bodied, lacking sharp attack or brightness.\n\n**Structural:** This is a **structural musical phrase**, not ambient. It's a distinct melodic/rhythmic idea.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is clean and direct, characteristic of a plucked electric bass string. There's a natural decay and resonance.\n*   **Frequencies:** The sound is dominated by **prominent low-mids and a solid low-end foundation**. This gives it its warmth and weight. The high-mids and highs are present enough to define the pluck attack and string character but are rounded, preventing any harshness.\n\n**Obvious Mix Problems:**\nThe bass sound is notably **resonant and somewhat boomy in the low-mids**. While contributing to its full sound, this characteristic could lead to **muddiness** if not carefully controlled in a full mix. There is no apparent clipping, harshness in the highs, or weak low end.",
+          "energy": 0.788,
+          "brightness": 0.34,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.051,
+            "bass": 0.491,
+            "lowMid": 0.242,
+            "highMid": 0.09,
+            "high": 0.126
+          },
+          "metrics": {
+            "rmsDb": -11.096,
+            "spectralCentroidHz": 2173,
+            "estimatedBpm": null,
+            "onsetCount": 35
+          },
+          "profiledAt": "2026-06-27T10:23:23.495Z"
+        }
+      },
+      {
+        "id": "bass-3",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-3.wav",
+        "bars": 2,
+        "label": "Bass D 3",
+        "profile": {
+          "description": "This audio features a **heavily distorted electric guitar** playing a slow, deliberate, single-note riff.\n\n*   **Instruments:** A single electric guitar. Its tone suggests a humbucker pickup setup pushed through a high-gain, fuzz-laden amplifier, possibly a vintage-style tube amp or a modern amp emulating a classic doom/stoner sound.\n*   **Genre:** Strongly points towards **Doom Metal, Stoner Metal, or Sludge Metal**. The slow tempo, heavy riff, and thick, fuzzy distortion are hallmarks of these genres.\n*   **Mood:** Ominous, brooding, heavy, dark, and somewhat melancholic or despairing. It evokes a sense of impending doom or a slow, grinding intensity.\n*   **Rhythm:** Very slow and plodding, with a deliberate, almost trudging feel. The riff itself has a simple, repetitive rhythmic pattern that emphasizes the weight of each note.\n*   **Tone:** The guitar tone is exceptionally thick, fuzzy, and warm, with a strong mid-range presence that gives it a vocal-like quality. There's significant sustain from the distortion. It sounds full and saturated, without being overly harsh.\n*   **Structure:** This is a **structural** element, a distinct musical riff or phrase, not an ambient soundscape.\n*   **Textures & Frequencies:**\n    *   **Textures:** Gritty, fuzzy, thick, and somewhat sludgy. The individual notes, despite the heavy distortion, remain clear enough to discern the melody.\n    *   **Frequencies:**\n        *   **Low End:** Very strong and weighty, providing a solid foundation for the riff without being boomy or indistinct. It's the core of the \"heavy\" feel.\n        *   **Mid-Range:** Highly dominant. This is where the characteristic fuzz, grit, and power of the guitar tone reside. It's a rich, resonant mid-range that prevents the sound from being thin.\n        *   **High End:** Present enough for articulation and to bring out the fuzz texture, but it is rolled off enough to avoid harshness, contributing to the overall dark character.\n*   **Mix Problems:** There are no obvious mix problems in this short clip.\n    *   **Clipping:** No audible digital clipping.\n    *   **Muddiness:** Despite the heavy distortion and strong low-mids, the sound is not muddy; the notes are distinguishable.\n    *   **Harshness:** The high end is well-controlled and not harsh or piercing.\n    *   **Weak Low End:** Absolutely not. The low end is a defining characteristic, providing immense weight and power.\n    The sound is very direct and centered, suggesting a close-mic'd source or a very dry direct input.",
+          "energy": 0.852,
+          "brightness": 0.299,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.138,
+            "bass": 0.388,
+            "lowMid": 0.284,
+            "highMid": 0.08,
+            "high": 0.111
+          },
+          "metrics": {
+            "rmsDb": -9.562,
+            "spectralCentroidHz": 1933,
+            "estimatedBpm": null,
+            "onsetCount": 41
+          },
+          "profiledAt": "2026-06-27T10:23:38.097Z"
+        }
+      },
+      {
+        "id": "bass-4",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-4.wav",
+        "bars": 2,
+        "label": "Bass D 4",
+        "profile": {
+          "description": "This audio clip is a short, aggressive, and highly rhythmic electronic music motif.\n\n*   **Instruments:** The primary instrument is a heavily processed **synth bass** with a prominent \"wobble\" or \"growl\" effect, likely achieved through heavy distortion, filtering, and portamento/glide. It sounds like a digital wavetable or FM synth. Accompanying this is a sharp, high-frequency **percussive transient**, resembling a tightly closed hi-hat or a sharp white noise burst, striking on the off-beat.\n*   **Genre:** **Dubstep** or a closely related subgenre of **Bass Music** (e.g., Grime, Riddim). The aggressive bass sound design and syncopated rhythm are hallmarks of these styles.\n*   **Mood:** Dark, aggressive, driving, intense, energetic, and slightly menacing.\n*   **Rhythm:** Highly syncopated and driving, built on a broken beat pattern. The bass line itself forms a complex rhythmic groove, while the percussive element provides sharp, punctual accents on the off-beats. The tempo feels moderate to fast.\n*   **Tone:** Gritty, raw, heavy, digital, and powerful. The overall sound is dominated by the distorted, resonant character of the bass.\n*   **Ambient or Structural:** This is clearly **structural**. It functions as a short, rhythmic musical phrase or motif, designed to establish a groove and build energy, rather than an evolving soundscape.\n*   **Textures and Frequencies:**\n    *   **Textures:** The bass has a thick, guttural, distorted texture, almost metallic and roaring, with a constant sense of movement from the \"wobble.\" The percussion is a very thin, sharp, and precise click.\n    *   **Frequencies:** The **low-end and low-mids** are extremely strong and dominant, providing immense weight and a physical presence, foundational to the sound. The **mid-range** is aggressive due to the harmonic content from the heavily processed bass. The **high-end** is sparse but sharp and present, primarily from the percussive transient, which cuts through the dense bass frequencies.\n*   **Mix Problems:** The audio exhibits **heavy saturation and intentional distortion** on the bass, which is a characteristic sound design element of the genre and does not sound like accidental clipping. The low end is incredibly strong and prominent, borderline overwhelming but typical for this style. There is no apparent muddiness, harshness, or weak low end; the mix is designed to be impactful and aggressive.",
+          "energy": 0.843,
+          "brightness": 0.286,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.142,
+            "bass": 0.45,
+            "lowMid": 0.224,
+            "highMid": 0.077,
+            "high": 0.107
+          },
+          "metrics": {
+            "rmsDb": -9.768,
+            "spectralCentroidHz": 1860,
+            "estimatedBpm": null,
+            "onsetCount": 36
+          },
+          "profiledAt": "2026-06-27T10:23:54.797Z"
+        }
+      }
     ],
     "melody": [
-      { "id": "melody-1", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-1.wav", "bars": 4, "label": "Keys D 1" },
-      { "id": "melody-2", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-2.wav", "bars": 4, "label": "Keys D 2" },
-      { "id": "melody-3", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-3.wav", "bars": 4, "label": "Keys D 3" },
-      { "id": "melody-4", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-4.wav", "bars": 4, "label": "Keys D 4" }
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-1.wav",
+        "bars": 4,
+        "label": "Keys D 1",
+        "profile": {
+          "description": "This audio clip is a sparse, evolving electronic soundscape, clearly **ambient** in nature.\n\n**Instruments:**\n*   A deep, sustained **synth pad** with a warm, dark timbre, resembling a bowed string section (like cellos or basses) but distinctly synthesized. It acts as a foundational drone.\n*   A bright, resonant **plucked/struck synth** sound, reminiscent of a bell or plucked harp. This serves as an intermittent melodic/rhythmic accent.\n\n**Genre:** Ambient, Drone, Electronic.\n\n**Mood:** Contemplative, melancholic, spacious, serene, and slightly mysterious or introspective. The minor tonality and slow movement contribute to a sense of calm solemnity.\n\n**Rhythm:** Extremely slow and irregular. There is no discernible beat or tempo. The bell-like synth provides very sparse, non-metrical accents, contributing to the sense of a slowly unfolding soundscape rather than a rhythmic progression.\n\n**Tone:** The overall tone is smooth, rich, and spacious. The pad is deep, warm, and somewhat round, while the bell is clear, bright, and resonant, cutting through the dense pad without being piercing. Both instruments have a clean, polished timbre.\n\n**Textures and Frequencies:**\nThis is primarily an ambient piece, focusing on evolving textures.\n*   The **synth pad** creates a rich, smooth, and slightly grainy texture, evolving slowly over time. It occupies the **low-mid to mid-range frequencies** (roughly 80 Hz - 1 kHz), providing significant warmth and depth. It has a long attack and decay, blurring the boundaries between notes.\n*   The **bell-like synth** introduces a sharper, cleaner, and more metallic texture with a defined attack transient. It resides predominantly in the **mid to high-mid frequencies** (roughly 1 kHz - 4 kHz), providing clarity and sparkle against the darker pad.\n\n**Mix Problems:**\nThe mix is surprisingly clean and well-balanced for the elements present.\n*   **Clipping:** No audible clipping.\n*   **Muddiness:** While the low-mid range is very full due to the sustained pad, it manages to maintain clarity and warmth without becoming muddy. The frequencies are dense but distinct.\n*   **Harshness:** There is no harshness. The bell sound is bright but not piercing or fatiguing.\n*   **Weak Low End:** The low end is robust and present, provided by the deep pad, which anchors the sound. It's not a sub-bass heavy track, but the foundational low-mids are strong.",
+          "energy": 0.36,
+          "brightness": 0.313,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.039,
+            "bass": 0.123,
+            "lowMid": 0.649,
+            "highMid": 0.088,
+            "high": 0.101
+          },
+          "metrics": {
+            "rmsDb": -21.352,
+            "spectralCentroidHz": 2014,
+            "estimatedBpm": null,
+            "onsetCount": 83
+          },
+          "profiledAt": "2026-06-27T10:24:10.541Z"
+        }
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-2.wav",
+        "bars": 4,
+        "label": "Keys D 2",
+        "profile": {
+          "description": "This audio presents an evolving, highly textural soundscape.\n\n**Instruments:** The primary instruments are a **pizzicato low string instrument** (resembling a cello or double bass) playing a simple, melancholic figure, and a **soft, sustained pad** providing an ethereal harmonic bed. The most distinctive element is a **high-pitched synthetic bell or chime sound** that enters with a dissonant arpeggio, then transforms into a sustained, metallic, **buzzed or distorted synth drone** with significant high-frequency content.\n\n**Genre:** It leans towards **ambient, experimental electronic, or minimalist soundtrack music**, focusing on sonic textures and evolution rather than traditional melody or rhythm.\n\n**Mood:** The mood is initially **pensive and slightly melancholic** due to the low pizzicato. The introduction and sustain of the high metallic sound create a sense of **unease, tension, mystery, and an almost ominous or unsettling atmosphere.**\n\n**Rhythm & Tone:** The rhythm is **extremely slow and free-form**, with sparse articulation from the pizzicato and dominant sustained elements. The tone shifts from the **warm, resonant** pizzicato and **soft, ethereal** pad to a **bright, piercing, and subsequently buzzy, metallic, and slightly abrasive** character from the evolving high synth.\n\n**Ambient & Textures/Frequencies:** This piece is decidedly **ambient and textural**.\n*   **Textures:** It moves from the natural pluck of the low string to the smooth wash of the pad, culminating in a crystalline then grainy, metallic texture from the high synth.\n*   **Frequencies:** The low end provides foundational presence via the pizzicato but is not dominant. The mid-range is filled by the pad and the body of the metallic sound. The high-end is exceptionally prominent and defining, especially as the metallic buzz sustains.\n\n**Mix Problems:** There are no obvious signs of clipping or muddiness. The low end is supportive but not robust, which aligns with the genre's focus on atmosphere rather than bass drive. The sustained high-frequency metallic sound, while intentional for its uneasy mood, could be perceived as **harsh** by some listeners due to its intensity and buzzy character in the upper register.",
+          "energy": 0.46,
+          "brightness": 0.2,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.052,
+            "bass": 0.087,
+            "lowMid": 0.756,
+            "highMid": 0.052,
+            "high": 0.052
+          },
+          "metrics": {
+            "rmsDb": -18.949,
+            "spectralCentroidHz": 1360,
+            "estimatedBpm": null,
+            "onsetCount": 81
+          },
+          "profiledAt": "2026-06-27T10:24:28.526Z"
+        }
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-3.wav",
+        "bars": 4,
+        "label": "Keys D 3",
+        "profile": {
+          "description": "This audio features a calm, contemplative instrumental piece, leaning towards an **ambient instrumental** or **New Age** genre. The **mood** is peaceful, slightly reflective, and serene. The **rhythm** is **arhythmic** and free-flowing, characterized by sustained notes and a slow, unhurried melodic progression without a discernible beat.\n\n**Instruments:**\n*   A warm, sustained **synth pad** or **organ-like sound** forms the backdrop, providing a lush, evolving, and slightly ethereal bed.\n*   A **digital piano** or **electric piano (EP)** plays a gentle, clear, and slightly bell-like melody. It has a clean attack and pure tone.\n\n**Tone & Texture:** The overall **tone** is soft, warm, and inviting. Textures are smooth and cohesive. The pad is wide and enveloping, contributing to an ambient feel, while the piano notes are distinct and clear, standing out against the pad.\n\n**Frequencies:** The sound predominantly occupies the mid to high-mid frequencies. The synth pad provides a warm, consistent presence across the lower-mids to mid-highs, giving body and depth. The piano melody sits comfortably in the mid-range, with clear upper harmonics contributing to its bell-like quality without being shrill. The **low end** is present through the pad, providing a subtle foundation without being prominent or punchy, which is appropriate for this style of music.\n\n**Mix Problems:** The mix is clean and well-balanced for the presented material. There is **no obvious clipping, muddiness, or harshness**. The elements are distinct yet blend smoothly. The low end, while not heavy, is appropriate and not discernibly **weak** for a track of this nature, which lacks dedicated bass instrumentation.",
+          "energy": 0.373,
+          "brightness": 0.24,
+          "busyness": 0.944,
+          "bands": {
+            "sub": 0.089,
+            "bass": 0.092,
+            "lowMid": 0.655,
+            "highMid": 0.111,
+            "high": 0.053
+          },
+          "metrics": {
+            "rmsDb": -21.041,
+            "spectralCentroidHz": 1591,
+            "estimatedBpm": null,
+            "onsetCount": 64
+          },
+          "profiledAt": "2026-06-27T10:24:41.797Z"
+        }
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-4.wav",
+        "bars": 4,
+        "label": "Keys D 4",
+        "profile": {
+          "description": "This audio features a **synthesized xylophone** playing a bright, percussive melody over a sustained, **soft synth pad** (or synth strings). There are no distinct drums or bass instruments.\n\n**Genre:** Electronic / Minimalist Pop, with a strong influence from video game soundtracks or children's music due to its simple, melodic nature and instrumentation.\n\n**Mood:** Whimsical, light, innocent, and slightly melancholic or introspective. It evokes a peaceful, gentle, and reflective atmosphere.\n\n**Rhythm:** The tempo is moderate (around 100-110 BPM), characterized by the clear, straight attacks of the xylophone melody. There is no complex rhythmic drive; the rhythm is primarily defined by the melodic phrasing, creating a gentle, flowing feel.\n\n**Tone:** The xylophone has a bright, clear, and somewhat metallic tone with a short, crisp attack and moderate decay. The synth pad offers a warm, smooth, and ethereal tone, providing a soft harmonic bed. The overall tone is clean and well-defined.\n\n**Structural/Textures/Frequencies:** This is a **structural** piece, featuring a distinct melody and harmonic progression rather than an ambient drone.\n*   **Textures:** The xylophone provides a **crystalline, staccato, percussive** texture, contrasting with the **smooth, sustained, airy** texture of the synth pad.\n*   **Frequencies:** The sound is dominated by **high-mids and highs** from the bright xylophone, which carries the main melodic information and sparkle. The **mids** are filled by the warm body of the synth pad. The **low-mids and low end are notably sparse**, contributing to the light and airy feel.\n\n**Mix Problems:**\n*   **Clipping:** None evident.\n*   **Muddiness:** None, the mix is very clean and sparse, allowing each element to breathe.\n*   **Harshness:** None. The high frequencies of the xylophone are bright but not piercing or grating.\n*   **Weak Low End:** This is the most prominent characteristic. The mix **lacks significant low-end presence or sub-bass energy**, resulting in a very light, almost top-heavy sound. This is likely an aesthetic choice given the instrumentation, but it's a clear characteristic of the frequency balance.",
+          "energy": 0.292,
+          "brightness": 0.371,
+          "busyness": 0.915,
+          "bands": {
+            "sub": 0.041,
+            "bass": 0.06,
+            "lowMid": 0.633,
+            "highMid": 0.177,
+            "high": 0.089
+          },
+          "metrics": {
+            "rmsDb": -22.997,
+            "spectralCentroidHz": 2352,
+            "estimatedBpm": null,
+            "onsetCount": 62
+          },
+          "profiledAt": "2026-06-27T10:24:57.208Z"
+        }
+      }
     ],
     "chords": [
-      { "id": "chords-1", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-1.wav", "bars": 4, "label": "Guitar D 1" },
-      { "id": "chords-2", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-2.wav", "bars": 4, "label": "Guitar D 2" },
-      { "id": "chords-3", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-3.wav", "bars": 4, "label": "Guitar D 3" },
-      { "id": "chords-4", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-4.wav", "bars": 4, "label": "Guitar D 4" }
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-1.wav",
+        "bars": 4,
+        "label": "Guitar D 1",
+        "profile": {
+          "description": "This audio features a **single electric guitar** playing a melodic riff.\n\n**Instruments:**\n*   **Electric Guitar:** The primary instrument, played in a lead style. It exhibits techniques such as string bending, vibrato, and slides, characteristic of lead guitar phrasing.\n\n**Genre:**\n*   **Blues Rock / Classic Rock:** The melodic phrasing, use of bends, the overdriven guitar tone, and the minor key sensibility strongly place it in this genre. It evokes a vintage rock feel.\n\n**Mood:**\n*   **Evocative, Confident, Slightly Melancholic:** The melody has a soulful, expressive quality, with a touch of bluesy wistfulness, yet maintains a strong, self-assured presence. It's not overtly sad but carries an emotional weight.\n\n**Rhythm:**\n*   **Moderate, Deliberate:** The notes are played with a steady, unhurried pace. The phrasing allows for notes to sustain, creating a sense of controlled momentum rather than frantic energy. It suggests a 4/4 time signature.\n\n**Tone:**\n*   **Overdriven/Crunchy:** The guitar tone is characterized by a warm, medium-gain overdrive or crunch. It's not heavily distorted but has a classic rock breakup that adds sustain and harmonics. The tone is rich in mid-range frequencies.\n\n**Structural/Ambient:**\n*   **Structural:** This is a clear, distinct musical phrase or lick. It's a structured melodic statement rather than an ambient soundscape.\n\n**Textures & Frequencies:**\n*   **Textures:** The sound is gritty and slightly fuzzy due to the overdrive, yet clear enough for individual notes to be well-defined. It's warm, sustained, and has a pleasant string attack.\n*   **Frequencies:**\n    *   **Low-end:** Present enough to provide warmth and body to the guitar, preventing it from sounding thin. It's not boomy but provides a solid foundation.\n    *   **Mid-range:** Very prominent and rich, where the core character and growl of the overdriven guitar reside. This is the dominant frequency range.\n    *   **High-end:** Clear and present, capturing the pick attack and string detail without being shrill or harsh. It adds definition and shimmer.\n\n**Obvious Mix Problems:**\n*   **Clipping:** No obvious digital clipping. The distortion is intentional and musical.\n*   **Muddiness:** No. Despite the warmth and overdrive, individual notes are articulate and clear.\n*   **Harshness:** No. The high-end is well-controlled; it's bright enough for clarity but doesn't pierce.\n*   **Weak Low End:** No. The guitar has sufficient body and warmth in the lower frequencies for its context.",
+          "energy": 0.469,
+          "brightness": 0.506,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.01,
+            "bass": 0.03,
+            "lowMid": 0.488,
+            "highMid": 0.345,
+            "high": 0.126
+          },
+          "metrics": {
+            "rmsDb": -18.754,
+            "spectralCentroidHz": 3133,
+            "estimatedBpm": null,
+            "onsetCount": 73
+          },
+          "profiledAt": "2026-06-27T10:25:11.087Z"
+        }
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-2.wav",
+        "bars": 4,
+        "label": "Guitar D 2",
+        "profile": {
+          "description": "This audio features a tight, energetic **Blues-Rock** or **Rock and Roll** instrumental.\n\n**Instruments:**\nThe primary instrument is an **electric guitar**, playing a distinctive, slightly overdriven or distorted riff with a bright, twangy attack and some vibrato, functioning as both lead and rhythm. An **electric bass** provides a clear, walking-style line that drives the harmony. **Drums** supply a solid, consistent beat with a clear kick, punchy snare, and crisp hi-hats.\n\n**Genre:** Blues-Rock / Rock and Roll.\n**Mood:** Upbeat, energetic, confident, and somewhat playful. It evokes a classic, driving feel.\n**Rhythm:** The tempo is moderately fast (approximately 120-130 BPM) with a steady 4/4 time signature. The guitar riff features notable syncopation, while the drums maintain a strong, unwavering rhythmic foundation.\n**Tone:** The overall tone is bright and warm. The electric guitar has a classic, slightly gritty yet clear sound with prominent mids. The bass is round and full, providing a strong low-end presence without being boomy. The drums are crisp and tight, with well-defined transients.\n\n**Structure & Textures/Frequencies:**\nThe audio is **structural**, featuring distinct instrumental parts contributing to a cohesive musical phrase. The texture is relatively sparse but effective, built around the interplay of the driving guitar riff, the supportive bassline, and the foundational drum beat.\nIn terms of **frequencies**, the mix is well-balanced. The **low-end** is solid and present, carried by the bass guitar and kick drum, providing a good foundation without muddiness. The **mid-range** is prominent and rich, largely defined by the electric guitar's character. The **high-end** is clear and crisp, particularly from the hi-hat and the attack of the guitar, without any harshness.\n\n**Mix Problems:**\nThere are no obvious mix problems. The audio exhibits no noticeable clipping, muddiness, harshness, or weak low end. The instruments are well-defined and sit well together in the mix.",
+          "energy": 0.579,
+          "brightness": 0.469,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.022,
+            "bass": 0.124,
+            "lowMid": 0.442,
+            "highMid": 0.289,
+            "high": 0.123
+          },
+          "metrics": {
+            "rmsDb": -16.111,
+            "spectralCentroidHz": 2918,
+            "estimatedBpm": null,
+            "onsetCount": 76
+          },
+          "profiledAt": "2026-06-27T10:25:25.603Z"
+        }
+      },
+      {
+        "id": "chords-3",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-3.wav",
+        "bars": 4,
+        "label": "Guitar D 3",
+        "profile": {
+          "description": "This audio clip features an **electric guitar** playing a clean, melodic, and somewhat bluesy riff, accompanied by a **warm electric bass** providing a solid foundation. There is also a brief, sharp **drum hit** (snare/rimshot) at the 0:02 mark.\n\n**Genre:** Blues-infused Indie Rock or Alternative Rock.\n**Mood:** Cool, confident, relaxed, and slightly playful or witty.\n**Rhythm:** Moderate tempo with a steady, grooving bass line and syncopated, melodic guitar phrases. It feels rhythmically secure and laid-back.\n**Tone:** Clean, bright, and present, with a warm underlying character. The guitar has a clear, ringing quality, while the bass provides a solid, rounded foundation.\n\nThis is **structural** music, presenting a distinct musical phrase or riff rather than an ambient soundscape.\n\n**Textures and Frequencies:** The overall texture is clean and well-defined. The low end is solid and warm, driven by the bass's clear presence in the low-mids, providing a foundational pulse. The mid-range is vibrant and articulate, particularly from the guitar, which occupies the upper-mids and lower-highs with excellent clarity and chime. The high end is crisp but not harsh, providing definition to the guitar's attack and the brief drum hit.\n\n**Mix Problems:** The mix is generally clean and well-balanced. There are no obvious signs of clipping, muddiness (the instruments occupy their frequency spaces well), harshness (highs are present but not piercing), or a weak low end (the bass is full and supportive).",
+          "energy": 0.554,
+          "brightness": 0.423,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.012,
+            "bass": 0.039,
+            "lowMid": 0.474,
+            "highMid": 0.398,
+            "high": 0.076
+          },
+          "metrics": {
+            "rmsDb": -16.711,
+            "spectralCentroidHz": 2655,
+            "estimatedBpm": 140,
+            "onsetCount": 63
+          },
+          "profiledAt": "2026-06-27T10:25:40.756Z"
+        }
+      },
+      {
+        "id": "chords-4",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-4.wav",
+        "bars": 4,
+        "label": "Guitar D 4",
+        "profile": {
+          "description": "This audio presents an energetic and raw **Indie Rock / Garage Rock** track.\n\n**Instruments:**\n- A heavily **distorted electric guitar** playing a driving, mid-range focused riff with a slightly fuzzy character.\n- A prominent **bass guitar** providing a consistent, clean, and rhythmic foundational line.\n- A **drum kit** delivering a fast, driving 4/4 beat, characterized by crisp hi-hats, a punchy snare, and a solid kick drum.\n\n**Genre, Mood, Rhythm, and Tone:**\n- **Genre:** Indie Rock / Garage Rock, leaning towards a punk-rock immediacy.\n- **Mood:** Upbeat, energetic, driving, slightly raw, and rebellious.\n- **Rhythm:** Fast tempo (likely around 160-180 BPM) in 4/4 time, propelled by a consistent, straight-ahead drum beat and a strong guitar riff.\n- **Tone:** Bright, punchy, and raw, with a focus on the mid-range from the distorted guitar.\n\n**Textures and Frequencies:**\nThe texture is relatively thin but impactful, typical of a rock power trio.\n- **Textures:** The gritty, overdriven texture of the guitar dominates the melodic and rhythmic space, contrasted by the smoother, consistent texture of the bass and the sharp, percussive textures of the drums.\n- **Frequencies:**\n    - **Highs:** Clear and present, notably from the hi-hats and the attack of the guitar, contributing to the bright tone.\n    - **Mids:** Dominant, especially from the distorted guitar which occupies a significant portion, giving the track its core energy.\n    - **Lows:** Present and articulate from the bass and kick, providing a solid foundation without being deep or boomy.\n\n**Mix Problems:**\nThere are no obvious mix problems such as clipping, muddiness, or harshness. The mix is clean and well-defined for its style. The low end, while not particularly deep or resonant, is adequate and fitting for the raw, mid-range forward aesthetic of garage rock, rather than being notably weak or problematic.",
+          "energy": 0.541,
+          "brightness": 0.536,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.01,
+            "bass": 0.035,
+            "lowMid": 0.426,
+            "highMid": 0.407,
+            "high": 0.122
+          },
+          "metrics": {
+            "rmsDb": -17.023,
+            "spectralCentroidHz": 3306,
+            "estimatedBpm": null,
+            "onsetCount": 70
+          },
+          "profiledAt": "2026-06-27T10:25:56.750Z"
+        }
+      }
     ],
     "texture": [
-      { "id": "texture-1", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-1.wav", "bars": 4, "label": "Synth Noise 1" },
-      { "id": "texture-2", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-2.wav", "bars": 4, "label": "Synth Noise 2" },
-      { "id": "texture-3", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-3.wav", "bars": 4, "label": "Synth Noise 3" },
-      { "id": "texture-4", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-4.wav", "bars": 4, "label": "Synth Noise 4" }
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-1.wav",
+        "bars": 4,
+        "label": "Synth Noise 1",
+        "profile": {
+          "description": "This audio is an extremely fast, high-energy electronic track with a distinct digital, chiptune aesthetic.\n\n**Instruments:** Primarily synthesized. I hear a dominant, piercing, rapidly arpeggiated lead synth (reminiscent of a square or pulse wave, common in 8-bit music), a sustained, slightly detuned synth providing harmonic underpinning, and a highly complex, glitchy drum kit. The drums feature very fast kicks, snares, and metallic hi-hats/percussion, often programmed with the intricate, fragmented style found in breakcore or IDM.\n\n**Genre:** Hardcore Chiptune / Breakcore IDM. It masterfully blends the distinct 8-bit sound design of chiptune with the frantic tempos and intricate, often 'broken' drum programming characteristic of breakcore or high-BPM Intelligent Dance Music.\n\n**Mood:** Hyperactive, intense, frantic, and exhilarating, bordering on overwhelming due to its sheer speed and sonic density. It conveys a sense of relentless, almost manic, digital energy.\n\n**Rhythm:** Extremely fast (likely 180+ BPM), highly syncopated, and complex. Both the relentlessly arpeggiated lead synth and the intricate, constantly shifting drum patterns contribute to an exceptionally driving and propulsive rhythmic force.\n\n**Tone:** Predominantly bright, sharp, and distinctly digital. There's a clean, almost piercing quality to the synth tones, characteristic of early digital synthesis, lacking warmth or analog character.\n\n**Structural:** This is clearly structural music, not ambient.\n*   **Textures:** The lead synth creates a sharp, pointillistic, almost machine-gun-like texture. The drums are fragmented, granular, and glitched, contributing to a dense, shimmering, and hyper-detailed sonic fabric. The sustained synth provides a smoother, yet still digitally clean, harmonic contrast.\n*   **Frequencies:** Heavily skewed towards the high-mids and highs, where the lead synth and intricate percussion reside, contributing significantly to its piercing clarity and energetic aggression. The mid-range is full and detailed. The low end is present and punchy from the kick drum and bass synth but remains tight and controlled rather than deep or boomy, serving as a rhythmic and harmonic anchor without dominating the mix.\n\n**Mix Problems:**\n*   **Harshness:** The high-frequency content is very pronounced due to the bright, piercing nature of the synths and the overall density, which can lean towards harshness or be fatiguing over extended listening. This, however, seems to be a deliberate stylistic choice inherent to the genre rather than a mixing flaw.\n*   **Low End:** While present and punchy, the low end is not particularly deep or resonant. It's tight and functional, which is appropriate for this style but might be perceived as \"weak\" by listeners accustomed to sub-bass heavy genres.\n*   No obvious clipping or muddiness. The mix is remarkably clean and separated given its complexity and speed.",
+          "energy": 0.637,
+          "brightness": 0.46,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.043,
+            "bass": 0.045,
+            "lowMid": 0.532,
+            "highMid": 0.238,
+            "high": 0.142
+          },
+          "metrics": {
+            "rmsDb": -14.712,
+            "spectralCentroidHz": 2866,
+            "estimatedBpm": null,
+            "onsetCount": 64
+          },
+          "profiledAt": "2026-06-27T10:26:17.588Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-2.wav",
+        "bars": 4,
+        "label": "Synth Noise 2",
+        "profile": {
+          "description": "This audio presents a short, intense, and highly energetic groove, characteristic of **Industrial Techno** or **Dark Techno**.\n\n**Instruments:** The core elements are a **driving, distorted synth bass** providing powerful low-mid energy, a **punchy four-on-the-floor kick drum**, and a **rapid, bright, and slightly metallic synth arpeggio/sequence** that acts as the main melodic-rhythmic hook. The track opens with a distinctive, highly resonant, **industrial-metallic sound effect or processed hit**, setting an aggressive tone. Subtle high-frequency percussion might be integrated into the synth textures or present as sparse elements.\n\n**Genre:** Industrial Techno / Dark Techno.\n\n**Mood:** Intense, driving, urgent, dark, and highly energetic. There's a relentless, almost aggressive momentum.\n\n**Rhythm:** Fast tempo (approximately 135-140 BPM) with a strong, unwavering four-on-the-floor kick. The synth arpeggio adds a layer of rapid, almost frantic rhythmic activity, reinforcing the driving feel.\n\n**Tone:** Sharp, aggressive, and punchy. The sound is forward and impactful, with prominent high frequencies balanced by a powerful, gritty low-mid presence.\n\n**Structural & Textures/Frequencies:** This is a **structural groove introduction**, not ambient.\n*   **Textures:** Features sharp, digital, and somewhat metallic textures in the high frequencies from the synth arpeggio and the opening effect. The bass provides a thick, gritty, and intentionally distorted texture in the low-mids. The kick is tight and impactful.\n*   **Frequencies:** A full and forward frequency spectrum. The low end is strong and well-defined by the kick and bass. The mid-range is dense and aggressive due to the distorted bass and active synth. High frequencies are prominent and cutting, particularly from the synth lead and initial transient.\n\n**Mix Problems:**\n*   The opening industrial-metallic hit at 0:00 is extremely resonant and occupies a significant space in the upper-mids/highs. While it creates a powerful impact, it could be perceived as **borderline harsh** or abrasive if not intentionally part of the genre's aggressive aesthetic. It sounds like a deliberate, heavily processed sound rather than accidental clipping.\n*   There's no obvious **clipping** or **weak low end**; the bass and kick are robust and present.\n*   The mid-range is quite dense, which contributes to the \"wall of sound\" character of the genre, but it doesn't cross into being **muddy** as individual elements (like the bass and arpeggio) remain distinct.",
+          "energy": 0.647,
+          "brightness": 0.525,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.127,
+            "bass": 0.185,
+            "lowMid": 0.341,
+            "highMid": 0.165,
+            "high": 0.182
+          },
+          "metrics": {
+            "rmsDb": -14.469,
+            "spectralCentroidHz": 3243,
+            "estimatedBpm": null,
+            "onsetCount": 59
+          },
+          "profiledAt": "2026-06-27T10:26:35.272Z"
+        }
+      },
+      {
+        "id": "texture-3",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-3.wav",
+        "bars": 4,
+        "label": "Synth Noise 3",
+        "profile": {
+          "description": "This audio is a short, abstract electronic soundscape dominated by synthesized elements.\n\n**Instruments/Sounds:**\nThe primary sounds are rapidly ascending and descending arpeggiated synthetic \"chirps\" or \"beeps,\" reminiscent of a digital alarm or a futuristic communication signal. These are generated by a bright, clean, high-frequency synthesizer with a short decay. Underlying these patterns is a subtle, sustained, low-frequency drone or hum that provides a foundational texture. There are no traditional drums, bass, or melodic instruments.\n\n**Genre:** Experimental Electronic, Abstract Sound Design, Glitch Ambient. It feels less like conventional music and more like a carefully crafted sound effect or sonic texture.\n\n**Mood:** Clinical, sterile, somewhat unsettling due to the repetitive, almost urgent nature of the arpeggios. It can also be perceived as atmospheric, futuristic, or even alien. There's a subtle tension created by the rising and falling patterns.\n\n**Rhythm:** While there's no conventional percussive rhythm, the rapid arpeggiated patterns create an internal, pulsing rhythm and a sense of constant, albeit non-groove-based, movement.\n\n**Tone:** Highly synthetic, sharp, bright, and clean. The high frequencies have a glassy or metallic quality, while the underlying drone adds a slight warmth and depth to an otherwise crisp sound.\n\n**Ambient/Structural:** It's primarily **structural** in its distinct, repeating arpeggiated patterns, but these patterns unfold within an **ambient** drone texture. The sound design is clearly purposeful and organized.\n\n**Textures and Frequencies:**\n*   **Highs:** Very prominent, featuring sharp, brilliant, and almost piercing synthetic chirps. They are extremely clean with rapid attacks.\n*   **Mids:** The body of the arpeggiated patterns resides here, maintaining a bright and hollow character. There's excellent separation and clarity.\n*   **Lows:** A subtle but consistent low-frequency drone underpins the entire track, providing a sense of depth and weight without being overtly present or dynamic. It acts as a textural foundation.\nThe overall frequency balance is tilted towards the high and high-mid range, giving it an open and airy, almost sparse feel.\n\n**Mix Problems:**\n*   **Clipping:** None obvious. The sounds are sharp but appear to be well within dynamic limits.\n*   **Muddiness:** None whatsoever. The mix is exceptionally clean, with pristine separation between the high-frequency patterns and the low-frequency drone.\n*   **Harshness:** The high-frequency chirps, while clean, could verge on harshness if played at high volumes due to their bright, almost piercing nature. This is more of a timbral characteristic than a mixing flaw for this specific sound design.\n*   **Weak Low End:** The low end is indeed subtle and non-dynamic. However, it's not \"weak\" in the sense of being problematic; it serves its intended purpose as a textural underpinning rather than a prominent bass element. It's present and stable.",
+          "energy": 0.631,
+          "brightness": 0.641,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.005,
+            "bass": 0.008,
+            "lowMid": 0.526,
+            "highMid": 0.262,
+            "high": 0.2
+          },
+          "metrics": {
+            "rmsDb": -14.854,
+            "spectralCentroidHz": 3916,
+            "estimatedBpm": null,
+            "onsetCount": 70
+          },
+          "profiledAt": "2026-06-27T10:26:51.571Z"
+        }
+      },
+      {
+        "id": "texture-4",
+        "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-4.wav",
+        "bars": 4,
+        "label": "Synth Noise 4",
+        "profile": {
+          "description": "This audio clip is a short, highly energetic, and distinctly electronic musical motif or sound effect.\n\n**Instruments:**\nThe primary instruments are **digital synthesizers**. I hear:\n1.  A high-pitched, sweeping **synth lead** or **siren-like effect** with a digital, almost \"glitching\" character, descending in pitch.\n2.  A very fast, **arpeggiated or gated synth sequence**, likely utilizing a square or pulse wave, creating a rapid, staccato, and almost \"chiptune\"-esque texture.\n3.  A single, sharp **low-frequency percussive transient** (like a kick drum or digital thump) that hits early in the clip.\n\n**Genre:**\nThis falls squarely into **Glitch Electronic**, **IDM (Intelligent Dance Music)**, or **Chiptune-adjacent** sound design. It has elements of futuristic sound effects often found in games or digital media.\n\n**Mood:**\nThe mood is **energetic, urgent, dynamic, and somewhat chaotic**. There's a sense of rapid movement, digital activity, and playful intensity, bordering on frenetic. It evokes a futuristic or technologically advanced setting.\n\n**Rhythm:**\nThe rhythm is **frenetic and highly syncopated**, driven by the extremely fast arpeggiated synth sequence. There's no sustained, grooving beat; instead, it's a burst of rapid rhythmic information, anchored by a single strong low-end hit. The implied tempo is very fast.\n\n**Tone:**\nThe tone is predominantly **bright, sharp, and highly synthetic**. It has a clean, precise, and distinctly digital character. The high frequencies are very prominent, giving it a piercing and forward presence.\n\n**Ambient or Structural:**\nThis is definitively **structural**. It's a distinct musical phrase or sound effect with clear melodic and rhythmic elements that develop and resolve quickly, rather than an evolving atmospheric texture.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is layered and evolves rapidly. It starts with a smooth, almost liquid-like high-frequency sweep combined with a sharp, percussive transient. This quickly transitions into an intricate, rapid-fire, and staccato texture from the arpeggiator, creating a sense of digital complexity. Overall, it's very crisp and clean.\n*   **Frequencies:**\n    *   **Highs:** Extremely prominent and dominant, particularly from the initial sweeping synth and the sustained arpeggiated sequence. This gives the sound its bright, piercing, and energetic character.\n    *   **Mids:** Clear and well-defined, carrying the melodic and harmonic information of the arpeggiator without sounding muddy.\n    *   **Lows:** Sparse, featuring only a single, impactful, and well-defined low-frequency transient at the beginning. There is no sustained bass presence, keeping the focus on the upper frequencies.\n\n**Obvious Mix Problems:**\n*   **Clipping:** No obvious digital clipping is present.\n*   **Muddiness:** The mix is very clean and clear; there is no muddiness.\n*   **Harshness:** The high-frequency content is very bright and forward, and while intentional for the genre, it could border on harshness or ear fatigue at high listening volumes due to its intensity and sustained presence.\n*   **Weak Low End:** The low end is **sparse** rather than weak. It features a strong, singular transient but lacks sustained bass. This appears to be a deliberate stylistic choice to emphasize the high-frequency activity and rapid movement, rather than a mix problem.",
+          "energy": 0.654,
+          "brightness": 0.453,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.06,
+            "bass": 0.173,
+            "lowMid": 0.427,
+            "highMid": 0.197,
+            "high": 0.144
+          },
+          "metrics": {
+            "rmsDb": -14.302,
+            "spectralCentroidHz": 2830,
+            "estimatedBpm": null,
+            "onsetCount": 59
+          },
+          "profiledAt": "2026-06-27T10:27:10.543Z"
+        }
+      }
     ]
   }
 }

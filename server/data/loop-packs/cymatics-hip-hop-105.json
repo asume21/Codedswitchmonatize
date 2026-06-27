@@ -8,19 +8,79 @@
         "id": "texture-1",
         "label": "Dawn Ambience",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-1.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features a **synthesized drone**, characterized by deep, sustained frequencies and an evolving texture.\n\n**Instruments:** Primarily a low-frequency synthesizer creating a continuous drone. There are no other discernible instruments.\n\n**Genre:** Dark Ambient, Drone Music.\n\n**Mood:** Ominous, unsettling, mysterious, introspective, and heavily atmospheric. It evokes a sense of deep tension or brooding stillness.\n\n**Rhythm:** A-rhythmic. There is no discernible beat, tempo, or rhythmic pattern. The \"movement\" comes from the slow internal modulations of the drone itself.\n\n**Tone:** Dark, heavy, resonant, and somewhat gritty. It lacks brightness and has a deeply somber quality.\n\n**Ambient/Structural:** This is purely **ambient**. It serves to create an immersive atmosphere rather than a structured musical piece with distinct melodies or harmonic progressions.\n\n**Textures and Frequencies:**\n*   **Textures:** The sound is rich and dense, with a slightly rough, almost granular texture rather than a perfectly smooth sine wave. It has a \"breathing\" quality due to very slow, subtle amplitude and possibly filter modulations, creating a sense of internal movement and subtle beating. This slow oscillation adds to the unsettling nature. It feels like multiple detuned layers phase-shifting against each other.\n*   **Frequencies:** Heavily concentrated in the **sub-bass and low-mid ranges**. This gives the audio immense weight and depth. The mid-range provides body and a resonant quality, while the **high-end is almost entirely absent**, contributing significantly to its dark and oppressive character. The subtle modulations seem to primarily affect the low-mids, creating a perceived \"growl\" or \"rumble.\"\n\n**Mix Problems:**\n*   **Clipping:** No obvious digital clipping. The internal grit seems intentional sound design.\n*   **Muddiness:** While the low end is incredibly dense and heavy, it's not overtly muddy in a problematic sense for this genre. It's intentionally thick and monolithic. However, on some systems, the sheer density could overwhelm other frequencies if they were present, potentially leading to a lack of definition, but within the context of a pure drone, it serves its purpose.\n*   **Harshness:** None. The lack of high frequencies prevents any harshness.\n*   **Weak Low End:** Far from it; the low end is exceptionally strong, dominant, and resonant.",
+          "energy": 0.177,
+          "brightness": 0.437,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.014,
+            "bass": 0.037,
+            "lowMid": 0.693,
+            "highMid": 0.111,
+            "high": 0.145
+          },
+          "metrics": {
+            "rmsDb": -25.753,
+            "spectralCentroidHz": 2737,
+            "estimatedBpm": 144,
+            "onsetCount": 364
+          },
+          "profiledAt": "2026-06-27T10:32:01.754Z"
+        }
       },
       {
         "id": "texture-2",
         "label": "Violet Pad Bm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-2.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features a dreamy, repetitive electronic soundscape, reminiscent of retro-futuristic themes.\n\n**Instruments:**\n1.  **Arpeggiated Synth:** A bright, plucked, almost bell-like or pizzicato string synth that plays a fast, intricate, and rhythmic arpeggio pattern, carrying the primary melodic and rhythmic drive.\n2.  **Sustained Pad Synth:** A lush, wide, and ethereal synth pad provides the harmonic bed, creating a sense of space and melancholy.\n3.  **Synth Bass:** A low, sustained, and somewhat soft synth bass underpins the harmony, providing foundational weight without being particularly punchy.\n\n**Genre:** Synthwave / Retrowave / Ambient Electronic. It strongly evokes the soundscapes of 1980s or early 1990s electronic music, particularly video game soundtracks or film scores from that era.\n\n**Mood:** Melancholic, nostalgic, contemplative, slightly mysterious, and atmospheric. There's a subtle sense of longing or introspection.\n\n**Rhythm:** The rhythm is entirely driven by the rapid, consistent arpeggiated synth, which provides a perpetual motion feel. There are no drums or percussion, contributing to its ambient nature. The tempo feels moderately fast.\n\n**Tone:** Smooth, clean, and somewhat warm, with the arpeggio adding a bright, shimmery quality. The overall tone is consistent and not harsh.\n\n**Ambient or Structural:** It blends both. While highly structural due to the clear chord progression and the driving arpeggio, the lack of traditional percussion and the pervasive pads give it a strong ambient, atmospheric quality. It feels like a loop designed to create a consistent mood in a larger context (e.g., game background music, film score segment).\n\n**Textures and Frequencies:**\n*   **Textures:** The arpeggio is digital, clean, and slightly metallic with a plucked attack. The pad is airy, smooth, and expansive, creating a warm wash. The bass is resonant, sustained, and a bit subdued.\n*   **Frequencies:**\n    *   **Low End:** Dominated by the synth bass. It's present but lacks punch and definition. It mostly just holds the root notes.\n    *   **Mid-Range:** The arpeggiator sits prominently here, giving the track its driving energy. The pad also occupies the lower to mid-mids, providing body.\n    *   **High End:** The arpeggio has clear high-frequency sparkle, contributing to its glassy texture. The pad has some air but is not overly bright.\n\n**Mix Problems:**\n*   **Weak Low End:** The most noticeable mix problem is the lack of definition and punch in the low end. The synth bass is present but feels somewhat anemic and doesn't quite fill out the bottom effectively, especially for a genre that often benefits from a strong, resonant bass. It's more of an underpinning than a driving force.\n*   **Muddiness:** No significant muddiness is present; the individual elements are reasonably distinct.\n*   **Harshness:** No harshness in the high frequencies; the arpeggio is bright without being abrasive.\n*   **Clipping:** No obvious clipping.",
+          "energy": 0.342,
+          "brightness": 0.48,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.052,
+            "bass": 0.161,
+            "lowMid": 0.384,
+            "highMid": 0.263,
+            "high": 0.14
+          },
+          "metrics": {
+            "rmsDb": -21.783,
+            "spectralCentroidHz": 2982,
+            "estimatedBpm": null,
+            "onsetCount": 1041
+          },
+          "profiledAt": "2026-06-27T10:32:19.266Z"
+        }
       },
       {
         "id": "texture-3",
         "label": "Violet Texture",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/texture-loop-3.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio is a **dark, atmospheric ambient soundscape**, dominated by synthesized drones and evolving textures.\n\n**Instruments:**\nThe primary instruments are **synthesizers**, creating:\n*   **Low, rumbling, sustained synth pads/drones:** These form the foundational bed, with a deep, resonant, almost infrasonic quality. They have a subtle, internal movement, suggesting a distant, massive engine or cosmic hum.\n*   **Higher-pitched, shimmering, evolving synth textures:** These float above the drone, characterized by slow, sweeping filter movements and amplitude modulations, creating a sense of crystalline or metallic shimmer. They occasionally swell, producing whistle-like or spectral tones.\n\n**Genre:** Dark Ambient, Drone Ambient, Space Ambient. It leans heavily into a sci-fi or cosmic horror aesthetic.\n\n**Mood:** Eerie, vast, desolate, mysterious, slightly ominous, and contemplative. It evokes a sense of immense scale, isolation, and quiet unease.\n\n**Rhythm:** Arhythmic. There is no discernible pulse or beat. The sound evolves through slow, sustained movements, swells, and decays.\n\n**Tone:**\n*   **Harmonically:** Primarily dissonant and atonal, or ambiguously tonal. The sounds cluster rather than adhere to traditional melodic or harmonic progressions, creating tension and an unsettling atmosphere.\n*   **Timbrally:** Smooth, deep, resonant, expansive, shimmering, and occasionally sharp or crystalline in the higher frequencies.\n\n**Ambient or Structural:** This is definitively **ambient**. Its purpose is to create an immersive atmosphere rather than to follow a conventional musical structure. It evolves organically over time, with subtle shifts in texture and intensity.\n\n**Textures and Frequencies:**\n*   **Low Frequencies (Sub-bass to Low Mids):** Extremely prominent and foundational. There's a constant, deep rumble and hum, providing significant weight and a feeling of vastness. It's thick, dense, and sustained, giving the sound its monolithic quality.\n*   **Mid Frequencies:** Full and present, connecting the low end to the highs. These frequencies contribute to the sustained \"drone\" character, ensuring the sound feels rich and complete without becoming muddy.\n*   **High Frequencies (Upper Mids to Highs):** Clear, airy, and shimmering. These elements introduce movement and sparkle, often with a slightly metallic or glassy character. They provide a sense of space and add spectral \"whistle-like\" overtones during swells.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping is audible.\n*   **Muddiness:** The low end is very dense and resonant. While it's intentionally heavy for the genre, it verges on being overwhelming at times, and in a more complex mix, it *could* become muddy if not carefully managed. However, in this isolated context, it largely works for the intended atmosphere.\n*   **Harshness:** The high frequencies are bright and cutting but manage to avoid harshness; they are well-controlled and contribute to the ethereal quality.\n*   **Weak Low End:** Quite the opposite; the low end is strong, deep, and ever-present, forming the backbone of the entire soundscape.",
+          "energy": 0.078,
+          "brightness": 0.491,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.035,
+            "bass": 0.107,
+            "lowMid": 0.524,
+            "highMid": 0.168,
+            "high": 0.166
+          },
+          "metrics": {
+            "rmsDb": -28.139,
+            "spectralCentroidHz": 3047,
+            "estimatedBpm": 199,
+            "onsetCount": 962
+          },
+          "profiledAt": "2026-06-27T10:32:35.701Z"
+        }
       }
     ],
     "drums": [
@@ -28,7 +88,27 @@
         "id": "drums-1",
         "label": "Dawn Beat 105",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/drums-loop-1.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features a clean, driving electronic groove, characteristic of **Deep House / Tech House**.\n\n**Instruments:**\n*   **Kick Drum:** A solid, punchy four-on-the-floor kick lays down the foundation, with a good sub-bass presence.\n*   **Snare/Clap:** A sharp, dry snare or clap hits precisely on beats 2 and 4, providing rhythmic accents.\n*   **Hi-Hats:** A mix of closed and open hi-hats drive the rhythm. The open hi-hats are prominent on the off-beats, creating a shimmering, propulsive energy.\n*   **Synth Bass:** A deep, sustained, and slightly arpeggiated synth bass line provides harmonic grounding and rhythmic movement in the low-mids.\n*   **Lead Synth:** A high-pitched, plucky/bell-like synth plays a simple, repetitive melodic motif. It has a noticeable delay and reverb tail, contributing to a shimmering texture.\n*   **Subtle FX:** There are very subtle, almost imperceptible filter sweeps or background atmospheric elements adding to the depth.\n\n**Genre, Mood, Rhythm, and Tone:**\n*   **Genre:** Deep House / Tech House.\n*   **Mood:** Hypnotic, groovy, steady, and subtly energetic. It's clean and functional, suitable for a dancefloor or focused, relaxed listening. There's a cool, somewhat detached electronic ambiance.\n*   **Rhythm:** A steadfast 4/4 time signature around 120-125 BPM. The rhythm is driven by the consistent kick, snappy snare, and the propulsive open hi-hats. The bassline and lead synth add further rhythmic layers without overcrowding.\n*   **Tone:** Clear, bright, and precise. The electronic elements have a clean, modern feel. The overall tone is balanced, with good separation between frequencies.\n\n**Structural, Textures, and Frequencies:**\nThis is a **structural, looping groove**, designed to be the foundation of a track rather than an ambient soundscape.\n*   **Textures:** The textures are sparse but effectively layered. The drums are crisp, the bass is smooth yet resonant, and the high synth is shimmering and slightly metallic due to its plucky attack and delay. The overall texture is clean and uncluttered.\n*   **Frequencies:**\n    *   **Low End:** Strong and well-defined. The kick has impactful sub-bass, and the synth bass provides a warm, resonant body in the low-mids, giving the track a solid foundation. It is not weak.\n    *   **Mid Range:** Very clean and open. The snare cuts through distinctly, and the core frequencies of the high synth occupy the upper-mids without any muddiness.\n    *   **High End:** Crisp and airy, provided by the hi-hats and the bright, shimmering qualities of the lead synth. It's present and clear without being harsh.\n\n**Mix Problems:**\nThe mix appears well-engineered for the genre.\n*   There is **no obvious clipping**.\n*   The mix is very clean; there is **no muddiness**, with good separation between the kick and bass.\n*   The high frequencies are crisp but **not harsh**.\n*   The **low end is strong and punchy**, a defining characteristic of this style, and certainly not weak.\n*   Each element is well-balanced and sits clearly in the stereo field.",
+          "energy": 0.882,
+          "brightness": 0.423,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.04,
+            "bass": 0.211,
+            "lowMid": 0.477,
+            "highMid": 0.123,
+            "high": 0.149
+          },
+          "metrics": {
+            "rmsDb": -8.838,
+            "spectralCentroidHz": 2655,
+            "estimatedBpm": null,
+            "onsetCount": 95
+          },
+          "profiledAt": "2026-06-27T10:29:32.596Z"
+        }
       }
     ],
     "chords": [
@@ -36,13 +116,53 @@
         "id": "chords-1",
         "label": "Dawn Synth Cm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/chords-loop-1.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio presents a **dark, melancholic, and atmospheric ambient drone** piece.\n\n**Instruments:**\n1.  **Synth Pad (Low):** A sustained, rich, and slightly modulated synth pad forms the bed, providing a warm, deep, and evolving low-mid foundation.\n2.  **Synth Lead (High):** A distinct synth lead plays a slow, mournful melody with prominent portamento (glide) between notes. Its timbre has a slightly filtered, breathy attack and smooth sustain, evoking a vintage analog synth or Mellotron-like sound.\n3.  **Background Noise/Hiss:** A subtle, consistent layer of white noise or hiss is present throughout, contributing to a lo-fi or vintage atmospheric quality.\n\n**Genre:** Ambient, Dark Ambient, Drone, Cinematic (score).\n\n**Mood:** Deeply melancholic, introspective, somber, ethereal, and slightly desolate or eerie. It evokes a sense of quiet contemplation or vast, empty spaces.\n\n**Rhythm:** Extremely slow and largely arrhythmic. There is no discernible beat or pulse; the emphasis is on sustained notes and gradual melodic/harmonic shifts.\n\n**Tone:** Predominantly dark and warm, with a smooth, enveloping texture. The sound is not bright or harsh, leaning towards a slightly veiled or aged quality due to the synth lead's character and the subtle background noise.\n\n**Ambient/Structural:** This piece is purely **ambient**, lacking traditional song structure. It focuses on the continuous evolution of textures and atmosphere, with a repeated melodic motif serving as a central point of interest over a sustained drone.\n\n**Textures & Frequencies:**\n*   **Low-end:** Present and supportive from the synth pad, providing a deep, resonant foundation without being boomy or punchy. It's more felt than heard distinctly.\n*   **Mid-range:** Rich and full, dominated by the body of the synth pad and the expressive, vocal-like qualities of the synth lead. This is the core of the sound.\n*   **High-end:** Generally subtle and somewhat rolled off, contributing to the dark tone. The synth lead has enough high-mid presence to cut through clearly, but there are no piercing or sparkling high frequencies. The background hiss provides a very gentle presence in the upper frequencies.\nThe overall texture is thick and layered, with the sustained pad creating a dense, evolving backdrop for the slowly unfolding lead melody.\n\n**Mix Problems:** The mix appears intentional for the genre and aesthetic.\n*   There is **no obvious clipping, harshness, or muddiness**.\n*   The **low end is appropriate and supportive**, not weak, for this style, though it lacks percussive impact, which is expected.\n*   The subtle **background hiss** is integrated into the soundscape, seemingly an intentional aesthetic choice contributing to the lo-fi/vintage atmosphere rather than a technical flaw or unwanted noise.",
+          "energy": 0,
+          "brightness": 0.252,
+          "busyness": 0.424,
+          "bands": {
+            "sub": 0.025,
+            "bass": 0.07,
+            "lowMid": 0.75,
+            "highMid": 0.096,
+            "high": 0.058
+          },
+          "metrics": {
+            "rmsDb": -36.36,
+            "spectralCentroidHz": 1659,
+            "estimatedBpm": 41,
+            "onsetCount": 124
+          },
+          "profiledAt": "2026-06-27T10:31:28.226Z"
+        }
       },
       {
         "id": "chords-2",
         "label": "Dawn Lead 2",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/chords-loop-2.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio is a **dark ambient electronic soundscape**. It is highly **ambient** and structural, focusing on evolving textures and atmosphere rather than traditional melodic or rhythmic forms.\n\n**Instruments:**\nThe primary instruments are **synthesizer pads** and a **synthesizer lead/effect**.\n1.  **Synth Pad:** A deep, rich, and slowly evolving pad sound forms the foundation. It features gradual filter sweeps and pitch modulation, giving it a slightly orchestral or string-like quality but distinctly synthesized. It provides sustained harmonic beds.\n2.  **Synth Lead/Effect:** A higher-pitched, sustained, and wavering synth sound enters, creating a piercing, almost metallic or glassy timbre. It has a slow, LFO-driven vibrato or tremolo effect, contributing to its ethereal and slightly unsettling quality.\n\n**Genre:** Dark Ambient, Sci-Fi Soundscape, Drone Music, Electronic.\n\n**Mood:** Eerie, mysterious, desolate, vast, cold, tense, and slightly melancholic. It evokes a sense of vast empty spaces, perhaps futuristic or post-apocalyptic landscapes.\n\n**Rhythm:** Amorphous and freeform. There is no discernible beat, pulse, or traditional rhythmic structure. The sounds are sustained and evolve slowly, creating a sense of timelessness and suspended animation.\n\n**Tone:** Synthetic, expansive, digital, and somewhat cold. The lower pads are rich and resonant, while the higher lead is piercing and sharp, contrasting to create a wide sonic spectrum.\n\n**Textures & Frequencies:**\nThis is definitively **ambient** music, built on slowly shifting textures.\n*   **Textures:** The audio is dominated by smooth, rich, and evolving synthesizer textures. The main pad is a dense, thick layer that sweeps in its filter cutoff and perhaps pitch, creating a sense of movement within its sustain. Layered on top is a thinner, more focused, and wavering texture from the lead synth, which feels sharp and almost siren-like, cutting through the broader pad.\n*   **Frequencies:** The soundscape covers a broad range.\n    *   **Low End:** Well-supported by the deep, resonant quality of the main synth pad, providing a sustained, foundational rumble without being overly punchy or dominant.\n    *   **Mid-Range:** Full and rich, primarily from the body and evolving timbres of the pads, which sweep through various mid-frequencies.\n    *   **High End:** Clear and defined, largely characterized by the piercing, sustained notes of the lead synth, which provides a high-frequency sparkle and a sense of vastness or unease.\n\n**Mix Problems:**\nThe mix generally sounds clean and well-balanced for this style of atmospheric music.\n*   **Clipping:** No obvious clipping or distortion is present.\n*   **Muddiness:** The sound elements are distinct enough that muddiness is not an issue; the pads, though rich, maintain clarity.\n*   **Harshness:** While the high-pitched lead synth has a piercing quality, which is intrinsically sharp, it appears to be an intentional tonal choice for the mood rather than a mixing problem of harsh frequencies or excessive gain. It's sharp but not unpleasantly distorted.\n*   **Weak low end:** The low end is present and supportive through the sustained pads, appropriate for an ambient track. It is not weak or lacking.",
+          "energy": 0,
+          "brightness": 0.314,
+          "busyness": 0.82,
+          "bands": {
+            "sub": 0.008,
+            "bass": 0.036,
+            "lowMid": 0.765,
+            "highMid": 0.107,
+            "high": 0.084
+          },
+          "metrics": {
+            "rmsDb": -32.256,
+            "spectralCentroidHz": 2022,
+            "estimatedBpm": null,
+            "onsetCount": 240
+          },
+          "profiledAt": "2026-06-27T10:31:46.074Z"
+        }
       }
     ],
     "melody": [
@@ -50,19 +170,79 @@
         "id": "melody-1",
         "label": "Dawn Full Cm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-1.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features an **ambient electronic** track with strong **chillwave** and **cinematic** undertones.\n\n**Instruments:**\n*   **Arpeggiated Synthesizer:** This is the primary melodic and rhythmic driver. It has a bright, slightly plucky, bell-like quality, but with a long, smooth release, often treated with generous reverb.\n*   **Synth Pads:** Lush, sustained, and wide pads form the harmonic foundation, providing a hazy, evolving backdrop. They fill the space with a rich, ethereal quality.\n*   **Low-Frequency Synthesizer/Sub-Bass:** A deep, sustained, and filtered synth texture provides the low-end weight, acting more as a continuous harmonic rumble than a distinct bassline.\n\n**Genre:** Ambient Electronic, Chillwave, Downtempo, Cinematic.\n\n**Mood:** Melancholy, reflective, serene, and dreamy. There's a subtle sense of longing or nostalgia, but it remains calm and ethereal.\n\n**Rhythm:** Slow tempo, approximately 60-70 BPM. There are no traditional drums or percussion. The rhythm is entirely driven by the continuous arpeggiated synth, which creates a consistent, hypnotic pulse and forward momentum, despite the lack of percussive accents.\n\n**Tone:** Soft, warm, lush, and highly spacious. The synth tones are smooth and rounded, avoiding any harshness. The ample use of reverb contributes significantly to an open, expansive soundscape.\n\n**Ambient or Structural:** This piece is **structural** despite its ambient characteristics. It features clear sections: an arpeggiator-driven \"verse\" (0:00-0:17), followed by a more purely ambient \"chorus\" where the arpeggiator drops out and sustained pads dominate (0:18-0:28), before returning to the arpeggiated theme (0:29-end).\n\n**Textures & Frequencies:**\n*   **Textures:** The texture is consistently smooth, sustained, and shimmering. The arpeggiator provides a delicate, crystalline layer over the thick, evolving synth pads. The deep low end is a constant, rumbling cushion. The overall feel is one of sonic fluidity and depth.\n*   **Frequencies:**\n    *   **Low End:** Present, deep, and continuous, providing a solid, foundational weight. It's more of a sub/low-mid hum than a punchy bass, perfectly serving the ambient nature. It doesn't sound weak, but rather deliberately subdued in attack.\n    *   **Mid-Range:** Rich, full, and warm, where the body of the pads and the arpeggiator's core reside. There's no muddiness; individual elements remain distinct within the wash.\n    *   **High End:** Clear and shimmery, particularly from the arpeggiator's attacks, but it is beautifully softened and smoothed by the generous reverb, preventing any harshness or brittleness.\n\n**Obvious Mix Problems:**\nThe mix appears clean and well-balanced. There are **no obvious issues** with clipping, muddiness, or harshness. The low end is appropriate for the genre, providing depth without being overly aggressive or weak.",
+          "energy": 0.663,
+          "brightness": 0.324,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.079,
+            "bass": 0.217,
+            "lowMid": 0.503,
+            "highMid": 0.093,
+            "high": 0.109
+          },
+          "metrics": {
+            "rmsDb": -14.081,
+            "spectralCentroidHz": 2078,
+            "estimatedBpm": null,
+            "onsetCount": 537
+          },
+          "profiledAt": "2026-06-27T10:30:30.316Z"
+        }
       },
       {
         "id": "melody-2",
         "label": "Violet Full Bm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-2.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This is an electronic track with a driving, melancholic, and atmospheric feel.\n\n**Instruments:**\n*   **Drums:** A tight, punchy **four-on-the-floor kick drum** forms the backbone. A sharp, electronic **snare** hits on the two and four. Crisp, precise **hi-hats** provide constant rhythmic drive, often with open hats accentuating certain beats. There might be very subtle, layered electronic percussion (e.g., shakers, claps), but the primary rhythm section is clean and minimalist.\n*   **Bass:** A low, sustained **synthesized bassline** provides a deep, sub-frequency foundation. It's solid and consistent, anchoring the harmony without being overly melodic.\n*   **Synthesizers:**\n    *   **Arpeggiated Melody Synth:** A prominent, high-pitched, almost bell-like or plucked synth plays a continuously arpeggiated melody. It has a shimmering, slightly detuned quality and is often processed with delay and reverb, creating a sense of movement and space.\n    *   **Pad Synth:** Sweeping, sustained synth pads provide harmonic and atmospheric depth. These pads often feature slow filter sweeps, opening up to reveal more brightness and then closing down, adding to the evolving texture.\n\n**Genre:** Melodic Techno / Progressive Trance (with a strong emphasis on the progressive house aesthetic).\n\n**Mood:** Melancholic, introspective, yet driving and subtly uplifting. It evokes a feeling of journey or thoughtful contemplation. The emotional pull comes from the interplay of the yearning pads and the persistent, almost hopeful arpeggio.\n\n**Rhythm:** The rhythm is highly consistent and driving, characterized by a steady four-on-the-floor kick at a moderate tempo (likely 125-128 BPM). The hi-hats provide constant sixteenth or eighth-note subdivisions, ensuring forward momentum.\n\n**Tone:** Clean, crisp, and polished electronic. The high-end is bright without being harsh, the mid-range is clear, and the low-end is full and controlled. There's a slight warmth from the pads contrasting with the cooler, crystalline arpeggio.\n\n**Textures and Frequencies:**\nThis track is **structural** rather than ambient, built upon clearly defined rhythmic and melodic patterns.\n*   **Textures:** Richly layered with a strong emphasis on evolving synth textures. The arpeggiated synth creates a shimmering, pointillistic texture, while the pads provide a smooth, sustained, and often sweeping texture due to filter modulation. Reverb and delay are used generously, creating a vast, spacious soundstage.\n*   **Frequencies:**\n    *   **Low End:** The kick and bass provide a solid, tight foundation. The sub-bass is present and well-defined, providing weight without muddiness.\n    *   **Mid-Range:** Clean and open. The main melodic synths and the body of the pads occupy this space, clearly delineated from each other.\n    *   **High End:** Clear and airy, with crisp hi-hats and the bright, almost crystalline quality of the arpeggiated synth. There's good detail and sparkle.\n\n**Obvious Mix Problems:**\nThe mix appears to be well-engineered.\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is very clean; there is no muddiness in the mid-range or low-mids. Each element has its space.\n*   **Harshness:** The high-end is crisp but not harsh or fatiguing.\n*   **Weak Low End:** The low end is present, solid, and well-defined, providing ample foundation without being overwhelming. It's appropriately balanced for the genre.\n\nOverall, it's a professionally mixed and produced track with excellent clarity and dynamic control.",
+          "energy": 0.5,
+          "brightness": 0.388,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.055,
+            "bass": 0.196,
+            "lowMid": 0.398,
+            "highMid": 0.244,
+            "high": 0.108
+          },
+          "metrics": {
+            "rmsDb": -17.991,
+            "spectralCentroidHz": 2448,
+            "estimatedBpm": null,
+            "onsetCount": 1064
+          },
+          "profiledAt": "2026-06-27T10:30:50.498Z"
+        }
       },
       {
         "id": "melody-3",
         "label": "Dawn Lead",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/melody-loop-3.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features a rich, evolving **synth pad**, likely a layered combination of two or more synthetic textures. It predominantly mimics a large, sweeping **synthetic string ensemble** or a very lush pad with a prominent **high-frequency shimmer** that could be a separate ambient pad layer. There are no drums, percussive elements, or distinct bassline, nor is there a lead melody; the piece is driven purely by harmony and texture.\n\n**Genre:** Ambient/Drone with strong Cinematic/Soundtrack qualities. It borders on New Age but has a more expansive, less overtly \"spiritual\" feel.\n\n**Mood:** Pensive, reflective, expansive, and somewhat melancholic but also imbued with a sense of serene beauty and subtle hopefulness. It evokes a feeling of vastness or quiet contemplation.\n\n**Rhythm:** Extremely slow and arhythmic. There is no discernible pulse or beat, focusing instead on long, sustained chords and their harmonic progression.\n\n**Tone:** Lush, warm, and highly sustained. It's clean, digitally produced, with a broad frequency spectrum that provides both a comforting warmth in the mids and a bright, airy sparkle in the highs. The sound is heavily reverbed, creating a wide and immersive sense of space.\n\n**Structure & Textures:** This piece is **structural** due to its clear, albeit slow, chord progression. It's not a shapeless drone, but rather a harmonic sequence that repeats and slowly fades out.\n*   **Textures:** Smooth, dense, and layered. The core is a soft, enveloping blanket of sound from the mid-range pads. This is augmented by a delicate, crystalline, almost glassy texture in the high frequencies, adding an ethereal shimmer. The attack of the notes is soft, and the decay is extremely long, blending into the subsequent chords.\n\n**Frequencies:**\n*   **Low End:** Present but not prominent, providing a warm, underpinning cushion rather than a defined bass. It lacks punch or clear articulation, tending towards a subtle rumble. (Approx. 40Hz - 200Hz).\n*   **Mid-Range:** Extremely dominant and full. This is where the main body and warmth of the synth pads reside, giving the sound its rich, enveloping quality. (Approx. 200Hz - 2kHz).\n*   **High-Mid/High End:** Significantly present, contributing a bright, airy, almost metallic or glassy shimmer. This gives the sound its spaciousness and crystalline texture. (Approx. 2kHz - 10kHz+).\n\n**Obvious Mix Problems:**\n*   **Muddiness:** There's a slight lack of definition in the low-mids and low end of the pads. While it contributes to the warm, blended feel, it can make the overall sound feel a touch thick and less clear than it could be, particularly as chords change.\n*   **Weak Low End:** The very bottom frequencies are present but lack significant power or distinctness. The track relies more on mid-range fullness for its weight. This might be an intentional stylistic choice for the ambient genre, but objectively, the extreme low end isn't very strong.\n*   No obvious clipping or harshness. The high end, while bright, remains smooth.",
+          "energy": 0,
+          "brightness": 0.525,
+          "busyness": 0.827,
+          "bands": {
+            "sub": 0.021,
+            "bass": 0.06,
+            "lowMid": 0.542,
+            "highMid": 0.213,
+            "high": 0.164
+          },
+          "metrics": {
+            "rmsDb": -32.874,
+            "spectralCentroidHz": 3248,
+            "estimatedBpm": null,
+            "onsetCount": 242
+          },
+          "profiledAt": "2026-06-27T10:31:08.370Z"
+        }
       }
     ],
     "bass": [
@@ -70,13 +250,53 @@
         "id": "bass-1",
         "label": "Dawn Bass Cm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/bass-loop-1.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio presents a minimalist, dark, and atmospheric soundscape.\n\n**Instruments:**\n*   A **deep, resonant synth bass/pad** forms the foundational element, characterized by a sustained, slightly detuned or phase-shifted tone, giving it a subtle \"wobble\" or slow LFO effect. It operates in the sub-bass to low-mid range.\n*   Sparse **percussive elements** include a very sharp, metallic, high-frequency \"clack\" or \"click\" that functions as a rhythmic marker. There's also a subtle, low-mid focused **soft thud/kick** that occasionally reinforces the underlying pulse, almost like a muted impact.\n*   A **high-frequency ambient pad/swell** is present, providing an airy, almost whispering or hissing texture that gradually evolves in the background, adding to the desolate atmosphere.\n\n**Genre:** Dark Ambient, Industrial Ambient, Minimalist Downtempo. It leans heavily into sound design rather than conventional melodic or harmonic structures.\n\n**Mood:** Ominous, foreboding, desolate, introspective, and slightly unsettling. There's a pervasive sense of coldness and tension.\n\n**Rhythm:** The rhythm is slow, sparse, and hypnotic. The primary rhythmic anchor is the recurring metallic \"clack,\" which establishes a very deliberate, unhurried pulse (estimated ~80-90 BPM if counting the clack, but it's more about placement than a driving beat). The bass is sustained and evolving rather than rhythmically distinct.\n\n**Tone:** The overall tone is dark, cold, synthetic, and deep. The metallic percussive elements introduce a sharp, almost brittle quality against the deep, sustained synth tones.\n\n**Ambient or Structural:** This piece is predominantly **ambient** with subtle **structural** elements provided by the consistent, spaced-out percussive hits. The evolving synth pad and bass are more textural and atmospheric.\n\n*   **Textures:** The low end is thick, weighty, and rumbling, providing a heavy, almost oppressive foundation. The high-frequency percussion is sharp, dry, and metallic. The background pad is airy, wispy, and creates a sense of space or emptiness.\n*   **Frequencies:**\n    *   **Sub-bass/Low-end:** Very strong and present, carrying the main synth pad's sustained resonance.\n    *   **Low-mids:** Thick and full, contributing to the ominous weight, with the soft thud occupying this range.\n    *   **Mids:** Relatively sparse, allowing for clarity, with some presence from the main synth.\n    *   **High-mids/Treble:** Dominated by the distinct, sharp metallic clack, which cuts through cleanly. The airy pad occupies the very high-frequency range, adding sparkle and atmosphere without being harsh.\n\n**Mix Problems:**\n*   **Clipping:** No audible clipping or distortion.\n*   **Muddiness:** The low end is very prominent and deep, but it sounds well-controlled and doesn't exhibit significant muddiness, maintaining clarity for the other elements.\n*   **Harshness:** The metallic \"clack\" is intentionally sharp but is not overly harsh or fatiguing. The high-frequency ambient pad is airy rather than piercing.\n*   **Weak low end:** Absolutely not; the low end is a defining characteristic and is robust and deeply resonant.\n\nThe mix is clean and well-balanced for the intended minimalist, dark aesthetic, with excellent separation between the few elements and a powerful, clear low end.",
+          "energy": 0.7,
+          "brightness": 0.396,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.123,
+            "bass": 0.337,
+            "lowMid": 0.288,
+            "highMid": 0.108,
+            "high": 0.145
+          },
+          "metrics": {
+            "rmsDb": -13.203,
+            "spectralCentroidHz": 2499,
+            "estimatedBpm": null,
+            "onsetCount": 536
+          },
+          "profiledAt": "2026-06-27T10:29:49.531Z"
+        }
       },
       {
         "id": "bass-2",
         "label": "Violet Bass Bm",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-105/bass-loop-2.wav",
-        "bars": 4
+        "bars": 4,
+        "profile": {
+          "description": "This audio features a **minimalist, contemplative electronic track** characterized by sustained synth elements and a delicate arpeggiated melody. It is distinctly **structural** with a clear, repeating melodic and harmonic progression, yet it heavily incorporates **ambient textures and a spacious mood**.\n\n**Instruments:**\n*   **Lead Synth (Melody):** A clean, high-pitched synth with a bell-like or plucked quality. It has a quick attack and a relatively short, shimmering decay, playing a simple, arpeggiated, two-bar repeating phrase.\n*   **Bass Synth/Pad:** A low, sustained synthesizer providing a harmonic foundation. It's deep and resonant, with a subtle, slow filter modulation that adds warmth and slight movement. It sounds like a smooth sine or soft saw wave, holding long notes that shift with the progression.\n\n**Genre:** Ambient Electronica, Downtempo, IDM (Intelligent Dance Music) with a strong minimalist influence.\n\n**Mood:** Calm, peaceful, introspective, contemplative, and somewhat melancholic or ethereal. It evokes a sense of quiet reflection or a spacious, dream-like state.\n\n**Rhythm:** The rhythm is slow and deliberate, around 60-65 BPM, with a 4/4 feel. It is established primarily by the consistent, arpeggiated pattern of the lead synth and the long, cycling root notes of the bass. There are no percussive elements, contributing to the unhurried and floating feel.\n\n**Tone:**\n*   **Overall Tone:** Clean, clear, and spacious. The individual elements are distinct.\n*   **Melody Tone:** Bright, crystalline, and slightly delicate.\n*   **Bass Tone:** Smooth, deep, and subtly warm with a hint of digital sheen.\n\n**Textures & Frequencies:**\n*   **Textures:** The track is sparse and uncrowded. The lead synth provides a shimmering, plucked texture, while the bass offers a smooth, sustained, slightly undulating texture. The overall texture is one of open space and gentle movement.\n*   **Frequencies:**\n    *   **Low End:** Present and supportive from the bass synth, occupying the sub-bass to low-mid range. It's deep and resonant but not punchy or dominant; it provides an atmospheric foundation.\n    *   **Mid Range:** Clear and open. The melodic synth sits in the upper-mid frequencies, allowing it to stand out without competing with the bass. There's a good separation.\n    *   **High End:** Bright and clean from the harmonics of the melodic synth, without being harsh. It adds a sense of airiness to the track.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping detected.\n*   **Muddiness:** The mix is very clean and well-separated; there is no muddiness.\n*   **Harshness:** The high frequencies from the lead synth are present and clear but not harsh.\n*   **Weak Low End:** The low end is present and provides a foundation but is relatively soft and atmospheric, not a strong, driving bass. While not \"weak\" in a detrimental sense for this genre, it won't satisfy listeners looking for a powerful or prominent bassline. It's intentionally understated, contributing to the track's spacious quality.",
+          "energy": 0.477,
+          "brightness": 0.324,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.092,
+            "bass": 0.324,
+            "lowMid": 0.364,
+            "highMid": 0.11,
+            "high": 0.11
+          },
+          "metrics": {
+            "rmsDb": -18.55,
+            "spectralCentroidHz": 2080,
+            "estimatedBpm": 154,
+            "onsetCount": 951
+          },
+          "profiledAt": "2026-06-27T10:30:09.855Z"
+        }
       }
     ]
   },

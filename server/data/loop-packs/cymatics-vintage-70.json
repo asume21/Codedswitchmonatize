@@ -10,7 +10,27 @@
         "id": "drums-1",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/drums-loop-1.wav",
         "bars": 8,
-        "label": "Vintage Drums"
+        "label": "Vintage Drums",
+        "profile": {
+          "description": "This audio presents a minimalist, dark ambient soundscape characterized by two primary elements:\n\n**Instruments:**\n*   A low, resonant, and somewhat muffled percussive impact, resembling a large, deep thud (e.g., a huge kick drum, a large tom hit, or a foley sound of a heavy object striking a resonant surface like wood or metal).\n*   A high-pitched, sustained, shimmering drone or pad with a metallic or glassy timbre, possibly synthesized or a processed bowed instrument/object.\n\n**Genre:**\nDark Ambient, Experimental Electronic, Sound Design, Cinematic (specifically for suspense or horror).\n\n**Mood:**\nEerie, ominous, desolate, suspenseful, introspective, and slightly unsettling. It evokes a sense of vast emptiness or impending tension.\n\n**Rhythm:**\nVery slow, sparse, and irregular. The low impacts are highly infrequent and lack a consistent tempo or groove, creating a sense of foreboding anticipation rather than a driving beat. The high drone is continuous and non-rhythmic.\n\n**Tone:**\nThe overall tone is dark and cold, contrasting deep, resonant thuds with a high, sustained, almost ethereal shimmer. It's stark and somewhat industrial in its sparse, metallic character.\n\n**Ambient or Structural:**\nPredominantly **ambient** and **textural**. There is no traditional melodic, harmonic, or rhythmic structure in the conventional sense. The piece focuses on evolving atmosphere through the interplay of distinct sonic textures.\n\n**Textures and Frequencies:**\n*   **Low Frequencies:** Dominated by the deep, resonant thud. This element has a thick, somewhat boomy texture with a slow decay, providing a heavy, foundational, yet slightly indistinct rumble.\n*   **Mid Frequencies:** Very sparse, creating a sense of emptiness and allowing the low and high elements to stand out distinctly. The body of the thud has some low-mid presence.\n*   **High Frequencies:** Occupied by the sustained, shimmering drone. It has a smooth, ethereal texture with a long, slow decay, providing a sense of spaciousness and an almost piercing quality without being harsh.\n*   **Overall Texture:** Sparse, layered, and atmospheric, built on the contrast between deep, percussive impacts and continuous, high-frequency washes.\n\n**Obvious Mix Problems:**\n*   **Muddiness/Boominess:** The primary low impact sound exhibits a slight *boominess* or *muddiness* in the low-mid frequencies. While potentially intentional for character, it slightly reduces the clarity and tightness of the impact, making it feel less defined than it could be.\n*   **Weak Low End (definition):** While the low end is present, it lacks sharp definition and punch. It leans more towards a resonant rumble than a clean, precise sub-bass impact.\n*   No obvious clipping or harshness is detected; the sparse nature of the mix keeps elements well-separated.",
+          "energy": 0.103,
+          "brightness": 0.364,
+          "busyness": 0.51,
+          "bands": {
+            "sub": 0.143,
+            "bass": 0.255,
+            "lowMid": 0.374,
+            "highMid": 0.103,
+            "high": 0.125
+          },
+          "metrics": {
+            "rmsDb": -27.519,
+            "spectralCentroidHz": 2312,
+            "estimatedBpm": 169,
+            "onsetCount": 112
+          },
+          "profiledAt": "2026-06-27T11:03:52.873Z"
+        }
       }
     ],
     "bass": [
@@ -18,7 +38,27 @@
         "id": "bass-1",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/bass-loop-1.wav",
         "bars": 8,
-        "label": "Soul Bass E"
+        "label": "Soul Bass E",
+        "profile": {
+          "description": "This audio features a **minimal, repetitive, high-frequency electronic motif**.\n\n**Instruments:** A single **synthesizer** is heard, generating a clean, piercing, sine or square wave-like tone. There are no other instruments.\n\n**Genre:** Minimal electronic, ambient electronic, or sci-fi sound design. It could function as a suspenseful underscore.\n\n**Mood:** Eerie, tense, unsettling, sparse, and somewhat clinical or futuristic. It evokes a sense of suspense or subtle alarm.\n\n**Rhythm:** The rhythm is highly **structural** and consistent, a steady, almost metronomic series of short, high-pitched pulses, creating a repeating pattern.\n\n**Tone:** Sharp, bright, piercing, synthetic, and very clean.\n\n**Ambient or Structural:** This is a **structural** piece, not ambient, built around a distinct, repeating rhythmic and melodic pattern.\n*   **Textures:** The texture is extremely thin, sharp, and almost needle-like, with no warmth or depth. It feels stark and precise.\n*   **Frequencies:** The sound is heavily concentrated in the **very high frequencies** (likely 4kHz+), with virtually no mid-range or low-end presence whatsoever.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping is audible; the sound is clean.\n*   **Muddiness:** Impossible to be muddy due to its sparse, high-frequency nature.\n*   **Harshness:** The extreme concentration of energy in the high-end can be perceived as **harsh** or fatiguing over prolonged listening for some, though this is likely an intentional characteristic to create the unsettling mood.\n*   **Weak low end:** The mix suffers from an **extremely weak low end**; there is absolutely no bass or sub-bass information present, making the entire sound profile top-heavy. While a \"problem\" in a full-spectrum sense, it's clearly an artistic choice to enhance the unsettling, thin nature of the piece.",
+          "energy": 0.499,
+          "brightness": 0.217,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.064,
+            "bass": 0.654,
+            "lowMid": 0.138,
+            "highMid": 0.06,
+            "high": 0.083
+          },
+          "metrics": {
+            "rmsDb": -18.035,
+            "spectralCentroidHz": 1458,
+            "estimatedBpm": 175,
+            "onsetCount": 335
+          },
+          "profiledAt": "2026-06-27T11:04:07.634Z"
+        }
       }
     ],
     "melody": [
@@ -26,25 +66,105 @@
         "id": "melody-1",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-1.wav",
         "bars": 8,
-        "label": "Lead Guitar"
+        "label": "Lead Guitar",
+        "profile": {
+          "description": "This audio features a **clean electric guitar** playing arpeggiated chords with a distinct, sustained character, and a **synth bass** providing a deep, resonant foundation. There are also subtle, metallic **finger clicks or snaps** acting as a percussive element, adding a human rhythmic touch.\n\nThe **genre** leans towards a minimalistic, atmospheric blend of **Indie Pop, Dream Pop, or Lo-Fi Ambient Pop**.\n\nThe **mood** is **introspective, calm, and slightly melancholic yet hopeful**. There's a sense of gentle contemplation, creating a relaxing and ethereal atmosphere.\n\nThe **rhythm** is **slow, steady, and sparse**. The guitar arpeggios move languidly, and the finger clicks mark a very relaxed tempo. It's a 4/4 meter, but the emphasis is on space and sustain rather than complex rhythmic interplay. The percussive element is very dry and upfront.\n\nThe **tone** is **warm and clean** for the guitar, with a subtle shimmer from reverb/delay, contributing to its sustained quality. The bass is deep and round, providing a comforting low-end presence. The finger clicks are crisp and dry, adding a contrasting sharp transient.\n\nThis piece is primarily **structural**, built around a clear chord progression and melodic arpeggios, though its spaciousness lends it ambient qualities. The texture is **sparse and open**, with distinct layers.\n*   **Low Frequencies:** Dominated by the warm, round synth bass, which provides a solid but not overwhelming foundation. It's clean and well-controlled.\n*   **Mid Frequencies:** Occupied by the electric guitar's arpeggios, which are clear and present without being aggressive.\n*   **High Frequencies:** The finger clicks are prominent in the upper mids and highs, adding a crisp, almost delicate percussive texture. The guitar's natural high-end shimmer from effects also contributes here.\n\n**Mix Problems:**\n*   There are **no obvious clipping, muddiness, or harshness**. The mix is quite clean and well-balanced for its sparse arrangement.\n*   The **low end is strong and present** from the synth bass, providing a good foundation without being boomy or weak.\n*   The **finger clicks** are quite loud and dry in comparison to the other elements, almost feeling a bit detached from the reverb-soaked guitar and bass. While it adds a distinct character, they are almost too \"in your face\" for the otherwise ethereal mood, potentially leading to a slight imbalance in the percussive vs. harmonic elements. It's not necessarily a \"problem,\" but a noticeable mixing choice that makes them stand out significantly.",
+          "energy": 0,
+          "brightness": 0.385,
+          "busyness": 0.957,
+          "bands": {
+            "sub": 0.026,
+            "bass": 0.054,
+            "lowMid": 0.693,
+            "highMid": 0.097,
+            "high": 0.13
+          },
+          "metrics": {
+            "rmsDb": -30.143,
+            "spectralCentroidHz": 2434,
+            "estimatedBpm": 114,
+            "onsetCount": 210
+          },
+          "profiledAt": "2026-06-27T11:04:18.711Z"
+        }
       },
       {
         "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-2.wav",
         "bars": 8,
-        "label": "Piano"
+        "label": "Piano",
+        "profile": {
+          "description": "This audio features a **solo acoustic piano**.\n\n**Genre:** Contemporary Classical / Minimalist Solo Piano, with a strong melancholic and introspective character.\n\n**Mood:** Highly melancholic, reflective, poignant, somber, and contemplative. It evokes a feeling of quiet sadness, longing, or introspection.\n\n**Rhythm:** Very slow and deliberate, with a consistent, unhurried tempo. The phrasing suggests a gentle rubato feel, allowing notes to sustain and resonate. There's no strong percussive rhythm; it's entirely melodic and harmonic.\n\n**Tone:** The piano has a clear, resonant, and slightly delicate tone. Higher notes exhibit a beautiful bell-like quality, while lower notes provide a gentle, almost understated foundation. The playing style is predominantly legato, creating smooth transitions between notes.\n\n**Structure:** The piece is **structural**, consisting of a distinct, repeating musical phrase with clear melodic and harmonic development. It is not an amorphous ambient soundscape.\n\n**Textures:** The texture is sparse and transparent, primarily homophonic. A clear, single-note melody is played in the right hand, supported by simple, often arpeggiated or block chords in the left hand. The overall texture is open and uncluttered.\n\n**Frequencies:**\n*   **Highs:** Present and clear, providing sparkle and definition to the melody, contributing to the bell-like quality. Not harsh.\n*   **Mids:** Dominant and well-defined, where the core melodic and harmonic information resides. The piano's body resonance is evident here.\n*   **Lows:** Present, offering a gentle fundamental, but not particularly deep, powerful, or resonant. They provide subtle support rather than a strong foundation.\n\n**Mix Problems:**\n*   **Clipping:** None apparent. The dynamics are gentle, well below clipping thresholds.\n*   **Muddiness:** No muddiness whatsoever. The sound is exceptionally clear and open, with excellent note separation.\n*   **Harshness:** No harshness. The high frequencies are pleasant and well-balanced.\n*   **Weak Low End:** The low end is present but not robust or deep. While it provides a foundation, it lacks significant weight or warmth. This might be a stylistic choice for a more delicate and ethereal sound, rather than a technical mix problem, but it contributes to the overall slightly bright and less grounded sonic character.",
+          "energy": 0,
+          "brightness": 0.476,
+          "busyness": 0.561,
+          "bands": {
+            "sub": 0.018,
+            "bass": 0.052,
+            "lowMid": 0.647,
+            "highMid": 0.121,
+            "high": 0.162
+          },
+          "metrics": {
+            "rmsDb": -33.754,
+            "spectralCentroidHz": 2959,
+            "estimatedBpm": 172,
+            "onsetCount": 123
+          },
+          "profiledAt": "2026-06-27T11:04:35.377Z"
+        }
       },
       {
         "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-3.wav",
         "bars": 8,
-        "label": "Vibraphone"
+        "label": "Vibraphone",
+        "profile": {
+          "description": "This audio is a **sustained ambient soundscape** primarily featuring **synthesized or heavily processed string pads**.\n\n**Instruments:** The core sound is a rich, multi-layered string ensemble, or a high-quality synth pad emulating strings. There are sustained high-register elements (like violins/violas) and a deep, foundational layer of lower strings (like cellos/basses). No distinct individual instruments, percussion, or lead melodies are present.\n\n**Genre:** Ambient, Drone, Minimalist Classical, or Cinematic Score. It prioritizes atmosphere and texture over traditional melodic or rhythmic development.\n\n**Mood:** Melancholic, somber, introspective, and slightly unsettling. It evokes feelings of vastness, contemplation, or a sense of solemn majesty.\n\n**Rhythm:** Arhythmic. There is no discernible beat, tempo, or percussive rhythm. The piece unfolds through extremely slow, deliberate harmonic shifts and sustained tones.\n\n**Tone:** Rich, full, and resonant. The higher frequencies possess a clear, slightly shimmering or ethereal quality, while the mid-range is dense and harmonically layered. The low end provides a deep, sustained warmth. The overall tone is expansive, enveloping, and slightly cold yet captivating.\n\n**Ambient/Structural:** This is definitively **ambient**. It lacks a traditional linear structure (verse/chorus, distinct sections) and instead focuses on creating a continuous, evolving atmosphere through sustained harmonies and textures.\n\n**Textures:** The texture is smooth, incredibly sustained, and evolving. It's a thick, pad-like sound composed of multiple, slowly detuning or modulating layers. There's a subtle shimmering or slow vibrato in the higher registers, contributing to its ethereal quality. The overall texture feels dense yet spacious, like a slowly shifting harmonic cloud.\n\n**Frequencies:**\n*   **Low End:** Present and deep, providing a solid, warm, and foundational hum that underpins the entire track. It's not boomy or weak, but rather a constant, subtle support.\n*   **Mid-Range:** Extremely full and rich, forming the core of the harmonic content. This range feels dense and enveloping, where the primary \"string pad\" character resides.\n*   **High End:** Clear, airy, and sparkling. It adds brilliance and a sense of space without any harshness or brittleness, contributing to the ethereal quality.\n\n**Mix Problems:** The mix appears clean and well-executed for the genre. There is **no obvious clipping, muddiness, or harshness**. The low end is appropriate for an ambient track – foundational and deep without being overpowering or weak. The various frequency ranges are well-integrated, and the dynamics are smooth and controlled, allowing the sustained tones to breathe.",
+          "energy": 0.069,
+          "brightness": 0.239,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.015,
+            "bass": 0.033,
+            "lowMid": 0.816,
+            "highMid": 0.065,
+            "high": 0.07
+          },
+          "metrics": {
+            "rmsDb": -28.341,
+            "spectralCentroidHz": 1586,
+            "estimatedBpm": null,
+            "onsetCount": 397
+          },
+          "profiledAt": "2026-06-27T11:04:51.591Z"
+        }
       },
       {
         "id": "melody-4",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-4.wav",
         "bars": 8,
-        "label": "Bell"
+        "label": "Bell",
+        "profile": {
+          "description": "This audio presents a **delicate, minimalist musical texture**, primarily driven by a **bright, resonant mallet instrument** (likely a glockenspiel or celeste) playing sparse, sustained melodic phrases. This is gently supported by a **soft, ethereal synth pad** providing a sustained, ambient harmonic wash in the background.\n\n**Genre:** Ambient, Cinematic Underscore, or Minimalist Instrumental.\n**Mood:** Reflective, wistful, serene, and subtly melancholic, evoking a sense of fragility or quiet contemplation.\n**Rhythm:** Extremely slow in tempo, free-flowing, and largely devoid of strong percussive or rhythmic drive. The mallet notes have long decays and significant pauses between them, contributing to a sense of spaciousness.\n**Tone:** Overall delicate, clean, and airy. The glockenspiel provides a clear, sparkling, bell-like tone, while the pad offers a warm, diffused, and slightly hazy quality.\n\nThe piece is primarily **ambient** in its function, creating a specific atmosphere, but does feature simple, repeating **structural** melodic motifs from the mallet instrument.\n\n**Textures & Frequencies:**\n*   **Textures:** The glockenspiel offers a clean, precise, and resonant bell-like attack with a shimmering decay. The pad provides a smooth, airy, and expansive texture that fills the sonic space.\n*   **Frequencies:** High frequencies are prominent and sparkling from the glockenspiel, providing clarity and brilliance without being harsh. The mid-range is clear and warm, containing the fundamental tones of both instruments. The **low end is intentionally very subtle**, offering only a gentle foundation from the pad and lacking any strong sub-bass presence, which suits the delicate nature of the composition.\n\n**Mix Problems:** The mix is clean and well-balanced for its intended style. There is **no audible clipping, muddiness, or harshness**. While the **low end is weak**, this appears to be a deliberate characteristic reflecting the fragile and airy aesthetic, rather than a mixing deficiency.",
+          "energy": 0,
+          "brightness": 0.729,
+          "busyness": 0.041,
+          "bands": {
+            "sub": 0.001,
+            "bass": 0.005,
+            "lowMid": 0.483,
+            "highMid": 0.276,
+            "high": 0.236
+          },
+          "metrics": {
+            "rmsDb": -50.504,
+            "spectralCentroidHz": 4430,
+            "estimatedBpm": 70,
+            "onsetCount": 9
+          },
+          "profiledAt": "2026-06-27T11:05:08.351Z"
+        }
       }
     ],
     "chords": [
@@ -52,25 +172,105 @@
         "id": "chords-1",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-1.wav",
         "bars": 8,
-        "label": "Guitar Chords"
+        "label": "Guitar Chords",
+        "profile": {
+          "description": "This audio features a **structural, instrumental piece** with a clear melodic and harmonic progression.\n\n**Instruments:**\n1.  **Acoustic Guitar:** Predominantly fingerpicked (arpeggiated), likely with nylon strings or very warm steel strings, providing both melody and harmony. Its tone is clean, with a gentle attack and natural resonance, suggesting minimal effects like reverb. The picking is precise and articulate.\n2.  **Electric Bass:** Plays sustained, clean root notes and harmonic extensions, providing a smooth, understated foundation to the guitar's intricate lines. It's played fingerstyle, adding warmth and depth without being intrusive.\n\n**Genre:** Acoustic Instrumental, Fingerstyle Guitar, potentially leaning towards Neo-Classical Acoustic or Cinematic Folk.\n\n**Mood:** Melancholy, reflective, contemplative, wistful, serene, and introspective. There's a gentle tenderness to the overall sound.\n\n**Rhythm:** Slow and steady (Adagio/Largo), with a clear but relaxed pulse. The arpeggiated guitar creates a flowing, almost hypnotic rhythm over the long, sustained bass notes. It feels like a consistent 4/4 meter.\n\n**Tone:** Warm, organic, intimate, and transparent. The sound is natural and uncolored, emphasizing the acoustic qualities of the instruments.\n\n**Textures and Frequencies:**\n*   **Textures:** The guitar creates a delicate, shimmering texture with its overlapping arpeggios, while the bass provides a smooth, solid, and sustained undercurrent. The overall texture is sparse and clean, allowing each note to breathe.\n*   **Frequencies:**\n    *   **Highs:** Present in the guitar's string attack and subtle overtones, contributing to clarity without harshness.\n    *   **Mids:** Dominated by the acoustic guitar's rich body and melodic range (especially upper-mids), where the emotional core resides. The bass adds warmth in the low-mids.\n    *   **Lows:** The bass provides a clear, well-defined low-end foundation that is supportive but not boomy or overwhelming.\n\n**Mix Problems:**\n*   **Clipping:** No audible clipping.\n*   **Muddiness:** The mix is very clean and transparent; there is no muddiness. Instruments are well-separated.\n*   **Harshness:** The high-end is smooth and natural, without any harshness.\n*   **Weak Low End:** The low end is present, clear, and perfectly balanced for the sparse arrangement, providing a solid foundation without being overly prominent. It is not weak.\n\nThe mix is well-balanced, allowing both instruments to occupy their own space while complementing each other beautifully.",
+          "energy": 0.235,
+          "brightness": 0.265,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.024,
+            "bass": 0.16,
+            "lowMid": 0.658,
+            "highMid": 0.069,
+            "high": 0.09
+          },
+          "metrics": {
+            "rmsDb": -24.355,
+            "spectralCentroidHz": 1738,
+            "estimatedBpm": 115,
+            "onsetCount": 312
+          },
+          "profiledAt": "2026-06-27T11:05:23.006Z"
+        }
       },
       {
         "id": "chords-2",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-2.wav",
         "bars": 8,
-        "label": "Rhodes"
+        "label": "Rhodes",
+        "profile": {
+          "description": "This audio presents a **slow, evolving ambient drone** primarily featuring a **synthesizer pad**.\n\n**Instruments:**\nThe main instrument is a rich, layered **synthesizer pad**. It has characteristics that suggest a blend of sustained orchestral strings (synthetic), a deep organ, and possibly a subtle choir texture, all intricately woven into a single, cohesive pad sound.\n\n**Genre:**\nThe genre is firmly **Ambient** or **Drone Music**, leaning towards **Dark Ambient** due to its melancholic and introspective qualities.\n\n**Mood:**\nThe mood is **melancholic, somber, introspective, vast, and ethereal**. It evokes a sense of calm contemplation, quiet solitude, or subtle underlying tension without being overtly unsettling. There's a persistent, yearning quality to the sustained harmonies.\n\n**Rhythm:**\nThere is **no discernible rhythm or tempo** in a traditional sense. The piece is a **continuous drone**, characterized by extremely slow harmonic movement and gradual textural shifts rather than rhythmic patterns or percussion. It breathes with an almost imperceptible pace.\n\n**Tone:**\nThe tone is predominantly **dark, warm, deep, and resonant**. It has a full, encompassing sound that is rich in harmonics. There's a gentle high-frequency shimmer that adds air and sparkle, preventing it from becoming overly dense or murky, and contributing to its ethereal quality.\n\n**Ambient or Structural:**\nThis is definitively **ambient** and **structural** in its continuous, evolving nature. It's a sonic landscape rather than a linear composition with distinct sections.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is incredibly **lush, smooth, and evolving**. It starts with a deeper, slightly more resonant character, gradually expanding its harmonic range and density. There's a subtle internal movement within the pad, like slow modulation or filtering, creating a sense of organic breathing and shifting. The layers are seamlessly blended.\n*   **Frequencies:**\n    *   **Low-end:** The low-end is present and warm, providing a solid foundation without being overpowering. It grounds the sound.\n    *   **Mid-range:** The mid-range is very full and rich, where the primary harmonic information resides. It's dense but not congested.\n    *   **High-end:** The high-end is clear and articulate, providing a delicate \"airy\" or \"shimmering\" quality that adds to the ethereal nature and prevents the sound from becoming too dark or muddy.\n\n**Obvious Mix Problems:**\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is generally clean. While the low-mids are very full, they contribute to the warmth and depth rather than creating significant muddiness.\n*   **Harshness:** Absolutely no harshness whatsoever. The sound is remarkably smooth and well-rounded.\n*   **Weak Low End:** The overall low-end presence (bass and low-mids) is strong and provides good warmth. However, the *very sub-bass* might be slightly less prominent than it could be for maximum floor-shaking drone impact, but it's not \"weak\" in a detrimental way; it maintains a balanced and grounded feel.",
+          "energy": 0.378,
+          "brightness": 0.28,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.009,
+            "bass": 0.095,
+            "lowMid": 0.738,
+            "highMid": 0.068,
+            "high": 0.09
+          },
+          "metrics": {
+            "rmsDb": -20.934,
+            "spectralCentroidHz": 1824,
+            "estimatedBpm": 167,
+            "onsetCount": 388
+          },
+          "profiledAt": "2026-06-27T11:05:39.580Z"
+        }
       },
       {
         "id": "chords-3",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-3.wav",
         "bars": 8,
-        "label": "Organ"
+        "label": "Organ",
+        "profile": {
+          "description": "This audio is a **dark, expansive, and evolving ambient soundscape**, characterized by deep, sustained drones and shimmering textures.\n\n**Instruments:**\n*   **Deep Bass Drone/Synth:** A very prominent, rumbling, and growling sub-bass drone forms the foundation. It's incredibly low-frequency, feeling more like a resonant, vibrating texture than a distinct note. It has a slightly metallic or industrial undertone to its rumble.\n*   **Evolving Synth Pads:** Layered over the bass are rich, sweeping synth pads. These slowly open and close, possibly through filter modulation or pitch bending, creating a sense of movement and 'breathing'. They have a shimmering, almost glassy or metallic quality, extending into the mid-high frequencies.\n\n**Genre:** Dark Ambient, Drone Music, Space Ambient. It leans heavily into textural sound design.\n\n**Mood:** Foreboding, ominous, mysterious, vast, unsettling, expansive, cosmic, isolated. It evokes a sense of desolate emptiness or an impending, slow-moving event.\n\n**Rhythm:** Non-rhythmic. There is no discernible beat or pulse. It's a continuous, evolving soundscape.\n\n**Tone:** Deep, resonant, synthetic, ethereal, melancholic, desolate. The overall tone is dark and atmospheric.\n\n**Ambient/Structural (Textures and Frequencies):**\n*   **Textures:** The primary textures are a deep, persistent rumble from the low end and a shimmering, sweeping, and airy texture from the pads. There's a subtle grit or internal resonance within the bass drone, almost like a slowly turning metallic mechanism or a distant hum from a colossal engine. The pads introduce a fluid, dynamic texture that sweeps across the stereo field and frequency spectrum.\n*   **Frequencies:**\n    *   **Sub-Bass/Low End:** Extremely strong and present. The foundation is a very deep sub-bass hum/rumble that is felt more than heard, underpinning the entire track. This is the dominant frequency range, providing immense weight and gravity.\n    *   **Mid-Range:** Occupied by the evolving synth pads. They sweep through the lower-mids to upper-mids, providing the primary melodic/harmonic content (though it's more textural than melodic). They are full without being muddy.\n    *   **High End:** Present but not piercing. The shimmering quality of the pads extends into the highs, adding air and sparkle without being harsh. It contributes to the 'space' without being overly bright or detailed.\n\n**Obvious Mix Problems:**\n*   **Clipping:** None detected. The sound is very well-controlled even at its deepest.\n*   **Muddiness:** Despite the immense low end, it is remarkably *not* muddy. The sub-bass is clean and distinct from the mid-range elements. There's good separation for a drone track.\n*   **Harshness:** None. The high frequencies are smooth and shimmering, not abrasive.\n*   **Weak Low End:** Absolutely not. The low end is the defining characteristic and is incredibly powerful and well-realized, providing a deep, resonant rumble that is both clean and enveloping.\n\nOverall, the mix is clean and expertly crafted for this genre, with excellent frequency balance that highlights the depth and breadth of the sound design.",
+          "energy": 0.103,
+          "brightness": 0.453,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.057,
+            "bass": 0.211,
+            "lowMid": 0.451,
+            "highMid": 0.118,
+            "high": 0.163
+          },
+          "metrics": {
+            "rmsDb": -27.533,
+            "spectralCentroidHz": 2825,
+            "estimatedBpm": null,
+            "onsetCount": 266
+          },
+          "profiledAt": "2026-06-27T11:05:55.373Z"
+        }
       },
       {
         "id": "chords-4",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-4.wav",
         "bars": 8,
-        "label": "Double Stop"
+        "label": "Double Stop",
+        "profile": {
+          "description": "This audio features a **single electric guitar** playing a series of arpeggiated chords with extensive ambient effects.\n\n**Instruments:**\n*   **Electric Guitar:** The sole instrument. It's played with a clean to subtly overdriven tone, characterized by very long sustains, heavy digital or plate reverb, and a prominent delay effect (possibly a multi-tap or modulated delay) that creates a wash of trailing notes and subtle swirling movement. The notes are gently picked or fingerpicked, focusing on clear articulation before the effects take over.\n\n**Genre:** Ambient, Atmospheric, Cinematic, Post-Rock (on the more minimalist end). It leans heavily into textural soundscapes rather than traditional song structure.\n\n**Mood:** Calm, tranquil, contemplative, introspective, spacious, ethereal, and slightly melancholic or wistful. It evokes a sense of floating or stillness.\n\n**Rhythm:** Free-flowing and unmetered. There is no discernible beat or tempo, with the rhythm dictated by the slow attack and extended decay of the notes and their overlapping echoes. It's extremely slow and deliberate.\n\n**Tone:** Shimmering, bright but not harsh, wet (due to heavy effects), and highly resonant. The guitar's natural midrange clarity is augmented by the expansive high-frequency wash of the reverb and delay.\n\n**Ambient or Structural:** This piece is distinctly **ambient**. It lacks a clear verse-chorus structure or strong rhythmic progression. The sounds are designed to create an immersive atmosphere where individual notes blend into a continuous sonic texture.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is smooth, fluid, and airy. It's characterized by long, overlapping washes of sound, creating a feeling of sustained resonance and space. The initial attack of the notes provides a transient sparkle, which then dissolves into a soft, shimmering decay.\n*   **Frequencies:**\n    *   **Highs:** Prominent and articulate, contributing to the \"shimmering\" quality and the clarity of the guitar's attack and harmonics. They are bright but well-controlled, avoiding harshness.\n    *   **Mids:** The core of the guitar's sound resides here, offering clear, bell-like tones and the body of the chords. They are clean and present, not muddy.\n    *   **Lows:** Noticeably weak. There is virtually no sub-bass or deep low-mid presence, as the arrangement consists solely of a higher-register electric guitar with no bass or low-end synthesis.\n\n**Obvious Mix Problems:**\n*   **Weak Low End:** This is the most significant characteristic that could be perceived as a \"problem\" depending on context. The mix entirely lacks any foundational low-end presence (bass guitar, kick drum, or sub-synth). While this contributes to the airy, floating mood, it results in a sonically thin and top-heavy overall sound that may feel unbalanced or lacking fullness for some listeners.\n*   No clipping, muddiness, or harshness is apparent. The guitar itself is well-recorded and processed.",
+          "energy": 0,
+          "brightness": 0.346,
+          "busyness": 0.483,
+          "bands": {
+            "sub": 0.016,
+            "bass": 0.044,
+            "lowMid": 0.733,
+            "highMid": 0.095,
+            "high": 0.111
+          },
+          "metrics": {
+            "rmsDb": -32.421,
+            "spectralCentroidHz": 2207,
+            "estimatedBpm": null,
+            "onsetCount": 106
+          },
+          "profiledAt": "2026-06-27T11:06:10.870Z"
+        }
       }
     ],
     "texture": [
@@ -78,19 +278,79 @@
         "id": "texture-1",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-1.wav",
         "bars": 8,
-        "label": "Strings 1"
+        "label": "Strings 1",
+        "profile": {
+          "description": "This audio features a **string orchestra**, primarily consisting of bowed violins, violas, and cellos, with a foundational presence from double basses.\n\nThe **genre** is orchestral classical or film score, evoking a sense of solemnity and drama. The **mood** is dark, melancholic, deeply contemplative, and slightly ominous, suggesting a reflective or suspenseful scene.\n\nThe **rhythm** is very slow, characteristic of an Adagio or Largo tempo. It is driven by long, sustained notes and slow harmonic progressions, giving it a profound, deliberate pace rather than a distinct percussive beat. This makes the audio predominantly **structural** in nature, with clear musical phrases and harmonic movement.\n\nThe **tone** is rich, full, and expressive, with the natural vibrato of the strings contributing to a mournful or poignant quality.\n\nThe **textures** are layered, with high strings (violins) often carrying a leading melodic or dissonant line, mid-range strings (violas, cellos) providing harmonic density and warmth, and low strings (cellos, double basses) creating a deep, resonant foundation. The **frequencies** are well-balanced: the high end is clear and present from the violins but not harsh, the mid-range is very prominent and rich, providing the core body of the string sound, and the low end offers a solid, weighty foundation without being overbearing or sub-heavy.\n\nRegarding **mix problems**, there is no apparent clipping, muddiness, or harshness in the high frequencies. The low end is appropriate for the orchestral string arrangement, providing depth and resonance without being weak. The overall mix is clean and effectively presents the nuanced dynamics of the string ensemble.",
+          "energy": 0.145,
+          "brightness": 0.277,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.011,
+            "bass": 0.026,
+            "lowMid": 0.732,
+            "highMid": 0.175,
+            "high": 0.055
+          },
+          "metrics": {
+            "rmsDb": -26.522,
+            "spectralCentroidHz": 1807,
+            "estimatedBpm": 56,
+            "onsetCount": 341
+          },
+          "profiledAt": "2026-06-27T11:06:25.836Z"
+        }
       },
       {
         "id": "texture-2",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-2.wav",
         "bars": 8,
-        "label": "Strings 2"
+        "label": "Strings 2",
+        "profile": {
+          "description": "This audio features a **duet of bowed string instruments**, most likely a **cello** and a **violin**.\n\n**Instruments:**\nThe primary instrument is a **cello** (or similar lower bowed string, like a viola da gamba), providing a deep, resonant, and mournful foundation with sustained, long notes and occasional subtle glissandi. A **violin** (or viola) enters shortly after, playing higher, intertwining melodic lines, often in a call-and-response or counterpoint fashion, sometimes with brief, subtle tremolos. Both instruments utilize legato bowing, creating a smooth, continuous sound.\n\n**Genre:**\nThis leans towards **minimalist classical** or **ambient classical chamber music**. It could also fit within a **film score** context, particularly for scenes requiring introspection, sadness, or desolation.\n\n**Mood:**\nThe mood is distinctly **somber, melancholic, mournful, and introspective**. There's a palpable sense of longing, fragility, and quiet despair. It evokes a feeling of profound sadness or contemplation.\n\n**Rhythm:**\nThe rhythm is **free and rubato**, without a discernible or strict pulse. The emphasis is on sustained notes and expressive timing, allowing the emotional content to unfold unhurriedly. This contributes to its ambient quality.\n\n**Tone:**\nThe tone is **warm, rich, and resonant** from the low string, providing a deep, grounding presence. The higher string is clear and focused but also carries a delicate, poignant quality, avoiding harshness or brightness. Both instruments maintain a smooth, sustained, and expressive tone throughout.\n\n**Ambient or Structural:**\nThis is primarily **ambient**, focusing on creating a sustained atmosphere rather than a strong structural progression with clear melodic themes or rhythmic development. The interplay of the two string lines creates a dynamic texture within its overall ambient framework.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is sparse yet rich, built upon the interwoven, sustained lines of the two string instruments. It's largely homophonic/polyphonic, creating a sense of dialogue. The bowing is smooth and continuous, contributing to a flowing, seamless texture. There's a subtle spaciousness that allows each note to resonate.\n*   **Frequencies:**\n    *   **Low End:** Present and well-defined, provided by the cello's fundamental and lower harmonics. It's warm and supportive without being boomy or muddy, giving the piece its emotional weight.\n    *   **Mid-Range:** The core of the sound spectrum. Both instruments occupy significant portions of the mid-range. The cello fills the lower mids with warmth, while the violin provides presence and definition in the upper mids. This range is full but articulate, where the harmonic richness and emotional expression reside.\n    *   **High End:** Present but not harsh. The violin's upper harmonics provide clarity, shimmer, and a delicate \"air\" without being piercing. It's clear and detailed without being strident.\n\n**Mix Problems:**\nThe mix is remarkably clean and balanced.\n*   **Clipping:** No audible clipping.\n*   **Muddiness:** No muddiness; the instruments are distinct, and the low end is clear.\n*   **Harshness:** No harshness; the high frequencies are smooth and pleasant.\n*   **Weak Low End:** The low end is present, robust, and supportive, not weak.\n\nOverall, it's a well-recorded and mixed piece, allowing the inherent expressive qualities of the instruments to shine through.",
+          "energy": 0,
+          "brightness": 0.514,
+          "busyness": 0.415,
+          "bands": {
+            "sub": 0.003,
+            "bass": 0.007,
+            "lowMid": 0.541,
+            "highMid": 0.321,
+            "high": 0.128
+          },
+          "metrics": {
+            "rmsDb": -47.705,
+            "spectralCentroidHz": 3181,
+            "estimatedBpm": 129,
+            "onsetCount": 91
+          },
+          "profiledAt": "2026-06-27T11:06:47.273Z"
+        }
       },
       {
         "id": "texture-3",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-3.wav",
         "bars": 8,
-        "label": "Sitar"
+        "label": "Sitar",
+        "profile": {
+          "description": "This audio presents a **purely ambient and atmospheric soundscape**, devoid of traditional rhythmic or melodic structures.\n\n**Instruments:**\nThe primary instrument is a **synthesizer**, specifically a **sustained, evolving pad**. This pad features layers that modulate slowly, introducing subtle variations in timbre. There are also distinct, high-frequency, **detuned bell-like or chime-like synth textures** that shimmer and waver, fading in and out over the main pad. No percussion, bass, or traditional melodic instruments are present.\n\n**Genre:**\n**Ambient / Drone / Electronic.** It fits squarely into the ambient genre due to its focus on atmosphere and lack of driving rhythm. It also shares characteristics with drone music due to its sustained, slowly evolving nature.\n\n**Mood:**\n**Ethereal, melancholic, expansive, and contemplative.** There's a sense of vastness and a delicate wistfulness. It evokes introspection and a subtle emotional depth without being overtly sad or dark.\n\n**Rhythm:**\n**Amorphous and non-metric.** There is no discernible beat or pulse. The only \"rhythm\" comes from the very slow, internal undulations and modulations of the synth textures, creating a sense of a gentle, continuous flow rather than a structured pattern.\n\n**Tone:**\n**Shimmering, diffused, and bright.** The sound is dominated by higher frequencies, giving it a luminous quality, yet it remains soft and smooth rather than harsh. The detuned elements add a slightly wavering, almost fragile quality.\n\n**Ambient / Structural Description:**\nThis is definitively **ambient**. Its primary purpose is to create a sustained atmosphere.\n\n*   **Textures:** The textures are smooth, glassy, and layered. The main pad forms a continuous, soft wash, while the higher elements introduce a delicate, crystalline shimmer. There's a subtle, almost imperceptible \"breathing\" quality to the overall sound due to the slow modulation.\n*   **Frequencies:**\n    *   **Highs:** Very prominent and defining, responsible for the shimmering and ethereal quality. They are clear and well-defined without being piercing.\n    *   **Mids:** Present as the body of the synth pad, providing warmth and fullness to the core sound, but not dominant.\n    *   **Lows:** Extremely minimal, almost absent. There might be a very subtle sub-bass presence grounding it, but there is no strong low-end information or rumble, contributing to its floating, weightless feel.\n\n**Obvious Mix Problems:**\n*   **Clipping:** None audible. The dynamics are well-controlled.\n*   **Muddiness:** None. The different textural layers are distinct and well-separated in the frequency spectrum.\n*   **Harshness:** None. Despite the prominent high frequencies, they are soft and diffused, not grating or harsh.\n*   **Weak Low End:** The low end is indeed very weak, almost non-existent. However, given the genre and intended mood (ethereal, floating), this is highly likely an **intentional artistic choice** to emphasize the spacious and weightless nature of the piece, rather than a mixing problem. If a robust low end were expected, it would be a severe problem, but in this context, it is a characteristic.",
+          "energy": 0,
+          "brightness": 0.513,
+          "busyness": 0.114,
+          "bands": {
+            "sub": 0.004,
+            "bass": 0.011,
+            "lowMid": 0.428,
+            "highMid": 0.451,
+            "high": 0.107
+          },
+          "metrics": {
+            "rmsDb": -45.368,
+            "spectralCentroidHz": 3173,
+            "estimatedBpm": 140,
+            "onsetCount": 25
+          },
+          "profiledAt": "2026-06-27T11:07:05.417Z"
+        }
       }
     ]
   }

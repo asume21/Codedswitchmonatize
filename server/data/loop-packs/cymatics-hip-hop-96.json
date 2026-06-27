@@ -9,7 +9,27 @@
         "label": "Oracle Bass Am",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/bass-loop-1.wav",
         "bars": 4,
-        "id": "bass-1"
+        "id": "bass-1",
+        "profile": {
+          "description": "This audio presents a minimalist, atmospheric soundscape.\n\n**Instruments:**\n*   **Deep, Sustained Synthesizer Drone:** A foundational element, this is a very low-frequency, rumbling, subtly undulating synth pad or heavily filtered waveform (likely a sine or slow sawtooth). It features a very slow, almost imperceptible pitch bend or LFO modulation, giving it a \"breathing\" quality rather than a static hum.\n*   **Metallic/Glassy Synth Plucks/Pings:** Higher in frequency, these are distinct, short, percussive synth sounds with a clear attack and a relatively long, decaying tail. They possess a metallic, almost glass-like or bell-like timbre, possibly with a subtle delay and reverb, making them float in the soundstage. They seem to be triggered at irregular, sparse intervals.\n\n**Genre:** Dark Ambient, Drone, Sci-Fi Soundscape.\n\n**Mood:** Eerie, ominous, vast, isolated, contemplative, and somewhat suspenseful. It evokes images of deep space, abandoned structures, or a slow, impending discovery.\n\n**Rhythm:** Amorphous and extremely slow. There is no discernible beat or tempo. The sporadic \"pings\" create a quasi-rhythmic pulse, like sonar or a distant clock, but it's too infrequent and irregular to establish a groove.\n\n**Tone:** Muted, cold, synthetic, and foreboding. The sustained low frequencies create a sense of weight and pressure, while the higher pings add a fragile, yet stark, detail.\n\n**Textures and Frequencies (Ambient):**\n*   **Textures:** The low-end drone is smooth, resonant, and has a dense, almost viscous quality, like thick fog or deep water. The pings are sharp, shimmering, and brittle, providing a stark contrast that cuts through the dense low end. The overall texture is spacious and reverberant.\n*   **Frequencies:**\n    *   **Low End (20-200 Hz):** Dominated by the heavy, rumbling drone. It occupies the sub-bass and low-mid range, creating a powerful, foundational presence. The slow modulation adds subtle movement.\n    *   **Mid Range (200 Hz - 2 kHz):** Relatively sparse, acting as a clear channel for the \"pings\" to resonate without much competition from the drone's fundamental frequencies. The pings likely sit in the upper-mid range (around 1-2 kHz) with harmonics extending higher.\n    *   **High End (2 kHz - 20 kHz):** Present primarily in the decaying tails and harmonics of the pings, adding shimmer and clarity. There's a subtle, almost imperceptible high-frequency presence that could be room tone or synth noise, contributing to the sense of space.\n\n**Mix Problems:**\n*   **Clipping:** None apparent. The dynamics are well-controlled, and the sounds seem to have ample headroom.\n*   **Muddiness:** The mix is remarkably clean despite the heavy low end. The low drone is articulate in its rumble, and the pings are distinct and clear, preventing any sense of a cluttered or indistinct sound.\n*   **Harshness:** None. The high-frequency elements are sharp but never piercing or unpleasant.\n*   **Weak Low End:** The opposite is true; the low end is a dominant and defining characteristic of the soundscape, powerful and immersive, but without being overbearing or uncontrolled.",
+          "energy": 0.468,
+          "brightness": 0.471,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.19,
+            "bass": 0.248,
+            "lowMid": 0.263,
+            "highMid": 0.125,
+            "high": 0.174
+          },
+          "metrics": {
+            "rmsDb": -18.778,
+            "spectralCentroidHz": 2929,
+            "estimatedBpm": null,
+            "onsetCount": 581
+          },
+          "profiledAt": "2026-06-27T10:38:29.740Z"
+        }
       }
     ],
     "melody": [
@@ -17,13 +37,53 @@
         "label": "Oracle Full",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-1.wav",
         "bars": 4,
-        "id": "melody-1"
+        "id": "melody-1",
+        "profile": {
+          "description": "This audio presents a deeply atmospheric and highly polished soundscape.\n\n**Instruments:** The primary instruments are synthesizers. We hear multiple layers of **synth pads**, providing a shimmering, evolving texture, particularly in the high frequencies, and a warmer, broader harmonic bed. A deep, sustained **synth bass** forms the fundamental low-end foundation. Later, a very sparse, bell-like or plucked **synth melody** enters, playing slow, melancholic phrases.\n\n**Genre:** The genre is firmly **Ambient**, leaning towards **Cinematic Drone** or **New Age** due to its expansive and emotional nature.\n\n**Mood:** The mood is one of profound **serenity, contemplation, and wistfulness**. It evokes a sense of peace mixed with a subtle, melancholic introspection. It feels spacious, ethereal, and calming.\n\n**Rhythm:** The rhythm is **extremely slow and largely unmetered**, driven by long sustains and evolving textures rather than a discernible beat. There are no percussive elements. The melodic phrases are widely spaced and deliberate, contributing to the unhurried feel.\n\n**Tone:** The overall tone is **warm in the low-mids, clear and open in the mid-range, and notably bright and shimmering in the high frequencies**. It's a very clean, polished, and transparent sound, leaning towards an ethereal and slightly cool character due to the high-end sparkle and slow pace.\n\n**Ambient or Structural:** The piece is predominantly **ambient**, focusing on evolving soundscapes. However, it transitions to incorporate a very **minimal and slow-unfolding structural element** through the sparse, deliberate melodic line, moving it slightly beyond pure drone.\n\n**Textures and Frequencies:**\n*   **Textures:** The textures are rich, layered, and smooth. The pads create a broad, flowing sonic wash with a distinct, clean shimmer. The bass is deep and resonant, while the melodic element is delicate and bell-like. There's no harshness, grit, or aggressive character.\n*   **Frequencies:**\n    *   **Low End:** The low end is **solid, full, and warm**, provided by the sustained synth bass. It has good depth and presence, reaching into the sub-bass frequencies without being boomy or overpowering.\n    *   **Mids:** The mid-range is **clear and open**, allowing the various pad layers to blend smoothly without muddiness. There's a pleasant warmth in the lower-mids.\n    *   **High End:** The high end is **bright, airy, and sparkling**, largely from the top layers of the synth pads and the attack of the bell-like melody. It contributes significantly to the ethereal and spacious quality of the sound without being harsh.\n\n**Mix Problems:** The mix quality is **excellent**. There are no obvious mix problems:\n*   **Clipping:** None apparent; dynamics are well-controlled.\n*   **Muddiness:** The mix is very clean and transparent; all elements have their space.\n*   **Harshness:** Despite prominent high frequencies, they are smooth and shimmering, not harsh or fatiguing.\n*   **Weak Low End:** The low end is present, robust, and provides a solid foundation; it is not weak.",
+          "energy": 0.625,
+          "brightness": 0.398,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.11,
+            "bass": 0.155,
+            "lowMid": 0.491,
+            "highMid": 0.103,
+            "high": 0.141
+          },
+          "metrics": {
+            "rmsDb": -15.011,
+            "spectralCentroidHz": 2508,
+            "estimatedBpm": null,
+            "onsetCount": 584
+          },
+          "profiledAt": "2026-06-27T10:38:46.490Z"
+        }
       },
       {
         "label": "Oracle Lead",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-2.wav",
         "bars": 4,
-        "id": "melody-2"
+        "id": "melody-2",
+        "profile": {
+          "description": "This audio presents a **highly ambient and textural soundscape**.\n\n**Instruments:**\nThe primary instruments are synthesizers. There is a prominent, high-pitched, sustained **synth pad** with a shimmering, almost glass-like or ethereal quality, which evolves slowly over time, featuring subtle modulation or filtering. Beneath this, a softer, lower-mid range **synth pad** provides a warm, sustained harmonic bed. A third distinct element is a delicate, **bell-like or chime-like synth** that plays sparse, sustained melodic notes, almost like a distant celesta or glockenspiel, but with a softer attack and longer decay. No percussive elements or traditional bass instruments are present.\n\n**Genre:**\nPrimarily **Ambient** and **New Age**, leaning into **Drone** music due to the sustained, slowly evolving pads.\n\n**Mood:**\nThe mood is deeply **serene, contemplative, and peaceful**. It evokes a sense of quiet introspection, vastness, and gentle upliftment. There's an ethereal and slightly melancholic, yet ultimately calming, atmosphere.\n\n**Rhythm:**\nThe rhythm is extremely **slow and unstructured**, effectively arhythmic in the traditional sense. There is no discernible beat or pulse; instead, the sounds float and evolve with very long attacks and decays, creating a sense of timelessness.\n\n**Tone:**\nThe overall tone is **smooth, airy, shimmering, and delicate**. The sounds possess a clean, transparent quality, with a focus on high-frequency clarity without becoming harsh.\n\n**Ambient/Structural:**\nThis piece is unequivocally **ambient**. It lacks a conventional structural progression (verse-chorus) and instead focuses on creating an immersive, evolving atmosphere through sustained textures and subtle melodic gestures.\n\n**Textures and Frequencies:**\n*   **Textures:** The textures are smooth, sustained, and largely static but with subtle internal movement. The primary high pad offers a \"glassy\" or \"crystalline\" texture, while the lower pad provides a soft, warm \"cushion.\" The chimes add a delicate, resonant \"sparkle.\"\n*   **Frequencies:**\n    *   **Highs:** Very present and clear, defining the shimmering, airy quality of the main pad and the distinctness of the chimes. They are bright but well-controlled, avoiding harshness.\n    *   **Mids:** Occupied by the foundational lower pad (lower-mids, providing body) and the melodic chimes (upper-mids, for clarity). The mid-range is clean and articulate for the given elements.\n    *   **Lows:** Significantly **weak or almost entirely absent**. There is no noticeable sub-bass or defined bass presence; the lowest frequencies come from the lower-mid range of the background pad.\n\n**Obvious Mix Problems:**\nThe most prominent characteristic, which could be considered a **weak low end** from a general mixing perspective, is the almost complete absence of bass and sub-bass frequencies. While this is likely an intentional stylistic choice for the genre and mood, it means the track lacks any foundational weight or rumble. There is no evidence of clipping, muddiness, or harshness; the existing frequencies are mixed cleanly and sound pleasant.",
+          "energy": 0.015,
+          "brightness": 0.5,
+          "busyness": 0.413,
+          "bands": {
+            "sub": 0.014,
+            "bass": 0.032,
+            "lowMid": 0.662,
+            "highMid": 0.126,
+            "high": 0.166
+          },
+          "metrics": {
+            "rmsDb": -29.632,
+            "spectralCentroidHz": 3098,
+            "estimatedBpm": null,
+            "onsetCount": 132
+          },
+          "profiledAt": "2026-06-27T10:39:01.658Z"
+        }
       }
     ],
     "texture": [
@@ -31,13 +91,53 @@
         "label": "Oracle Pad",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/texture-loop-1.wav",
         "bars": 4,
-        "id": "texture-1"
+        "id": "texture-1",
+        "profile": {
+          "description": "This audio features **multiple layers of synthesized pads**, creating a rich and evolving sonic landscape.\n\n**Instruments:**\n*   **Synth Pads:** Primarily two distinct types appear to be layered. One is a higher-pitched, brighter, and slightly more shimmering pad that carries the main melodic and harmonic progression. The second is a deeper, warmer, and more sustained pad providing a harmonic foundation and fuller body.\n\n**Genre:** Ambient Electronic / Drone. The focus is on sustained textures and atmosphere rather than traditional song structure or rhythm.\n\n**Mood:** Pensive, melancholic, reflective, and somewhat ethereal. It evokes a sense of introspection or contemplation. The minor key harmony contributes significantly to this somber yet beautiful feeling.\n\n**Rhythm:** Arhythmic or free-flowing. There is no discernible beat or pulse. The sounds evolve slowly and organically.\n\n**Tone:** Smooth, lush, clean, and evolving. The timbre of the pads is warm and rich, with a clear high-end presence that adds shimmer without harshness.\n\n**Ambient/Structural, Textures, and Frequencies:**\nThis piece is definitively **ambient**. It builds an atmosphere through continuous sound and harmonic movement rather than distinct sections or a narrative arc.\n*   **Textures:** The textures are incredibly smooth, warm, and expansive. The higher pad has a slightly \"glowing\" or \"shimmering\" quality due to its harmonic content, while the lower pad provides a deep, plush, and sustained \"wash\" of sound. The overall texture is one of gentle, evolving sonic clouds.\n*   **Frequencies:**\n    *   **Highs:** Present and clean, adding air and sparkle to the pads, especially the leading high notes. They are not piercing or harsh.\n    *   **Mids:** Very full and rich. This is where the core harmonic information resides, giving the pads their warmth and body. There's a good balance across the mid-range.\n    *   **Lows:** Supportive and deep, providing a solid foundation and a sense of weight without being boomy or overpowering. The low-end frequencies give the piece its gravitas, particularly during the downward harmonic movements.\n\n**Mix Problems:**\n*   **Clipping:** No audible clipping detected. The dynamics appear well-managed.\n*   **Muddiness:** The mix is remarkably clean. The various pad layers blend seamlessly without becoming muddy or indistinct. There's good separation in the frequency spectrum.\n*   **Harshness:** None. The high frequencies are smooth and pleasant, avoiding any strident or fatiguing qualities.\n*   **Weak Low End:** The low end is appropriate and supportive for this genre. It provides depth and warmth without being dominant, which suits the ethereal and melancholic mood. It is not weak; it is intentionally present and well-integrated.\n\nOverall, the mix is clean, balanced, and sonically pleasing, effectively conveying the intended ambient and contemplative mood.",
+          "energy": 0.024,
+          "brightness": 0.344,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.023,
+            "bass": 0.074,
+            "lowMid": 0.704,
+            "highMid": 0.087,
+            "high": 0.113
+          },
+          "metrics": {
+            "rmsDb": -29.43,
+            "spectralCentroidHz": 2193,
+            "estimatedBpm": null,
+            "onsetCount": 558
+          },
+          "profiledAt": "2026-06-27T10:39:48.298Z"
+        }
       },
       {
         "label": "Flute Atmos",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/texture-loop-2.wav",
         "bars": 4,
-        "id": "texture-2"
+        "id": "texture-2",
+        "profile": {
+          "description": "This audio features a **calm, contemplative, and ethereal ambient soundscape**, primarily built from two distinct elements.\n\n**Instruments:**\n1.  **Synth Pad/Choir:** A sustained, airy, reverbed pad forms the harmonic foundation. It has a soft, sweeping texture, reminiscent of a synthetic choir or a very mellow string pad, providing warmth and depth.\n2.  **Celesta/Music Box/Bell Synth:** A clear, delicate, and resonant instrument plays a simple, slow melodic motif. It sounds like a celesta, a music box, or a synthesized bell/mallet instrument, with a distinct, crystalline attack and a long decay.\n\n**Genre:** Primarily **Ambient** and **Meditative music**. It also touches upon elements of **New Age** due to its soothing and introspective qualities.\n\n**Mood:** The mood is **serene, peaceful, tranquil, and slightly melancholic or wistful**. It evokes feelings of introspection, calm reflection, or gentle melancholy. The atmosphere is dreamy and spacious.\n\n**Rhythm:** There is **no discernible beat or strong rhythmic pulse**. The music is very **slow, free-flowing, and unmetered**. The melodic notes are played with ample space and sustain, contributing to the overall sense of timelessness.\n\n**Tone:** The overall tone is **soft, gentle, and delicate**. The pad provides a **warm, enveloping, and smooth** backdrop, while the melody instrument offers a **clear, resonant, and almost crystalline** quality. There is a sense of spaciousness created by generous reverb.\n\n**Ambient or Structural:** This piece is predominantly **ambient**. While there is a repeating melodic phrase that provides a loose structural anchor, the primary focus is on creating an atmospheric soundscape rather than a linear musical progression. It functions as an ambient loop.\n\n**Textures and Frequencies:**\n*   **Textures:** The pad creates a smooth, velvety, and cloud-like texture, while the melody adds a shimmering, delicate, and sparse texture. The combination is ethereal and spacious.\n*   **Frequencies:**\n    *   **Highs/High-Mids:** The melody instrument occupies this range, providing clarity, sparkle, and definition. There's also a good amount of 'air' from the reverb tails.\n    *   **Mids:** The main body and warmth of the synth pad reside here, providing rich harmonic content.\n    *   **Low-Mids:** The lower registers of the pad provide some weight and warmth, preventing the sound from being too thin.\n    *   **Low End:** The **low end is noticeably weak**. There is virtually no sub-bass or strong fundamental bass presence, which contributes to the light and airy feel but also leaves the bottom of the mix feeling unsupported.\n\n**Mix Problems:**\n*   **Weak Low End:** The most obvious characteristic, bordering on a \"problem\" if a fuller sound is desired. The mix lacks any significant sub-bass or strong fundamental bass presence, making it feel very light and lacking a solid foundation.\n*   **No Clipping, Muddiness, or Harshness:** The mix is otherwise very clean. There is no audible clipping, no muddiness between the instruments, and the high frequencies are well-controlled without any harshness. The balance between the pad and the melody is excellent.",
+          "energy": 0.145,
+          "brightness": 0.53,
+          "busyness": 0.769,
+          "bands": {
+            "sub": 0.02,
+            "bass": 0.031,
+            "lowMid": 0.637,
+            "highMid": 0.129,
+            "high": 0.183
+          },
+          "metrics": {
+            "rmsDb": -26.526,
+            "spectralCentroidHz": 3275,
+            "estimatedBpm": null,
+            "onsetCount": 246
+          },
+          "profiledAt": "2026-06-27T10:40:04.301Z"
+        }
       }
     ],
     "drums": [
@@ -45,13 +145,53 @@
         "label": "Cavern Beat 96",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/drums-loop-1.wav",
         "bars": 4,
-        "id": "drums-1"
+        "id": "drums-1",
+        "profile": {
+          "description": "This audio features a **structural, electronic loop** with a clear, steady groove.\n\n**Instruments:**\n*   **Electronic Kick Drum:** A prominent four-on-the-floor pattern, providing a solid, punchy low-mid foundation.\n*   **Electronic Snare/Clap:** A crisp backbeat on 2 and 4, cutting through the mix cleanly.\n*   **Open Hi-Hat:** A consistent off-beat pattern, adding rhythmic drive and brightness to the high end.\n*   **Percussive Synth:** A high-pitched, plucky, and clean synth sound, possibly emulating a kalimba or marimba, playing a simple, catchy arpeggiated melodic motif that repeats throughout the loop.\n\n**Genre:**\nThe track fits well into **Lo-fi Hip-Hop (instrumental), Chillwave, or Downtempo House**. Its repetitive, groovy nature and electronic instrumentation are characteristic of these genres.\n\n**Mood:**\nThe mood is **relaxed, groovy, laid-back, and slightly hypnotic**. It creates a steady, head-nodding vibe, ideal for background listening, chilling, or focused work.\n\n**Rhythm:**\nThe rhythm is **steady and moderate**, likely around 100-110 BPM. It's built on a driving four-on-the-floor kick, a precise backbeat snare, and energetic off-beat open hi-hats. The rhythmic pattern is highly repetitive but effective in establishing a consistent groove.\n\n**Tone:**\nThe overall tone is **clean, bright, and precise**. It possesses a modern, digital clarity, with a prominent high-end sheen provided by the hi-hats and the percussive synth.\n\n**Structural/Textures/Frequencies:**\nThis audio is distinctly **structural**, built around a clear, looping rhythmic and melodic framework.\n*   **Textures:** The drums are tight, punchy, and metallic (hi-hats). The percussive synth has a clean, almost crystalline, plucked texture.\n*   **Frequencies:**\n    *   **Low End:** The kick drum provides a strong, punchy mid-bass presence, giving the track a solid, grounded feel without being overly sub-heavy.\n    *   **Mid Range:** Very clean and clear, accommodating the snare's body and the fundamental frequencies of the synth motif.\n    *   **High End:** Exceptionally present and crisp, driven by the bright open hi-hats and the high-pitched synth. This contributes significantly to the track's modern, detailed, and clear sonic character.\n\n**Mix Problems:**\nThe mix appears to be **well-engineered and balanced**. There are no obvious mix problems:\n*   **Clipping:** No audible clipping is detected; transients are well-controlled.\n*   **Muddiness:** The mix is very clean with good separation between instruments; no muddiness is present.\n*   **Harshness:** The high frequencies are bright but not harsh or fatiguing.\n*   **Weak Low End:** The low end is present and punchy, providing a solid foundation that is appropriate for the genre; it is not weak.",
+          "energy": 0.847,
+          "brightness": 0.732,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.028,
+            "bass": 0.072,
+            "lowMid": 0.331,
+            "highMid": 0.261,
+            "high": 0.308
+          },
+          "metrics": {
+            "rmsDb": -9.667,
+            "spectralCentroidHz": 4445,
+            "estimatedBpm": 144,
+            "onsetCount": 88
+          },
+          "profiledAt": "2026-06-27T10:37:56.775Z"
+        }
       },
       {
         "label": "Forgotten Beat 96",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/drums-loop-2.wav",
         "bars": 4,
-        "id": "drums-2"
+        "id": "drums-2",
+        "profile": {
+          "description": "This audio is a **structural, minimalist electronic drum loop** driven by a tight, rhythmic groove.\n\n**Instruments:**\n*   **Kick Drum:** A clean, punchy kick provides a solid, steady 4/4 foundation with a good low-mid thump rather than a deep sub-bass boom.\n*   **Snare Drum:** A bright, snappy, classic electronic snare (or clap) hits precisely on beats 2 and 4. It has a very short, controlled decay, giving it a dry, impactful quality.\n*   **Closed Hi-Hats:** Crisp, tight closed hi-hats maintain a consistent, driving 16th-note rhythm, providing significant high-frequency detail and forward momentum.\n*   **Auxiliary Percussion:** A very subtle, high-pitched, almost *clicky* or *woodblock*-like percussion element adds sparse syncopated accents, particularly noticeable in the high-mids, enhancing the groove without cluttering it.\n\n**Genre:** Minimal House / Tech House. Its repetitive nature, focus on the beat, and electronic drum sounds are characteristic of these genres.\n\n**Mood:** Driving, Groovy, Hypnotic, Energetic, Functional (designed for movement/dancing). There's a cool, understated intensity.\n\n**Rhythm:**\n*   **Tempo:** Approximately 120-125 BPM (medium-fast).\n*   **Time Signature:** 4/4.\n*   **Groove:** Very locked-in and consistent. The kick provides the main pulse, the snare/clap creates a classic backbeat, and the hi-hats provide continuous forward motion. The subtle additional percussion adds just enough variation to keep it from being entirely static.\n\n**Tone:** Bright, clean, and punchy. The high-end is dominant due to the crisp hi-hats and sharp snare. The overall sound is very \"in-your-face\" in terms of its clarity and attack, without being overly harsh.\n\n**Textures and Frequencies:**\nThis is definitively **structural**, built entirely on the interplay of distinct rhythmic elements rather than ambient washes.\n*   **Low End:** Solid and well-defined, driven by the kick drum. It provides weight without muddiness or excessive sub-bass rumble. The fundamental frequency of the kick is well-represented.\n*   **Mid-Range:** Relatively sparse, allowing the individual elements to breathe. The body of the snare occupies the upper-mids.\n*   **High End:** Very prominent and crisp, dominated by the hi-hats and the attack of the snare/clap. The auxiliary percussion adds further high-frequency texture. It's airy and detailed.\n\n**Mix Problems:**\n*   **Clipping:** None apparent. The mix sounds clean and well-managed dynamically.\n*   **Muddiness:** No muddiness. The elements are well-separated, and the low end is tight.\n*   **Harshness:** While bright, the high frequencies are not harsh or fatiguing. They sound well-controlled.\n*   **Weak Low End:** The low end is present and impactful, providing a solid foundation. It's not *overwhelmingly* bass-heavy, but it's appropriate for the style and provides good rhythmic anchor.",
+          "energy": 0.791,
+          "brightness": 0.904,
+          "busyness": 0.781,
+          "bands": {
+            "sub": 0.011,
+            "bass": 0.123,
+            "lowMid": 0.297,
+            "highMid": 0.14,
+            "high": 0.428
+          },
+          "metrics": {
+            "rmsDb": -11.018,
+            "spectralCentroidHz": 5441,
+            "estimatedBpm": 195,
+            "onsetCount": 125
+          },
+          "profiledAt": "2026-06-27T10:38:13.025Z"
+        }
       }
     ],
     "chords": [
@@ -59,13 +199,53 @@
         "label": "Oracle Arp Am",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/chords-loop-1.wav",
         "bars": 4,
-        "id": "chords-1"
+        "id": "chords-1",
+        "profile": {
+          "description": "This audio features a **solo digital piano** (or a very clean synth piano patch) playing a slow, reflective piece.\n\n*   **Instruments:** A single digital piano is the only instrument present. It has a clean, clear tone, with a slight sterility that suggests a digital rather than a heavily mic'd acoustic grand piano.\n*   **Genre:** Ambient Piano, Minimalist, Cinematic/Film Score. It strongly evokes a mood suitable for a reflective or melancholic scene in a film.\n*   **Mood:** Melancholy, pensive, somber, reflective, and peaceful. There's a quiet sense of longing or introspection.\n*   **Rhythm:** Very slow and sustained. There's no strong percussive element or rhythmic drive; notes and chords are held for extended durations, allowing them to ring out. The tempo is in the Adagio/Largo range, with a fluid, almost rubato feel, though the underlying pulse remains steady.\n*   **Tone:** The piano tone is clean, clear, and resonant. It is neither overly warm nor excessively bright, striking a good balance. The overall sonic impression is ethereal and spacious due to generous reverb.\n\n**Ambient or Structural:** This piece is decidedly **ambient**. Its primary function is to create an atmosphere and emotional backdrop rather than a strong narrative or rhythmic progression.\n\n*   **Textures:** The texture is lush yet sparse. Sustained chords are the dominant texture, creating a rich harmonic wash that blends due to reverb. Occasional arpeggiated figures add a delicate, flowing layer over the sustained harmony. The overall texture is smooth and seamless.\n*   **Frequencies:**\n    *   **Low End:** Present and supportive, providing a gentle foundation from the bass notes of the piano. It's not boomy or dominant, but perfectly adequate for a solo piano piece.\n    *   **Mid Range:** Full and clear, where the main body of the piano sound resides. No muddiness or harshness; the chords ring out distinctly within their harmonic context.\n    *   **High End:** Clear and shimmering, especially in the higher notes, which decay beautifully with the applied reverb. It's bright without being piercing or brittle.\n\n**Obvious Mix Problems:**\nThe mix is remarkably clean and well-produced for a solo instrument.\n*   **Clipping:** No audible clipping.\n*   **Muddiness:** None whatsoever. The piano's clarity is excellent.\n*   **Harshness:** The frequencies are well-balanced; no harshness is present in any register.\n*   **Weak Low End:** The low end is perfectly appropriate and provides sufficient weight for a solo piano track; it is not weak.\nThe reverb is well-applied, providing space and sustain without obscuring the notes.",
+          "energy": 0.562,
+          "brightness": 0.229,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.021,
+            "bass": 0.106,
+            "lowMid": 0.744,
+            "highMid": 0.057,
+            "high": 0.073
+          },
+          "metrics": {
+            "rmsDb": -16.514,
+            "spectralCentroidHz": 1528,
+            "estimatedBpm": null,
+            "onsetCount": 580
+          },
+          "profiledAt": "2026-06-27T10:39:18.410Z"
+        }
       },
       {
         "label": "Bell Chords",
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/chords-loop-2.wav",
         "bars": 4,
-        "id": "chords-2"
+        "id": "chords-2",
+        "profile": {
+          "description": "This audio is a purely ambient soundscape, characterized by its sustained, evolving textures rather than a traditional melodic or rhythmic structure.\n\n**Instruments:** The primary instrumentation consists of lush, synthesized pads. These pads convincingly emulate a rich, full **choir** (specifically \"ahhs\" or sustained vocal tones) combined with deep, resonant **synthesizer string/pad** textures. There are no percussive elements, basslines, or distinct melodic instruments.\n\n**Genre:** Ambient, Drone, Soundscape.\n\n**Mood:** Ethereal, contemplative, vast, and slightly melancholic. It evokes a sense of solemnity, introspection, and calm, with a subtle undertone of mystery or grandeur.\n\n**Rhythm:** Arhythmic. The sounds are sustained, gradually swelling and decaying without any discernible beat, pulse, or rhythmic pattern.\n\n**Tone:** The tone is consistently warm, resonant, and very smooth. It's a lush, slightly dark, yet comforting tone, entirely devoid of harshness or sharpness.\n\n**Ambient/Structural:** This piece is definitively **ambient**. It lacks conventional musical structure, focusing entirely on the gradual evolution and interplay of sonic textures and harmonic shifts, creating an immersive atmosphere.\n\n**Textures:** The textures are incredibly smooth and velvety, like a vast, harmonically rich synth choir washing over the listener. There's a subtle shimmering quality, particularly in the higher frequencies, contributing to an ethereal and slightly crystalline feel. The overall texture is dense yet spacious, allowing the individual harmonic components to breathe within the sustained washes.\n\n**Frequencies:**\n*   **Low-End:** Deep and resonant, providing a solid, grounding foundation. It's present and felt rather than boomy, contributing to the overall weight and expansiveness without becoming muddy.\n*   **Mid-Range:** Full, rich, and dominant. This is where the core \"choir\" and pad textures reside, giving the sound its warmth, body, and harmonic complexity.\n*   **High-End:** Smooth and extended, present as a gentle, airy shimmer or sparkle. It adds to the ethereal quality and openness of the sound without being harsh, sibilant, or fatiguing.\n\n**Mix Problems:** The mix appears very clean and well-balanced for its genre.\n*   **Clipping:** No audible clipping or distortion.\n*   **Muddiness:** Despite the density of the pads, there is no significant muddiness. The different frequency ranges are well-defined, allowing the rich harmonics to coexist.\n*   **Harshness:** Absolutely no harshness. The high frequencies are expertly tamed, contributing to the smooth, ethereal character.\n*   **Weak Low End:** The low end is appropriate for the genre; it's deep and resonant, providing a solid, felt foundation without being overpowering or weak.",
+          "energy": 0.203,
+          "brightness": 0.47,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.007,
+            "bass": 0.017,
+            "lowMid": 0.706,
+            "highMid": 0.118,
+            "high": 0.153
+          },
+          "metrics": {
+            "rmsDb": -25.121,
+            "spectralCentroidHz": 2923,
+            "estimatedBpm": null,
+            "onsetCount": 331
+          },
+          "profiledAt": "2026-06-27T10:39:33.888Z"
+        }
       }
     ]
   },
