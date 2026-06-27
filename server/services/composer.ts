@@ -46,39 +46,47 @@ const DEFAULT_SECTION_SKELETON: Array<{
   energy: number
   density: number
 }> = [
-  // 36-bar skeleton with explicit section intent. Sections were doubled from
-  // the old 2–4 bar form: at 2 bars a section is ~3.5s at 140 BPM and flashed
-  // by before the ear could register the intro→build→drop arc (it just felt
-  // "fast, nothing changing"). At 4–8 bars each section lasts long enough to
-  // settle in and to HEAR the build and the drop land. First drop now hits at
-  // bar 16. Total 36 bars ≈ 96s at 90 BPM, ≈ 62s at 140 BPM.
-  // Section intent:
-  //   intro     — chords + melody set the mood, drums OUT (staggered entrance)
-  //   verse     — drums drop in, full band
-  //   build     — tension rising into the drop
-  //   drop      — full force
-  //   breakdown — drums OUT, sparse, gives the next drop weight
-  //   drop2     — return to drop energy, pushed harder
-  { name: 'intro',     bars: 4, energy: 0.26, density: 0.04 },  // density low → drums out
-  { name: 'verse',     bars: 8, energy: 0.60, density: 0.55 },
-  { name: 'build',     bars: 4, energy: 0.82, density: 0.78 },
-  { name: 'drop',      bars: 8, energy: 0.97, density: 0.92 },
-  { name: 'breakdown', bars: 4, energy: 0.40, density: 0.05 },  // density low → drums out
-  { name: 'drop2',     bars: 8, energy: 1.00, density: 0.95 },
+  // 34-bar skeleton tuned for FREESTYLING OVER, not cinematic listening.
+  // The groove never goes empty — there is always a drum+bass pocket to ride.
+  // The build/drop comes from ADDING layers and energy on top of that constant
+  // foundation, NOT from stripping it to silence. A prior "dramatic" version
+  // had intro/breakdown with density ~0.05 (drums basically off) stretched over
+  // 4 bars each — which read as "slow, full of pauses, nothing filling the
+  // space." Fixed: every section keeps a real density floor (≥0.45 → audible
+  // groove), and the sparse moments are short.
+  // Section intent (all keep the pocket alive):
+  //   intro     — SHORT, drums already grooving lighter, sets up fast
+  //   verse     — full band, the home pocket
+  //   build     — tension rising, hats subdivide, energy climbs
+  //   drop      — full force, everything pushed
+  //   breakdown — pulled back but STILL grooving (not empty), sets up drop2
+  //   drop2     — return harder
+  { name: 'intro',     bars: 2, energy: 0.42, density: 0.45 },
+  { name: 'verse',     bars: 8, energy: 0.62, density: 0.62 },
+  { name: 'build',     bars: 4, energy: 0.82, density: 0.80 },
+  { name: 'drop',      bars: 8, energy: 0.97, density: 0.95 },
+  { name: 'breakdown', bars: 4, energy: 0.55, density: 0.50 },
+  { name: 'drop2',     bars: 8, energy: 1.00, density: 0.97 },
 ]
 
 // Per-section orchestration — the composer's "who plays / how forward" call,
 // the categorical intent the section-intent comments above always described
 // but only ever encoded as a density number. The live engine reads this so
 // instruments actually sit out / lead instead of all playing full-time.
+// NOTE: no section sets drums or bass to 'out'. Freestyling needs a constant
+// pocket to ride — the groove must never disappear. Build/drop intensity comes
+// from energy/density and from melody/chord/texture LEADING, not from cutting
+// the rhythm section to silence. (intro/breakdown drums were 'out' here, which
+// — on top of low density — left long empty stretches that read as "slow, full
+// of pauses, nothing filling the space.")
 const SECTION_ORCHESTRATION: Record<ArrangementSectionName, SectionOrchestration> = {
-  intro:     { drums: 'out',     bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
+  intro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
   verse:     { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
   build:     { drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support' },
   drop:      { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
   drop2:     { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
-  breakdown: { drums: 'out',     bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
-  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'out'     },
+  breakdown: { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
+  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
 }
 
 /** Orchestration for a section name, defaulting to all-'support' for any name

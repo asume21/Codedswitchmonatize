@@ -79,11 +79,16 @@ describe('composeDeterministic', () => {
     }
   })
 
-  it('intro sits the drums out; the drop puts drums and bass forward', () => {
+  it('keeps a constant pocket — no section sits drums or bass out — and the drop pushes them forward', () => {
     const plan = composeDeterministic({})
-    const intro = plan.sections.find(s => s.name === 'intro')
     const drop = plan.sections.find(s => s.name === 'drop')
-    expect(intro?.orchestration?.drums).toBe('out')
+    // Freestyling needs a groove that never disappears: no section may set
+    // drums or bass to 'out'. Build/drop comes from energy + leading, not
+    // from cutting the rhythm section to silence.
+    for (const s of plan.sections) {
+      expect(s.orchestration?.drums).not.toBe('out')
+      expect(s.orchestration?.bass).not.toBe('out')
+    }
     expect(drop?.orchestration?.drums).toBe('lead')
     expect(drop?.orchestration?.bass).toBe('lead')
   })
