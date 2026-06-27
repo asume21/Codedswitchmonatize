@@ -1631,6 +1631,8 @@ export class GeneratorOrchestrator {
     // Notify on section change: swap instrument voices + dispatch event
     if (section.name !== this.lastArrangementSection) {
       this.lastArrangementSection = section.name
+      // If an AI loop arrangement is loaded, swap loops to this section's scene.
+      this.applyLoopSceneForSection(section.name)
       orgLog('arrangement:apply', {
         section: section.name,
         bar: barNumber,
@@ -1753,6 +1755,8 @@ export class GeneratorOrchestrator {
    */
   clearLoopPack(): void {
     this._currentScene = null
+    this._loopPack = null
+    this._loopScenes = null
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(false))
     if (this._preLockBpm !== null) {
@@ -1837,6 +1841,35 @@ export class GeneratorOrchestrator {
       gen.setLoopMute(scene[row] == null)
     }
     this._currentScene = { ...scene }
+  }
+
+  // ── AI loop arrangement (loopMind) — scene per section ──────────────────────
+  private _loopPack: LoopPack | null = null
+  private _loopScenes: Map<string, LoopScene> | null = null
+
+  /**
+   * Install an AI-arranged loop plan (from loopMind / POST /api/loops/arrange):
+   * a scene per section name. Applies the current section's scene immediately;
+   * later sections apply automatically on each section change (see
+   * applyArrangement). Call after loadLoopPack when Loops Mode turns on.
+   */
+  async setLoopArrangement(
+    pack: LoopPack,
+    arrangement: { sections: Array<{ name: string; scene: LoopScene }> },
+  ): Promise<void> {
+    this._loopPack = pack
+    this._loopScenes = new Map(arrangement.sections.map((s) => [s.name, s.scene]))
+    const current = this.lastArrangementSection || arrangement.sections[0]?.name
+    const scene = this._loopScenes.get(current) ?? arrangement.sections[0]?.scene
+    if (scene) await this.applyScene(pack, scene)
+  }
+
+  /** Apply the arranged scene for a section, if a loop arrangement is loaded.
+   *  Called from applyArrangement on each section change. */
+  private applyLoopSceneForSection(sectionName: string): void {
+    if (!this._loopPack || !this._loopScenes) return
+    const scene = this._loopScenes.get(sectionName)
+    if (scene) void this.applyScene(this._loopPack, scene)
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */

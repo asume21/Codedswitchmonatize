@@ -3512,6 +3512,34 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           if (gen !== loopsLoadGenerationRef.current) return
 
           await orchestr.loadLoopPack(pack)
+
+          // Ask the AI music mind (loopMind) to arrange the loops across the
+          // song's sections, then install the per-section scene plan so the band
+          // swaps loops on each section change. Falls back silently to the
+          // default first-clip scene if there's no plan or the call fails.
+          const plan = orchestr.getArrangementPlan()
+          const sections = (plan?.sections ?? []).map((s: any) => ({
+            name: s.name,
+            energy: typeof s.energy === 'number' ? s.energy : 0.5,
+            density: typeof s.density === 'number' ? s.density : 0.5,
+          }))
+          if (sections.length && gen === loopsLoadGenerationRef.current) {
+            try {
+              const ares = await fetch('/api/loops/arrange', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ packId, sections }),
+              })
+              if (ares.ok && gen === loopsLoadGenerationRef.current) {
+                const { arrangement } = await ares.json()
+                if (arrangement?.sections?.length) {
+                  await orchestr.setLoopArrangement(pack, arrangement)
+                }
+              }
+            } catch (e) {
+              console.warn('[loops] arrange failed — using default scene', e)
+            }
+          }
         } catch (err) {
           console.warn('[loops] Failed to load pack:', err)
           if (gen === loopsLoadGenerationRef.current) {
