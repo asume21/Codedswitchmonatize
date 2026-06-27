@@ -1752,6 +1752,8 @@ export class GeneratorOrchestrator {
 
   /**
    * Exit loop-pack mode: revert all generators to their synthesis engines.
+   * Replay the last known organism state to each generator so they rebuild
+   * their Tone.Parts / synth scheduling that was stopped when loops were enabled.
    */
   clearLoopPack(): void {
     this._currentScene = null
@@ -1759,9 +1761,23 @@ export class GeneratorOrchestrator {
     this._loopScenes = null
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(false))
+
+    // Restore BPM if we locked it to the pack
     if (this._preLockBpm !== null) {
       Tone.getTransport().bpm.value = this._preLockBpm
       this._preLockBpm = null
+    }
+
+    // Replay the last organism/physics state to each generator so they can
+    // rebuild their Parts and resume scheduled playback. Stagger slightly to
+    // avoid simultaneous Tone.Part rebuild collisions on the audio thread.
+    if (this.lastPhysics && this.lastOrganism) {
+      // Drum/bass need immediate rebuild; melody/chord slightly later.
+      setTimeout(() => this.replayStateToGenerator(this.drum), 40)
+      setTimeout(() => this.replayStateToGenerator(this.bass), 60)
+      setTimeout(() => this.replayStateToGenerator(this.melody), 120)
+      setTimeout(() => this.replayStateToGenerator(this.chord), 160)
+      setTimeout(() => this.replayStateToGenerator(this.texture), 80)
     }
   }
 
