@@ -107,14 +107,6 @@ export class GeneratorOrchestrator {
   // restore exactly the session BPM the user had before engaging Loops Mode.
   private _preLockBpm: number | null = null
 
-  // ── Freeze Mode ───────────────────────────────────────────────────
-  // "Freeze the live groove into a loop." Distinct from Loop Pack mode (which
-  // plays pre-made WAVs). When true, the band stops developing — no section
-  // changes, no chord advance, no pattern rebuilds — so the foundation
-  // generators' looping Parts cycle the current groove, while the live melody
-  // keeps improvising over the held harmony (the loop "evolves").
-  private _freezeMode = false
-
   // ── Progressive Intro ─────────────────────────────────────────────
   // Musician-style instrument stacking: instead of every generator entering
   // at bar 1, they layer in over the first 6 bars so the listener hears the
@@ -1140,21 +1132,15 @@ export class GeneratorOrchestrator {
     const transport = Tone.getTransport()
     const position = transport.position as string
     const currentBar = parseInt(position.split(':')[0], 10) || 0
-    // Freeze mode: the band stops developing — no section changes, no chord
-    // advance, no drum-pattern rebuilds. The foundation generators' looping
-    // Parts keep cycling (frozen groove) while the live melody improvises over
-    // the held harmony. Skip the director + arrangement clock entirely.
-    if (!this._freezeMode) {
-      const needsRebuild = this.director.update(physics, organism, currentBar)
+    const needsRebuild = this.director.update(physics, organism, currentBar)
 
-      if (needsRebuild && !this.melodyOnlyMode) {
-        // Sub-genre or section changed — director already notified via events
-        // which trigger onSubGenreChange / section dispatch
-      }
-
-      // Apply arrangement shaping from director state
-      this.applyArrangement()
+    if (needsRebuild && !this.melodyOnlyMode) {
+      // Sub-genre or section changed — director already notified via events
+      // which trigger onSubGenreChange / section dispatch
     }
+
+    // Apply arrangement shaping from director state
+    this.applyArrangement()
 
     // Process only enabled generators — disabled ones have no Tone.Part
     // and no scheduled notes, so running their frame logic wastes CPU.
@@ -1727,35 +1713,6 @@ export class GeneratorOrchestrator {
       Tone.getTransport().bpm.value = this._preLockBpm
       this._preLockBpm = null
     }
-  }
-
-  /**
-   * FREEZE MODE — capture the current live groove into an evolving loop.
-   *
-   * Freezes the foundation (drums, bass, chords, texture) by flipping them to
-   * loop-playback so their already-scheduled looping Parts keep cycling — no
-   * WAV pack involved (that's clearLoopPack/loadLoopPack). The MELODY is left
-   * live so it keeps improvising fresh phrases over the held harmony, which is
-   * what makes the frozen loop "evolve" instead of repeating identically. The
-   * `_freezeMode` flag stops the director + arrangement clock so the chord and
-   * sections don't move underneath the melody (which would clash).
-   */
-  freezeGroove(): void {
-    this._freezeMode = true
-    this.drum.setLoopMode(true)
-    this.bass.setLoopMode(true)
-    this.chord.setLoopMode(true)
-    this.texture.setLoopMode(true)
-    // melody intentionally left live → it evolves over the frozen groove
-  }
-
-  /** Exit freeze mode: foundation resumes composing, harmony clock restarts. */
-  unfreezeGroove(): void {
-    this._freezeMode = false
-    this.drum.setLoopMode(false)
-    this.bass.setLoopMode(false)
-    this.chord.setLoopMode(false)
-    this.texture.setLoopMode(false)
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */

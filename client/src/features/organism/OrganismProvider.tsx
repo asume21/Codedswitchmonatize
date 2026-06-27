@@ -296,10 +296,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Loops Mode — play back loop packs instead of generating audio.
   const [loopsModeEnabled, setLoopsModeEnabledState] = useState(false)
   const loopsModeEnabledRef = useRef(false)
-
-  // Freeze mode (the test): freeze the live groove into an evolving loop —
-  // distinct from Loops Mode (pre-made WAV packs).
-  const [freezeModeEnabled, setFreezeModeEnabledState] = useState(false)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -3512,15 +3508,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       } else {
         orchestr.clearLoopPack()
       }
-    },
-
-    freezeModeEnabled,
-    setFreezeModeEnabled: (enabled: boolean) => {
-      setFreezeModeEnabledState(enabled)
-      const orchestr = orchestrRef.current
-      if (!orchestr) return
-      if (enabled) orchestr.freezeGroove()
-      else orchestr.unfreezeGroove()
     },
 
     // Instrument picker
