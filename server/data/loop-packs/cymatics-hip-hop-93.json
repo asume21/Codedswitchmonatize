@@ -137,14 +137,12 @@
           },
           "profiledAt": "2026-06-27T10:36:31.240Z"
         }
-      }
-    ],
-    "bass": [
+      },
       {
         "label": "Times Up Bass",
         "bars": 4,
         "url": "/api/loops/pack-audio?p=cymatics-hip-hop-93/bass-loop-1.wav",
-        "id": "bass-1",
+        "id": "melody-4",
         "profile": {
           "description": "This audio presents a sparse, atmospheric, and introspective soundscape.\n\n**Instruments:**\nThe primary instruments are two **electric guitars**.\n1.  **Sustained Electric Guitar (E-bow/Synth Pad-like):** Provides a continuous, evolving, high-register drone/pad. It possesses a shimmering, glassy, and slightly metallic texture, likely achieved with an E-bow, heavy sustain, reverb, and possibly shimmer delay.\n2.  **Clean Electric Guitar (Arpeggiated):** Plays a distinct, clean-toned melodic line using arpeggios. It has a clear, bell-like attack, with evident delay and reverb effects creating a sense of space and trailing echoes.\n\n**Genre:** Ambient Rock / Post-rock / Instrumental Soundscape. It emphasizes atmosphere and texture over traditional song structure.\n\n**Mood:** Introspective, contemplative, melancholic, ethereal, and somewhat serene, with an underlying sense of gentle tension or wistfulness.\n\n**Rhythm:** The sustained guitar lacks a strong discernible rhythm, acting as a slow-moving, evolving backdrop. The arpeggiated guitar provides the primary rhythmic pulse, a steady, medium-slow (approx. 80-90 BPM) eighth or sixteenth-note progression, giving the piece its internal motion and structure.\n\n**Tone:** Clean, bright, clear, and spacious. Both guitars feature a pristine, undistorted tone. The sustained guitar is highly resonant and shimmers in the high frequencies, while the arpeggiated guitar is articulate and chiming.\n\n**Ambient or Structural:** This track is a blend of both. The sustained guitar forms a continuous **ambient** foundation, creating an enveloping atmosphere. The arpeggiated guitar introduces a distinct **structural** melodic and rhythmic element, guiding the listener through the soundscape.\n\n**Textures & Frequencies:**\n*   **Textures:** The sustained guitar offers a smooth, ethereal, and almost liquid texture with high-frequency shimmer. The arpeggiated guitar is clearer, more articulate, and slightly percussive due to its clean attack and echoing decay.\n*   **Frequencies:**\n    *   **Low End:** Very weak to almost absent. There are no dedicated bass instruments or prominent low-frequency elements (e.g., kick drum), giving the mix a light, airy quality.\n    *   **Mid-Range:** Clear and present, where the body and warmth of both guitars reside. There's good separation, preventing muddiness.\n    *   **High End:** Bright, airy, and shimmering, particularly from the sustained guitar's overtones and the arpeggiated guitar's harmonics and effects tails. It adds sparkle without being harsh.\n\n**Mix Problems:**\n*   **Clipping:** No clipping is evident; dynamics are well-controlled.\n*   **Muddiness:** The mix is very clean and spacious; there is no muddiness. Elements are distinct.\n*   **Harshness:** Despite the bright high end, there is no harshness; the frequencies are well-balanced.\n*   **Weak Low End:** This is the most notable characteristic. The mix almost entirely lacks a low-frequency foundation, which, while a stylistic choice fitting the genre's sparse nature, would be considered \"weak\" if evaluated against a full-spectrum mix standard.",
           "energy": 0.878,
@@ -167,6 +165,7 @@
         }
       }
     ],
+    "bass": [],
     "drums": [
       {
         "label": "Popcorn Beat 93",

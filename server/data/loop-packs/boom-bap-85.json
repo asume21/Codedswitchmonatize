@@ -321,11 +321,9 @@
           },
           "profiledAt": "2026-06-27T10:24:57.208Z"
         }
-      }
-    ],
-    "chords": [
+      },
       {
-        "id": "chords-1",
+        "id": "melody-5",
         "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-1.wav",
         "bars": 4,
         "label": "Guitar D 1",
@@ -349,9 +347,11 @@
           },
           "profiledAt": "2026-06-27T10:25:11.087Z"
         }
-      },
+      }
+    ],
+    "chords": [
       {
-        "id": "chords-2",
+        "id": "chords-1",
         "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-2.wav",
         "bars": 4,
         "label": "Guitar D 2",
@@ -377,7 +377,7 @@
         }
       },
       {
-        "id": "chords-3",
+        "id": "chords-2",
         "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-3.wav",
         "bars": 4,
         "label": "Guitar D 3",
@@ -403,7 +403,7 @@
         }
       },
       {
-        "id": "chords-4",
+        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-4.wav",
         "bars": 4,
         "label": "Guitar D 4",

@@ -321,6 +321,84 @@
           },
           "profiledAt": "2026-06-27T11:30:27.479Z"
         }
+      },
+      {
+        "id": "melody-5",
+        "url": "/api/loops/pack-audio?p=hip-hop-94/chords-loop-2.wav",
+        "bars": 4,
+        "label": "Guitar D 2",
+        "profile": {
+          "description": "This is a short, aggressive, and highly energetic electric guitar riff.\n\n**Instruments:**\nThe sole instrument is an **electric guitar**, heavily distorted. There are no audible drums, bass, or other accompanying instruments, though the riff strongly implies a rhythm section.\n\n**Genre:**\nLeans heavily into **Hard Rock**, **Blues-Rock**, or **Classic Rock**. The guitar's melodic phrasing, bends, and vibrato have strong blues influences, but the high gain and aggressive delivery place it firmly in the rock domain.\n\n**Mood:**\nEnergetic, raw, driving, confident, and slightly abrasive. It has a strong, forward-moving momentum that feels rebellious or defiant.\n\n**Rhythm:**\nUp-tempo, likely in 4/4 time. The rhythm is syncopated and quite complex for a short riff, featuring rapid sixteenth-note runs, bends, and sustained notes that give it a distinctive groove.\n\n**Tone:**\nThe electric guitar has a very **bright, edgy, and heavily saturated** tone. It sounds like a tube amplifier pushed to its limits, possibly with additional overdrive/distortion. There's significant harmonic content and a pronounced \"fizz\" in the high end, characteristic of high-gain rock tones.\n\n**Structural/Textural/Frequencies:**\nThis is a **structural riff**, designed to be a memorable and repeatable musical phrase.\n*   **Textures:** Gritty, crunchy, and dense due to the heavy distortion. The single guitar creates a thick, \"wall of sound\" texture in miniature.\n*   **Frequencies:**\n    *   **Low-mids:** Present and warm, giving the guitar body and weight.\n    *   **Mid-range:** Very prominent and powerful, where the core character and aggression of the guitar tone reside.\n    *   **High-mids/Highs:** Very strong presence, contributing to the brightness, attack, and sizzle of the distortion. This range is particularly emphasized, giving it a cutting quality.\n    *   **Low-end:** While the guitar itself has some low-end presence from its fundamental notes, it lacks the deep sub-bass frequencies of a bass guitar or kick drum.\n\n**Obvious Mix Problems:**\n1.  **Clipping:** There is very noticeable **digital clipping** or extreme signal saturation, especially on the initial transients and sustained notes. The waveform sounds \"squared off,\" which can lead to a harsh and fatiguing listening experience.\n2.  **Harshness:** The combination of heavy distortion and excessive high-mid/high frequency content, exacerbated by the clipping, results in significant **harshness** and a somewhat abrasive quality. This is particularly evident in the \"fizz\" of the distortion.\n3.  **Weak Low End (for a full mix):** While the guitar itself has decent low-mids for body, if this were the only instrument providing low frequencies in a song, the overall **low end would be weak** and lacking depth. However, for a solo guitar recording, it's more about the character of the instrument.\n4.  **Muddiness:** Not overtly muddy, but the low-mids could be slightly clearer if this were part of a larger mix, potentially to avoid masking other instruments. As a solo guitar, it holds together reasonably well in this regard.",
+          "energy": 0.453,
+          "brightness": 0.486,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.018,
+            "bass": 0.108,
+            "lowMid": 0.253,
+            "highMid": 0.549,
+            "high": 0.072
+          },
+          "metrics": {
+            "rmsDb": -19.138,
+            "spectralCentroidHz": 3017,
+            "estimatedBpm": null,
+            "onsetCount": 72
+          },
+          "profiledAt": "2026-06-27T11:30:57.843Z"
+        }
+      },
+      {
+        "id": "melody-6",
+        "url": "/api/loops/pack-audio?p=hip-hop-94/chords-loop-4.wav",
+        "bars": 4,
+        "label": "Guitar D 4",
+        "profile": {
+          "description": "This audio features an **electric guitar** playing a lead melody or riff fragment.\n\n**Genre:** The sound of the distorted electric guitar strongly suggests **Hard Rock or Blues-Rock**, possibly bordering on Classic Rock.\n\n**Mood:** The mood is **energetic, passionate, and expressive**. The guitar playing style, with prominent bends, slides, and vibrato, conveys a sense of wailing intensity.\n\n**Rhythm:** There is **no discernible rhythm section** (drums, bass). The guitar line itself has a somewhat free-form, lead-driven rhythm, characteristic of a solo or lead melody, rather than a strict rhythmic groove. It feels like it would fit a moderate tempo.\n\n**Tone:** The guitar tone is heavily **overdriven and distorted**, providing a gritty, thick, and sustained character. It's vibrant and cuts through effectively.\n\n**Structural Analysis:** This is a **structural** piece, a distinct melodic phrase or lick, not an ambient soundscape.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is primarily **gritty and fuzzy** due to the distortion, with a noticeable sustain. The bends and slides add a fluid, dynamic, and vocal-like quality to the sound.\n*   **Frequencies:**\n    *   **Highs:** Present enough for clarity and definition, giving the bends and string work their cutting edge, but not overly harsh.\n    *   **Mids:** Very prominent and robust, providing the core body and driving force of the distorted guitar tone. This range is where the instrument's \"voice\" truly resides.\n    *   **Lows:** Sufficient low-mid presence contributes to the fullness and thickness, preventing the sound from being thin, but without unnecessary boominess or sub-bass.\n\n**Mix Problems:**\n*   **Clipping:** There is no obvious digital clipping; the distortion is an intentional and well-integrated part of the guitar's tone.\n*   **Muddiness:** The sound is **not muddy**; the mid-range clarity is good for a distorted guitar, allowing the individual notes to be heard despite the saturation.\n*   **Harshness:** While a high-gain sound, it is **not unduly harsh or piercing** in the high-end.\n*   **Weak Low End:** For a solo lead guitar track, the low end is appropriate. It possesses sufficient low-mid weight without attempting to provide bass frequencies that would typically come from a bass guitar or kick drum.",
+          "energy": 0.424,
+          "brightness": 0.645,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.004,
+            "bass": 0.021,
+            "lowMid": 0.201,
+            "highMid": 0.652,
+            "high": 0.123
+          },
+          "metrics": {
+            "rmsDb": -19.831,
+            "spectralCentroidHz": 3943,
+            "estimatedBpm": null,
+            "onsetCount": 78
+          },
+          "profiledAt": "2026-06-27T11:31:27.419Z"
+        }
+      },
+      {
+        "label": "Soft Guitar Bm",
+        "url": "/api/loops/pack-audio?p=hip-hop-94/melody-loop-5.wav",
+        "bars": 2,
+        "id": "melody-7",
+        "profile": {
+          "description": "This audio features a **fingerpicked acoustic guitar** playing a melancholic, arpeggiated melody, supported by a deep, **sustained low string or synth pad** providing a harmonic foundation. A **soft, atmospheric mid-range synth pad** subtly fills the space, while a **high-frequency ethereal chime or bell** adds a sparkling, sustained layer.\n\nThe genre is best described as **Ambient Folk** with strong **Neo-classical/Cinematic** undertones. The mood is deeply **reflective, peaceful, and subtly melancholic**, evoking a sense of serene introspection and quiet yearning. Rhythmically, it is **slow and unhurried**, with the guitar providing a gentle, steady pulse against the long, flowing sustains. The overall tone is **warm, clear, and highly ethereal.**\n\nThis is primarily an **ambient** piece, characterized by its **layered, airy, and shimmering textures**. The frequencies are well-balanced: the **low end** is solid and supportive from the sustained bass, providing warmth without muddiness. The **mid-range** is rich and full from the acoustic guitar and soft pad. The **high end** is clear, extended, and sparkling from the guitar's attack and the ethereal chime, adding an airy quality without any harshness.\n\nThere are **no obvious mix problems**; the production is clean, transparent, and well-balanced. There is no clipping, muddiness, or weak low end, and the highs are bright without being harsh.",
+          "energy": 0.39,
+          "brightness": 0.381,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.019,
+            "bass": 0.116,
+            "lowMid": 0.577,
+            "highMid": 0.156,
+            "high": 0.132
+          },
+          "metrics": {
+            "rmsDb": -20.633,
+            "spectralCentroidHz": 2410,
+            "estimatedBpm": null,
+            "onsetCount": 67
+          },
+          "profiledAt": "2026-06-27T15:14:08.554Z"
+        }
       }
     ],
     "chords": [
@@ -352,32 +430,6 @@
       },
       {
         "id": "chords-2",
-        "url": "/api/loops/pack-audio?p=hip-hop-94/chords-loop-2.wav",
-        "bars": 4,
-        "label": "Guitar D 2",
-        "profile": {
-          "description": "This is a short, aggressive, and highly energetic electric guitar riff.\n\n**Instruments:**\nThe sole instrument is an **electric guitar**, heavily distorted. There are no audible drums, bass, or other accompanying instruments, though the riff strongly implies a rhythm section.\n\n**Genre:**\nLeans heavily into **Hard Rock**, **Blues-Rock**, or **Classic Rock**. The guitar's melodic phrasing, bends, and vibrato have strong blues influences, but the high gain and aggressive delivery place it firmly in the rock domain.\n\n**Mood:**\nEnergetic, raw, driving, confident, and slightly abrasive. It has a strong, forward-moving momentum that feels rebellious or defiant.\n\n**Rhythm:**\nUp-tempo, likely in 4/4 time. The rhythm is syncopated and quite complex for a short riff, featuring rapid sixteenth-note runs, bends, and sustained notes that give it a distinctive groove.\n\n**Tone:**\nThe electric guitar has a very **bright, edgy, and heavily saturated** tone. It sounds like a tube amplifier pushed to its limits, possibly with additional overdrive/distortion. There's significant harmonic content and a pronounced \"fizz\" in the high end, characteristic of high-gain rock tones.\n\n**Structural/Textural/Frequencies:**\nThis is a **structural riff**, designed to be a memorable and repeatable musical phrase.\n*   **Textures:** Gritty, crunchy, and dense due to the heavy distortion. The single guitar creates a thick, \"wall of sound\" texture in miniature.\n*   **Frequencies:**\n    *   **Low-mids:** Present and warm, giving the guitar body and weight.\n    *   **Mid-range:** Very prominent and powerful, where the core character and aggression of the guitar tone reside.\n    *   **High-mids/Highs:** Very strong presence, contributing to the brightness, attack, and sizzle of the distortion. This range is particularly emphasized, giving it a cutting quality.\n    *   **Low-end:** While the guitar itself has some low-end presence from its fundamental notes, it lacks the deep sub-bass frequencies of a bass guitar or kick drum.\n\n**Obvious Mix Problems:**\n1.  **Clipping:** There is very noticeable **digital clipping** or extreme signal saturation, especially on the initial transients and sustained notes. The waveform sounds \"squared off,\" which can lead to a harsh and fatiguing listening experience.\n2.  **Harshness:** The combination of heavy distortion and excessive high-mid/high frequency content, exacerbated by the clipping, results in significant **harshness** and a somewhat abrasive quality. This is particularly evident in the \"fizz\" of the distortion.\n3.  **Weak Low End (for a full mix):** While the guitar itself has decent low-mids for body, if this were the only instrument providing low frequencies in a song, the overall **low end would be weak** and lacking depth. However, for a solo guitar recording, it's more about the character of the instrument.\n4.  **Muddiness:** Not overtly muddy, but the low-mids could be slightly clearer if this were part of a larger mix, potentially to avoid masking other instruments. As a solo guitar, it holds together reasonably well in this regard.",
-          "energy": 0.453,
-          "brightness": 0.486,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.018,
-            "bass": 0.108,
-            "lowMid": 0.253,
-            "highMid": 0.549,
-            "high": 0.072
-          },
-          "metrics": {
-            "rmsDb": -19.138,
-            "spectralCentroidHz": 3017,
-            "estimatedBpm": null,
-            "onsetCount": 72
-          },
-          "profiledAt": "2026-06-27T11:30:57.843Z"
-        }
-      },
-      {
-        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=hip-hop-94/chords-loop-3.wav",
         "bars": 4,
         "label": "Guitar D 3",
@@ -400,32 +452,6 @@
             "onsetCount": 74
           },
           "profiledAt": "2026-06-27T11:31:13.150Z"
-        }
-      },
-      {
-        "id": "chords-4",
-        "url": "/api/loops/pack-audio?p=hip-hop-94/chords-loop-4.wav",
-        "bars": 4,
-        "label": "Guitar D 4",
-        "profile": {
-          "description": "This audio features an **electric guitar** playing a lead melody or riff fragment.\n\n**Genre:** The sound of the distorted electric guitar strongly suggests **Hard Rock or Blues-Rock**, possibly bordering on Classic Rock.\n\n**Mood:** The mood is **energetic, passionate, and expressive**. The guitar playing style, with prominent bends, slides, and vibrato, conveys a sense of wailing intensity.\n\n**Rhythm:** There is **no discernible rhythm section** (drums, bass). The guitar line itself has a somewhat free-form, lead-driven rhythm, characteristic of a solo or lead melody, rather than a strict rhythmic groove. It feels like it would fit a moderate tempo.\n\n**Tone:** The guitar tone is heavily **overdriven and distorted**, providing a gritty, thick, and sustained character. It's vibrant and cuts through effectively.\n\n**Structural Analysis:** This is a **structural** piece, a distinct melodic phrase or lick, not an ambient soundscape.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is primarily **gritty and fuzzy** due to the distortion, with a noticeable sustain. The bends and slides add a fluid, dynamic, and vocal-like quality to the sound.\n*   **Frequencies:**\n    *   **Highs:** Present enough for clarity and definition, giving the bends and string work their cutting edge, but not overly harsh.\n    *   **Mids:** Very prominent and robust, providing the core body and driving force of the distorted guitar tone. This range is where the instrument's \"voice\" truly resides.\n    *   **Lows:** Sufficient low-mid presence contributes to the fullness and thickness, preventing the sound from being thin, but without unnecessary boominess or sub-bass.\n\n**Mix Problems:**\n*   **Clipping:** There is no obvious digital clipping; the distortion is an intentional and well-integrated part of the guitar's tone.\n*   **Muddiness:** The sound is **not muddy**; the mid-range clarity is good for a distorted guitar, allowing the individual notes to be heard despite the saturation.\n*   **Harshness:** While a high-gain sound, it is **not unduly harsh or piercing** in the high-end.\n*   **Weak Low End:** For a solo lead guitar track, the low end is appropriate. It possesses sufficient low-mid weight without attempting to provide bass frequencies that would typically come from a bass guitar or kick drum.",
-          "energy": 0.424,
-          "brightness": 0.645,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.004,
-            "bass": 0.021,
-            "lowMid": 0.201,
-            "highMid": 0.652,
-            "high": 0.123
-          },
-          "metrics": {
-            "rmsDb": -19.831,
-            "spectralCentroidHz": 3943,
-            "estimatedBpm": null,
-            "onsetCount": 78
-          },
-          "profiledAt": "2026-06-27T11:31:27.419Z"
         }
       }
     ],

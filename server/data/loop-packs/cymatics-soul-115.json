@@ -139,6 +139,32 @@
           },
           "profiledAt": "2026-06-27T10:53:22.880Z"
         }
+      },
+      {
+        "label": "Nylon Guitar Gm",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-4.wav",
+        "bars": 4,
+        "id": "melody-4",
+        "profile": {
+          "description": "This audio features a **prominent arpeggiated instrument resembling a harp or pizzicato strings**, playing a repetitive, flowing melodic phrase. Beneath this, a **subtle, high-frequency, sustained synth pad** provides an ethereal, shimmering background texture.\n\n**Genre:** Ambient, New Age, or contemplative film score.\n**Mood:** Serene, peaceful, meditative, and slightly reflective or melancholic. It evokes a sense of calm and introspection.\n**Rhythm:** The tempo is slow to medium, with a consistent, gentle pulse driven by the arpeggiated pattern, likely in a 3/4 or 6/8 time signature, creating a fluid, cyclical feel.\n**Tone:** Bright, clean, and ethereal. The arpeggios have a crystalline, resonant quality with clear attacks and smooth decays. The pad is airy and unobtrusive.\n\nThe audio is primarily **structural** due to the repeating melodic motif of the arpeggio, but it also possesses strong **ambient** qualities from the sustained pad, which creates an atmospheric backdrop.\n\n**Textures & Frequencies:** The primary texture is the delicate, plucked string sound, which is very clear and occupies the mid-high to high frequencies. This is layered with a soft, very high-frequency shimmering texture from the pad, which adds breadth and airiness to the soundscape. The overall frequency balance is heavily skewed towards the higher end.\n\n**Mix Problems:**\n*   **Weak Low End:** The most obvious characteristic is the complete **absence of any low-end information**. There is no bass, sub-bass, or low-mid presence whatsoever, resulting in a very \"light\" and \"thin\" sound. While this might be an intentional artistic choice for an ethereal mood, it leaves the mix lacking foundation.\n*   There is no discernible clipping, muddiness, or harshness; the higher frequencies, while dominant, are clean and well-controlled.",
+          "energy": 0.367,
+          "brightness": 0.446,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.023,
+            "bass": 0.205,
+            "lowMid": 0.497,
+            "highMid": 0.12,
+            "high": 0.156
+          },
+          "metrics": {
+            "rmsDb": -21.195,
+            "spectralCentroidHz": 2784,
+            "estimatedBpm": null,
+            "onsetCount": 154
+          },
+          "profiledAt": "2026-06-27T15:13:37.230Z"
+        }
       }
     ],
     "chords": [

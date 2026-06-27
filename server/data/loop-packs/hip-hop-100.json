@@ -321,6 +321,32 @@
           },
           "profiledAt": "2026-06-27T11:25:08.955Z"
         }
+      },
+      {
+        "id": "melody-5",
+        "url": "/api/loops/pack-audio?p=hip-hop-100/chords-loop-2.wav",
+        "bars": 4,
+        "label": "Guitar E 2",
+        "profile": {
+          "description": "This audio features a **heavily distorted, high-pitched synth lead** or an extremely processed electric guitar, resembling an aggressive industrial synth patch. No other instruments are present.\n\nThe **genre** leans heavily towards **Industrial, Noise Rock, or Harsh Electronic music**, characterized by its abrasive sonic palette.\n\nThe **mood** is undeniably **aggressive, abrasive, chaotic, and unsettling**, conveying a sense of urgent, machine-like intensity.\n\nThe **rhythm** is **structural and repetitive**, forming a short, distinct, almost robotic melodic phrase. It's a steady, driving pulse despite the chaotic timbre.\n\nThe **tone** is **extremely bright, harsh, metallic, and buzzing**, heavily overdriven and saturated. It's dominated by high-frequency content.\n\nThis piece is distinctly **structural**, not ambient, featuring a clear, repeating melodic figure.\n\n*   **Textures:** The texture is gritty, digital, highly saturated, and metallic, akin to a square wave synth pushed to its limits through aggressive distortion. It has a buzzing, almost grating quality.\n*   **Frequencies:** The sound is overwhelmingly concentrated in the **mid-high to high frequency range**, with virtually no low-end presence, creating a piercing, almost thin, yet intensely aggressive quality.\n\n**Obvious Mix Problems:**\n*   **Harshness:** The sound is inherently and extremely harsh, pushing the limits of listenability due to the extreme high-frequency emphasis and aggressive distortion. While potentially an artistic choice, it is a prominent characteristic.\n*   **Clipping:** The signal appears to be heavily saturated, bordering on or actively clipping, which contributes to the harsh, square-wave-like distortion.\n*   **Weak low end:** There is a significant lack of low-frequency information, making the sound feel top-heavy and lacking in foundational weight.\n*   No notable muddiness, as it lacks the low-mid frequencies typically associated with that issue.",
+          "energy": 0.536,
+          "brightness": 0.444,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.006,
+            "bass": 0.018,
+            "lowMid": 0.585,
+            "highMid": 0.296,
+            "high": 0.096
+          },
+          "metrics": {
+            "rmsDb": -17.142,
+            "spectralCentroidHz": 2774,
+            "estimatedBpm": null,
+            "onsetCount": 77
+          },
+          "profiledAt": "2026-06-27T11:25:39.763Z"
+        }
       }
     ],
     "chords": [
@@ -352,32 +378,6 @@
       },
       {
         "id": "chords-2",
-        "url": "/api/loops/pack-audio?p=hip-hop-100/chords-loop-2.wav",
-        "bars": 4,
-        "label": "Guitar E 2",
-        "profile": {
-          "description": "This audio features a **heavily distorted, high-pitched synth lead** or an extremely processed electric guitar, resembling an aggressive industrial synth patch. No other instruments are present.\n\nThe **genre** leans heavily towards **Industrial, Noise Rock, or Harsh Electronic music**, characterized by its abrasive sonic palette.\n\nThe **mood** is undeniably **aggressive, abrasive, chaotic, and unsettling**, conveying a sense of urgent, machine-like intensity.\n\nThe **rhythm** is **structural and repetitive**, forming a short, distinct, almost robotic melodic phrase. It's a steady, driving pulse despite the chaotic timbre.\n\nThe **tone** is **extremely bright, harsh, metallic, and buzzing**, heavily overdriven and saturated. It's dominated by high-frequency content.\n\nThis piece is distinctly **structural**, not ambient, featuring a clear, repeating melodic figure.\n\n*   **Textures:** The texture is gritty, digital, highly saturated, and metallic, akin to a square wave synth pushed to its limits through aggressive distortion. It has a buzzing, almost grating quality.\n*   **Frequencies:** The sound is overwhelmingly concentrated in the **mid-high to high frequency range**, with virtually no low-end presence, creating a piercing, almost thin, yet intensely aggressive quality.\n\n**Obvious Mix Problems:**\n*   **Harshness:** The sound is inherently and extremely harsh, pushing the limits of listenability due to the extreme high-frequency emphasis and aggressive distortion. While potentially an artistic choice, it is a prominent characteristic.\n*   **Clipping:** The signal appears to be heavily saturated, bordering on or actively clipping, which contributes to the harsh, square-wave-like distortion.\n*   **Weak low end:** There is a significant lack of low-frequency information, making the sound feel top-heavy and lacking in foundational weight.\n*   No notable muddiness, as it lacks the low-mid frequencies typically associated with that issue.",
-          "energy": 0.536,
-          "brightness": 0.444,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.006,
-            "bass": 0.018,
-            "lowMid": 0.585,
-            "highMid": 0.296,
-            "high": 0.096
-          },
-          "metrics": {
-            "rmsDb": -17.142,
-            "spectralCentroidHz": 2774,
-            "estimatedBpm": null,
-            "onsetCount": 77
-          },
-          "profiledAt": "2026-06-27T11:25:39.763Z"
-        }
-      },
-      {
-        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=hip-hop-100/chords-loop-3.wav",
         "bars": 4,
         "label": "Guitar E 3",
@@ -403,7 +403,7 @@
         }
       },
       {
-        "id": "chords-4",
+        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=hip-hop-100/chords-loop-4.wav",
         "bars": 4,
         "label": "Guitar E 4",

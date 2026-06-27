@@ -116,32 +116,6 @@
       },
       {
         "id": "melody-2",
-        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-2.wav",
-        "bars": 8,
-        "label": "Piano 1",
-        "profile": {
-          "description": "This audio features sustained, evolving **organ chords**, likely from a pipe organ or a high-quality organ emulation synth pad. The sound is rich, full-bodied, and highly resonant. There are no other discernible instruments; it's a singular, unified sonic texture.\n\n**Genre:** Ambient, specifically leaning towards **Dark Ambient** or **Drone Ambient**.\n**Mood:** Melancholy, solemn, reflective, expansive, and somewhat introspective or foreboding. It evokes a sense of vastness and contemplation.\n**Rhythm:** A-rhythmic. There is no discernible beat or pulse; the chords are sustained and transition slowly.\n**Tone:** Deep, warm, resonant, and ethereal. The sound is smooth and lacks any sharp attack transients.\n\n**Ambient/Structural:** This piece is distinctly **ambient**. It lacks traditional melodic development or structural changes (verse, chorus, bridge) and instead focuses on creating a continuous, immersive soundscape.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is smooth, continuous, and highly sustained, giving it a \"washing\" or \"floating\" quality. It's dense due to the sustained chords but not muddy, with clear harmonic overtones creating richness. The overall feel is one of sonic immersion.\n*   **Frequencies:**\n    *   **Low End:** Present and foundational, providing a deep rumble that grounds the chords, but not overpowering or boomy. It's felt more than distinctly heard as a separate element.\n    *   **Low-Mids:** Very strong and prominent, giving the organ its characteristic warmth, body, and fullness. This is where much of the emotional weight resides.\n    *   **Mid-Range:** Well-defined, contributing to the clarity of the sustained chords and the complex harmonic content of the organ.\n    *   **High-Mids/High End:** Present enough to provide definition, \"air,\" and a subtle shimmer from the upper harmonics, preventing the sound from feeling dull, but it's not bright or piercing. It's smoothly integrated.\n\n**Obvious Mix Problems:**\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is remarkably clean for a dense, sustained organ sound. There's no apparent muddiness; the harmonic content is clear.\n*   **Harshness:** There is no harshness in the high frequencies; the sound is smooth and well-balanced.\n*   **Weak Low End:** The low end is adequate and provides a solid foundation. It's not designed to be a prominent bass, but it fulfills its role in the ambient context very well, so it is not weak.",
-          "energy": 0,
-          "brightness": 0.259,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.009,
-            "bass": 0.177,
-            "lowMid": 0.673,
-            "highMid": 0.071,
-            "high": 0.071
-          },
-          "metrics": {
-            "rmsDb": -34.888,
-            "spectralCentroidHz": 1702,
-            "estimatedBpm": 117,
-            "onsetCount": 173
-          },
-          "profiledAt": "2026-06-27T10:50:23.143Z"
-        }
-      },
-      {
-        "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-3.wav",
         "bars": 8,
         "label": "Piano 2",
@@ -218,6 +192,32 @@
             "onsetCount": 178
           },
           "profiledAt": "2026-06-27T10:51:09.840Z"
+        }
+      },
+      {
+        "id": "chords-3",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-98/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano 1",
+        "profile": {
+          "description": "This audio features sustained, evolving **organ chords**, likely from a pipe organ or a high-quality organ emulation synth pad. The sound is rich, full-bodied, and highly resonant. There are no other discernible instruments; it's a singular, unified sonic texture.\n\n**Genre:** Ambient, specifically leaning towards **Dark Ambient** or **Drone Ambient**.\n**Mood:** Melancholy, solemn, reflective, expansive, and somewhat introspective or foreboding. It evokes a sense of vastness and contemplation.\n**Rhythm:** A-rhythmic. There is no discernible beat or pulse; the chords are sustained and transition slowly.\n**Tone:** Deep, warm, resonant, and ethereal. The sound is smooth and lacks any sharp attack transients.\n\n**Ambient/Structural:** This piece is distinctly **ambient**. It lacks traditional melodic development or structural changes (verse, chorus, bridge) and instead focuses on creating a continuous, immersive soundscape.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is smooth, continuous, and highly sustained, giving it a \"washing\" or \"floating\" quality. It's dense due to the sustained chords but not muddy, with clear harmonic overtones creating richness. The overall feel is one of sonic immersion.\n*   **Frequencies:**\n    *   **Low End:** Present and foundational, providing a deep rumble that grounds the chords, but not overpowering or boomy. It's felt more than distinctly heard as a separate element.\n    *   **Low-Mids:** Very strong and prominent, giving the organ its characteristic warmth, body, and fullness. This is where much of the emotional weight resides.\n    *   **Mid-Range:** Well-defined, contributing to the clarity of the sustained chords and the complex harmonic content of the organ.\n    *   **High-Mids/High End:** Present enough to provide definition, \"air,\" and a subtle shimmer from the upper harmonics, preventing the sound from feeling dull, but it's not bright or piercing. It's smoothly integrated.\n\n**Obvious Mix Problems:**\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is remarkably clean for a dense, sustained organ sound. There's no apparent muddiness; the harmonic content is clear.\n*   **Harshness:** There is no harshness in the high frequencies; the sound is smooth and well-balanced.\n*   **Weak Low End:** The low end is adequate and provides a solid foundation. It's not designed to be a prominent bass, but it fulfills its role in the ambient context very well, so it is not weak.",
+          "energy": 0,
+          "brightness": 0.259,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.009,
+            "bass": 0.177,
+            "lowMid": 0.673,
+            "highMid": 0.071,
+            "high": 0.071
+          },
+          "metrics": {
+            "rmsDb": -34.888,
+            "spectralCentroidHz": 1702,
+            "estimatedBpm": 117,
+            "onsetCount": 173
+          },
+          "profiledAt": "2026-06-27T10:50:23.143Z"
         }
       }
     ],

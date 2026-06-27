@@ -142,32 +142,6 @@
       },
       {
         "id": "melody-2",
-        "url": "/api/loops/pack-audio?p=cymatics-vintage-85/melody-loop-2.wav",
-        "bars": 8,
-        "label": "Saxophone",
-        "profile": {
-          "description": "This audio features a **minimalist, experimental drone** with a distinct **eerie and contemplative mood**.\n\n**Instruments:** No traditional instruments are clearly identifiable. The sounds strongly suggest **bowed metal percussion** (such as a bowed vibraphone, cymbal, or gong), or possibly a **friction instrument** (like a wet finger on a large glass rim), or highly processed/synthesized tones designed to mimic these qualities.\n\n**Genre:** Experimental, Ambient Drone, Sound Art, Minimalism.\n\n**Mood:** Eerie, unsettling, somber, contemplative, tense, slightly melancholic.\n\n**Rhythm:** Arhythmic. There is no discernible beat or pulse. The \"rhythm\" is dictated by the slow attack, sustain, and decay of individual tones, and the gradual evolution of the drone.\n\n**Tone:** High-pitched, resonant, sustained, metallic, glassy, with a prominent \"whining\" or \"singing\" quality.\n\n**Textures & Frequencies (Ambient/Structural):**\nThe piece is largely **ambient and structural**, building a sonic landscape rather than following a melodic or harmonic progression in the traditional sense.\n\n*   **0:00-0:16:** The texture is initially sparse, featuring isolated, **high-pitched, pure-toned events**. Each event has a slow, gradual attack, a short sustain, and a subtle decay. There's a sense of friction or sympathetic resonance. The **frequencies are predominantly mid-high to high**, with each tone often rising slightly in pitch before falling.\n*   **0:16-End:** This transitions into a **sustained, evolving drone**. The texture becomes denser but remains smooth. It's rich in **high-frequency harmonics** and upper partials, giving it a shimmering, glassy, and metallic resonance. There's a subtle, slow **filter sweeping or phasing effect** evident in the drone, causing gentle undulations in its timbre and perceived presence, adding to the unsettling quality. The dynamics are subtle, with slow, almost imperceptible swells and fades in volume. The overall frequency spectrum remains focused on the mid-high to high range.\n\n**Mix Problems:**\n*   **Weak Low End:** The low end is virtually absent throughout the piece. While this is likely intentional for the aesthetic and focus on higher frequencies, it results in a very thin overall frequency spectrum that lacks foundational weight. If this were part of a larger mix, it would be perceived as extremely thin or lacking warmth.\n*   **No obvious clipping, harshness, or muddiness.** The sounds are clean and clearly defined within their chosen frequency range. The high frequencies are present without being overly piercing or fatiguing.",
-          "energy": 0,
-          "brightness": 0.524,
-          "busyness": 0.277,
-          "bands": {
-            "sub": 0.005,
-            "bass": 0.013,
-            "lowMid": 0.597,
-            "highMid": 0.246,
-            "high": 0.138
-          },
-          "metrics": {
-            "rmsDb": -40.091,
-            "spectralCentroidHz": 3240,
-            "estimatedBpm": null,
-            "onsetCount": 50
-          },
-          "profiledAt": "2026-06-27T11:20:47.743Z"
-        }
-      },
-      {
-        "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-85/melody-loop-3.wav",
         "bars": 8,
         "label": "Rhodes",
@@ -272,6 +246,32 @@
             "onsetCount": 0
           },
           "profiledAt": "2026-06-27T11:21:55.251Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-85/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Saxophone",
+        "profile": {
+          "description": "This audio features a **minimalist, experimental drone** with a distinct **eerie and contemplative mood**.\n\n**Instruments:** No traditional instruments are clearly identifiable. The sounds strongly suggest **bowed metal percussion** (such as a bowed vibraphone, cymbal, or gong), or possibly a **friction instrument** (like a wet finger on a large glass rim), or highly processed/synthesized tones designed to mimic these qualities.\n\n**Genre:** Experimental, Ambient Drone, Sound Art, Minimalism.\n\n**Mood:** Eerie, unsettling, somber, contemplative, tense, slightly melancholic.\n\n**Rhythm:** Arhythmic. There is no discernible beat or pulse. The \"rhythm\" is dictated by the slow attack, sustain, and decay of individual tones, and the gradual evolution of the drone.\n\n**Tone:** High-pitched, resonant, sustained, metallic, glassy, with a prominent \"whining\" or \"singing\" quality.\n\n**Textures & Frequencies (Ambient/Structural):**\nThe piece is largely **ambient and structural**, building a sonic landscape rather than following a melodic or harmonic progression in the traditional sense.\n\n*   **0:00-0:16:** The texture is initially sparse, featuring isolated, **high-pitched, pure-toned events**. Each event has a slow, gradual attack, a short sustain, and a subtle decay. There's a sense of friction or sympathetic resonance. The **frequencies are predominantly mid-high to high**, with each tone often rising slightly in pitch before falling.\n*   **0:16-End:** This transitions into a **sustained, evolving drone**. The texture becomes denser but remains smooth. It's rich in **high-frequency harmonics** and upper partials, giving it a shimmering, glassy, and metallic resonance. There's a subtle, slow **filter sweeping or phasing effect** evident in the drone, causing gentle undulations in its timbre and perceived presence, adding to the unsettling quality. The dynamics are subtle, with slow, almost imperceptible swells and fades in volume. The overall frequency spectrum remains focused on the mid-high to high range.\n\n**Mix Problems:**\n*   **Weak Low End:** The low end is virtually absent throughout the piece. While this is likely intentional for the aesthetic and focus on higher frequencies, it results in a very thin overall frequency spectrum that lacks foundational weight. If this were part of a larger mix, it would be perceived as extremely thin or lacking warmth.\n*   **No obvious clipping, harshness, or muddiness.** The sounds are clean and clearly defined within their chosen frequency range. The high frequencies are present without being overly piercing or fatiguing.",
+          "energy": 0,
+          "brightness": 0.524,
+          "busyness": 0.277,
+          "bands": {
+            "sub": 0.005,
+            "bass": 0.013,
+            "lowMid": 0.597,
+            "highMid": 0.246,
+            "high": 0.138
+          },
+          "metrics": {
+            "rmsDb": -40.091,
+            "spectralCentroidHz": 3240,
+            "estimatedBpm": null,
+            "onsetCount": 50
+          },
+          "profiledAt": "2026-06-27T11:20:47.743Z"
         }
       }
     ]

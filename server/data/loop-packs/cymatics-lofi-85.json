@@ -3,34 +3,7 @@
   "key": "A#m",
   "genre": "lo-fi",
   "loops": {
-    "bass": [
-      {
-        "label": "Eternity Bass A#m",
-        "id": "bass-1",
-        "bars": 4,
-        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/bass-loop-1.wav",
-        "profile": {
-          "description": "This audio is a prime example of **Ambient Lo-Fi / Downtempo**, evoking a **peaceful, melancholic, and introspective mood**.\n\n**Instruments:**\n*   **Acoustic Guitar (likely nylon string):** The central melodic and harmonic element, played with a warm, clean, fingerpicked arpeggio style. Its tone is gentle and slightly muted.\n*   **Synthesizer Pad:** A sustained, shimmering, and ethereal pad provides a wide, atmospheric backdrop, adding harmonic depth and a dreamy quality.\n*   **Subtle Drone/Bass:** A very deep, continuous low-frequency hum underpins the harmony, adding warmth and grounding without being prominent.\n*   **Minimal Percussion:** Very subtle, almost imperceptible soft clicks or brushes, possibly from the guitar's attack or light electronic elements, contribute to a gentle, organic pulse.\n\n**Rhythm:** The rhythm is very slow, loose, and largely unmetered, verging on rubato. The guitar's arpeggiated figures create a gentle, flowing pulse rather than a strict beat. The overall feel is static and contemplative.\n\n**Tone:** The overall tone is soft, warm, and airy. The guitar offers an intimate, organic timbre, while the pads provide an expansive, synthetic contrast. The sound is clean, spacious, and subtly melancholic.\n\n**Ambient or Structural:** This piece is distinctly **ambient**. It focuses on creating a sonic environment and mood rather than a linear structural narrative.\n\n**Textures and Frequencies:**\n*   **Textures:** The guitar provides a clear, delicate plucked texture with intimate articulation. The pads create a smooth, sustained, hazy, and wide texture that washes over the soundscape. The low drone offers a deep, foundational hum, adding weight.\n*   **Frequencies:**\n    *   **Low End:** Present with a warm, sustained drone, providing subtle depth and grounding without becoming boomy or dominant. It feels appropriate and well-controlled.\n    *   **Mid-Range:** Clear and balanced, primarily occupied by the guitar's body and fundamental frequencies, along with the core of the pads. Nothing feels congested.\n    *   **High End:** Features delicate transients from the guitar plucks and an airy, shimmering quality from the pads, contributing to a sense of spaciousness without any harshness.\n\n**Mix Problems:** The mix is clean and well-balanced. There are no obvious signs of **clipping**, **muddiness**, or **harshness**. The **low end** is supportive and provides ample warmth, entirely appropriate for the genre, and certainly not weak. The stereo imaging is effective, creating a wide and enveloping soundstage.",
-          "energy": 0.745,
-          "brightness": 0.416,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.058,
-            "bass": 0.435,
-            "lowMid": 0.242,
-            "highMid": 0.111,
-            "high": 0.154
-          },
-          "metrics": {
-            "rmsDb": -12.127,
-            "spectralCentroidHz": 2613,
-            "estimatedBpm": null,
-            "onsetCount": 165
-          },
-          "profiledAt": "2026-06-27T10:45:02.946Z"
-        }
-      }
-    ],
+    "bass": [],
     "texture": [
       {
         "label": "Eternity Lofi Full",
@@ -218,6 +191,32 @@
             "onsetCount": 658
           },
           "profiledAt": "2026-06-27T10:45:39.511Z"
+        }
+      },
+      {
+        "label": "Eternity Bass A#m",
+        "id": "melody-3",
+        "bars": 4,
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-85/bass-loop-1.wav",
+        "profile": {
+          "description": "This audio is a prime example of **Ambient Lo-Fi / Downtempo**, evoking a **peaceful, melancholic, and introspective mood**.\n\n**Instruments:**\n*   **Acoustic Guitar (likely nylon string):** The central melodic and harmonic element, played with a warm, clean, fingerpicked arpeggio style. Its tone is gentle and slightly muted.\n*   **Synthesizer Pad:** A sustained, shimmering, and ethereal pad provides a wide, atmospheric backdrop, adding harmonic depth and a dreamy quality.\n*   **Subtle Drone/Bass:** A very deep, continuous low-frequency hum underpins the harmony, adding warmth and grounding without being prominent.\n*   **Minimal Percussion:** Very subtle, almost imperceptible soft clicks or brushes, possibly from the guitar's attack or light electronic elements, contribute to a gentle, organic pulse.\n\n**Rhythm:** The rhythm is very slow, loose, and largely unmetered, verging on rubato. The guitar's arpeggiated figures create a gentle, flowing pulse rather than a strict beat. The overall feel is static and contemplative.\n\n**Tone:** The overall tone is soft, warm, and airy. The guitar offers an intimate, organic timbre, while the pads provide an expansive, synthetic contrast. The sound is clean, spacious, and subtly melancholic.\n\n**Ambient or Structural:** This piece is distinctly **ambient**. It focuses on creating a sonic environment and mood rather than a linear structural narrative.\n\n**Textures and Frequencies:**\n*   **Textures:** The guitar provides a clear, delicate plucked texture with intimate articulation. The pads create a smooth, sustained, hazy, and wide texture that washes over the soundscape. The low drone offers a deep, foundational hum, adding weight.\n*   **Frequencies:**\n    *   **Low End:** Present with a warm, sustained drone, providing subtle depth and grounding without becoming boomy or dominant. It feels appropriate and well-controlled.\n    *   **Mid-Range:** Clear and balanced, primarily occupied by the guitar's body and fundamental frequencies, along with the core of the pads. Nothing feels congested.\n    *   **High End:** Features delicate transients from the guitar plucks and an airy, shimmering quality from the pads, contributing to a sense of spaciousness without any harshness.\n\n**Mix Problems:** The mix is clean and well-balanced. There are no obvious signs of **clipping**, **muddiness**, or **harshness**. The **low end** is supportive and provides ample warmth, entirely appropriate for the genre, and certainly not weak. The stereo imaging is effective, creating a wide and enveloping soundstage.",
+          "energy": 0.745,
+          "brightness": 0.416,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.058,
+            "bass": 0.435,
+            "lowMid": 0.242,
+            "highMid": 0.111,
+            "high": 0.154
+          },
+          "metrics": {
+            "rmsDb": -12.127,
+            "spectralCentroidHz": 2613,
+            "estimatedBpm": null,
+            "onsetCount": 165
+          },
+          "profiledAt": "2026-06-27T10:45:02.946Z"
         }
       }
     ]

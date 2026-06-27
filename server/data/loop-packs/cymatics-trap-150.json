@@ -165,6 +165,32 @@
           },
           "profiledAt": "2026-06-27T10:58:18.453Z"
         }
+      },
+      {
+        "label": "Gloomy Violin Cm",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-3.wav",
+        "bars": 16,
+        "id": "melody-3",
+        "profile": {
+          "description": "This audio features a **full string orchestra**, comprising violins, violas, cellos, and double basses. The **genre** leans towards classical or neo-classical, highly reminiscent of a dramatic film score or a solemn orchestral piece.\n\nThe **mood** is distinctly melancholic, somber, and deeply reflective, evoking a sense of longing, sorrow, or profound contemplation. The **rhythm** is exceedingly slow (adagio/largo), characterized by long, sustained chords and legato phrasing, with no discernible percussive pulse, emphasizing harmonic movement over rhythmic drive. The **tone** is warm, rich, and full-bodied, with articulate, smooth highs and a resonant depth, indicative of an acoustic, orchestral setting.\n\nThis is a **structural** piece rather than purely ambient, featuring a clear, although slow, harmonic progression and a developing melodic contour that guides the listener through a narrative of emotion.\n\n**Textures & Frequencies:** The texture is lush and homophonic, built from sustained string pads that create a dense, layered soundscape. The **frequency spectrum** is well-balanced: the low end provides a deep, supportive foundation from the cellos and basses without being boomy; the mid-range is exceptionally rich and full, housing the core warmth of the string ensemble; and the high end is clear, airy, and articulate, but never harsh or shrill, allowing the violins to soar gently.\n\n**Mix Problems:** There are no obvious mix problems. The audio exhibits no clipping, muddiness in the mid-range, harshness in the highs, or a weak low end. The mix is clean, balanced, and allows the natural resonance of the instruments to shine, creating a sense of spaciousness appropriate for an orchestral recording.",
+          "energy": 0.026,
+          "brightness": 0.358,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.017,
+            "bass": 0.043,
+            "lowMid": 0.615,
+            "highMid": 0.241,
+            "high": 0.084
+          },
+          "metrics": {
+            "rmsDb": -29.382,
+            "spectralCentroidHz": 2278,
+            "estimatedBpm": null,
+            "onsetCount": 382
+          },
+          "profiledAt": "2026-06-27T15:13:52.954Z"
+        }
       }
     ],
     "chords": [],

@@ -84,6 +84,58 @@
           },
           "profiledAt": "2026-06-27T10:39:01.658Z"
         }
+      },
+      {
+        "label": "Delicate Guitar Am",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-3.wav",
+        "bars": 4,
+        "id": "melody-3",
+        "profile": {
+          "description": "This audio features a **single acoustic nylon-string (classical) guitar**, expertly **fingerpicked**.\n\n**Genre:** It leans towards **contemporary classical, introspective folk, or instrumental soundtrack music**. The fingerpicking style and chord progression evoke a sense of thoughtful reflection.\n\n**Mood:** The mood is **peaceful, reflective, and gently melancholic or wistful**. It possesses a calming and serene quality, inviting contemplation.\n\n**Rhythm:** The rhythm is **slow and unhurried**, with a consistent, gentle fingerpicking pattern providing a steady, subtle pulse. It feels like common time (4/4) with a deliberate, flowing pace.\n\n**Tone:** The guitar's tone is **warm, mellow, and rounded**, characteristic of nylon strings. The notes are clear and articulate, with a soft attack and natural, pleasant sustain. There's an inherent softness that prevents any harshness.\n\n**Structural/Ambient:** This is a distinctly **structural piece**, not ambient. It presents a clear, short melodic and harmonic phrase, suggesting a musical motif or a section of a larger composition.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is delicate, intimate, and focused, emphasizing the singular voice of the guitar. Each note is distinct within the arpeggiated chords.\n*   **Frequencies:** The sound is well-balanced. **Rich low-mids** provide warmth and body to the instrument. The **mid-range** is clear and articulate, allowing the melody to shine without being overbearing. The **high-mids and highs** offer a natural sparkle and definition to the string attack and decay, completely free of harshness.\n\n**Mix Problems:** The recording quality is excellent, and the mix for this solo instrument is virtually flawless.\n*   **Clipping:** No clipping is present; the dynamics are well-managed.\n*   **Muddiness:** There is no muddiness; the notes are perfectly clear and distinct.\n*   **Harshness:** The high end is smooth and natural, entirely free of harshness.\n*   **Weak low end:** The low end is perfectly appropriate and full-bodied for a nylon-string guitar, providing warmth without being boomy or lacking.",
+          "energy": 0,
+          "brightness": 0.303,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.032,
+            "bass": 0.16,
+            "lowMid": 0.61,
+            "highMid": 0.106,
+            "high": 0.092
+          },
+          "metrics": {
+            "rmsDb": -30.208,
+            "spectralCentroidHz": 1957,
+            "estimatedBpm": null,
+            "onsetCount": 129
+          },
+          "profiledAt": "2026-06-27T15:13:05.942Z"
+        }
+      },
+      {
+        "label": "Dramatic Piano C",
+        "url": "/api/loops/pack-audio?p=cymatics-hip-hop-96/melody-loop-4.wav",
+        "bars": 8,
+        "id": "melody-4",
+        "profile": {
+          "description": "This audio features a **piano** and a **string ensemble** (or highly realistic synth strings).\n\n**Genre:** Neo-classical, Cinematic, or Contemporary Classical.\n\n**Mood:** Melancholic, reflective, serene, and poignant, with an underlying sense of bittersweet contemplation.\n\n**Rhythm:** The tempo is slow (adagio/lento), characterized by very long, sustained notes from the strings and a deliberate, flowing rhythm from the piano, which often employs gentle arpeggiations against sustained chords. The overall pulse is unhurried and measured.\n\n**Tone:** The overall tone is warm, rich, clean, and highly resonant.\n\n**Structural:** The piece is structural rather than purely ambient, featuring a clear melodic and harmonic progression that develops over time, telling a narrative.\n\n**Textures and Frequencies:**\n*   **Textures:** The piano provides a clean, articulate texture with its resonant chords and rippling arpeggios, creating movement and clarity. This is contrasted by the smooth, velvety, and expansive sustained pads of the string ensemble, which form a deep, warm, and emotionally rich backdrop.\n*   **Frequencies:** The sound is well-balanced. The mid-range is prominent, carrying the main melodic and harmonic content from both instruments with excellent clarity and warmth. The high end is clear and shimmery from the piano's upper registers and the gentle sheen of the strings, without any harshness. The low end provides a subtle, warm foundation through the piano's lower notes and the body of the strings, offering support rather than pronounced punch or rumble, which is appropriate for the genre.\n\n**Mix Problems:** The mix appears generally clean and well-engineered. There is no apparent clipping, muddiness between instruments, or harshness in the high frequencies. The low end, while not dominant, is supportive and warm, and cannot be considered weak for this particular musical style.",
+          "energy": 0.073,
+          "brightness": 0.363,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.037,
+            "bass": 0.209,
+            "lowMid": 0.529,
+            "highMid": 0.104,
+            "high": 0.12
+          },
+          "metrics": {
+            "rmsDb": -28.252,
+            "spectralCentroidHz": 2304,
+            "estimatedBpm": null,
+            "onsetCount": 210
+          },
+          "profiledAt": "2026-06-27T15:13:21.081Z"
+        }
       }
     ],
     "texture": [

@@ -111,112 +111,7 @@
         }
       }
     ],
-    "bass": [
-      {
-        "id": "bass-1",
-        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-1.wav",
-        "bars": 2,
-        "label": "Bassline E",
-        "profile": {
-          "description": "This audio clip features a short, distinct **electric guitar** riff.\n\n**Genre:** The riff has a strong **bluesy/jazz-blues** inflection, with elements that could also fit into a relaxed **indie-rock** or **pop** context. It functions as a melodic lick or lead-in.\n\n**Mood:** The mood is **relaxed, groovy, and slightly contemplative or melancholic**, owing to the minor key (or blues scale) harmony. It feels easygoing and warm.\n\n**Rhythm:** The rhythm is **moderately slow**, with a steady, deliberate pulse. It feels like a 4/4 time signature, with a subtle **swing or shuffle feel** in the articulation of the notes, common in blues. The rhythmic figures are clear and well-defined.\n\n**Tone:** The guitar tone is **clean to subtly crunchy/overdriven**, giving it warmth and sustain without being heavy or distorted. It has a pleasant mid-range focus, a clear attack, and a smooth decay.\n\n**Structural/Ambient:** This is distinctly **structural**. It is a clear, composed melodic phrase with a defined beginning and end, not an ambient soundscape.\n\n**Textures & Frequencies:**\n*   **Textures:** The texture is **sparse and monophonic**, as it's a single instrument playing a melodic line without chords or other layers. The sound is very **clear and articulate**.\n*   **Frequencies:** The **mid-range is dominant and rich**, where the electric guitar's fundamental frequencies and primary harmonics reside. The high end provides clarity and definition to the notes without being harsh or shrill. The **low end is notably weak or largely absent**, as there are no bass instruments or low-frequency pads to provide a foundation.\n\n**Mix Problems:**\n*   **Weak Low End:** This is the most prominent characteristic. While not necessarily a \"mix problem\" for a solo instrument, it lacks significant presence below 200 Hz. In a full mix, this would indicate a need for a bass instrument.\n*   **Clipping/Muddiness/Harshness:** There are no obvious signs of clipping, muddiness, or harshness. The recording is clean, and the guitar's tone is well-captured and balanced within its own frequency range.",
-          "energy": 0.657,
-          "brightness": 0.355,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.14,
-            "bass": 0.341,
-            "lowMid": 0.289,
-            "highMid": 0.101,
-            "high": 0.129
-          },
-          "metrics": {
-            "rmsDb": -14.222,
-            "spectralCentroidHz": 2259,
-            "estimatedBpm": null,
-            "onsetCount": 37
-          },
-          "profiledAt": "2026-06-27T11:33:49.137Z"
-        }
-      },
-      {
-        "id": "bass-2",
-        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-2.wav",
-        "bars": 2,
-        "label": "Bassline E Alt",
-        "profile": {
-          "description": "This audio features a **clean electric guitar** playing a short, arpeggiated melodic phrase.\n\n*   **Genre:** It leans towards **Blues-Rock** or **Fusion**, with a slightly jazzy melodic sensibility. It feels like an instrumental lick, perhaps an intro or a warm-up.\n*   **Mood:** The mood is **playful, light, and exploratory**. It evokes a sense of improvisation or practice.\n*   **Rhythm:** The rhythm is **up-tempo and precise**, with a fast, almost 16th-note arpeggiated pattern. It feels like a straightforward 4/4 time signature.\n*   **Tone:** The guitar has a **bright, clean, and articulate tone**. There's excellent string definition and a clear attack, with a hint of warmth from the body of the guitar. A subtle amount of reverb gives it space.\n*   **Structural/Textures/Frequencies:** This is a **structural** melodic phrase, not ambient. The texture is **sparse and clean**, featuring a single, well-defined guitar voice. Frequencies are balanced for a clean guitar: strong and clear **mids** carrying the core tone, articulate **high-mids and highs** providing sparkle and definition without harshness, and sufficient **low-mids** to give the guitar body without muddiness.\n*   **Mix Problems:** There are **no obvious mix problems**. The recording is clean, with no clipping, muddiness, or harshness detected. The low end is appropriate for a solo clean electric guitar, lacking bass but not weak within its context.",
-          "energy": 0.643,
-          "brightness": 0.406,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.185,
-            "bass": 0.228,
-            "lowMid": 0.236,
-            "highMid": 0.226,
-            "high": 0.124
-          },
-          "metrics": {
-            "rmsDb": -14.561,
-            "spectralCentroidHz": 2553,
-            "estimatedBpm": null,
-            "onsetCount": 38
-          },
-          "profiledAt": "2026-06-27T11:34:01.874Z"
-        }
-      },
-      {
-        "id": "bass-3",
-        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-3.wav",
-        "bars": 2,
-        "label": "Bass E 3",
-        "profile": {
-          "description": "This audio features a **single acoustic guitar**, expertly **fingerpicked**.\n\n**Genre:** It aligns with **Folk/Fingerstyle Acoustic**, possibly with influences from country or blues given the bass line and melodic phrasing.\n\n**Mood:** The mood is **relaxed, rustic, and slightly contemplative**, evoking a sense of calm or introspection.\n\n**Rhythm:** The tempo is **moderate and steady**, featuring a clear 4/4 time signature. A consistent, grounded **walking bass line** is interwoven with quicker melodic and harmonic plucks, creating a rhythmic and polyphonic pattern.\n\n**Tone:** The guitar has a **warm, woody, and natural** tone. There's a good balance between the resonant body sound and the clear definition of the plucked strings.\n\n**Structural:** This is clearly **structural**, presenting a distinct, repeating musical riff rather than an ambient soundscape.\n\n**Textures & Frequencies:** The texture is **sparse yet polyphonic**, with the single guitar creating both a foundational bass line and higher melodic/harmonic elements. Frequencies are strong in the **mid-range**, which carries the guitar's body and fundamental tones. The **high-end** provides clear string attack and definition without being harsh. The **low-end** is present and foundational from the guitar's bass strings, providing a solid anchor for the instrument.\n\n**Mix Problems:** The recording has a raw, unpolished quality. There's a **slight tendency towards lower-mid resonance or boominess**, which could be interpreted as minor muddiness, but it's not severe enough to obscure the clarity of the lines and largely contributes to the natural acoustic feel. There are no obvious signs of clipping, harshness, or a weak low end (for an acoustic guitar).",
-          "energy": 0.594,
-          "brightness": 0.484,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.035,
-            "bass": 0.267,
-            "lowMid": 0.326,
-            "highMid": 0.189,
-            "high": 0.183
-          },
-          "metrics": {
-            "rmsDb": -15.738,
-            "spectralCentroidHz": 3008,
-            "estimatedBpm": null,
-            "onsetCount": 37
-          },
-          "profiledAt": "2026-06-27T11:34:16.282Z"
-        }
-      },
-      {
-        "id": "bass-4",
-        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-4.wav",
-        "bars": 2,
-        "label": "Bass E 4",
-        "profile": {
-          "description": "This audio features a solo, plucked string instrument that strongly resembles a **banjo**.\n\n**Instruments:** Predominantly a single banjo, characterized by its sharp, metallic pluck and rapid decay.\n\n**Genre:** The sound immediately evokes **folk**, **country**, or **bluegrass** influences, but its brevity and distinct, recurring riff suggest it could function as a **jingle**, **sting**, or sound effect within a broader context (e.g., an indie-folk track, a commercial bumper).\n\n**Mood:** The mood is **playful**, **quirky**, and **lighthearted**. The quick, ascending and descending melodic fragments create a sense of cheerful energy and bounce.\n\n**Rhythm:** The rhythm is **steady** and **moderately fast**, with a consistent, driving pulse. It's characterized by rapid, percussive plucking that creates a lively, active feel.\n\n**Tone:** The tone is distinctly **bright** and **twangy**, with a sharp attack and very short sustain. It's **percussive** due to the quick decay of the notes.\n\n**Ambient/Structural, Textures, and Frequencies:**\nThis is a **structural** element, presenting a clear, defined musical phrase rather than an atmospheric soundscape.\n*   **Textures:** The texture is **sparse** and **focused**, consisting solely of the distinct, individual plucks of the banjo strings. There is no layering or wash of sound.\n*   **Frequencies:** The sound is heavily concentrated in the **mid-range** and **high-mid frequencies**, giving it its characteristic brightness and \"twang.\" There is a notable **absence of low-end** information, which is typical for a solo banjo. The high frequencies contribute to the metallic, cutting quality without being overly harsh.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping or distortion.\n*   **Muddiness:** The sound is very clear and articulate; there is no muddiness whatsoever.\n*   **Harshness:** While bright, the high end is not excessively harsh or piercing. It maintains a musical quality.\n*   **Weak Low End:** As mentioned, there is an inherent lack of low-end presence, which is characteristic of a solo banjo and not a mix problem in this context. The instrument is faithfully represented.",
-          "energy": 0.677,
-          "brightness": 0.405,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.089,
-            "bass": 0.243,
-            "lowMid": 0.368,
-            "highMid": 0.172,
-            "high": 0.128
-          },
-          "metrics": {
-            "rmsDb": -13.758,
-            "spectralCentroidHz": 2549,
-            "estimatedBpm": null,
-            "onsetCount": 38
-          },
-          "profiledAt": "2026-06-27T11:34:30.680Z"
-        }
-      }
-    ],
+    "bass": [],
     "melody": [
       {
         "id": "melody-1",
@@ -321,6 +216,110 @@
           },
           "profiledAt": "2026-06-27T11:35:31.943Z"
         }
+      },
+      {
+        "id": "melody-5",
+        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-1.wav",
+        "bars": 2,
+        "label": "Bassline E",
+        "profile": {
+          "description": "This audio clip features a short, distinct **electric guitar** riff.\n\n**Genre:** The riff has a strong **bluesy/jazz-blues** inflection, with elements that could also fit into a relaxed **indie-rock** or **pop** context. It functions as a melodic lick or lead-in.\n\n**Mood:** The mood is **relaxed, groovy, and slightly contemplative or melancholic**, owing to the minor key (or blues scale) harmony. It feels easygoing and warm.\n\n**Rhythm:** The rhythm is **moderately slow**, with a steady, deliberate pulse. It feels like a 4/4 time signature, with a subtle **swing or shuffle feel** in the articulation of the notes, common in blues. The rhythmic figures are clear and well-defined.\n\n**Tone:** The guitar tone is **clean to subtly crunchy/overdriven**, giving it warmth and sustain without being heavy or distorted. It has a pleasant mid-range focus, a clear attack, and a smooth decay.\n\n**Structural/Ambient:** This is distinctly **structural**. It is a clear, composed melodic phrase with a defined beginning and end, not an ambient soundscape.\n\n**Textures & Frequencies:**\n*   **Textures:** The texture is **sparse and monophonic**, as it's a single instrument playing a melodic line without chords or other layers. The sound is very **clear and articulate**.\n*   **Frequencies:** The **mid-range is dominant and rich**, where the electric guitar's fundamental frequencies and primary harmonics reside. The high end provides clarity and definition to the notes without being harsh or shrill. The **low end is notably weak or largely absent**, as there are no bass instruments or low-frequency pads to provide a foundation.\n\n**Mix Problems:**\n*   **Weak Low End:** This is the most prominent characteristic. While not necessarily a \"mix problem\" for a solo instrument, it lacks significant presence below 200 Hz. In a full mix, this would indicate a need for a bass instrument.\n*   **Clipping/Muddiness/Harshness:** There are no obvious signs of clipping, muddiness, or harshness. The recording is clean, and the guitar's tone is well-captured and balanced within its own frequency range.",
+          "energy": 0.657,
+          "brightness": 0.355,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.14,
+            "bass": 0.341,
+            "lowMid": 0.289,
+            "highMid": 0.101,
+            "high": 0.129
+          },
+          "metrics": {
+            "rmsDb": -14.222,
+            "spectralCentroidHz": 2259,
+            "estimatedBpm": null,
+            "onsetCount": 37
+          },
+          "profiledAt": "2026-06-27T11:33:49.137Z"
+        }
+      },
+      {
+        "id": "melody-6",
+        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-2.wav",
+        "bars": 2,
+        "label": "Bassline E Alt",
+        "profile": {
+          "description": "This audio features a **clean electric guitar** playing a short, arpeggiated melodic phrase.\n\n*   **Genre:** It leans towards **Blues-Rock** or **Fusion**, with a slightly jazzy melodic sensibility. It feels like an instrumental lick, perhaps an intro or a warm-up.\n*   **Mood:** The mood is **playful, light, and exploratory**. It evokes a sense of improvisation or practice.\n*   **Rhythm:** The rhythm is **up-tempo and precise**, with a fast, almost 16th-note arpeggiated pattern. It feels like a straightforward 4/4 time signature.\n*   **Tone:** The guitar has a **bright, clean, and articulate tone**. There's excellent string definition and a clear attack, with a hint of warmth from the body of the guitar. A subtle amount of reverb gives it space.\n*   **Structural/Textures/Frequencies:** This is a **structural** melodic phrase, not ambient. The texture is **sparse and clean**, featuring a single, well-defined guitar voice. Frequencies are balanced for a clean guitar: strong and clear **mids** carrying the core tone, articulate **high-mids and highs** providing sparkle and definition without harshness, and sufficient **low-mids** to give the guitar body without muddiness.\n*   **Mix Problems:** There are **no obvious mix problems**. The recording is clean, with no clipping, muddiness, or harshness detected. The low end is appropriate for a solo clean electric guitar, lacking bass but not weak within its context.",
+          "energy": 0.643,
+          "brightness": 0.406,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.185,
+            "bass": 0.228,
+            "lowMid": 0.236,
+            "highMid": 0.226,
+            "high": 0.124
+          },
+          "metrics": {
+            "rmsDb": -14.561,
+            "spectralCentroidHz": 2553,
+            "estimatedBpm": null,
+            "onsetCount": 38
+          },
+          "profiledAt": "2026-06-27T11:34:01.874Z"
+        }
+      },
+      {
+        "id": "melody-7",
+        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-4.wav",
+        "bars": 2,
+        "label": "Bass E 4",
+        "profile": {
+          "description": "This audio features a solo, plucked string instrument that strongly resembles a **banjo**.\n\n**Instruments:** Predominantly a single banjo, characterized by its sharp, metallic pluck and rapid decay.\n\n**Genre:** The sound immediately evokes **folk**, **country**, or **bluegrass** influences, but its brevity and distinct, recurring riff suggest it could function as a **jingle**, **sting**, or sound effect within a broader context (e.g., an indie-folk track, a commercial bumper).\n\n**Mood:** The mood is **playful**, **quirky**, and **lighthearted**. The quick, ascending and descending melodic fragments create a sense of cheerful energy and bounce.\n\n**Rhythm:** The rhythm is **steady** and **moderately fast**, with a consistent, driving pulse. It's characterized by rapid, percussive plucking that creates a lively, active feel.\n\n**Tone:** The tone is distinctly **bright** and **twangy**, with a sharp attack and very short sustain. It's **percussive** due to the quick decay of the notes.\n\n**Ambient/Structural, Textures, and Frequencies:**\nThis is a **structural** element, presenting a clear, defined musical phrase rather than an atmospheric soundscape.\n*   **Textures:** The texture is **sparse** and **focused**, consisting solely of the distinct, individual plucks of the banjo strings. There is no layering or wash of sound.\n*   **Frequencies:** The sound is heavily concentrated in the **mid-range** and **high-mid frequencies**, giving it its characteristic brightness and \"twang.\" There is a notable **absence of low-end** information, which is typical for a solo banjo. The high frequencies contribute to the metallic, cutting quality without being overly harsh.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping or distortion.\n*   **Muddiness:** The sound is very clear and articulate; there is no muddiness whatsoever.\n*   **Harshness:** While bright, the high end is not excessively harsh or piercing. It maintains a musical quality.\n*   **Weak Low End:** As mentioned, there is an inherent lack of low-end presence, which is characteristic of a solo banjo and not a mix problem in this context. The instrument is faithfully represented.",
+          "energy": 0.677,
+          "brightness": 0.405,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.089,
+            "bass": 0.243,
+            "lowMid": 0.368,
+            "highMid": 0.172,
+            "high": 0.128
+          },
+          "metrics": {
+            "rmsDb": -13.758,
+            "spectralCentroidHz": 2549,
+            "estimatedBpm": null,
+            "onsetCount": 38
+          },
+          "profiledAt": "2026-06-27T11:34:30.680Z"
+        }
+      },
+      {
+        "id": "melody-8",
+        "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-2.wav",
+        "bars": 4,
+        "label": "Guitar E Alt",
+        "profile": {
+          "description": "This audio features a **solo electric guitar** playing a highly syncopated and rhythmic phrase.\n\n**Genre:** The style strongly leans towards **Funk/Blues-Fusion Instrumental** or **Neo-Soul Guitar**, characterized by its tight groove and blend of bluesy melodicism with funky rhythmic precision.\n\n**Mood:** The mood is **groovy, confident, and playful**, with a distinct \"cool\" or slightly improvisational jazz-fusion feel. It's energetic and engaging.\n\n**Rhythm:** The rhythm is exceptionally **tight and precise**, driven by frequent **syncopation** and percussive articulation. It has a moderate, foot-tapping tempo, likely around 100-120 BPM, with a strong rhythmic drive.\n\n**Tone:** The electric guitar tone is primarily **clean but with a dynamic edge**. There's a subtle, controlled overdrive or grit that responds to the player's attack, adding character without heavy distortion. It features a bright, articulate high-end with a noticeable \"twang\" or \"snap\" in the attack, a clear and present mid-range, and sufficient low-mid body, avoiding harshness.\n\n**Structural Analysis:** This is a **structural melodic and rhythmic phrase**, not ambient. It's a clearly defined musical statement, likely a riff or a lead line excerpt.\n\n**Textures and Frequencies:**\n*   **Texture:** The texture is lean and focused, entirely created by the solo electric guitar. It achieves rhythmic density and interest through the interplay of quick single-note lines and percussive chordal stabs.\n*   **Frequencies:** The sound is heavily weighted in the **mid-range**, which provides the core character and clarity of the guitar. Articulate **high-mids and highs** define the attack and harmonic content without being overly bright or harsh. The **low end** is naturally constrained to the guitar's fundamental frequencies, offering warmth and body in the low-mids but no sub-bass extension, which is appropriate for a solo electric guitar.\n\n**Mix Problems:** There are **no obvious mix problems**. The recording is clean and well-balanced for a solo instrument. There is no clipping, muddiness, or harshness. The low end is entirely appropriate for a solo electric guitar, providing sufficient body in the low-mids without needing extended sub-bass frequencies.",
+          "energy": 0.359,
+          "brightness": 0.508,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.008,
+            "bass": 0.08,
+            "lowMid": 0.367,
+            "highMid": 0.44,
+            "high": 0.105
+          },
+          "metrics": {
+            "rmsDb": -21.374,
+            "spectralCentroidHz": 3146,
+            "estimatedBpm": null,
+            "onsetCount": 74
+          },
+          "profiledAt": "2026-06-27T11:36:03.262Z"
+        }
       }
     ],
     "chords": [
@@ -352,32 +351,6 @@
       },
       {
         "id": "chords-2",
-        "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-2.wav",
-        "bars": 4,
-        "label": "Guitar E Alt",
-        "profile": {
-          "description": "This audio features a **solo electric guitar** playing a highly syncopated and rhythmic phrase.\n\n**Genre:** The style strongly leans towards **Funk/Blues-Fusion Instrumental** or **Neo-Soul Guitar**, characterized by its tight groove and blend of bluesy melodicism with funky rhythmic precision.\n\n**Mood:** The mood is **groovy, confident, and playful**, with a distinct \"cool\" or slightly improvisational jazz-fusion feel. It's energetic and engaging.\n\n**Rhythm:** The rhythm is exceptionally **tight and precise**, driven by frequent **syncopation** and percussive articulation. It has a moderate, foot-tapping tempo, likely around 100-120 BPM, with a strong rhythmic drive.\n\n**Tone:** The electric guitar tone is primarily **clean but with a dynamic edge**. There's a subtle, controlled overdrive or grit that responds to the player's attack, adding character without heavy distortion. It features a bright, articulate high-end with a noticeable \"twang\" or \"snap\" in the attack, a clear and present mid-range, and sufficient low-mid body, avoiding harshness.\n\n**Structural Analysis:** This is a **structural melodic and rhythmic phrase**, not ambient. It's a clearly defined musical statement, likely a riff or a lead line excerpt.\n\n**Textures and Frequencies:**\n*   **Texture:** The texture is lean and focused, entirely created by the solo electric guitar. It achieves rhythmic density and interest through the interplay of quick single-note lines and percussive chordal stabs.\n*   **Frequencies:** The sound is heavily weighted in the **mid-range**, which provides the core character and clarity of the guitar. Articulate **high-mids and highs** define the attack and harmonic content without being overly bright or harsh. The **low end** is naturally constrained to the guitar's fundamental frequencies, offering warmth and body in the low-mids but no sub-bass extension, which is appropriate for a solo electric guitar.\n\n**Mix Problems:** There are **no obvious mix problems**. The recording is clean and well-balanced for a solo instrument. There is no clipping, muddiness, or harshness. The low end is entirely appropriate for a solo electric guitar, providing sufficient body in the low-mids without needing extended sub-bass frequencies.",
-          "energy": 0.359,
-          "brightness": 0.508,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.008,
-            "bass": 0.08,
-            "lowMid": 0.367,
-            "highMid": 0.44,
-            "high": 0.105
-          },
-          "metrics": {
-            "rmsDb": -21.374,
-            "spectralCentroidHz": 3146,
-            "estimatedBpm": null,
-            "onsetCount": 74
-          },
-          "profiledAt": "2026-06-27T11:36:03.262Z"
-        }
-      },
-      {
-        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-3.wav",
         "bars": 4,
         "label": "Guitar E 3",
@@ -403,7 +376,7 @@
         }
       },
       {
-        "id": "chords-4",
+        "id": "chords-3",
         "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-4.wav",
         "bars": 4,
         "label": "Guitar E 4",
@@ -426,6 +399,32 @@
             "onsetCount": 76
           },
           "profiledAt": "2026-06-27T11:36:32.343Z"
+        }
+      },
+      {
+        "id": "chords-4",
+        "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-3.wav",
+        "bars": 2,
+        "label": "Bass E 3",
+        "profile": {
+          "description": "This audio features a **single acoustic guitar**, expertly **fingerpicked**.\n\n**Genre:** It aligns with **Folk/Fingerstyle Acoustic**, possibly with influences from country or blues given the bass line and melodic phrasing.\n\n**Mood:** The mood is **relaxed, rustic, and slightly contemplative**, evoking a sense of calm or introspection.\n\n**Rhythm:** The tempo is **moderate and steady**, featuring a clear 4/4 time signature. A consistent, grounded **walking bass line** is interwoven with quicker melodic and harmonic plucks, creating a rhythmic and polyphonic pattern.\n\n**Tone:** The guitar has a **warm, woody, and natural** tone. There's a good balance between the resonant body sound and the clear definition of the plucked strings.\n\n**Structural:** This is clearly **structural**, presenting a distinct, repeating musical riff rather than an ambient soundscape.\n\n**Textures & Frequencies:** The texture is **sparse yet polyphonic**, with the single guitar creating both a foundational bass line and higher melodic/harmonic elements. Frequencies are strong in the **mid-range**, which carries the guitar's body and fundamental tones. The **high-end** provides clear string attack and definition without being harsh. The **low-end** is present and foundational from the guitar's bass strings, providing a solid anchor for the instrument.\n\n**Mix Problems:** The recording has a raw, unpolished quality. There's a **slight tendency towards lower-mid resonance or boominess**, which could be interpreted as minor muddiness, but it's not severe enough to obscure the clarity of the lines and largely contributes to the natural acoustic feel. There are no obvious signs of clipping, harshness, or a weak low end (for an acoustic guitar).",
+          "energy": 0.594,
+          "brightness": 0.484,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.035,
+            "bass": 0.267,
+            "lowMid": 0.326,
+            "highMid": 0.189,
+            "high": 0.183
+          },
+          "metrics": {
+            "rmsDb": -15.738,
+            "spectralCentroidHz": 3008,
+            "estimatedBpm": null,
+            "onsetCount": 37
+          },
+          "profiledAt": "2026-06-27T11:34:16.282Z"
         }
       }
     ],
