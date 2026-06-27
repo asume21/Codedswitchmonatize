@@ -84,12 +84,18 @@ export abstract class GeneratorBase {
     await Tone.loaded()
   }
 
-  /** Enter/exit loop mode. On enter, the active player starts on the next bar
-   *  so it's grid-locked; on exit it stops. */
+  /** Enter/exit loop mode. On enter, stop generator playback/parts so the loop
+   *  can be the sole source; then start the loop player grid-locked. On exit,
+   *  stop the loop player — normal generator scheduling will resume later. */
   setLoopMode(enabled: boolean): void {
     this._loopMode = enabled
-    if (enabled && this._loopPlayer) {
-      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    if (enabled) {
+      // Ensure any active scheduled Parts / synth voices are halted so the
+      // loop audio doesn't layer with generator playback (the "doubles" bug).
+      try { (this as any).stopPart() } catch { /* fallback: some gens may no-op */ }
+      if (this._loopPlayer) {
+        Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+      }
     } else {
       this._loopPlayer?.stop()
     }
@@ -157,6 +163,9 @@ export abstract class GeneratorBase {
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void
   abstract onStateTransition(to: OState, physics: PhysicsState): void
   abstract reset(): void
+  /** Called by the base when entering loop mode so subclasses can stop scheduled
+   *  Parts, release synths, and otherwise silence generator playback. */
+  abstract stopPart(): void
 
   getActivityReport(timestamp: number): GeneratorActivityReport {
     return {
