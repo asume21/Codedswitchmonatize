@@ -25,10 +25,17 @@ const DESCRIBE_PROMPT =
   'textures and frequencies. Note any obvious mix problems (clipping, muddiness, ' +
   'harshness, weak low end). Keep it concise but highly analytical.';
 
-// gemini-1.5-flash was retired by Google (404 on v1beta). 2.0-flash is the
-// current GA multimodal-audio model on the free tier. Override via env if
-// Google rotates names again — no code change needed.
-const GEMINI_AUDIO_MODEL = process.env.GEMINI_AUDIO_MODEL?.trim() || 'gemini-2.0-flash';
+// Google retires Gemini model names FAST (1.5-flash and 2.0-flash both 404'd
+// within a day). So instead of one name, try a list newest→older and use the
+// first that answers. An env override jumps the queue. This stops us chasing
+// model names every time Google rotates them.
+const GEMINI_MODEL_CANDIDATES = [
+  process.env.GEMINI_AUDIO_MODEL?.trim(),
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-001',
+].filter((m): m is string => Boolean(m));
 const OPENAI_AUDIO_MODEL = process.env.OPENAI_AUDIO_MODEL?.trim() || 'gpt-4o-audio-preview';
 
 /** Transcode any captured audio (webm/opus, etc.) to mono 44.1kHz WAV — the
@@ -49,12 +56,24 @@ function toWav(buf: Buffer): Promise<Buffer> {
 
 async function describeWithGemini(wavBase64: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: GEMINI_AUDIO_MODEL });
-  const result = await model.generateContent([
-    { text: DESCRIBE_PROMPT },
-    { inlineData: { mimeType: 'audio/wav', data: wavBase64 } },
-  ]);
-  return result.response.text();
+  const errors: string[] = [];
+  for (const modelName of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent([
+        { text: DESCRIBE_PROMPT },
+        { inlineData: { mimeType: 'audio/wav', data: wavBase64 } },
+      ]);
+      return result.response.text();
+    } catch (err: any) {
+      // 404 = retired/unknown model name → try the next candidate. Anything
+      // else (auth, quota) won't be fixed by another name, so stop.
+      const msg = String(err?.message ?? err);
+      errors.push(`${modelName}: ${msg}`);
+      if (!/404|not found|no longer available|not supported/i.test(msg)) throw err;
+    }
+  }
+  throw new Error(`No Gemini model accepted the request — ${errors.join(' | ')}`);
 }
 
 async function describeWithOpenAI(wavBase64: string): Promise<string> {
