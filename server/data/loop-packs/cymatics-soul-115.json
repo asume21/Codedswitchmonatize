@@ -1,0 +1,60 @@
+{
+  "id": "cymatics-soul-115",
+  "genre": "hip-hop",
+  "bpm": 115,
+  "key": "Gm",
+  "label": "Cymatics Soul 115 (Foreign Affairs)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Soul Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass Gm"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Guitar"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Vibraphone"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Horn"
+      }
+    ],
+    "texture": []
+  }
+}

@@ -5,6 +5,7 @@
 // Broadcasts the current chord so Bass and Melody can target chord tones.
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
 import type { PhysicsState }  from '../physics/types'
@@ -334,6 +335,7 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentMode = physics.mode.toString()
     // Sub-genre swing (pushed by the orchestrator, matches the DRUM grid) wins;
     // the mode table is only the fallback before the first sub-genre sync.
@@ -803,7 +805,33 @@ export class ChordGenerator extends GeneratorBase {
     return (this.synth as LoadableSampler).isLoaded === true
   }
 
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    // Route through loopGain (init at the current arrangement level) so the
+    // section arrangement can swell/duck this loop. See GeneratorBase.
+    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.loopGain)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
+  }
+
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     this.unsubscribeConductor?.()
     this.unsubscribeConductor = null

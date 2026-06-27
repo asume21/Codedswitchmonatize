@@ -60,13 +60,25 @@ export function loadOrganismKits(): Promise<OrganismKitResponse | null> {
   return cachePromise
 }
 
-/** Find the best bass808 sample in the cached kits. */
+// Cymatics "Rumble" 808 (Classic, tuned to C) — committed under server/Assets
+// and served from the public /assets mount. Used as the recorded-808 source
+// when no premium private kit provides a bass808, so trap/drill/heat bass plays
+// a real producer 808 instead of the synthesised fatsine fallback.
+const CYMATICS_808_FALLBACK: OrganismKitSample = {
+  role: 'bass808',
+  fileName: '808-classic.wav',
+  relativePath: 'bass/cymatics/808-classic.wav',
+  url: '/assets/bass/cymatics/808-classic.wav',
+  rootNote: 'C1',
+}
+
+/** Find the best bass808 sample: premium private kit first, else the committed
+ *  Cymatics Rumble 808. Never null so the recorded 808 always upgrades the synth. */
 export async function findBass808Sample(): Promise<OrganismKitSample | null> {
   const response = await loadOrganismKits()
-  if (!response) return null
-  const bestKit = response.kits.find((k) => k.id === response.bestKitId) ?? response.kits[0]
-  if (!bestKit) return null
-  return bestKit.samples.find((s) => s.role === 'bass808') ?? null
+  const bestKit = response?.kits.find((k) => k.id === response.bestKitId) ?? response?.kits[0]
+  const premium = bestKit?.samples.find((s) => s.role === 'bass808')
+  return premium ?? CYMATICS_808_FALLBACK
 }
 
 /** Reset the cache. Useful for testing or after explicit refresh. */

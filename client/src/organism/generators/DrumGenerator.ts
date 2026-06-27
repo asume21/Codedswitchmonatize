@@ -1,6 +1,7 @@
 // Section 04 — Drum Generator
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
@@ -48,6 +49,10 @@ export class DrumGenerator extends GeneratorBase {
   private part: Tone.Part | null = null
   private breakFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
+
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
 
   // Physics cache
   private currentBounce:   number = 0
@@ -168,6 +173,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentBounce   = physics.bounce
     this.currentPresence = physics.presence
     this.currentPocket   = physics.pocket
@@ -215,6 +221,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
+    if (this._loopMode) return
     if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()
@@ -644,37 +651,23 @@ export class DrumGenerator extends GeneratorBase {
       return
     }
 
-    switch (instrument) {
-      case DrumInstrument.Kick: {
-        const tSub = this.clampTime('kickSub', t)
-        this.kickSub.triggerAttackRelease(this.currentKickNote, '8n', tSub, velocity)
-        this.triggerNoise('kickClick', this.kickClick, '32n', t, velocity * 0.6)
-        this.lastKickTime = tSub
-        // Fire sidechain callback so bass channel ducks on kick
-        if (this.onKickTrigger) this.onKickTrigger(tSub)
-        break
-      }
-      case DrumInstrument.Snare: {
-        const tTone = this.clampTime('snareTone', t)
-        this.triggerNoise('snareBody', this.snareBody, '8n', t, velocity)
-        this.snareTone.triggerAttackRelease('E3', '16n', tTone, velocity * 0.7)
-        break
-      }
-      case DrumInstrument.Hat:
-        if (velocity > 0.55) {
-          // Accented = open hat (longer decay gives breath and swing feel)
-          const tOpen = this.clampTime('hatOpen', t)
-          this.hatOpen.triggerAttackRelease('32n', tOpen, velocity * 0.85)
-        } else {
-          // Ghost/quiet = tight closed hat
-          const tHat = this.clampTime('hat', t)
-          this.hat.triggerAttackRelease('32n', tHat, velocity)
-        }
-        break
-      case DrumInstrument.Perc: {
-        this.triggerNoise('perc', this.perc, '16n', t, velocity)
-        break
-      }
+    // All Cymatics sample slots exhausted for this voice — go silent.
+    // Synth oscillator fallback intentionally removed: a missing hit in a
+    // hip-hop track is far less disruptive than a MembraneSynth/NoiseSynth thump
+    // that reads as the wrong kit entirely. The merged primary+fallback pool in
+    // SampledDrumKit means this path is only reached when every committed WAV
+    // for this voice has permanently 404'd (server misconfiguration), which
+    // should never happen in normal operation.
+    //
+    // Sidechain state still updates on silent kicks so bass-ducking stays
+    // phase-consistent — prevents a "pop" from the bass un-ducking unexpectedly.
+    //
+    // NOTE: kickSub, kickClick, snareBody, snareTone, hat, hatOpen, perc synth
+    // voices are retained — they are used exclusively by triggerImpact() for
+    // the section-drop "cinematic thump" effect, NOT as drum-kit fallbacks.
+    if (instrument === DrumInstrument.Kick) {
+      this.lastKickTime = t
+      if (this.onKickTrigger) this.onKickTrigger(t)
     }
   }
 
@@ -727,6 +720,25 @@ export class DrumGenerator extends GeneratorBase {
     this.onKickTrigger = cb
   }
 
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    // Route through loopGain (init at the current arrangement level) so the
+    // section arrangement can swell/duck this loop. See GeneratorBase.
+    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.loopGain)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
+  }
+
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier
     const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
@@ -738,6 +750,9 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     this.kickSub.dispose()
     this.kickClick.dispose()

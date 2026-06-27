@@ -203,3 +203,67 @@ describe('GeneratorOrchestrator', () => {
     expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalled()
   })
 })
+
+// ── Loop Pack tests ──────────────────────────────────────────────────
+
+import type { LoopPack } from '@shared/loopPack'
+
+function makeTestPack(): LoopPack {
+  const clip = (id: string) => ({ id, url: `https://cdn.test/${id}.wav`, bars: 4 })
+  return {
+    id: 'test-pack', genre: 'hip-hop', bpm: 95, key: 'Am', label: 'Test Pack',
+    loops: {
+      drums:   [clip('d1')],
+      bass:    [clip('b1')],
+      melody:  [clip('m1')],
+      chords:  [clip('c1')],
+      texture: [clip('t1')],
+    },
+  }
+}
+
+describe('GeneratorOrchestrator — loop pack', () => {
+  it('loadLoopPack calls loadLoop on each generator with the first clip', async () => {
+    const orch = new GeneratorOrchestrator()
+    // Actual field names: drum, bass, melody, chord (not chords), texture
+    const spyDrum    = vi.spyOn((orch as any).drum,    'loadLoop').mockResolvedValue(undefined)
+    const spyBass    = vi.spyOn((orch as any).bass,    'loadLoop').mockResolvedValue(undefined)
+    const spyMelody  = vi.spyOn((orch as any).melody,  'loadLoop').mockResolvedValue(undefined)
+    const spyChord   = vi.spyOn((orch as any).chord,   'loadLoop').mockResolvedValue(undefined)
+    const spyTexture = vi.spyOn((orch as any).texture, 'loadLoop').mockResolvedValue(undefined)
+    vi.spyOn((orch as any).drum,    'setLoopMode').mockImplementation(() => {})
+    vi.spyOn((orch as any).bass,    'setLoopMode').mockImplementation(() => {})
+    vi.spyOn((orch as any).melody,  'setLoopMode').mockImplementation(() => {})
+    vi.spyOn((orch as any).chord,   'setLoopMode').mockImplementation(() => {})
+    vi.spyOn((orch as any).texture, 'setLoopMode').mockImplementation(() => {})
+
+    const pack = makeTestPack()
+    await orch.loadLoopPack(pack)
+
+    expect(spyDrum).toHaveBeenCalledWith(pack.loops.drums[0])
+    expect(spyBass).toHaveBeenCalledWith(pack.loops.bass[0])
+    expect(spyMelody).toHaveBeenCalledWith(pack.loops.melody[0])
+    expect(spyChord).toHaveBeenCalledWith(pack.loops.chords[0])
+    expect(spyTexture).toHaveBeenCalledWith(pack.loops.texture[0])
+  })
+
+  it('loadLoopPack sets Transport bpm to pack.bpm', async () => {
+    const tone = await import('tone')
+    const orch = new GeneratorOrchestrator()
+    ;['drum', 'bass', 'melody', 'chord', 'texture'].forEach(g => {
+      vi.spyOn((orch as any)[g], 'loadLoop').mockResolvedValue(undefined)
+      vi.spyOn((orch as any)[g], 'setLoopMode').mockImplementation(() => {})
+    })
+    await orch.loadLoopPack(makeTestPack())
+    expect(tone.getTransport().bpm.value).toBe(95)
+  })
+
+  it('clearLoopPack calls setLoopMode(false) on all generators', () => {
+    const orch = new GeneratorOrchestrator()
+    const spies = ['drum', 'bass', 'melody', 'chord', 'texture'].map(g =>
+      vi.spyOn((orch as any)[g], 'setLoopMode').mockImplementation(() => {})
+    )
+    orch.clearLoopPack()
+    spies.forEach(spy => expect(spy).toHaveBeenCalledWith(false))
+  })
+})

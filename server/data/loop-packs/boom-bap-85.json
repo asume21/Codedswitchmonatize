@@ -1,0 +1,39 @@
+{
+  "id": "boom-bap-85",
+  "genre": "hip-hop",
+  "bpm": 85,
+  "key": "D",
+  "label": "Boom Bap 85",
+  "loops": {
+    "drums": [
+      { "id": "drums-1", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-1.wav", "bars": 4, "label": "Beat K06 1" },
+      { "id": "drums-2", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-2.wav", "bars": 4, "label": "Beat K06 2" },
+      { "id": "drums-3", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-3.wav", "bars": 4, "label": "Beat K06 3" },
+      { "id": "drums-4", "url": "/api/loops/pack-audio?p=boom-bap-85/drums-loop-4.wav", "bars": 4, "label": "Beat K06 4" }
+    ],
+    "bass": [
+      { "id": "bass-1", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-1.wav", "bars": 2, "label": "Bass D 1" },
+      { "id": "bass-2", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-2.wav", "bars": 2, "label": "Bass D 2" },
+      { "id": "bass-3", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-3.wav", "bars": 2, "label": "Bass D 3" },
+      { "id": "bass-4", "url": "/api/loops/pack-audio?p=boom-bap-85/bass-loop-4.wav", "bars": 2, "label": "Bass D 4" }
+    ],
+    "melody": [
+      { "id": "melody-1", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-1.wav", "bars": 4, "label": "Keys D 1" },
+      { "id": "melody-2", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-2.wav", "bars": 4, "label": "Keys D 2" },
+      { "id": "melody-3", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-3.wav", "bars": 4, "label": "Keys D 3" },
+      { "id": "melody-4", "url": "/api/loops/pack-audio?p=boom-bap-85/melody-loop-4.wav", "bars": 4, "label": "Keys D 4" }
+    ],
+    "chords": [
+      { "id": "chords-1", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-1.wav", "bars": 4, "label": "Guitar D 1" },
+      { "id": "chords-2", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-2.wav", "bars": 4, "label": "Guitar D 2" },
+      { "id": "chords-3", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-3.wav", "bars": 4, "label": "Guitar D 3" },
+      { "id": "chords-4", "url": "/api/loops/pack-audio?p=boom-bap-85/chords-loop-4.wav", "bars": 4, "label": "Guitar D 4" }
+    ],
+    "texture": [
+      { "id": "texture-1", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-1.wav", "bars": 4, "label": "Synth Noise 1" },
+      { "id": "texture-2", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-2.wav", "bars": 4, "label": "Synth Noise 2" },
+      { "id": "texture-3", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-3.wav", "bars": 4, "label": "Synth Noise 3" },
+      { "id": "texture-4", "url": "/api/loops/pack-audio?p=boom-bap-85/texture-loop-4.wav", "bars": 4, "label": "Synth Noise 4" }
+    ]
+  }
+}

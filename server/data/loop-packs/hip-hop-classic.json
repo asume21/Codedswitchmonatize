@@ -1,0 +1,39 @@
+{
+  "id": "hip-hop-classic",
+  "genre": "hip-hop",
+  "bpm": 90,
+  "key": "E",
+  "label": "Hip-Hop Classic",
+  "loops": {
+    "drums": [
+      { "id": "drums-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-1.wav", "bars": 4, "label": "Beat Kit 1" },
+      { "id": "drums-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-2.wav", "bars": 4, "label": "Beat Kit 2" },
+      { "id": "drums-3", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-3.wav", "bars": 4, "label": "Beat K04 3" },
+      { "id": "drums-4", "url": "/api/loops/pack-audio?p=hip-hop-classic/drums-loop-4.wav", "bars": 4, "label": "Beat K04 4" }
+    ],
+    "bass": [
+      { "id": "bass-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-1.wav", "bars": 2, "label": "Bassline E" },
+      { "id": "bass-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-2.wav", "bars": 2, "label": "Bassline E Alt" },
+      { "id": "bass-3", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-3.wav", "bars": 2, "label": "Bass E 3" },
+      { "id": "bass-4", "url": "/api/loops/pack-audio?p=hip-hop-classic/bass-loop-4.wav", "bars": 2, "label": "Bass E 4" }
+    ],
+    "melody": [
+      { "id": "melody-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-1.wav", "bars": 4, "label": "Keys E" },
+      { "id": "melody-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-2.wav", "bars": 4, "label": "Keys E Alt" },
+      { "id": "melody-3", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-3.wav", "bars": 4, "label": "Keys E 3" },
+      { "id": "melody-4", "url": "/api/loops/pack-audio?p=hip-hop-classic/melody-loop-4.wav", "bars": 4, "label": "Keys E 4" }
+    ],
+    "chords": [
+      { "id": "chords-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-1.wav", "bars": 4, "label": "Guitar E" },
+      { "id": "chords-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-2.wav", "bars": 4, "label": "Guitar E Alt" },
+      { "id": "chords-3", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-3.wav", "bars": 4, "label": "Guitar E 3" },
+      { "id": "chords-4", "url": "/api/loops/pack-audio?p=hip-hop-classic/chords-loop-4.wav", "bars": 4, "label": "Guitar E 4" }
+    ],
+    "texture": [
+      { "id": "texture-1", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-1.wav", "bars": 4, "label": "Synth Pad" },
+      { "id": "texture-2", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-2.wav", "bars": 4, "label": "Synth Pad Alt" },
+      { "id": "texture-3", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-3.wav", "bars": 4, "label": "Synth A 3" },
+      { "id": "texture-4", "url": "/api/loops/pack-audio?p=hip-hop-classic/texture-loop-4.wav", "bars": 4, "label": "Synth A 4" }
+    ]
+  }
+}

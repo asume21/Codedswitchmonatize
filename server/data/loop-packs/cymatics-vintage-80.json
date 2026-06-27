@@ -1,0 +1,79 @@
+{
+  "id": "cymatics-vintage-80",
+  "genre": "hip-hop",
+  "bpm": 80,
+  "key": "C#m",
+  "label": "Cymatics Vintage 80 (Panama Sunsets)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Vintage Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Bass C#m"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Trumpet"
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-4.wav",
+        "bars": 8,
+        "label": "Guitar"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Guitar Chords"
+      },
+      {
+        "id": "chords-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/chords-loop-3.wav",
+        "bars": 8,
+        "label": "Synth"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Strings"
+      }
+    ]
+  }
+}

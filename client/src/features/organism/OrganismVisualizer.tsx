@@ -27,6 +27,12 @@ const BAR_COLORS: Record<string, string> = {
 
 const CHANNEL_ORDER = ['drum', 'bass', 'melody', 'texture', 'chord']
 
+// Display labels — the `texture` channel is now the Synth Pads / Keys voice; the
+// internal key stays `texture` for backward compatibility (loop packs, meters).
+const CHANNEL_LABELS: Record<string, string> = {
+  texture: 'Synth Pads',
+}
+
 function dbToPct(db: number): number {
   if (!Number.isFinite(db)) return 0
   return Math.max(0, Math.min(100, ((db + 60) / 60) * 100))
@@ -239,7 +245,7 @@ export function OrganismVisualizer() {
               return (
                 <LevelMeter
                   key={name}
-                  label={name}
+                  label={CHANNEL_LABELS[name] ?? name}
                   db={channel?.rmsDb ?? -Infinity}
                   compact
                 />

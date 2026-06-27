@@ -109,6 +109,7 @@ export interface TextureDirective {
 // ── Arrangement Section ───────────────────────────────────────────────
 
 export type ArrangementSection =
+  | 'none'
   | 'intro' | 'verse' | 'hook' | 'pre-chorus' | 'build'
   | 'drop' | 'breakdown' | 'verse2' | 'drop2' | 'bridge' | 'outro'
 
@@ -269,9 +270,9 @@ export function createDefaultMusicalState(): MusicalState {
     tempo: 90,
     mode: 'glow' as OrganismMode,
     subGenre: 'chill',
-    section: 'intro',
+    section: 'none',
     sectionBar: 0,
-    arrangementTotalBars: 32,
+    arrangementTotalBars: 0,
     energy: 0,
     density: 0,
     voiceActive: false,

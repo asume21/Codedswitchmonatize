@@ -408,7 +408,7 @@ export default function Landing() {
                     { label: "Drums",   color: "cyan",    active: true },
                     { label: "Bass",    color: "purple",  active: true },
                     { label: "Melody",  color: "emerald", active: true },
-                    { label: "Texture", color: "yellow",  active: false },
+                    { label: "Synth Pads", color: "yellow",  active: false },
                   ].map((layer) => (
                     <div key={layer.label} className={`flex items-center gap-2 p-2 rounded-lg bg-${layer.color}-500/10 border border-${layer.color}-500/20`}>
                       <div className={`w-2 h-2 rounded-full bg-${layer.color}-400 ${layer.active ? 'animate-pulse' : 'opacity-30'}`} />

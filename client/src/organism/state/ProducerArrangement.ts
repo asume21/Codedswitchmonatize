@@ -195,9 +195,27 @@ const TEMPLATES_BY_ID = new Map(ARRANGEMENT_TEMPLATES.map(t => [t.id, t]))
 // All consumers (GeneratorOrchestrator, MusicalDirector) read through
 // the getProducer* functions below so they always see live state.
 
+// ── Section length scale ─────────────────────────────────────────────
+// The named templates were tuned SHORT (2–6 bars/section) for snappy "live
+// audition." In practice they changed too fast to ride: a 2-bar section is
+// ~5s at 90 BPM and ~3.5s at 140 BPM, so the section flipped before a
+// listener (or a freestyling rapper) could settle into it. This scale
+// lengthens every template section so each one plays long enough to hear and
+// perform over — a 2-bar intro becomes 4 bars, a 4-bar verse becomes 8.
+//
+// Plan-mode sections (composer ArrangementPlan / ACE-Step) are NOT scaled —
+// their bar counts must stay in lockstep with the rendered audio. Only the
+// named-template (jam mode) path below applies this.
+const SECTION_LENGTH_SCALE: number = 2
+
+function scaleSlots(slots: ProducerArrangementSlot[]): ProducerArrangementSlot[] {
+  if (SECTION_LENGTH_SCALE === 1) return slots
+  return slots.map(s => ({ ...s, bars: Math.max(1, Math.round(s.bars * SECTION_LENGTH_SCALE)) }))
+}
+
 let currentTemplateId: string = 'classic'
-let currentSlots:      ProducerArrangementSlot[] = TEMPLATE_CLASSIC
-let currentTotalBars:  number = TEMPLATE_CLASSIC.reduce((sum, s) => sum + s.bars, 0)
+let currentSlots:      ProducerArrangementSlot[] = scaleSlots(TEMPLATE_CLASSIC)
+let currentTotalBars:  number = currentSlots.reduce((sum, s) => sum + s.bars, 0)
 
 // ── Plan override (Phase 5: ArrangementPlan) ──────────────────────────
 // When the Conductor loads a composer ArrangementPlan, the plan's own
@@ -219,8 +237,8 @@ export function setActiveArrangementTemplate(id: string): boolean {
   if (!template) return false
   if (currentTemplateId === id) return true
   currentTemplateId = id
-  currentSlots      = template.slots
-  currentTotalBars  = template.slots.reduce((sum, s) => sum + s.bars, 0)
+  currentSlots      = scaleSlots(template.slots)
+  currentTotalBars  = currentSlots.reduce((sum, s) => sum + s.bars, 0)
   return true
 }
 

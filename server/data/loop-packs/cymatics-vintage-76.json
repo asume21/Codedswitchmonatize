@@ -1,0 +1,73 @@
+{
+  "id": "cymatics-vintage-76",
+  "genre": "hip-hop",
+  "bpm": 76,
+  "key": "F",
+  "label": "Cymatics Vintage 76 (Factory)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Vintage Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Soul Bass F"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Flute"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Guitar"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Vibraphone"
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-4.wav",
+        "bars": 8,
+        "label": "Bell"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Keys"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Strings"
+      }
+    ]
+  }
+}

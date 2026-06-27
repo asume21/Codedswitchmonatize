@@ -53,6 +53,7 @@ describe('MusicalDirector arrangement masks', () => {
 
   it('starts with a sparse audible intro, then adds verse and drop layers by section', () => {
     const director = new MusicalDirector()
+    director.setArrangementEnabled(true)
     const physics = makePhysics()
     const organism = makeOrganism()
 
@@ -73,5 +74,27 @@ describe('MusicalDirector arrangement masks', () => {
     expect(director.getState().drums.dropout).toBe(false)
     expect(director.getState().bass.dropout).toBe(false)
     expect(director.getState().melody.dropout).toBe(false)
+  })
+
+  it('keeps jam mode sectionless and does not emit hidden section changes', () => {
+    const director = new MusicalDirector()
+    const physics = makePhysics()
+    const organism = makeOrganism()
+    const sections: string[] = []
+
+    director.onSectionChange((section) => sections.push(section))
+
+    director.update(physics, organism, 0)
+    director.update(physics, organism, 4)
+    director.update(physics, makeOrganism({ current: OState.Flow, flowDepth: 1 }), 8)
+
+    expect(director.getState().section).toBe('none')
+    expect(director.getState().sectionBar).toBe(0)
+    expect(director.getState().arrangementTotalBars).toBe(0)
+    expect(director.getState().drums.dropout).toBe(false)
+    expect(director.getState().bass.dropout).toBe(false)
+    expect(director.getState().melody.dropout).toBe(false)
+    expect(director.getState().drums.fillRequested).toBe(false)
+    expect(sections).toEqual([])
   })
 })

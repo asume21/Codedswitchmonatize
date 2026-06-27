@@ -19,11 +19,12 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { spawn } from 'child_process';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
-import OpenAI from 'openai';
+import { describeAudio } from '../services/audioDescribe';
 import type { IStorage } from '../storage';
 import { getCreditService } from '../services/credits';
 
-// Credit costs per MCP tool call. `describe` invokes GPT-4o, so it costs more.
+// Credit costs per MCP tool call. `describe` calls a multimodal audio model
+// (Gemini free tier, OpenAI fallback), so it costs a touch more.
 const WEBEAR_CREDIT_COSTS = {
   analyze: 1,
   describe: 2,
@@ -172,10 +173,6 @@ export function createMcpApiRoutes(storage: IStorage): Router {
       return res.status(400).json({ error: 'No audio file provided' });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY not configured on server' });
-    }
-
     const cost = WEBEAR_CREDIT_COSTS.describe;
     const hasCredits = await creditService.hasCredits(userId, cost);
     if (!hasCredits) {
@@ -188,34 +185,9 @@ export function createMcpApiRoutes(storage: IStorage): Router {
     }
 
     try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-      const base64Audio = req.file.buffer.toString('base64');
-      const mimeType = req.file.mimetype || 'audio/webm';
-
-      const result = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Describe this audio in detail. What instruments do you hear? What is the genre, mood, rhythm, and tone? If it\'s ambient or structural, describe the textures and frequencies. Keep the description concise but highly analytical.',
-              },
-              {
-                type: 'input_audio',
-                input_audio: {
-                  data: base64Audio,
-                  format: mimeType.includes('wav') ? 'wav' : 'mp3',
-                },
-              },
-            ],
-          },
-        ],
-      });
-
-      const description = result.choices[0]?.message?.content || 'No description generated.';
+      // True audio listening via the Gemini-first provider chain (free tier),
+      // OpenAI fallback. See services/audioDescribe.ts.
+      const description = await describeAudio(req.file.buffer);
 
       // Deduct credits + track usage
       await creditService.deductCredits(userId, cost, 'webear describe_audio', { tool: 'describe_audio' });

@@ -33,30 +33,9 @@ import {
 } from '../../shared/stylePresets'
 import { ARRANGEMENT_TEMPLATE_CATALOG } from '../../shared/arrangementTemplates'
 import { localAI } from './localAI'
+import { getProgressionForSection } from './musicMind'
 
 // ── Defaults / fallback library ──────────────────────────────────────
-
-// Per-sub-genre default progression — Roman numerals against the plan's
-// `key`. These are the same progressions the live Conductor uses today via
-// its DEFAULT_PROGRESSIONS table, just expressed in numeral form so they
-// transpose for free when the composer picks a non-C key.
-const DEFAULT_PROGRESSIONS: Record<string, string[]> = {
-  'boom-bap':    ['i',     'iv',    'V',     'i'],
-  'lo-fi':       ['Imaj7', 'iii7',  'IVmaj7','V7'],
-  'trap':        ['i',     'VI',    'VII',   'i'],
-  'drill':       ['i',     'v',     'VII',   'VI'],
-  'r&b':         ['Imaj7', 'vi7',   'ii7',   'V7'],
-  'soul':        ['vi7',   'ii7',   'V7',    'Imaj7'],
-  'chill':       ['Imaj7', 'iii7',  'vi7',   'IVmaj7'],
-  'west-coast':  ['i7',    'bVIImaj7', 'bVImaj7', 'V7'],
-  'dirty-south': ['i',     'iv',    'V',     'i'],
-  'phonk':       ['i',     'bVII',  'bVI',   'V7'],
-  'afrobeat':    ['i',     'bVII',  'bVI',   'bVII'],
-  'jersey-club': ['i',     'iv',    'i',     'V'],
-  'bounce':      ['i',     'bIII',  'bVII',  'i'],
-  'reggaeton':   ['i',     'V',     'bVI',   'V'],
-  'hip-hop':     ['i',     'iv',    'V',     'i'],
-}
 
 // Producer-style 32-bar arrangement skeleton. Matches the live engine's
 // PRODUCER_ARRANGEMENT layout so the same plan can drive both surfaces
@@ -67,35 +46,47 @@ const DEFAULT_SECTION_SKELETON: Array<{
   energy: number
   density: number
 }> = [
-  // 18-bar skeleton with explicit section intent (matches client-side
-  // ProducerArrangement). First drop hits at bar 6 (~12s at 80 BPM).
-  // Section intent:
-  //   intro     — chords + melody + bass set the mood, drums OUT
-  //   verse     — drums drop, full band
-  //   build     — tension rising into the drop
-  //   drop      — full force
-  //   breakdown — drums OUT, sparse, gives the next drop weight
-  //   drop2     — return to drop energy
-  { name: 'intro',     bars: 2, energy: 0.30, density: 0.05 },  // density low → drums out
-  { name: 'verse',     bars: 4, energy: 0.60, density: 0.55 },
-  { name: 'build',     bars: 2, energy: 0.80, density: 0.75 },
-  { name: 'drop',      bars: 4, energy: 0.95, density: 0.90 },
-  { name: 'breakdown', bars: 2, energy: 0.45, density: 0.05 },  // density low → drums out
-  { name: 'drop2',     bars: 4, energy: 0.95, density: 0.92 },
+  // 34-bar skeleton tuned for FREESTYLING OVER, not cinematic listening.
+  // The groove never goes empty — there is always a drum+bass pocket to ride.
+  // The build/drop comes from ADDING layers and energy on top of that constant
+  // foundation, NOT from stripping it to silence. A prior "dramatic" version
+  // had intro/breakdown with density ~0.05 (drums basically off) stretched over
+  // 4 bars each — which read as "slow, full of pauses, nothing filling the
+  // space." Fixed: every section keeps a real density floor (≥0.45 → audible
+  // groove), and the sparse moments are short.
+  // Section intent (all keep the pocket alive):
+  //   intro     — SHORT, drums already grooving lighter, sets up fast
+  //   verse     — full band, the home pocket
+  //   build     — tension rising, hats subdivide, energy climbs
+  //   drop      — full force, everything pushed
+  //   breakdown — pulled back but STILL grooving (not empty), sets up drop2
+  //   drop2     — return harder
+  { name: 'intro',     bars: 2, energy: 0.42, density: 0.45 },
+  { name: 'verse',     bars: 8, energy: 0.62, density: 0.62 },
+  { name: 'build',     bars: 4, energy: 0.82, density: 0.80 },
+  { name: 'drop',      bars: 8, energy: 0.97, density: 0.95 },
+  { name: 'breakdown', bars: 4, energy: 0.55, density: 0.50 },
+  { name: 'drop2',     bars: 8, energy: 1.00, density: 0.97 },
 ]
 
 // Per-section orchestration — the composer's "who plays / how forward" call,
 // the categorical intent the section-intent comments above always described
 // but only ever encoded as a density number. The live engine reads this so
 // instruments actually sit out / lead instead of all playing full-time.
+// NOTE: no section sets drums or bass to 'out'. Freestyling needs a constant
+// pocket to ride — the groove must never disappear. Build/drop intensity comes
+// from energy/density and from melody/chord/texture LEADING, not from cutting
+// the rhythm section to silence. (intro/breakdown drums were 'out' here, which
+// — on top of low density — left long empty stretches that read as "slow, full
+// of pauses, nothing filling the space.")
 const SECTION_ORCHESTRATION: Record<ArrangementSectionName, SectionOrchestration> = {
-  intro:     { drums: 'out',     bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
+  intro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
   verse:     { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
   build:     { drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support' },
   drop:      { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
   drop2:     { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
-  breakdown: { drums: 'out',     bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
-  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'out'     },
+  breakdown: { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
+  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
 }
 
 /** Orchestration for a section name, defaulting to all-'support' for any name
@@ -133,8 +124,6 @@ function resolveDefaults(input: ComposerInput): Required<Pick<ArrangementPlan,
  */
 export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
   const defaults = resolveDefaults(input)
-  const progression = DEFAULT_PROGRESSIONS[defaults.subGenre]
-                    ?? DEFAULT_PROGRESSIONS['hip-hop']
 
   // Filter the StylePreset bank to allowed ids if the caller supplied a
   // whitelist (UI lock). Empty allowedStyleIds = use the full bank.
@@ -156,7 +145,7 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
     return {
       name:        slot.name,
       bars:        slot.bars,
-      progression: [...progression],
+      progression: getProgressionForSection(defaults.subGenre, slot.name),
       energy:      slot.energy,
       density:     slot.density,
       style:       style?.id,
@@ -222,8 +211,8 @@ Rules:
 - Return ONLY a JSON object — no markdown fences, no commentary.
 - Roman numerals: I/i for tonic, ii/II for supertonic, … VII/vii for leading tone. Lowercase = minor, uppercase = major. Suffixes: m7, maj7, 7, sus2, sus4, dim, dim7, 9, maj9, m9, add9, 6. Accidentals: bIII, #IV.
 - Sub-genre is one of: boom-bap, lo-fi, trap, drill, r&b, soul, chill, west-coast, dirty-south, phonk, afrobeat, jersey-club, bounce, reggaeton, hip-hop.
-- bars per section: 4, 8, or 16.
-- Sections must flow musically — intro/verse light, build rising, drop hardest, breakdown low, drop2 reprise.
+- bars per section: 8 or 16 (use 4 only for a short intro). Favor LONGER sections — each section must last long enough for a listener to settle in and HEAR the build and the drop land. Total song should be ~32–48 bars.
+- Sections must flow musically with a DRAMATIC dynamic arc — intro sparse (drums out, just chords/melody), verse full band, build rising, drop hardest/fullest, breakdown pulled way down (drums out), drop2 reprise pushed harder. The contrast between sections must be obvious.
 - Include an acePrompt: 8–14 comma-separated tags for the audio renderer.
 
 STRUCTURAL TEMPLATES — pick ONE id for plan.templateId based on the song's overall character:
@@ -237,7 +226,8 @@ JSON shape:
   "templateId": "classic",
   "acePrompt": "boom bap, dusty drums, jazz piano, 90 bpm, mellow, no vocals",
   "sections": [
-    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.3, "density": 0.2, "style": "lofi-warm" },
+    { "name": "intro", "bars": 4, "progression": ["i","VI","III","VII"], "energy": 0.26, "density": 0.04, "style": "lofi-warm" },
+    { "name": "verse", "bars": 8, "progression": ["i","iv","VI","III"], "energy": 0.6, "density": 0.55, "style": "..." },
     ...
   ]
 }`

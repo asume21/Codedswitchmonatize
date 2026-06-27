@@ -235,6 +235,8 @@ export interface OrganismContextValue {
   setReactToVoiceEnabled: (enabled: boolean) => void
   songModeEnabled:        boolean
   setSongModeEnabled:     (enabled: boolean) => void
+  loopsModeEnabled:       boolean
+  setLoopsModeEnabled:    (enabled: boolean) => void
 
   // Instrument picker — null means Auto, otherwise locks that generator role.
   instrumentAssignments: OrganismInstrumentAssignments

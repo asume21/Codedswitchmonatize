@@ -101,6 +101,7 @@ function makePlayer() {
 export function createToneMock() {
   return {
     start: mockToneStart,
+    loaded: vi.fn().mockResolvedValue(undefined),
     getTransport: vi.fn().mockReturnValue({
       bpm: { value: 90 },
       start: mockTransportStart,

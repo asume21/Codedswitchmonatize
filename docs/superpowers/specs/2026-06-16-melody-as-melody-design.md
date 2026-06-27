@@ -154,10 +154,45 @@ Pure functions get vitest unit tests (matches existing generator test culture):
 - By-ear: start the Organism, confirm the lead states a hummable idea, breathes,
   builds, and resolves — and that it can change instrument between sections.
 
+## Addendum 2026-06-23 — §4 Voice-leading + register cap (the line still leaps)
+
+_By-ear feedback from the user (a performer): the violin "goes super high then low
+over and over for ~4 bars," with "no direction, no soul." Diagnosis: §1–§3 built the
+phrase STRUCTURE (motif, arch, cadence) but the original spec deferred voice-leading
+(see old non-goal). With no interval control, motif `index`→chord-tone modulo math
+("index 3 = root + 1 octave") plus a 2-octave `MODE_OCTAVES` range makes consecutive
+notes jump octaves. The arch never reads as a *line*; expression (`applyStringPerformance`)
+can't rescue a leaping contour. So voice-leading becomes the focused next change._
+
+**Change:** a pure post-process on `generatePhrase`'s `ScheduledNote[]`, applied in
+`rebuildPhrase` BEFORE `applyStringPerformance` (smooth the line, then shape its
+dynamics). It preserves each note's **pitch class** (harmony untouched — the win of
+§2 stays) and only adjusts its **octave**:
+```ts
+// client/src/organism/generators/melody/voiceLeading.ts (pure, unit-tested)
+export interface VoiceLeadOptions { maxLeapSemitones: number; floorMidi: number; ceilingMidi: number }
+export function applyVoiceLeading(notes: ScheduledNote[], opts: VoiceLeadOptions): ScheduledNote[]
+```
+Per note after the first: octave-shift toward the previous note until the interval
+≤ `maxLeapSemitones` (a leap becomes the nearest octave of the same pitch class);
+then clamp into `[floorMidi, ceilingMidi]` by octave (register cap wins over leap).
+First note: clamp into register only. Pitch class is never changed.
+
+Wire-in: bowed strings get a tight ceiling (no shrieking) and a small `maxLeap`
+(mostly-stepwise singing line). Other leads can keep wider defaults. Velocity,
+duration, and time are untouched — only `pitch` changes.
+
+**Tests (pure):** oscillating input (A4,A5,A4,A5) collapses to one octave (no leaps);
+a note above the ceiling is octave-dropped under it; output pitch classes == input
+pitch classes (harmony preserved); the existing MelodyGenerator/Organism suites stay
+green; `npm run check` clean. By-ear: the violin sings a stepwise line that sits in a
+sane register instead of zig-zagging.
+
 ## Non-goals
 
 - Not touching the ChordGenerator/harmony or the Conductor (harmony already works).
-- Not a full voice-leading/counterpoint engine; not ML/LLM melody generation.
+- Not a full counterpoint engine; not ML/LLM melody generation. (§4 adds *octave*
+  voice-leading only — pitch classes are chosen upstream and left intact.)
 - Not hand-authoring new motif banks — reuse `HIP_HOP_MOTIFS` as seed material; the
   win is development, not more raw motifs.
 - Not changing the melody routing/level work shipped earlier this session.

@@ -1,6 +1,7 @@
 // Section 04 — Melody Generator
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, MelodyBehavior } from './types'
 import type { ScheduledNote } from './types'
@@ -39,6 +40,8 @@ import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+import { applyVoiceLeading } from './melody/voiceLeading'
+import { selectMotifBankKey } from './melody/motifSelection'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -656,6 +659,7 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     this.currentPresence = physics.presence
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth
@@ -860,7 +864,15 @@ export class MelodyGenerator extends GeneratorBase {
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
-    if (this.isBowedString()) this.applyStringPerformance(notes)
+    if (this.isBowedString()) {
+      // §4 Voice-leading FIRST (what to play): keep the line mostly stepwise and
+      // in a sane register so it sings instead of zig-zagging high↔low across
+      // octaves. Pitch classes (harmony) are preserved — only octaves move.
+      // ~MIDI 55 (G3) floor, ~MIDI 81 (A5, ≈880Hz) ceiling = a singing violin
+      // register with no shrieking highs. THEN shape dynamics on the smoothed line.
+      notes = applyVoiceLeading(notes, { maxLeapSemitones: 5, floorMidi: 55, ceilingMidi: 81 })
+      this.applyStringPerformance(notes)
+    }
 
     // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
     // leads are untouched. Order matters: develop the LINE first (what to play),
@@ -1115,13 +1127,19 @@ export class MelodyGenerator extends GeneratorBase {
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
-    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
-    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
-      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
-      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
-    } else if (!this.voiceActive) {
-      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
-    }
+    // Singing leads (violin/cello/wind/brass) draw from the lyrical bank — in
+    // auto AND live — instead of bell arps. Non-lyrical leads keep the existing
+    // arps/fills/ostinatos behavior. (preferredMotifBankKey = chorus/hook override.)
+    const bankKey = selectMotifBankKey({
+      family: this.currentPerformer?.family,
+      voiceActive: this.voiceActive,
+      preferredBankKey:
+        this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]
+          ? this.preferredMotifBankKey
+          : null,
+      chordSeed,
+    })
+    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[bankKey] ?? HIP_HOP_MOTIFS.ostinatos
     
     // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
     const chordDegs: number[] = []
@@ -1278,10 +1296,12 @@ export class MelodyGenerator extends GeneratorBase {
 
     let cursor = 0
     let phraseIndex = 0
-    // Space between motifs IS the musical statement — a lead that never
-    // breathes reads as noise against a busy drum pattern. Lead phrases get a
-    // beat and a half of air; Respond gets a beat and a half; Hint two beats.
-    const restLen = isHint ? 8 : this.currentBehavior === MelodyBehavior.Respond ? 6 : 6
+    // Space between motifs IS the musical statement — but a beat-and-a-half
+    // gap after every short motif left the lead breathing more than playing.
+    // Trimmed so the line stays present and continuous: Lead gets ~3/4 beat of
+    // air, Respond a beat, Hint stays sparser (1.5 beats) since it's meant to
+    // be a background suggestion, not a lead.
+    const restLen = isHint ? 6 : this.currentBehavior === MelodyBehavior.Respond ? 4 : 3
     const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
     // Commit to ONE motif for this section (picked once), then DEVELOP it across
@@ -1405,7 +1425,33 @@ export class MelodyGenerator extends GeneratorBase {
     return (this.synth as LoadableSampler).isLoaded === true
   }
 
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    // Route through loopGain (init at the current arrangement level) so the
+    // section arrangement can swell/duck this loop. See GeneratorBase.
+    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.loopGain)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
+  }
+
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
     this.stopPart()
     if (this.unsubscribeConductor) {
       this.unsubscribeConductor()

@@ -14,7 +14,7 @@ import { OState }              from '../state/types'
 import type { GeneratorOutput, MelodyBehavior } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
-import { getProducerArrangementTotalBars, getProducerArrangementSlot } from '../state/ProducerArrangement'
+import { getProducerArrangementTotalBars, getProducerArrangementSlot, setArrangementFromPlan, clearArrangementFromPlan } from '../state/ProducerArrangement'
 import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
@@ -25,6 +25,7 @@ import { planAnswer, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
+import type { LoopPack } from '@shared/loopPack'
 import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
 
@@ -100,6 +101,11 @@ export class GeneratorOrchestrator {
   private lastPlanSectionLoadBar: number = -1
   private scheduledBreakEventIds: number[] = []
   private lastScheduledBreakBar: number = -1
+
+  // ── Loop Pack ─────────────────────────────────────────────────────
+  // BPM saved before the pack locks the Transport tempo so clearLoopPack can
+  // restore exactly the session BPM the user had before engaging Loops Mode.
+  private _preLockBpm: number | null = null
 
   // ── Progressive Intro ─────────────────────────────────────────────
   // Musician-style instrument stacking: instead of every generator entering
@@ -994,6 +1000,12 @@ export class GeneratorOrchestrator {
    */
   loadArrangementPlan(plan: ArrangementPlan): void {
     getConductor().loadPlan(plan)
+    // Make the live arrangement actually FOLLOW the composer's plan: section
+    // durations come from plan.sections[].bars and per-channel levels from
+    // slotFromPlanSection (energy/density). Without this call the plan only swapped
+    // chords while section TIMING + dynamics ran off the generic PRODUCER_ARRANGEMENT
+    // skeleton — i.e. "Song Mode" never really played the composed song.
+    setArrangementFromPlan(plan.sections)
     // Force the next applyArrangement tick to treat this as a section
     // change so loadSection(0) actually fires through the bar-tick path
     // (the Conductor already loaded section 0 inside loadPlan, but
@@ -1006,6 +1018,7 @@ export class GeneratorOrchestrator {
   /** Drop the active plan and return to jam mode (bank picker). */
   clearArrangementPlan(): void {
     getConductor().clearPlan()
+    clearArrangementFromPlan()   // back to the named-template skeleton (jam mode)
     this.lastArrangementSection = ''
     this.lastPlanSectionLoadBar = -1
   }
@@ -1319,6 +1332,7 @@ export class GeneratorOrchestrator {
   setArrangementEnabled(enabled: boolean): void {
     if (this.arrangementEnabled === enabled) return
     this.arrangementEnabled = enabled
+    this.director.setArrangementEnabled(enabled)
     orgLog('arrangement:toggle', { enabled })
     if (!enabled) {
       // Clear any pending scheduled break events
@@ -1454,13 +1468,20 @@ export class GeneratorOrchestrator {
 
     const { slot: section, cycleBar, sectionBar } = getProducerArrangementSlot(barNumber)
 
-    // Schedule 2-beat bar-end break on the final bar of a section
+    // Schedule 2-beat bar-end break on the final bar of a section — but ONLY
+    // when the NEXT section is a real energy lift (a drop). Firing this at
+    // every section end dropped the bass out every few seconds once sections
+    // are short, which read as "jumping mid-play." Gating it to drops keeps
+    // the dramatic pre-drop snare break and lets ordinary section changes
+    // cross-fade smoothly at the bar line instead.
     if (sectionBar === section.bars - 1 && this.lastScheduledBreakBar !== barNumber) {
       this.lastScheduledBreakBar = barNumber
       const nextBarNumber = barNumber + 1
       const nextSlotInfo = getProducerArrangementSlot(nextBarNumber)
       const nextSection = nextSlotInfo.slot
 
+      const enteringDrop = nextSection.energy >= 0.9 && nextSection.energy > section.energy + 0.05
+      if (enteringDrop) {
       const breakStartId = transport.scheduleOnce((time) => {
         // Bass drops out briefly — the classic hip-hop "snare break" moment.
         // Melody and chords do NOT mute: wiping them caused a jarring complete
@@ -1487,6 +1508,7 @@ export class GeneratorOrchestrator {
       }, `${nextBarNumber}:0:0`)
 
       this.scheduledBreakEventIds.push(breakStartId, breakEndId)
+      }
     }
 
     // Merge AI directive if one was buffered for this section
@@ -1657,6 +1679,40 @@ export class GeneratorOrchestrator {
    *  from a previous session don't silence generators in the next session). */
   clearAIDirectives(): void {
     this.aiDirectiveOverrides.clear()
+  }
+
+  /**
+   * Load a LoopPack: distribute one clip per generator (first clip of each
+   * type — V1 selection), lock the Transport BPM to the pack's tempo, and
+   * flip all five generators into loop-playback mode.
+   */
+  async loadLoopPack(pack: LoopPack): Promise<void> {
+    await Promise.all([
+      pack.loops.drums[0]   ? this.drum.loadLoop(pack.loops.drums[0])     : Promise.resolve(),
+      pack.loops.bass[0]    ? this.bass.loadLoop(pack.loops.bass[0])      : Promise.resolve(),
+      pack.loops.melody[0]  ? this.melody.loadLoop(pack.loops.melody[0])  : Promise.resolve(),
+      pack.loops.chords[0]  ? this.chord.loadLoop(pack.loops.chords[0])   : Promise.resolve(),
+      pack.loops.texture[0] ? this.texture.loadLoop(pack.loops.texture[0]): Promise.resolve(),
+    ])
+    // Save session BPM before locking to pack tempo so clearLoopPack can restore it
+    this._preLockBpm = Tone.getTransport().bpm.value
+    // Lock BPM to the pack
+    Tone.getTransport().bpm.value = pack.bpm
+    // Flip all generators to loop playback
+    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+      .forEach(g => g.setLoopMode(true))
+  }
+
+  /**
+   * Exit loop-pack mode: revert all generators to their synthesis engines.
+   */
+  clearLoopPack(): void {
+    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+      .forEach(g => g.setLoopMode(false))
+    if (this._preLockBpm !== null) {
+      Tone.getTransport().bpm.value = this._preLockBpm
+      this._preLockBpm = null
+    }
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */

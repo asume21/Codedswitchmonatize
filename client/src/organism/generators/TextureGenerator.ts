@@ -1,12 +1,27 @@
-// Section 04 — Texture Generator
+// Section 04 — Texture Generator → Synth Pads / Keys
+//
+// Originally a pure noise/air texture bed. It is now a SYNTH PADS / KEYS player:
+// it comps the Conductor's current chord voicing with a real recorded Cymatics
+// keys sample (pitch-shifted by Tone.Sampler), layered over the original — now
+// subliminal — noise air-bed. The loop-pack JSON key stays `texture` for
+// backward compatibility; only the audible voice and UI label changed. Loop
+// mode and the section riser are unchanged.
 
 import * as Tone from 'tone'
+import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName }      from './types'
 import { TEXTURE_BY_MODE }    from './patterns/TexturePatternLibrary'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
+import { createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { getConductor }       from '../conductor/Conductor'
+
+// Cymatics keys/Rhodes one-shot (warm melodic stab, tuned to C) — committed
+// under server/Assets and served from the public /assets mount. Tone.Sampler
+// pitch-shifts this single sample across the chord voicing.
+const PAD_SAMPLE_URL = '/assets/keys/cymatics/keys.wav'
 
 export class TextureGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -30,6 +45,17 @@ export class TextureGenerator extends GeneratorBase {
   private thinningActive: boolean = false
   private noiseStarted:   boolean = false
   private enabled:        boolean = false  // controlled by orchestrator textureEnabled toggle
+
+  // ── Synth Pads / Keys voice ────────────────────────────────────────
+  // A real recorded Cymatics keys sample comps the Conductor's chord voicing.
+  // This is the audible voice of the generator now; the noise bed above is kept
+  // as subliminal air. Loop mode bypasses this (the _loopMode guard).
+  private padSampler: LoadableSampler
+  private padReverb:  Tone.Reverb
+  private padGain:    Tone.Gain
+  private padEventId: number | null = null
+  private padVolumeMultiplier: number = 1.0
+  private lastPadGain: number = 0
 
   // Ramp dedup — skip scheduling redundant ramps when values haven't changed
   private lastOutputGain:    number = 0
@@ -63,8 +89,50 @@ export class TextureGenerator extends GeneratorBase {
     this.riserFilter.connect(this.riserGain)
     this.riserGain.connect(this.output)
 
+    // Synth-pad/keys chain: sampler → lush reverb → padGain → output. padGain
+    // starts silent and is opened in processFrame from the activity level.
+    this.padReverb  = new Tone.Reverb({ decay: 3.5, wet: 0.4 })
+    this.padGain    = new Tone.Gain(0)
+    this.padSampler = createMultisampleSampler(
+      { C3: PAD_SAMPLE_URL },
+      { attack: 0.25, release: 2.5 },
+      -9,
+    )
+    this.padSampler.connect(this.padReverb)
+    this.padReverb.connect(this.padGain)
+    this.padGain.connect(this.output)
+
     // Do NOT start noise here — defer until organism leaves Dormant
     // this.noiseSource.start()
+  }
+
+  // ── Synth-pad chord loop ───────────────────────────────────────────
+  // Comps the Conductor's current voicing every 2 bars with a long, soft pad
+  // swell. Reads the live voicing at callback time so it always agrees with the
+  // band's harmony. Scheduled on the Transport so it stays grid-locked.
+  private startPadLoop(): void {
+    if (this.padEventId !== null) return
+    this.padEventId = Tone.getTransport().scheduleRepeat((time) => {
+      if (this._loopMode || !this.enabled) return
+      const inner = getConductor().currentVoicing().inner
+      if (!inner.length) return
+      const notes = inner.map((m) => Tone.Frequency(m, 'midi').toNote())
+      try {
+        this.padSampler.releaseAll(time)
+        this.padSampler.triggerAttackRelease(notes, '2m', time, 0.6)
+      } catch { /* sampler not ready / retrigger race — skip this bar */ }
+    }, '2m', '0:0:0')
+  }
+
+  private stopPadLoop(): void {
+    if (this.padEventId !== null) {
+      try { Tone.getTransport().clear(this.padEventId) } catch { /* */ }
+      this.padEventId = null
+    }
+    try { this.padSampler.releaseAll() } catch { /* */ }
+    this.lastPadGain = 0
+    this.padGain.gain.cancelScheduledValues(Tone.now())
+    this.padGain.gain.rampTo(0, 0.4)
   }
 
   /**
@@ -104,10 +172,12 @@ export class TextureGenerator extends GeneratorBase {
     if (!enabled) {
       this.activityLevel = 0
       this.gain.gain.rampTo(0, 0.3)
+      this.stopPadLoop()
     }
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    if (this._loopMode) return
     // Hard gate — when disabled, skip all processing.
     // Gain was already ramped to 0 in setEnabled(false) — don't re-ramp
     // here, as it cancels the in-progress ramp and creates a discontinuity.
@@ -150,6 +220,17 @@ export class TextureGenerator extends GeneratorBase {
       this.lastReverbWet = layer.reverbWet
       this.reverb.wet.rampTo(layer.reverbWet, 2.0)
     }
+
+    // Synth-pad/keys gain — the audible voice. Pads sit well above the
+    // subliminal noise bed, scaled by the same activity level + the texture
+    // volume slider, and capped so they support rather than dominate the mix.
+    const padTarget = Math.min(0.7, this.activityLevel * 2.5)
+      * this.arrangementMultiplier * this.padVolumeMultiplier
+    if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
+      this.lastPadGain = padTarget
+      this.padGain.gain.cancelScheduledValues(Tone.now())
+      this.padGain.gain.rampTo(padTarget, 0.6)
+    }
   }
 
   // Called by GeneratorOrchestrator when DensityComputer requests thinning
@@ -161,13 +242,18 @@ export class TextureGenerator extends GeneratorBase {
     if (to === OState.Dormant || !this.enabled) {
       this.activityLevel = 0
       this.gain.gain.rampTo(0, 1.0)
+      this.stopPadLoop()
       // Do NOT stop the noise source — Tone.Noise.stop()+start() creates a new
       // AudioBufferSourceNode each time without freeing the old one, leaking ~4MB
       // per cycle. Silence via gain instead; the noise source runs continuously.
-    } else if (!this.noiseStarted) {
-      // Start noise once on first non-Dormant transition; reuse forever after.
-      this.noiseSource.start()
-      this.noiseStarted = true
+    } else {
+      if (!this.noiseStarted) {
+        // Start noise once on first non-Dormant transition; reuse forever after.
+        this.noiseSource.start()
+        this.noiseStarted = true
+      }
+      // Start (or resume) the synth-pad chord loop while awake.
+      this.startPadLoop()
     }
   }
 
@@ -175,6 +261,7 @@ export class TextureGenerator extends GeneratorBase {
     this.activityLevel  = 0
     this.thinningActive = false
     this.gain.gain.rampTo(0, 0.5)
+    this.stopPadLoop()
     // Do NOT stop noiseSource here — same leak as onStateTransition.
     // Gain ramp to 0 provides silence; source is disposed in dispose().
   }
@@ -183,6 +270,10 @@ export class TextureGenerator extends GeneratorBase {
 
   applyVolumeMultiplier(multiplier: number): void {
     const m = Math.max(0, Math.min(1.3, multiplier))  // cap at 1.3 — texture should never dominate
+    // Drives the synth-pad level too (processFrame multiplies padTarget by it),
+    // so the texture volume slider — and the orchestrator's mute via
+    // applyVolumeMultiplier(0) — control the pads as well as the noise bed.
+    this.padVolumeMultiplier = m
     this.gain.gain.rampTo(m, 0.25)
   }
 
@@ -195,7 +286,37 @@ export class TextureGenerator extends GeneratorBase {
     }
   }
 
+  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
+  private _loopPlayer: Tone.Player | null = null
+  private _loopMode = false
+
+  async loadLoop(clip: LoopClip): Promise<void> {
+    this._loopPlayer?.dispose()
+    // Route through loopGain (init at the current arrangement level) so the
+    // section arrangement can swell/duck this loop. See GeneratorBase.
+    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
+    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
+      .connect(this.loopGain)
+    await Tone.loaded()
+  }
+
+  setLoopMode(enabled: boolean): void {
+    this._loopMode = enabled
+    if (enabled && this._loopPlayer) {
+      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+    } else {
+      this._loopPlayer?.stop()
+    }
+  }
+
   dispose(): void {
+    this._loopPlayer?.stop()
+    this._loopPlayer?.dispose()
+    this._loopPlayer = null
+    this.stopPadLoop()
+    this.padSampler.dispose()
+    this.padReverb.dispose()
+    this.padGain.dispose()
     try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
     try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()

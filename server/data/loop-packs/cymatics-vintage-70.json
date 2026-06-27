@@ -1,0 +1,97 @@
+{
+  "id": "cymatics-vintage-70",
+  "genre": "hip-hop",
+  "bpm": 70,
+  "key": "E",
+  "label": "Cymatics Vintage 70 (Moonlight)",
+  "loops": {
+    "drums": [
+      {
+        "id": "drums-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/drums-loop-1.wav",
+        "bars": 8,
+        "label": "Vintage Drums"
+      }
+    ],
+    "bass": [
+      {
+        "id": "bass-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/bass-loop-1.wav",
+        "bars": 8,
+        "label": "Soul Bass E"
+      }
+    ],
+    "melody": [
+      {
+        "id": "melody-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead Guitar"
+      },
+      {
+        "id": "melody-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Piano"
+      },
+      {
+        "id": "melody-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Vibraphone"
+      },
+      {
+        "id": "melody-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/melody-loop-4.wav",
+        "bars": 8,
+        "label": "Bell"
+      }
+    ],
+    "chords": [
+      {
+        "id": "chords-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-1.wav",
+        "bars": 8,
+        "label": "Guitar Chords"
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-2.wav",
+        "bars": 8,
+        "label": "Rhodes"
+      },
+      {
+        "id": "chords-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-3.wav",
+        "bars": 8,
+        "label": "Organ"
+      },
+      {
+        "id": "chords-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/chords-loop-4.wav",
+        "bars": 8,
+        "label": "Double Stop"
+      }
+    ],
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-1.wav",
+        "bars": 8,
+        "label": "Strings 1"
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-2.wav",
+        "bars": 8,
+        "label": "Strings 2"
+      },
+      {
+        "id": "texture-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-70/texture-loop-3.wav",
+        "bars": 8,
+        "label": "Sitar"
+      }
+    ]
+  }
+}

@@ -46,6 +46,11 @@ describe('QuickStartPresets — Real Beat presets', () => {
     expect(preset?.allowedStyleIds).toContain('drill-slide-hook')
   })
 
+  it('hip-hop preset has a loopPackId', () => {
+    const hipHop = QUICK_START_PRESETS.find(p => p.genre === 'hip-hop')
+    expect(hipHop?.loopPackId).toBe('hip-hop-classic')
+  })
+
   it('every Real Beat preset has a sub-genre and mode', () => {
     const realBeatIds = ['real-beat-trap-140', 'real-beat-boombap-90', 'real-beat-drill-144']
     for (const id of realBeatIds) {
