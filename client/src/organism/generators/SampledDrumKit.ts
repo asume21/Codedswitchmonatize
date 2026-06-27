@@ -152,8 +152,23 @@ export function buildSampleKitDefinitionFromSamples(
 
   const kick = urlsByRole('kick', undefined, 'kick')
   const snare = urlsByRole('snare', undefined, 'snare')
-  const hatClosed = urlsByRole('hat', /\b(cl|closed|close|ch)\b/i, 'hatClosed')
-  const hatOpen = urlsByRole('hat', /\b(op|open|oh)\b/i, 'hatOpen')
+  let hatClosed = urlsByRole('hat', /\b(cl|closed|close|ch)\b/i, 'hatClosed')
+  let hatOpen = urlsByRole('hat', /\b(op|open|oh)\b/i, 'hatOpen')
+
+  // Fallback: if we found no closed hats by regex but there are 'hat' role samples, partition them
+  if (!hatClosed.length) {
+    const allHats = urlsByRole('hat', undefined, 'hatClosed')
+    if (allHats.length > 0) {
+      hatClosed = allHats.slice(0, Math.ceil(allHats.length / 2))
+      if (!hatOpen.length) {
+        hatOpen = allHats.slice(Math.ceil(allHats.length / 2))
+        if (!hatOpen.length) {
+          hatOpen = hatClosed
+        }
+      }
+    }
+  }
+
   const perc = urlsByRole('perc', undefined, 'perc')
   const tomPerc = perc.length ? perc : urlsByRole('tom', undefined, 'perc')
 

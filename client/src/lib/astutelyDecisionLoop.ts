@@ -147,6 +147,26 @@ export class AstutelyDecisionLoop {
       }
       result.log.push(`EQ: Muddy (centroid ${spectralCentroidHz.toFixed(0)}Hz) — cutting low-mids`);
       adjusted = true;
+    } else {
+      // Recovery towards baseline lowMid
+      for (const ch of snapshot.channels) {
+        if (ch.name.toLowerCase().includes('bass') || ch.name.toLowerCase().includes('drum')) {
+          const current = astutelyMixerBridge.getChannelEQ(ch.id, 'lowMid');
+          const baseline = astutelyMixerBridge.getBaselineEQ(ch.id, 'lowMid');
+          const diff = baseline - current;
+          if (Math.abs(diff) > 0.1) {
+            const value = diff > 0 ? Math.min(diff, 1.0) : Math.max(diff, -1.0);
+            result.mixAdjustments.push({
+              channelId: ch.id,
+              property: 'eq',
+              band: 'lowMid',
+              value,
+              reason: 'Recovering low-mid towards baseline',
+            });
+            adjusted = true;
+          }
+        }
+      }
     }
 
     // Harsh mix — too bright
@@ -164,6 +184,26 @@ export class AstutelyDecisionLoop {
       }
       result.log.push(`EQ: Harsh (centroid ${spectralCentroidHz.toFixed(0)}Hz) — cutting high-mids`);
       adjusted = true;
+    } else {
+      // Recovery towards baseline highMid
+      for (const ch of snapshot.channels) {
+        if (ch.name.toLowerCase().includes('melody') || ch.name.toLowerCase().includes('hi')) {
+          const current = astutelyMixerBridge.getChannelEQ(ch.id, 'highMid');
+          const baseline = astutelyMixerBridge.getBaselineEQ(ch.id, 'highMid');
+          const diff = baseline - current;
+          if (Math.abs(diff) > 0.1) {
+            const value = diff > 0 ? Math.min(diff, 1.0) : Math.max(diff, -1.0);
+            result.mixAdjustments.push({
+              channelId: ch.id,
+              property: 'eq',
+              band: 'highMid',
+              value,
+              reason: 'Recovering high-mid towards baseline',
+            });
+            adjusted = true;
+          }
+        }
+      }
     }
 
     // Sub-heavy — too much sub bass
@@ -181,6 +221,26 @@ export class AstutelyDecisionLoop {
       }
       result.log.push('EQ: Sub-heavy — cutting bass low shelf');
       adjusted = true;
+    } else {
+      // Recovery towards baseline low shelf
+      for (const ch of snapshot.channels) {
+        if (ch.name.toLowerCase().includes('bass')) {
+          const current = astutelyMixerBridge.getChannelEQ(ch.id, 'low');
+          const baseline = astutelyMixerBridge.getBaselineEQ(ch.id, 'low');
+          const diff = baseline - current;
+          if (Math.abs(diff) > 0.1) {
+            const value = diff > 0 ? Math.min(diff, 1.0) : Math.max(diff, -1.0);
+            result.mixAdjustments.push({
+              channelId: ch.id,
+              property: 'eq',
+              band: 'low',
+              value,
+              reason: 'Recovering low shelf towards baseline',
+            });
+            adjusted = true;
+          }
+        }
+      }
     }
 
     if (adjusted) this.markAdjusted('eq');
@@ -249,10 +309,12 @@ export class AstutelyDecisionLoop {
         const newLevel = Math.max(0, Math.min(1, snapshot.masterLevel + adj.value));
         astutelyMixerBridge.setMasterLevel(newLevel);
       } else if (adj.property === 'eq' && adj.band) {
+        const currentGain = astutelyMixerBridge.getChannelEQ(adj.channelId, adj.band as 'low' | 'lowMid' | 'highMid' | 'high');
+        const newGain = Math.max(-12, Math.min(12, currentGain + adj.value));
         astutelyMixerBridge.setChannelEQ(
           adj.channelId,
           adj.band as 'low' | 'lowMid' | 'highMid' | 'high',
-          adj.value,
+          newGain,
         );
       } else if (adj.property === 'volume') {
         const ch = snapshot.channels.find(c => c.id === adj.channelId);

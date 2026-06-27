@@ -688,6 +688,22 @@ export class ProfessionalAudioEngine {
     }
   }
   
+  getChannelEQ(channelId: string, band: 'low' | 'lowMid' | 'highMid' | 'high'): number {
+    const channel = this.channels.get(channelId);
+    if (!channel) return 0;
+    
+    switch (band) {
+      case 'low':
+        return channel.eq.lowShelf.gain.value;
+      case 'lowMid':
+        return channel.eq.lowMid.gain.value;
+      case 'highMid':
+        return channel.eq.highMid.gain.value;
+      case 'high':
+        return channel.eq.highShelf.gain.value;
+    }
+  }
+  
   setSendLevel(channelId: string, sendId: string, level: number): void {
     const channel = this.channels.get(channelId);
     const send = channel?.sends[sendId];

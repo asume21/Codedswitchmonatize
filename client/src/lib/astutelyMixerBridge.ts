@@ -39,8 +39,17 @@ export interface GenreMixPreset {
 // ── Bridge Singleton ─────────────────────────────────────────────────────────
 
 class AstutelyMixerBridge {
+  private baselineEQs: Record<string, Record<EQBand, number>> = {};
 
   // ── Read ────────────────────────────────────────────────────────────────
+
+  getChannelEQ(channelId: string, band: EQBand): number {
+    return professionalAudio.getChannelEQ(channelId, band);
+  }
+
+  getBaselineEQ(channelId: string, band: EQBand): number {
+    return this.baselineEQs[channelId]?.[band] ?? 0;
+  }
 
   getSnapshot(): MixerSnapshot {
     const channels = professionalAudio.getChannels().map(ch => {
@@ -109,9 +118,17 @@ class AstutelyMixerBridge {
       if (presetCh.pan !== undefined) this.setChannelPan(ch.id, presetCh.pan);
 
       if (presetCh.eq) {
+        this.baselineEQs[ch.id] = {
+          low: presetCh.eq.low ?? 0,
+          lowMid: presetCh.eq.lowMid ?? 0,
+          highMid: presetCh.eq.highMid ?? 0,
+          high: presetCh.eq.high ?? 0,
+        };
         for (const [band, gain] of Object.entries(presetCh.eq)) {
           if (gain !== undefined) this.setChannelEQ(ch.id, band as EQBand, gain);
         }
+      } else {
+        this.baselineEQs[ch.id] = { low: 0, lowMid: 0, highMid: 0, high: 0 };
       }
 
       if (presetCh.sendLevels) {
