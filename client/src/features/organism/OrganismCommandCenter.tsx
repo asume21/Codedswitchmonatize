@@ -166,6 +166,8 @@ interface PillToggleProps {
   label: string
   onToggle: () => void
   color: string
+  disabled?: boolean
+  loading?: boolean
 }
 
 const PillToggle = React.memo(function PillToggle({
@@ -173,11 +175,14 @@ const PillToggle = React.memo(function PillToggle({
   label,
   onToggle,
   color,
+  disabled = false,
+  loading = false,
 }: PillToggleProps) {
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={disabled || loading ? undefined : onToggle}
+      disabled={disabled || loading}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -189,15 +194,16 @@ const PillToggle = React.memo(function PillToggle({
         color: active ? color : C.text3,
         fontSize: 11,
         fontWeight: 500,
-        cursor: 'pointer',
+        cursor: disabled || loading ? 'not-allowed' : 'pointer',
+        opacity: disabled || loading ? 0.6 : 1,
         transition: 'background-color 140ms ease, border-color 140ms ease, color 140ms ease',
         backfaceVisibility: 'hidden',
         WebkitBackfaceVisibility: 'hidden',
         contain: 'paint',
       }}
     >
-      <StatusDot active={active} color={color} />
-      {label}
+      <StatusDot active={active} color={loading ? C.amber : color} />
+      {label}{loading ? ' (Loading...)' : ''}
     </button>
   )
 })
@@ -326,7 +332,7 @@ export function OrganismCommandCenter() {
     instrumentAssignments, setOrganismInstrument,
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
-    loopsModeEnabled, setLoopsModeEnabled,
+    loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -2143,7 +2149,7 @@ export function OrganismCommandCenter() {
               <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
               <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
               {activePreset?.loopPackId && (
-                <PillToggle active={loopsModeEnabled}   label="Loops"         onToggle={toggleLoopsMode}     color={C.purple} />
+                <PillToggle active={loopsModeEnabled}   label="Loops"         onToggle={toggleLoopsMode}     color={C.purple} loading={isLoopsLoading} />
               )}
               <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />
               <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={toggleCallResponse} color={C.purple} />

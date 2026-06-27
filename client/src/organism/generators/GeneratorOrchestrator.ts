@@ -1694,6 +1694,20 @@ export class GeneratorOrchestrator {
       pack.loops.chords[0]  ? this.chord.loadLoop(pack.loops.chords[0])   : Promise.resolve(),
       pack.loops.texture[0] ? this.texture.loadLoop(pack.loops.texture[0]): Promise.resolve(),
     ])
+
+    // Harmonize Conductor key with loop pack key
+    if (pack.key) {
+      const match = pack.key.match(/^([A-G][#b]?)(m)?$/)
+      if (match) {
+        const root = match[1]
+        try {
+          getConductor().setKey(root)
+        } catch (e) {
+          console.warn('[loops] Failed to set Conductor key to', root, e)
+        }
+      }
+    }
+
     // Save session BPM before locking to pack tempo so clearLoopPack can restore it
     this._preLockBpm = Tone.getTransport().bpm.value
     // Lock BPM to the pack

@@ -296,6 +296,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Loops Mode — play back loop packs instead of generating audio.
   const [loopsModeEnabled, setLoopsModeEnabledState] = useState(false)
   const loopsModeEnabledRef = useRef(false)
+  const [isLoopsLoading, setIsLoopsLoading] = useState(false)
+  const loopsLoadGenerationRef = useRef(0)
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -3480,11 +3482,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     },
 
     loopsModeEnabled,
+    isLoopsLoading,
     setLoopsModeEnabled: async (enabled: boolean) => {
       setLoopsModeEnabledState(enabled)
       loopsModeEnabledRef.current = enabled
       const orchestr = orchestrRef.current
       if (!orchestr) return
+
+      // Increment load generation to cancel any active previous loads
+      loopsLoadGenerationRef.current++
+      const gen = loopsLoadGenerationRef.current
 
       if (enabled) {
         const preset = currentPresetRef.current     // the active QuickStartPreset
@@ -3495,17 +3502,29 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           loopsModeEnabledRef.current = false
           return
         }
+        setIsLoopsLoading(true)
         try {
           const res = await fetch(`/api/loops/packs/${packId}`)
           if (!res.ok) throw new Error(`Pack fetch failed: ${res.status}`)
           const { pack } = await res.json()
+          
+          // Check if this load task has been cancelled/staled
+          if (gen !== loopsLoadGenerationRef.current) return
+
           await orchestr.loadLoopPack(pack)
         } catch (err) {
           console.warn('[loops] Failed to load pack:', err)
-          setLoopsModeEnabledState(false)
-          loopsModeEnabledRef.current = false
+          if (gen === loopsLoadGenerationRef.current) {
+            setLoopsModeEnabledState(false)
+            loopsModeEnabledRef.current = false
+          }
+        } finally {
+          if (gen === loopsLoadGenerationRef.current) {
+            setIsLoopsLoading(false)
+          }
         }
       } else {
+        setIsLoopsLoading(false)
         orchestr.clearLoopPack()
       }
     },
@@ -3569,7 +3588,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
-    reactToVoiceEnabled, songModeEnabled, loopsModeEnabled,
+    reactToVoiceEnabled, songModeEnabled, loopsModeEnabled, isLoopsLoading,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
