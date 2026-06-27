@@ -327,6 +327,7 @@ export function OrganismCommandCenter() {
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
     loopsModeEnabled, setLoopsModeEnabled,
+    freezeModeEnabled, setFreezeModeEnabled,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -854,6 +855,10 @@ export function OrganismCommandCenter() {
   const toggleLoopsMode = useCallback(() => {
     setLoopsModeEnabled(!loopsModeEnabled)
   }, [loopsModeEnabled, setLoopsModeEnabled])
+
+  const toggleFreezeMode = useCallback(() => {
+    setFreezeModeEnabled(!freezeModeEnabled)
+  }, [freezeModeEnabled, setFreezeModeEnabled])
 
   const handleV2Gain = useCallback((value: number) => {
     setV2Gain(value)
@@ -2145,6 +2150,7 @@ export function OrganismCommandCenter() {
               {activePreset?.loopPackId && (
                 <PillToggle active={loopsModeEnabled}   label="Loops"         onToggle={toggleLoopsMode}     color={C.purple} />
               )}
+              <PillToggle active={freezeModeEnabled}    label="Freeze"        onToggle={toggleFreezeMode}    color={C.cyan} />
               <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />
               <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={toggleCallResponse} color={C.purple} />
               <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={toggleDropDetector}   color={C.amber} />
