@@ -25,7 +25,10 @@ const DESCRIBE_PROMPT =
   'textures and frequencies. Note any obvious mix problems (clipping, muddiness, ' +
   'harshness, weak low end). Keep it concise but highly analytical.';
 
-const GEMINI_AUDIO_MODEL = process.env.GEMINI_AUDIO_MODEL?.trim() || 'gemini-1.5-flash';
+// gemini-1.5-flash was retired by Google (404 on v1beta). 2.0-flash is the
+// current GA multimodal-audio model on the free tier. Override via env if
+// Google rotates names again — no code change needed.
+const GEMINI_AUDIO_MODEL = process.env.GEMINI_AUDIO_MODEL?.trim() || 'gemini-2.0-flash';
 const OPENAI_AUDIO_MODEL = process.env.OPENAI_AUDIO_MODEL?.trim() || 'gpt-4o-audio-preview';
 
 /** Transcode any captured audio (webm/opus, etc.) to mono 44.1kHz WAV — the
