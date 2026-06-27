@@ -50,9 +50,8 @@ export class DrumGenerator extends GeneratorBase {
   private breakFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
 
-  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
-  private _loopPlayer: Tone.Player | null = null
-  private _loopMode = false
+  // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
+  // is centralized in GeneratorBase.
 
   // Physics cache
   private currentBounce:   number = 0
@@ -722,24 +721,6 @@ export class DrumGenerator extends GeneratorBase {
     this.onKickTrigger = cb
   }
 
-  async loadLoop(clip: LoopClip): Promise<void> {
-    this._loopPlayer?.dispose()
-    // Route through loopGain (init at the current arrangement level) so the
-    // section arrangement can swell/duck this loop. See GeneratorBase.
-    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
-    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
-      .connect(this.loopGain)
-    await Tone.loaded()
-  }
-
-  setLoopMode(enabled: boolean): void {
-    this._loopMode = enabled
-    if (enabled && this._loopPlayer) {
-      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
-    } else {
-      this._loopPlayer?.stop()
-    }
-  }
 
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier

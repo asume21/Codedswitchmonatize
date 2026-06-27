@@ -3,6 +3,7 @@ import { createReadStream, readdirSync, readFileSync, existsSync } from 'fs';
 import { join, resolve, sep } from 'path';
 import { melodicLoopLibrary } from '../services/melodicLoopLibrary';
 import { multisampleInstruments } from '../services/multisampleInstruments';
+import { arrangeLoops, type SectionBrief } from '../services/loopMind';
 
 const PACKS_DIR = join(process.cwd(), 'server', 'data', 'loop-packs');
 
@@ -114,6 +115,37 @@ router.get('/packs/:id', (req: Request, res: Response) => {
     if (!existsSync(file)) return res.status(404).json({ success: false, message: 'Pack not found' });
     const pack = JSON.parse(readFileSync(file, 'utf-8'));
     res.json({ pack });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// AI loop arranger — given a pack id + the song's sections, the loopMind brain
+// reasons out which loop plays each row each section (builds energy intro→drop).
+// Public (loops are public). Always resolves (deterministic fallback on failure).
+router.post('/arrange', async (req: Request, res: Response) => {
+  try {
+    const { packId, sections } = req.body ?? {};
+    if (!packId || !/^[a-z0-9_-]+$/i.test(packId)) {
+      return res.status(400).json({ success: false, message: 'Invalid packId' });
+    }
+    if (!Array.isArray(sections) || sections.length === 0) {
+      return res.status(400).json({ success: false, message: 'sections[] required' });
+    }
+    const file = join(PACKS_DIR, `${packId}.json`);
+    if (resolve(file).indexOf(resolve(PACKS_DIR) + sep) !== 0) {
+      return res.status(400).json({ success: false, message: 'Invalid packId' });
+    }
+    if (!existsSync(file)) return res.status(404).json({ success: false, message: 'Pack not found' });
+
+    const pack = JSON.parse(readFileSync(file, 'utf-8'));
+    const briefs: SectionBrief[] = sections.map((s: any) => ({
+      name: String(s?.name ?? 'verse'),
+      energy: Math.max(0, Math.min(1, Number(s?.energy) || 0)),
+      density: Math.max(0, Math.min(1, Number(s?.density) || 0)),
+    }));
+    const arrangement = await arrangeLoops(pack, briefs);
+    res.json({ success: true, arrangement });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -25,7 +25,16 @@ import { planAnswer, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
-import type { LoopPack } from '@shared/loopPack'
+import type { LoopPack, LoopClip } from '@shared/loopPack'
+import type { GeneratorBase } from './GeneratorBase'
+
+/** The five loop "rows" the arranger controls — matches LoopPack.loops keys
+ *  and the orchestrator's five generators. */
+export type LoopInstrument = 'drums' | 'bass' | 'melody' | 'chords' | 'texture'
+
+/** One clip id per row, or null = that row is muted (silent) this section.
+ *  Produced by the AI arranger (server/services/loopMind.ts) per section. */
+export type LoopScene = Record<LoopInstrument, string | null>
 import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
 
@@ -1743,12 +1752,91 @@ export class GeneratorOrchestrator {
    * Exit loop-pack mode: revert all generators to their synthesis engines.
    */
   clearLoopPack(): void {
+    this._currentScene = null
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(false))
     if (this._preLockBpm !== null) {
       Tone.getTransport().bpm.value = this._preLockBpm
       this._preLockBpm = null
     }
+  }
+
+  /**
+   * Scene control — mute/unmute ONE instrument's loop without stopping it. The
+   * player keeps running so it stays phase-locked and drops back in on the grid
+   * when unmuted. This is how the arranger layers an instrument in/out per
+   * section (e.g. melody out in the intro, in on the drop) with no desync.
+   */
+  setLoopMute(instrument: LoopInstrument, muted: boolean): void {
+    switch (instrument) {
+      case 'drums':   this.drum.setLoopMute(muted);    break
+      case 'bass':    this.bass.setLoopMute(muted);    break
+      case 'melody':  this.melody.setLoopMute(muted);  break
+      case 'chords':  this.chord.setLoopMute(muted);   break
+      case 'texture': this.texture.setLoopMute(muted); break
+    }
+  }
+
+  /**
+   * Pick a variant clip from a pack pool by index (clamped to the pool), so the
+   * arranger can choose loop 2/3/4 instead of always clip[0]. Returns null only
+   * if the instrument's pool is empty.
+   */
+  pickVariant(pack: LoopPack, instrument: LoopInstrument, index: number): LoopClip | null {
+    const pool = pack.loops[instrument]
+    if (!pool?.length) return null
+    return pool[Math.max(0, Math.min(pool.length - 1, index))]
+  }
+
+  /** Map a loop row to its generator. */
+  private generatorFor(row: LoopInstrument): GeneratorBase {
+    switch (row) {
+      case 'drums':   return this.drum
+      case 'bass':    return this.bass
+      case 'melody':  return this.melody
+      case 'chords':  return this.chord
+      case 'texture': return this.texture
+    }
+  }
+
+  /** The scene currently playing, so applyScene only swaps rows that changed. */
+  private _currentScene: LoopScene | null = null
+
+  /** Next bar boundary as an absolute transport tick — ONE value the whole band
+   *  shares so a scene switch flips every row on the exact same beat (no
+   *  per-generator @1m desync). Scheduled in ticks, never seconds. */
+  private nextSharedBarTick(): string {
+    const t = Tone.getTransport()
+    const ticksPerBar = t.PPQ * 4 // 4/4
+    const nextBar = Math.ceil((t.ticks + 1) / ticksPerBar) * ticksPerBar
+    return `${nextBar}i`
+  }
+
+  /**
+   * Apply an AI-arranged scene: gaplessly swap each row to its assigned loop
+   * (only rows whose clip changed) and mute the rows the arranger left null. All
+   * swaps land on ONE shared bar tick so the band stays locked. Call from the
+   * Conductor's section-change hook with that section's scene.
+   */
+  async applyScene(pack: LoopPack, scene: LoopScene): Promise<void> {
+    const prev = this._currentScene
+    const rows = Object.keys(scene) as LoopInstrument[]
+    const changed = rows.filter((r) => (!prev || prev[r] !== scene[r]) && scene[r] != null)
+
+    // Preload only the rows whose clip changed — current loops keep playing.
+    await Promise.all(changed.map((r) => {
+      const clip = (pack.loops[r] ?? []).find((c) => c.id === scene[r])
+      return clip ? this.generatorFor(r).preloadNextLoop(clip) : Promise.resolve()
+    }))
+
+    // Commit changed rows on one shared tick; set mute state for every row.
+    const at = this.nextSharedBarTick()
+    for (const row of rows) {
+      const gen = this.generatorFor(row)
+      if (changed.includes(row)) gen.commitNextLoopAt(at)
+      gen.setLoopMute(scene[row] == null)
+    }
+    this._currentScene = { ...scene }
   }
 
   /** Load an AI-generated drum pattern into the drum generator (Gap 2). */

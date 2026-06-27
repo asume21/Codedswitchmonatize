@@ -107,9 +107,8 @@ export class BassGenerator extends GeneratorBase {
   private voiceGeneration: number = 0
   private glideRate: number = 0.15 // default 150ms
 
-  // Loop mode — plays a pre-recorded loop clip instead of the synthesis engine
-  private _loopPlayer: Tone.Player | null = null
-  private _loopMode = false
+  // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
+  // is centralized in GeneratorBase.
 
   // Articulation — per-note transform. Defaults to 'none' (legacy behavior).
   private currentArticulationId: string = DEFAULT_ARTICULATION_ID
@@ -797,25 +796,6 @@ export class BassGenerator extends GeneratorBase {
   private getActiveVoice(): Tone.MonoSynth | LoadableSampler | Real808BassSampler {
     if (this.use808Active && this.real808Sampler?.isLoaded()) return this.real808Sampler
     return this.isSamplerReady() ? this.synth : this.fallbackSynth
-  }
-
-  async loadLoop(clip: LoopClip): Promise<void> {
-    this._loopPlayer?.dispose()
-    // Route through loopGain (init at the current arrangement level) so the
-    // section arrangement can swell/duck this loop. See GeneratorBase.
-    this.loopGain ??= new Tone.Gain(this.arrangementMultiplier).connect(this.output)
-    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true })
-      .connect(this.loopGain)
-    await Tone.loaded()
-  }
-
-  setLoopMode(enabled: boolean): void {
-    this._loopMode = enabled
-    if (enabled && this._loopPlayer) {
-      Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
-    } else {
-      this._loopPlayer?.stop()
-    }
   }
 
   dispose(): void {
