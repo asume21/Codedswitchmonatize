@@ -1,3 +1,4 @@
+import fs from 'fs'
 import { describe, it, expect } from 'vitest'
 import { listOrganismKits, pickBestOrganismKit } from '../organismKitLibrary'
 
@@ -15,19 +16,29 @@ describe('organismKitLibrary', () => {
     expect(best?.priority).toBe(100)
   })
 
-  it('premium kit covers the required drum roles', () => {
+  it('premium kit covers the required drum one-shot roles', () => {
     const best = pickBestOrganismKit()
     const roles = new Set(best?.samples.map((s) => s.role))
     expect(roles).toContain('kick')
     expect(roles).toContain('snare')
     expect(roles).toContain('hat')
-    expect(roles).toContain('bass808')
+    expect(roles).toContain('perc')
+    // bass808 is intentionally NOT required from this kit: the committed stub
+    // ships only a 0-byte 808-bass.wav placeholder, which the scanner now
+    // excludes. The Organism's 808 is supplied by the committed Cymatics
+    // "Rumble" 808 fallback (see OrganismKitCache.findBass808Sample).
   })
 
-  it('bass808 sample carries the configured root note', () => {
+  it('excludes 0-byte placeholder samples so a broken stub never masks a fallback', () => {
     const best = pickBestOrganismKit()
-    const bass808 = best?.samples.find((s) => s.role === 'bass808')
-    expect(bass808).toBeDefined()
-    expect(bass808?.rootNote).toBe('C1')
+    const samples = best?.samples ?? []
+    expect(samples.length).toBeGreaterThan(0)
+    // Every advertised sample must be a real, non-empty file. A 0-byte file
+    // can't be decoded and would mask a working committed fallback sample.
+    for (const sample of samples) {
+      expect(fs.statSync(sample.filePath).size).toBeGreaterThan(0)
+    }
+    // The committed stub's 0-byte 808-bass.wav must not be advertised.
+    expect(samples.some((s) => s.fileName === '808-bass.wav')).toBe(false)
   })
 })
