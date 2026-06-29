@@ -832,6 +832,7 @@ export class MelodyGenerator extends GeneratorBase {
    * running buffer.
    */
   private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): boolean {
+    if (this._loopMode) return false
     const now = performance.now()
     if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) {
       return false   // throttled — caller should preserve any pending dirty flags
@@ -920,6 +921,15 @@ export class MelodyGenerator extends GeneratorBase {
 
     const loopBars = Math.max(1, Math.ceil(phraseLength / 16))
 
+    const events = notes.map((n, i) => ({
+      time: quantizeGridTime(n.time, loopBars),
+      note: n.pitch,
+      dur: n.duration,
+      vel: n.velocity,
+      art: guitarArtIds ? guitarArtIds[i] : undefined,
+    }))
+    this.emitNoteEvents(events)
+
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
@@ -971,7 +981,7 @@ export class MelodyGenerator extends GeneratorBase {
         const t = Math.max(0, time + n.timeOffset)
         voice.triggerAttackRelease(note, n.duration, t, n.velocity)
       }
-    }, notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined })))
+    }, events)
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
@@ -1432,9 +1442,7 @@ export class MelodyGenerator extends GeneratorBase {
 
 
   dispose(): void {
-    this._loopPlayer?.stop()
-    this._loopPlayer?.dispose()
-    this._loopPlayer = null
+    this.disposeLoopPlayback()
     this.stopPart()
     if (this.unsubscribeConductor) {
       this.unsubscribeConductor()

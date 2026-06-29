@@ -113,32 +113,6 @@
           },
           "profiledAt": "2026-06-27T10:28:13.448Z"
         }
-      },
-      {
-        "id": "melody-3",
-        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/melody-loop-3.wav",
-        "bars": 8,
-        "label": "Accent",
-        "profile": {
-          "description": "This audio presents a sparse, deeply atmospheric soundscape characterized by sustained tones and resonant percussive events.\n\n**Instruments:**\nThe primary instruments are a **sustained synth pad** or possibly a bowed string/glass instrument and a **large, resonant metallic percussion instrument** (likely a gong or a very deep bell). The synth pad provides a high-pitched, slowly evolving drone, while the metallic percussion delivers a weighty, long-decaying strike.\n\n**Genre:**\n**Ambient / Drone.** The lack of a conventional beat, the focus on textural evolution, and the sustained sonic elements place it firmly within these genres, possibly bordering on Dark Ambient due to its somber quality.\n\n**Mood:**\n**Pensive, melancholic, spacious, and subtly unsettling.** It evokes a sense of vastness, quiet contemplation, or even a serene but slightly ominous emptiness.\n\n**Rhythm:**\n**Absent.** There is no discernible rhythm or pulse. The sounds are sustained and the metallic strikes occur irregularly, serving as sonic events rather than rhythmic markers.\n\n**Tone:**\n**Deep, resonant, and ethereal.** The sustained elements are airy and shimmering, contrasting with the profound depth and rich overtones of the metallic strikes. The overall tone is clean and expansive.\n\n**Ambient or Structural:**\nDefinitely **Ambient**. Its purpose is to create an atmosphere and sonic environment rather than follow a traditional musical structure.\n\n**Textures & Frequencies (Ambient):**\n*   **Textures:** The high-frequency element is a smooth, sustained drone, slightly wavering or modulated, creating an ethereal shimmer. The low-frequency element is a powerful, metallic impact with a very long, complex, and smooth decay, rich in ringing overtones that sustain for many seconds. It feels substantial and weighty.\n*   **Frequencies:**\n    *   **Low-End:** Dominant due to the deep fundamental and initial harmonics of the metallic strikes, extending into the sub-bass region, providing a solid and impactful foundation without being boomy.\n    *   **Low-Mid/Mid-Range:** Rich with the complex overtones of the resonant percussion, giving it its characteristic 'gong' or 'bell' quality. The pad also occupies some of the upper mid-range, providing body.\n    *   **High-Mid/High-End:** The sustained pad has a clear, airy presence in this range, contributing to the ethereal quality. The upper harmonics of the metallic decay also shine through, adding detail and clarity to the ringing.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping. The dynamics are well-managed.\n*   **Muddiness:** The mix is clean and clear; there is no muddiness. Each sound occupies its frequency space effectively.\n*   **Harshness:** There is no harshness detected. The high frequencies are smooth and pleasant.\n*   **Weak Low End:** On the contrary, the **low end is strong and well-defined**, particularly from the resonant percussion, providing a deep and impactful presence.",
-          "energy": 0,
-          "brightness": 0.485,
-          "busyness": 0.082,
-          "bands": {
-            "sub": 0.014,
-            "bass": 0.02,
-            "lowMid": 0.662,
-            "highMid": 0.162,
-            "high": 0.142
-          },
-          "metrics": {
-            "rmsDb": -57.268,
-            "spectralCentroidHz": 3014,
-            "estimatedBpm": null,
-            "onsetCount": 10
-          },
-          "profiledAt": "2026-06-27T10:28:28.843Z"
-        }
       }
     ],
     "chords": [
@@ -220,6 +194,32 @@
             "onsetCount": 89
           },
           "profiledAt": "2026-06-27T10:29:14.604Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-bunny-126/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Accent",
+        "profile": {
+          "description": "This audio presents a sparse, deeply atmospheric soundscape characterized by sustained tones and resonant percussive events.\n\n**Instruments:**\nThe primary instruments are a **sustained synth pad** or possibly a bowed string/glass instrument and a **large, resonant metallic percussion instrument** (likely a gong or a very deep bell). The synth pad provides a high-pitched, slowly evolving drone, while the metallic percussion delivers a weighty, long-decaying strike.\n\n**Genre:**\n**Ambient / Drone.** The lack of a conventional beat, the focus on textural evolution, and the sustained sonic elements place it firmly within these genres, possibly bordering on Dark Ambient due to its somber quality.\n\n**Mood:**\n**Pensive, melancholic, spacious, and subtly unsettling.** It evokes a sense of vastness, quiet contemplation, or even a serene but slightly ominous emptiness.\n\n**Rhythm:**\n**Absent.** There is no discernible rhythm or pulse. The sounds are sustained and the metallic strikes occur irregularly, serving as sonic events rather than rhythmic markers.\n\n**Tone:**\n**Deep, resonant, and ethereal.** The sustained elements are airy and shimmering, contrasting with the profound depth and rich overtones of the metallic strikes. The overall tone is clean and expansive.\n\n**Ambient or Structural:**\nDefinitely **Ambient**. Its purpose is to create an atmosphere and sonic environment rather than follow a traditional musical structure.\n\n**Textures & Frequencies (Ambient):**\n*   **Textures:** The high-frequency element is a smooth, sustained drone, slightly wavering or modulated, creating an ethereal shimmer. The low-frequency element is a powerful, metallic impact with a very long, complex, and smooth decay, rich in ringing overtones that sustain for many seconds. It feels substantial and weighty.\n*   **Frequencies:**\n    *   **Low-End:** Dominant due to the deep fundamental and initial harmonics of the metallic strikes, extending into the sub-bass region, providing a solid and impactful foundation without being boomy.\n    *   **Low-Mid/Mid-Range:** Rich with the complex overtones of the resonant percussion, giving it its characteristic 'gong' or 'bell' quality. The pad also occupies some of the upper mid-range, providing body.\n    *   **High-Mid/High-End:** The sustained pad has a clear, airy presence in this range, contributing to the ethereal quality. The upper harmonics of the metallic decay also shine through, adding detail and clarity to the ringing.\n\n**Mix Problems:**\n*   **Clipping:** No obvious clipping. The dynamics are well-managed.\n*   **Muddiness:** The mix is clean and clear; there is no muddiness. Each sound occupies its frequency space effectively.\n*   **Harshness:** There is no harshness detected. The high frequencies are smooth and pleasant.\n*   **Weak Low End:** On the contrary, the **low end is strong and well-defined**, particularly from the resonant percussion, providing a deep and impactful presence.",
+          "energy": 0,
+          "brightness": 0.485,
+          "busyness": 0.082,
+          "bands": {
+            "sub": 0.014,
+            "bass": 0.02,
+            "lowMid": 0.662,
+            "highMid": 0.162,
+            "high": 0.142
+          },
+          "metrics": {
+            "rmsDb": -57.268,
+            "spectralCentroidHz": 3014,
+            "estimatedBpm": null,
+            "onsetCount": 10
+          },
+          "profiledAt": "2026-06-27T10:28:28.843Z"
         }
       }
     ]

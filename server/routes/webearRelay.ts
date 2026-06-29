@@ -28,10 +28,45 @@ const browserSessions   = new Map<string, Response>();      // userId → browse
 const mcpSessions       = new Map<string, McpSession>();    // sessionId → Claude SSE
 const pendingCaptures   = new Map<string, PendingCapture>();
 
+// ── Blob store with a hard memory ceiling ──────────────────────────────────────
+// The blob POST below is intentionally unauthenticated: the in-app mastering card
+// and headless capture scripts mint their own captureId and can't attach a bearer
+// token. To stop that open endpoint from being used to exhaust server memory, the
+// store is bounded — oldest blobs are evicted once either ceiling is hit. A single
+// blob is already capped at 50 MB by express.raw() on the route, so no one blob can
+// exceed the total ceiling.
+const MAX_TOTAL_BLOB_BYTES = 256 * 1024 * 1024; // 256 MB resident across all captures
+const MAX_BLOB_COUNT       = 64;                // independent of size
+let totalBlobBytes = 0;
+
+function deleteBlob(id: string): void {
+  const existing = audioBlobs.get(id);
+  if (existing) {
+    totalBlobBytes -= existing.buffer.byteLength;
+    audioBlobs.delete(id);
+  }
+}
+
+function storeBlob(id: string, entry: BlobEntry): void {
+  deleteBlob(id);                       // replacing an id: drop its old bytes first
+  audioBlobs.set(id, entry);
+  totalBlobBytes += entry.buffer.byteLength;
+  // Evict oldest (Map preserves insertion order) until back under both ceilings.
+  // Never evict the blob we just stored.
+  while (
+    (totalBlobBytes > MAX_TOTAL_BLOB_BYTES || audioBlobs.size > MAX_BLOB_COUNT) &&
+    audioBlobs.size > 1
+  ) {
+    const oldest = audioBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteBlob(oldest);
+  }
+}
+
 // Purge blobs older than 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [id, b] of audioBlobs) if (b.expiresAt < now) audioBlobs.delete(id);
+  for (const [id, b] of audioBlobs) if (b.expiresAt < now) deleteBlob(id);
 }, 60_000);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -275,7 +310,7 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     const buffer      = req.body as Buffer;
     const contentType = req.headers['content-type'] || 'audio/webm';
 
-    audioBlobs.set(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+    storeBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
 
     const pending = pendingCaptures.get(captureId);
     if (pending) {

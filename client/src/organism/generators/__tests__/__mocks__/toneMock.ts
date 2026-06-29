@@ -102,6 +102,15 @@ export function createToneMock() {
   return {
     start: mockToneStart,
     loaded: vi.fn().mockResolvedValue(undefined),
+    ToneAudioBuffer: {
+      load: vi.fn().mockResolvedValue({
+        duration: 2.0,
+        length: 88200,
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        getChannelData: vi.fn().mockReturnValue(new Float32Array(88200))
+      })
+    },
     getTransport: vi.fn().mockReturnValue({
       bpm: { value: 90 },
       start: mockTransportStart,

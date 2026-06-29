@@ -116,32 +116,6 @@
     "melody": [
       {
         "id": "melody-1",
-        "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-1.wav",
-        "bars": 8,
-        "label": "High Synth 1",
-        "profile": {
-          "description": "This audio presents a **dark ambient/drone** soundscape, dominated by **synthesized pads and evolving drones**. The overall **mood is ominous, foreboding, and desolate**, evoking a sense of vast emptiness or contemplative dread. It is **arhythmic**, consisting of continuous, sustained tones with very slow, internal sonic evolution rather than a discernible beat or tempo.\n\nThe **tone is deep, resonant, and expansive**, with a pervasive low-end rumble forming the core of the sound. Texturally, it is highly **ambient**, built upon a thick, sustained, and somewhat muffled low-frequency drone. Layered subtly on top is a delicate, almost metallic or granular **high-frequency shimmer/buzz**, providing a sparse, unsettling contrast to the darkness below.\n\nIn terms of **frequencies**, the **sub-bass and low-end are exceptionally strong and pervasive**, driving the entire sound. The **mid-range is somewhat recessed and borders on muddy**, contributing to the muffled character of the main drone and slightly obscuring its internal motion. The **high-end is sparse**, containing only the aforementioned subtle shimmer without any brightness or air. There is **no apparent clipping or harshness**, but the **lower-mids exhibit a slight muddiness** that could benefit from greater clarity and separation. The **low-end is strong** and foundational.",
-          "energy": 0,
-          "brightness": 0.363,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.002,
-            "bass": 0.004,
-            "lowMid": 0.589,
-            "highMid": 0.344,
-            "high": 0.059
-          },
-          "metrics": {
-            "rmsDb": -35.479,
-            "spectralCentroidHz": 2305,
-            "estimatedBpm": null,
-            "onsetCount": 175
-          },
-          "profiledAt": "2026-06-27T10:58:02.211Z"
-        }
-      },
-      {
-        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-2.wav",
         "bars": 8,
         "label": "High Synth 2",
@@ -170,7 +144,7 @@
         "label": "Gloomy Violin Cm",
         "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-3.wav",
         "bars": 16,
-        "id": "melody-3",
+        "id": "melody-2",
         "profile": {
           "description": "This audio features a **full string orchestra**, comprising violins, violas, cellos, and double basses. The **genre** leans towards classical or neo-classical, highly reminiscent of a dramatic film score or a solemn orchestral piece.\n\nThe **mood** is distinctly melancholic, somber, and deeply reflective, evoking a sense of longing, sorrow, or profound contemplation. The **rhythm** is exceedingly slow (adagio/largo), characterized by long, sustained chords and legato phrasing, with no discernible percussive pulse, emphasizing harmonic movement over rhythmic drive. The **tone** is warm, rich, and full-bodied, with articulate, smooth highs and a resonant depth, indicative of an acoustic, orchestral setting.\n\nThis is a **structural** piece rather than purely ambient, featuring a clear, although slow, harmonic progression and a developing melodic contour that guides the listener through a narrative of emotion.\n\n**Textures & Frequencies:** The texture is lush and homophonic, built from sustained string pads that create a dense, layered soundscape. The **frequency spectrum** is well-balanced: the low end provides a deep, supportive foundation from the cellos and basses without being boomy; the mid-range is exceptionally rich and full, housing the core warmth of the string ensemble; and the high end is clear, airy, and articulate, but never harsh or shrill, allowing the violins to soar gently.\n\n**Mix Problems:** There are no obvious mix problems. The audio exhibits no clipping, muddiness in the mid-range, harshness in the highs, or a weak low end. The mix is clean, balanced, and allows the natural resonance of the instruments to shine, creating a sense of spaciousness appropriate for an orchestral recording.",
           "energy": 0.026,
@@ -219,6 +193,32 @@
             "onsetCount": 188
           },
           "profiledAt": "2026-06-27T10:58:34.586Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-trap-150/melody-loop-1.wav",
+        "bars": 8,
+        "label": "High Synth 1",
+        "profile": {
+          "description": "This audio presents a **dark ambient/drone** soundscape, dominated by **synthesized pads and evolving drones**. The overall **mood is ominous, foreboding, and desolate**, evoking a sense of vast emptiness or contemplative dread. It is **arhythmic**, consisting of continuous, sustained tones with very slow, internal sonic evolution rather than a discernible beat or tempo.\n\nThe **tone is deep, resonant, and expansive**, with a pervasive low-end rumble forming the core of the sound. Texturally, it is highly **ambient**, built upon a thick, sustained, and somewhat muffled low-frequency drone. Layered subtly on top is a delicate, almost metallic or granular **high-frequency shimmer/buzz**, providing a sparse, unsettling contrast to the darkness below.\n\nIn terms of **frequencies**, the **sub-bass and low-end are exceptionally strong and pervasive**, driving the entire sound. The **mid-range is somewhat recessed and borders on muddy**, contributing to the muffled character of the main drone and slightly obscuring its internal motion. The **high-end is sparse**, containing only the aforementioned subtle shimmer without any brightness or air. There is **no apparent clipping or harshness**, but the **lower-mids exhibit a slight muddiness** that could benefit from greater clarity and separation. The **low-end is strong** and foundational.",
+          "energy": 0,
+          "brightness": 0.363,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.002,
+            "bass": 0.004,
+            "lowMid": 0.589,
+            "highMid": 0.344,
+            "high": 0.059
+          },
+          "metrics": {
+            "rmsDb": -35.479,
+            "spectralCentroidHz": 2305,
+            "estimatedBpm": null,
+            "onsetCount": 175
+          },
+          "profiledAt": "2026-06-27T10:58:02.211Z"
         }
       }
     ]

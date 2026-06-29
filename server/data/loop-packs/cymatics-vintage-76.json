@@ -90,58 +90,6 @@
       },
       {
         "id": "melody-2",
-        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-2.wav",
-        "bars": 8,
-        "label": "Guitar",
-        "profile": {
-          "description": "This audio features a **single, evolving synthesized pad** as the sole instrument. It has a rich, lush, and slightly detuned character, reminiscent of layered analog or digital synthesizers, with a significant amount of reverb.\n\nThe **genre** is firmly **Ambient / Atmospheric / Drone**, suitable for **cinematic underscore** or background meditation.\n\nThe **mood** is deeply **introspective, calm, serene, and contemplative**. There's a subtle undercurrent of **melancholy or wistfulness** introduced by the minor-key chord progression and the slow, sustained delivery, evoking a sense of vastness and ethereal beauty.\n\n**Rhythm** is **extremely slow and free-flowing**. There is no discernible beat or percussive rhythm. The movement is dictated by the very gradual chord changes and the internal, subtle modulation within the pad sound itself, creating a sense of unhurried stasis and continuous, gentle evolution.\n\nThe **tone** is predominantly **warm, soft, and expansive**. The sustained notes allow for rich harmonic development, giving the pad a full-bodied, slightly airy, and shimmering quality. It is smooth, velvety, and gentle.\n\nThis audio is almost entirely **ambient** in nature. While there's a clear chord progression providing a subtle structural backbone, the emphasis is on sustained, evolving textures rather than a defined melodic or rhythmic structure.\n*   **Textures:** The texture is **lush, ethereal, and continuously evolving**. It's a smooth, highly reverbed wash of sound, with subtle internal movement (e.g., slow filter sweeps, gentle LFO modulation on pitch or amplitude) that prevents it from being static. The sound is dense but clear, creating a wide, spatial feel.\n*   **Frequencies:** The sound occupies a broad frequency spectrum, primarily focused on the **mid-range** where the fundamental notes and core harmonics reside. It extends into the **upper-mids and highs** with a gentle shimmer and extensive reverb tails, contributing to its airy and expansive quality. The **low end** is present, providing a solid, warm foundation to the sustained chords, giving them weight and depth without being boomy or overpowering.\n\nIn terms of **mix problems**:\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is remarkably clean for such a rich pad. There is no muddiness; individual notes within the chords remain distinct within the overall wash of sound.\n*   **Harshness:** There are no harsh frequencies in the high end; the sound is smooth and pleasant across the spectrum.\n*   **Weak low end:** The low end is appropriate for the genre and instrumentation. It provides warmth and body to the pads, giving them a grounded feel without being a prominent bass element. It is well-integrated and not weak. The overall balance is excellent.",
-          "energy": 0.295,
-          "brightness": 0.284,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.024,
-            "bass": 0.109,
-            "lowMid": 0.687,
-            "highMid": 0.08,
-            "high": 0.099
-          },
-          "metrics": {
-            "rmsDb": -22.913,
-            "spectralCentroidHz": 1846,
-            "estimatedBpm": 188,
-            "onsetCount": 349
-          },
-          "profiledAt": "2026-06-27T11:08:16.069Z"
-        }
-      },
-      {
-        "id": "melody-3",
-        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-3.wav",
-        "bars": 8,
-        "label": "Vibraphone",
-        "profile": {
-          "description": "This audio features a sustained, evolving **synthesizer pad**, characteristic of an **Ambient** or **Drone** genre. The **mood** is ethereal, melancholic, and contemplative, evoking a sense of vastness or quiet introspection. It is **arhythmic**, consisting of a continuous, slowly shifting drone without a discernible beat or pulse. The **tone** is predominantly dark and warm, with a subtle shimmering quality that adds an ethereal dimension.\n\nThis is an **ambient** piece. Texturally, it presents as smooth and velvety in the lower frequencies, gradually becoming more complex and slightly grainy/shimmering in the high-mids and highs as harmonics slowly evolve, suggesting internal modulation. The **frequencies** are broad: the **low-end** provides a deep, foundational warmth and subtle rumble without being boomy or weak; the **mid-range** is rich, full, and clear, carrying the core harmonic development; and the **high-end** is extended and airy, offering a soft, ethereal sparkle that contributes to the spaciousness without becoming harsh or fatiguing.\n\nThe mix appears clean and well-balanced. There are no obvious mix problems such as clipping, muddiness (despite the rich low-mids), harshness, or a weak low end. The overall dynamic range and spectral balance are well-managed for the genre.",
-          "energy": 0.098,
-          "brightness": 0.371,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.014,
-            "bass": 0.042,
-            "lowMid": 0.697,
-            "highMid": 0.14,
-            "high": 0.105
-          },
-          "metrics": {
-            "rmsDb": -27.659,
-            "spectralCentroidHz": 2354,
-            "estimatedBpm": null,
-            "onsetCount": 371
-          },
-          "profiledAt": "2026-06-27T11:08:30.033Z"
-        }
-      },
-      {
-        "id": "melody-4",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-4.wav",
         "bars": 8,
         "label": "Bell",
@@ -218,6 +166,58 @@
             "onsetCount": 115
           },
           "profiledAt": "2026-06-27T11:09:12.974Z"
+        }
+      },
+      {
+        "id": "chords-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Guitar",
+        "profile": {
+          "description": "This audio features a **single, evolving synthesized pad** as the sole instrument. It has a rich, lush, and slightly detuned character, reminiscent of layered analog or digital synthesizers, with a significant amount of reverb.\n\nThe **genre** is firmly **Ambient / Atmospheric / Drone**, suitable for **cinematic underscore** or background meditation.\n\nThe **mood** is deeply **introspective, calm, serene, and contemplative**. There's a subtle undercurrent of **melancholy or wistfulness** introduced by the minor-key chord progression and the slow, sustained delivery, evoking a sense of vastness and ethereal beauty.\n\n**Rhythm** is **extremely slow and free-flowing**. There is no discernible beat or percussive rhythm. The movement is dictated by the very gradual chord changes and the internal, subtle modulation within the pad sound itself, creating a sense of unhurried stasis and continuous, gentle evolution.\n\nThe **tone** is predominantly **warm, soft, and expansive**. The sustained notes allow for rich harmonic development, giving the pad a full-bodied, slightly airy, and shimmering quality. It is smooth, velvety, and gentle.\n\nThis audio is almost entirely **ambient** in nature. While there's a clear chord progression providing a subtle structural backbone, the emphasis is on sustained, evolving textures rather than a defined melodic or rhythmic structure.\n*   **Textures:** The texture is **lush, ethereal, and continuously evolving**. It's a smooth, highly reverbed wash of sound, with subtle internal movement (e.g., slow filter sweeps, gentle LFO modulation on pitch or amplitude) that prevents it from being static. The sound is dense but clear, creating a wide, spatial feel.\n*   **Frequencies:** The sound occupies a broad frequency spectrum, primarily focused on the **mid-range** where the fundamental notes and core harmonics reside. It extends into the **upper-mids and highs** with a gentle shimmer and extensive reverb tails, contributing to its airy and expansive quality. The **low end** is present, providing a solid, warm foundation to the sustained chords, giving them weight and depth without being boomy or overpowering.\n\nIn terms of **mix problems**:\n*   **Clipping:** No obvious clipping is present.\n*   **Muddiness:** The mix is remarkably clean for such a rich pad. There is no muddiness; individual notes within the chords remain distinct within the overall wash of sound.\n*   **Harshness:** There are no harsh frequencies in the high end; the sound is smooth and pleasant across the spectrum.\n*   **Weak low end:** The low end is appropriate for the genre and instrumentation. It provides warmth and body to the pads, giving them a grounded feel without being a prominent bass element. It is well-integrated and not weak. The overall balance is excellent.",
+          "energy": 0.295,
+          "brightness": 0.284,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.024,
+            "bass": 0.109,
+            "lowMid": 0.687,
+            "highMid": 0.08,
+            "high": 0.099
+          },
+          "metrics": {
+            "rmsDb": -22.913,
+            "spectralCentroidHz": 1846,
+            "estimatedBpm": 188,
+            "onsetCount": 349
+          },
+          "profiledAt": "2026-06-27T11:08:16.069Z"
+        }
+      },
+      {
+        "id": "chords-4",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-76/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Vibraphone",
+        "profile": {
+          "description": "This audio features a sustained, evolving **synthesizer pad**, characteristic of an **Ambient** or **Drone** genre. The **mood** is ethereal, melancholic, and contemplative, evoking a sense of vastness or quiet introspection. It is **arhythmic**, consisting of a continuous, slowly shifting drone without a discernible beat or pulse. The **tone** is predominantly dark and warm, with a subtle shimmering quality that adds an ethereal dimension.\n\nThis is an **ambient** piece. Texturally, it presents as smooth and velvety in the lower frequencies, gradually becoming more complex and slightly grainy/shimmering in the high-mids and highs as harmonics slowly evolve, suggesting internal modulation. The **frequencies** are broad: the **low-end** provides a deep, foundational warmth and subtle rumble without being boomy or weak; the **mid-range** is rich, full, and clear, carrying the core harmonic development; and the **high-end** is extended and airy, offering a soft, ethereal sparkle that contributes to the spaciousness without becoming harsh or fatiguing.\n\nThe mix appears clean and well-balanced. There are no obvious mix problems such as clipping, muddiness (despite the rich low-mids), harshness, or a weak low end. The overall dynamic range and spectral balance are well-managed for the genre.",
+          "energy": 0.098,
+          "brightness": 0.371,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.014,
+            "bass": 0.042,
+            "lowMid": 0.697,
+            "highMid": 0.14,
+            "high": 0.105
+          },
+          "metrics": {
+            "rmsDb": -27.659,
+            "spectralCentroidHz": 2354,
+            "estimatedBpm": null,
+            "onsetCount": 371
+          },
+          "profiledAt": "2026-06-27T11:08:30.033Z"
         }
       }
     ],

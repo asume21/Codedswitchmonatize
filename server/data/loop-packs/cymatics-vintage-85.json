@@ -139,32 +139,6 @@
           },
           "profiledAt": "2026-06-27T11:20:30.794Z"
         }
-      },
-      {
-        "id": "melody-2",
-        "url": "/api/loops/pack-audio?p=cymatics-vintage-85/melody-loop-3.wav",
-        "bars": 8,
-        "label": "Rhodes",
-        "profile": {
-          "description": "This audio presents a **dark ambient drone** soundscape.\n\n**Instruments:** The primary instruments are layers of **synthesizer pads**. A deep, sustained **synth bass drone** provides a foundational rumble. Overlaying this are evolving, rich **string-like or organ-like synth pads**, characterized by slow attacks and long, ethereal decays. Intermittently, clear, high-pitched **synth bells or chimes** punctuate the atmosphere, adding delicate percussive and melodic accents.\n\n**Genre:** **Dark Ambient / Drone Music**, with an underlying **minimalist classical** influence due to the extended harmonic structures and textural focus.\n\n**Mood:** The mood is distinctly **melancholy, introspective, and mysterious**. It evokes a sense of solemn contemplation, quiet solitude, and a subtle, pervasive unease, verging on haunting.\n\n**Rhythm:** The piece is **arhythmic**, with no discernible beat or percussive elements. Rhythm is conveyed through the extremely slow evolution of sustained tones and the gentle, unhurried harmonic shifts.\n\n**Tone:** The overall tone is **dark, deep, and expansive**. It possesses a richness in the mid-range and a crystalline quality in the higher frequencies, contributing to a vast, somewhat cold, yet immersive sound.\n\n**Ambient/Structural:** This is purely **ambient** and textural. It focuses on creating an immersive atmosphere rather than following a traditional musical structure.\n*   **Textures:** The pads are smooth, ethereal, and slowly undulating, creating a sense of continuous flow. The bass is thick and resonant, providing a grounding force. The bells offer a clear, shimmering, metallic counterpoint.\n*   **Frequencies:**\n    *   **Low End:** Present and deep, primarily from the bass drone, providing a solid, resonant foundation without muddiness. It's more of a subtle rumble than a punch.\n    *   **Mid-Range:** Rich and full, dominated by the main synth pads, which give the piece its body and warmth.\n    *   **High End:** Clear and sparkling, contributed by the bell-like sounds, adding definition and a sense of space without any harshness.\n\n**Mix Problems:** The mix is **clean, spacious, and well-balanced**. There are no apparent issues with clipping, muddiness, or harshness. The low end is supportive and adequately present for the genre, not weak or overpowering. The various sonic elements are well-separated, contributing to a cohesive and immersive soundfield.",
-          "energy": 0.496,
-          "brightness": 0.342,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.02,
-            "bass": 0.109,
-            "lowMid": 0.665,
-            "highMid": 0.098,
-            "high": 0.108
-          },
-          "metrics": {
-            "rmsDb": -18.088,
-            "spectralCentroidHz": 2181,
-            "estimatedBpm": null,
-            "onsetCount": 327
-          },
-          "profiledAt": "2026-06-27T11:21:04.139Z"
-        }
       }
     ],
     "chords": [
@@ -272,6 +246,32 @@
             "onsetCount": 50
           },
           "profiledAt": "2026-06-27T11:20:47.743Z"
+        }
+      },
+      {
+        "id": "texture-3",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-85/melody-loop-3.wav",
+        "bars": 8,
+        "label": "Rhodes",
+        "profile": {
+          "description": "This audio presents a **dark ambient drone** soundscape.\n\n**Instruments:** The primary instruments are layers of **synthesizer pads**. A deep, sustained **synth bass drone** provides a foundational rumble. Overlaying this are evolving, rich **string-like or organ-like synth pads**, characterized by slow attacks and long, ethereal decays. Intermittently, clear, high-pitched **synth bells or chimes** punctuate the atmosphere, adding delicate percussive and melodic accents.\n\n**Genre:** **Dark Ambient / Drone Music**, with an underlying **minimalist classical** influence due to the extended harmonic structures and textural focus.\n\n**Mood:** The mood is distinctly **melancholy, introspective, and mysterious**. It evokes a sense of solemn contemplation, quiet solitude, and a subtle, pervasive unease, verging on haunting.\n\n**Rhythm:** The piece is **arhythmic**, with no discernible beat or percussive elements. Rhythm is conveyed through the extremely slow evolution of sustained tones and the gentle, unhurried harmonic shifts.\n\n**Tone:** The overall tone is **dark, deep, and expansive**. It possesses a richness in the mid-range and a crystalline quality in the higher frequencies, contributing to a vast, somewhat cold, yet immersive sound.\n\n**Ambient/Structural:** This is purely **ambient** and textural. It focuses on creating an immersive atmosphere rather than following a traditional musical structure.\n*   **Textures:** The pads are smooth, ethereal, and slowly undulating, creating a sense of continuous flow. The bass is thick and resonant, providing a grounding force. The bells offer a clear, shimmering, metallic counterpoint.\n*   **Frequencies:**\n    *   **Low End:** Present and deep, primarily from the bass drone, providing a solid, resonant foundation without muddiness. It's more of a subtle rumble than a punch.\n    *   **Mid-Range:** Rich and full, dominated by the main synth pads, which give the piece its body and warmth.\n    *   **High End:** Clear and sparkling, contributed by the bell-like sounds, adding definition and a sense of space without any harshness.\n\n**Mix Problems:** The mix is **clean, spacious, and well-balanced**. There are no apparent issues with clipping, muddiness, or harshness. The low end is supportive and adequately present for the genre, not weak or overpowering. The various sonic elements are well-separated, contributing to a cohesive and immersive soundfield.",
+          "energy": 0.496,
+          "brightness": 0.342,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.02,
+            "bass": 0.109,
+            "lowMid": 0.665,
+            "highMid": 0.098,
+            "high": 0.108
+          },
+          "metrics": {
+            "rmsDb": -18.088,
+            "spectralCentroidHz": 2181,
+            "estimatedBpm": null,
+            "onsetCount": 327
+          },
+          "profiledAt": "2026-06-27T11:21:04.139Z"
         }
       }
     ]

@@ -78,6 +78,7 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     setBassVolumeMultiplier = vi.fn()
     setMelodyVolumeMultiplier = vi.fn()
     setTextureEnabled = vi.fn()
+    onGeneratorEvent = vi.fn().mockReturnValue(noop)
   },
 }))
 

@@ -54,6 +54,24 @@ describe('CaptureEngine', () => {
     expect(dna.userId).toBe('test-user')
   })
 
+  it('records generator events for capture and MIDI export', async () => {
+    const engine = new CaptureEngine()
+    engine.startSession()
+    engine.recordGeneratorEvent({
+      frameIndex: 0,
+      timestamp: 1000,
+      generator: 'bass',
+      eventType: 'note_on',
+      pitch: 36,
+      velocity: 100,
+      durationMs: 500,
+    })
+
+    const dna = await engine.capture()
+    expect(dna.generatorEvents).toHaveLength(1)
+    expect(dna.generatorEvents[0]).toMatchObject({ generator: 'bass', pitch: 36 })
+  })
+
   it('onCapture() callback fires after capture()', async () => {
     const cb = vi.fn()
     engine.onCapture(cb)

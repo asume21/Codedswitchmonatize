@@ -2148,7 +2148,7 @@ export function OrganismCommandCenter() {
             }}>
               <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
               <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
-              {activePreset?.loopPackId && (
+              {(!activePreset || activePreset.loopPackId) && (
                 <PillToggle active={loopsModeEnabled}   label="Loops"         onToggle={toggleLoopsMode}     color={C.purple} loading={isLoopsLoading} />
               )}
               <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />

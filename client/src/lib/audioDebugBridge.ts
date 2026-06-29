@@ -318,6 +318,7 @@ async function connectSSE() {
     setWebEarStatus('disconnected', 'WebEar relay disconnected; reconnecting')
     sseSource?.close()
     sseSource = null
+    resolvedApiKey = null
     scheduleReconnect()
   }
 }

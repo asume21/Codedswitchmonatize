@@ -332,6 +332,11 @@ export function clearArrangementFromPlan(): void {
   planTotalBars = 0
 }
 
+/** Get the active slots (plan slots if loaded, otherwise current template slots). */
+export function getActiveProducerSlots(): ProducerArrangementSlot[] {
+  return planSlots ?? currentSlots
+}
+
 // Deprecated const exports — kept for backward compat with old call sites
 // that still import them. Always reflect the CLASSIC template's bar count
 // (the only safe constant — actual cycle length is template-dependent).

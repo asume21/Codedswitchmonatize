@@ -12,6 +12,7 @@ import { createToneMock, mockToneStart, mockTransportStart, mockTransportStop } 
 vi.mock('tone', () => createToneMock())
 
 import { GeneratorOrchestrator } from '../GeneratorOrchestrator'
+import { useStudioStore } from '../../../stores/useStudioStore'
 
 // ── Mock PhysicsEngine & StateMachine ───────────────────────────────
 
@@ -256,15 +257,34 @@ describe('GeneratorOrchestrator — loop pack', () => {
     })
     await orch.loadLoopPack(makeTestPack())
     expect(tone.getTransport().bpm.value).toBe(95)
+    expect(useStudioStore.getState().bpm).toBe(95)
   })
 
-  it('clearLoopPack calls setLoopMode(false) on all generators', () => {
+  it('clearLoopPack unloads loop playback resources on all generators', () => {
     const orch = new GeneratorOrchestrator()
     const spies = ['drum', 'bass', 'melody', 'chord', 'texture'].map(g =>
-      vi.spyOn((orch as any)[g], 'setLoopMode').mockImplementation(() => {})
+      vi.spyOn((orch as any)[g], 'unloadLoopPlayback').mockImplementation(() => {})
     )
     orch.clearLoopPack()
-    spies.forEach(spy => expect(spy).toHaveBeenCalledWith(false))
+    spies.forEach(spy => expect(spy).toHaveBeenCalledOnce())
+  })
+
+  it('emits generator note events when a generated drum pattern is loaded', () => {
+    const orch = new GeneratorOrchestrator()
+    const events: import('../../session/types').GeneratorEvent[] = []
+    orch.onGeneratorEvent((event) => events.push(event))
+
+    orch.loadGeneratedDrumPattern([
+      { instrument: 'kick' as any, time: '0:0:0', velocity: 0.8 },
+      { instrument: 'snare' as any, time: '0:1:0', velocity: 0.7 },
+    ], true)
+
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({
+      generator: 'drum',
+      eventType: 'note_on',
+      pitch: 36,
+    })
   })
 })
 

@@ -197,6 +197,19 @@ describe('DrumGenerator — loop mode', () => {
     expect(mockPlayer?.stop).toHaveBeenCalled()
   })
 
+  it('stopLoopPlayback clears pending loop starts before they can fire later', async () => {
+    const tone = await import('tone')
+    const clip: LoopClip = { id: 'd1', url: 'http://cdn.test/drums.wav', bars: 4 }
+    await gen.loadLoop(clip)
+    gen.setLoopMode(true)
+
+    gen.stopLoopPlayback()
+
+    expect(tone.getTransport().clear).toHaveBeenCalledWith(0)
+    const mockPlayer = (tone.Player as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value
+    expect(mockPlayer?.stop).toHaveBeenCalled()
+  })
+
   it('setLoopMode(false) before loadLoop does not throw', () => {
     expect(() => gen.setLoopMode(false)).not.toThrow()
   })

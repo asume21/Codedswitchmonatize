@@ -90,32 +90,6 @@
     "melody": [
       {
         "id": "melody-1",
-        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/melody-loop-1.wav",
-        "bars": 8,
-        "label": "Lead",
-        "profile": {
-          "description": "This audio features a sustained, evolving **synthesizer pad** as its primary and dominant element, joined briefly by a sharp, bright **chime or bell-like sound** towards the very end.\n\nThe **genre** is **ambient** or **drone**, with a strong emphasis on texture and atmosphere over traditional melodic or rhythmic development. The **mood** is ethereal, contemplative, peaceful, and expansive, evoking a sense of calm vastness or serene melancholy. Rhythmically, it is largely **arhythmic and free-flowing**, with no discernible tempo or meter, driven by the slow evolution of the pad. The overall **tone** is bright, shimmering, and spacious, with the pad exhibiting a slightly cold but not harsh quality, characterized by a subtle wavering or detuned modulation.\n\nAs an **ambient** piece, the **texture** is smooth, sustained, and slowly evolving, creating a continuous sonic landscape. The subtle internal modulation of the pad adds a delicate, almost grainy movement within its sustained nature. Frequentially, the sound is dominated by the **high-mid and high frequencies**, providing an airy, crystalline quality. There is a near-complete absence of significant low-end information, which contributes to the floating, disembodied feel.\n\nIn terms of **mix problems**, there are no apparent issues with clipping, muddiness, or harshness; the highs are clear and present without being fatiguing. The most prominent characteristic from a mix perspective is the extremely **weak low end**, which, while serving the ethereal aesthetic, leaves the overall sound quite thin and lacks foundational body. This is likely an intentional artistic choice to maintain the light, floating atmosphere.",
-          "energy": 0,
-          "brightness": 1,
-          "busyness": 0.05,
-          "bands": {
-            "sub": 0.003,
-            "bass": 0.008,
-            "lowMid": 0.197,
-            "highMid": 0.194,
-            "high": 0.597
-          },
-          "metrics": {
-            "rmsDb": -33.937,
-            "spectralCentroidHz": 9357,
-            "estimatedBpm": null,
-            "onsetCount": 9
-          },
-          "profiledAt": "2026-06-27T10:47:42.997Z"
-        }
-      },
-      {
-        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-rnb-85/melody-loop-2.wav",
         "bars": 8,
         "label": "Piano",
@@ -166,6 +140,32 @@
             "onsetCount": 331
           },
           "profiledAt": "2026-06-27T10:48:16.075Z"
+        }
+      },
+      {
+        "id": "chords-2",
+        "url": "/api/loops/pack-audio?p=cymatics-rnb-85/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead",
+        "profile": {
+          "description": "This audio features a sustained, evolving **synthesizer pad** as its primary and dominant element, joined briefly by a sharp, bright **chime or bell-like sound** towards the very end.\n\nThe **genre** is **ambient** or **drone**, with a strong emphasis on texture and atmosphere over traditional melodic or rhythmic development. The **mood** is ethereal, contemplative, peaceful, and expansive, evoking a sense of calm vastness or serene melancholy. Rhythmically, it is largely **arhythmic and free-flowing**, with no discernible tempo or meter, driven by the slow evolution of the pad. The overall **tone** is bright, shimmering, and spacious, with the pad exhibiting a slightly cold but not harsh quality, characterized by a subtle wavering or detuned modulation.\n\nAs an **ambient** piece, the **texture** is smooth, sustained, and slowly evolving, creating a continuous sonic landscape. The subtle internal modulation of the pad adds a delicate, almost grainy movement within its sustained nature. Frequentially, the sound is dominated by the **high-mid and high frequencies**, providing an airy, crystalline quality. There is a near-complete absence of significant low-end information, which contributes to the floating, disembodied feel.\n\nIn terms of **mix problems**, there are no apparent issues with clipping, muddiness, or harshness; the highs are clear and present without being fatiguing. The most prominent characteristic from a mix perspective is the extremely **weak low end**, which, while serving the ethereal aesthetic, leaves the overall sound quite thin and lacks foundational body. This is likely an intentional artistic choice to maintain the light, floating atmosphere.",
+          "energy": 0,
+          "brightness": 1,
+          "busyness": 0.05,
+          "bands": {
+            "sub": 0.003,
+            "bass": 0.008,
+            "lowMid": 0.197,
+            "highMid": 0.194,
+            "high": 0.597
+          },
+          "metrics": {
+            "rmsDb": -33.937,
+            "spectralCentroidHz": 9357,
+            "estimatedBpm": null,
+            "onsetCount": 9
+          },
+          "profiledAt": "2026-06-27T10:47:42.997Z"
         }
       }
     ],

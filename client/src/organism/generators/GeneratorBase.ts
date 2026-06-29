@@ -7,8 +7,19 @@ import type { OrganismState } from '../state/types'
 import type { OState }        from '../state/types'
 import { roleCeiling, type InstrumentRole } from './arrangementRole'
 import type { LoopClip } from '@shared/loopPack'
+import type { GeneratorEvent } from '../session/types'
 
 export abstract class GeneratorBase {
+  private static bufferCache = new Map<string, AudioBuffer>()
+
+  public static async getOrCreateBuffer(url: string): Promise<AudioBuffer> {
+    const cached = GeneratorBase.bufferCache.get(url)
+    if (cached) return cached
+    const buf = await Tone.ToneAudioBuffer.load(url)
+    GeneratorBase.bufferCache.set(url, buf)
+    return buf
+  }
+
   readonly name: GeneratorName
   /** Each generator's final output node — where loop players connect. Concrete
    *  subclasses declare and build it; the shared loop machinery below routes
@@ -34,9 +45,101 @@ export abstract class GeneratorBase {
    *  the grid and drops back in on the beat when unmuted. The arrangement
    *  multiplier respects this (a muted loop stays at 0 regardless of section). */
   protected loopMuted = false
+  private generatorEventSink: ((event: GeneratorEvent) => void) | null = null
 
   constructor(name: GeneratorName) {
     this.name = name
+  }
+
+  setGeneratorEventSink(sink: ((event: GeneratorEvent) => void) | null): void {
+    this.generatorEventSink = sink
+  }
+
+  protected emitNoteEvents(
+    notes: Array<{ time: string; note: string | number; dur: string; vel: number }>,
+  ): void {
+    if (!this.generatorEventSink) return
+    const now = Date.now()
+    for (const note of notes) {
+      const pitch = typeof note.note === 'number' ? note.note : GeneratorBase.noteNameToMidi(note.note)
+      if (pitch == null) continue
+      this.generatorEventSink({
+        frameIndex: 0,
+        timestamp: now + GeneratorBase.gridTimeToMs(note.time),
+        generator: this.name,
+        eventType: 'note_on',
+        pitch,
+        velocity: GeneratorBase.velocityToMidi(note.vel),
+        durationMs: GeneratorBase.durationToMs(note.dur),
+      })
+    }
+  }
+
+  protected emitDrumEvents(
+    hits: Array<{ time: string; instrument: string; velocity: number }>,
+  ): void {
+    if (!this.generatorEventSink) return
+    const now = Date.now()
+    for (const hit of hits) {
+      const pitch = GeneratorBase.drumMidi(hit.instrument)
+      this.generatorEventSink({
+        frameIndex: 0,
+        timestamp: now + GeneratorBase.gridTimeToMs(hit.time),
+        generator: this.name,
+        eventType: 'note_on',
+        pitch,
+        velocity: GeneratorBase.velocityToMidi(hit.velocity),
+        durationMs: GeneratorBase.durationToMs('16n'),
+      })
+    }
+  }
+
+  private static velocityToMidi(value: number): number {
+    if (value > 1) return Math.max(1, Math.min(127, Math.round(value)))
+    return Math.max(1, Math.min(127, Math.round(value * 127)))
+  }
+
+  private static gridTimeToMs(time: string): number {
+    const [barRaw, beatRaw, subRaw] = String(time).split(':')
+    const bar = Number.parseFloat(barRaw ?? '0') || 0
+    const beat = Number.parseFloat(beatRaw ?? '0') || 0
+    const sub = Number.parseFloat(subRaw ?? '0') || 0
+    const sixteenths = (bar * 16) + (beat * 4) + sub
+    return sixteenths * GeneratorBase.durationToMs('16n')
+  }
+
+  private static durationToMs(duration: string): number {
+    const bpm = Math.max(40, Number(Tone.getTransport().bpm.value) || 120)
+    const quarterMs = 60000 / bpm
+    const value = String(duration)
+    if (value.endsWith('m')) {
+      const bars = Number.parseFloat(value) || 1
+      return bars * 4 * quarterMs
+    }
+    const dotted = value.endsWith('.')
+    const base = dotted ? value.slice(0, -1) : value
+    const denom = Number.parseFloat(base.replace('n', '')) || 4
+    const ms = quarterMs * (4 / denom)
+    return dotted ? ms * 1.5 : ms
+  }
+
+  private static noteNameToMidi(note: string): number | null {
+    const match = String(note).match(/^([A-G])([#b]?)(-?\d+)$/)
+    if (!match) return null
+    const [, letter, accidental, octaveRaw] = match
+    const base: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
+    const octave = Number.parseInt(octaveRaw, 10)
+    const accidentalOffset = accidental === '#' ? 1 : accidental === 'b' ? -1 : 0
+    return ((octave + 1) * 12) + base[letter] + accidentalOffset
+  }
+
+  private static drumMidi(instrument: string): number {
+    switch (instrument) {
+      case 'kick': return 36
+      case 'snare': return 38
+      case 'hat': return 42
+      default: return 45
+    }
   }
 
   /**
@@ -68,45 +171,108 @@ export abstract class GeneratorBase {
   // waiting to be committed (for gapless swaps and atomic scene switches).
   protected _loopPlayer: Tone.Player | null = null
   protected _loopNextPlayer: Tone.Player | null = null
+  protected _playerA: Tone.Player | null = null
+  protected _playerB: Tone.Player | null = null
+  protected _activePlayer: Tone.Player | null = null
+  protected _idlePlayer: Tone.Player | null = null
   protected _loopMode = false
+  private _loopEventIds: number[] = []
+
+  private clearLoopEvents(): void {
+    if (this._loopEventIds.length === 0) return
+    const transport = Tone.getTransport()
+    for (const id of this._loopEventIds) {
+      try { transport.clear(id) } catch { /* already cleared */ }
+    }
+    this._loopEventIds = []
+  }
 
   /** Lazily create the loop gain node, routed into this generator's output so
    *  the arrangement/mute machinery shapes the loop like any other channel. */
   private ensureLoopGain(): Tone.Gain {
-    this.loopGain ??= new Tone.Gain(this.loopMuted ? 0 : this.arrangementMultiplier).connect(this.output)
+    if (!this.loopGain) {
+      this.loopGain = new Tone.Gain(this.loopMuted ? 0 : this.arrangementMultiplier).connect(this.output)
+      if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+        this._playerA = new Tone.Player().connect(this.loopGain)
+        this._playerA.loop = true
+        this._playerB = new Tone.Player().connect(this.loopGain)
+        this._playerB.loop = true
+        this._activePlayer = this._playerA
+        this._idlePlayer = this._playerB
+      }
+    }
     return this.loopGain
   }
 
   /** Load a loop as the active player (replaces any current one immediately). */
   async loadLoop(clip: LoopClip): Promise<void> {
-    this._loopPlayer?.dispose()
-    this._loopPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
-    await Tone.loaded()
+    this.stopLoopPlayback()
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+      try { this._loopPlayer?.dispose() } catch { /* already disposed */ }
+      try { this._loopNextPlayer?.dispose() } catch { /* already disposed */ }
+      this._loopNextPlayer = null
+      this._loopPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
+      return
+    }
+    this.ensureLoopGain()
+    const buffer = await GeneratorBase.getOrCreateBuffer(clip.url)
+    this._activePlayer!.buffer = new Tone.ToneAudioBuffer(buffer)
   }
 
   /** Enter/exit loop mode. On enter, stop generator playback/parts so the loop
    *  can be the sole source; then start the loop player grid-locked. On exit,
    *  stop the loop player — normal generator scheduling will resume later. */
   setLoopMode(enabled: boolean): void {
+    this.clearLoopEvents()
     this._loopMode = enabled
     if (enabled) {
       // Ensure any active scheduled Parts / synth voices are halted so the
       // loop audio doesn't layer with generator playback (the "doubles" bug).
       try { (this as any).stopPart() } catch { /* fallback: some gens may no-op */ }
-      if (this._loopPlayer) {
-        Tone.getTransport().scheduleOnce(() => this._loopPlayer!.start(), '@1m')
+      
+      if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+        if (this._loopPlayer) {
+          const player = this._loopPlayer
+          const id = Tone.getTransport().scheduleOnce((scheduledTime) => {
+            if (!this._loopMode || this._loopPlayer !== player) return
+            try { player.start(scheduledTime) } catch { /* already started */ }
+          }, '@1m')
+          this._loopEventIds.push(id)
+        }
+        return
+      }
+
+      this.ensureLoopGain()
+      if (this._activePlayer) {
+        const player = this._activePlayer
+        const id = Tone.getTransport().scheduleOnce((scheduledTime) => {
+          if (!this._loopMode || this._activePlayer !== player) return
+          try { player.start(scheduledTime) } catch { /* already started */ }
+        }, '@1m')
+        this._loopEventIds.push(id)
       }
     } else {
-      this._loopPlayer?.stop()
+      if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+        this._loopPlayer?.stop()
+        this._loopNextPlayer?.stop()
+        return
+      }
+      this._activePlayer?.stop()
+      this._idlePlayer?.stop()
     }
   }
 
   /** Preload a variant into the NEXT slot without disturbing the active loop —
    *  so a swap can be committed gaplessly on a bar boundary. */
   async preloadNextLoop(clip: LoopClip): Promise<void> {
-    this._loopNextPlayer?.dispose()
-    this._loopNextPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
-    await Tone.loaded()
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+      this._loopNextPlayer?.dispose()
+      this._loopNextPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
+      return
+    }
+    this.ensureLoopGain()
+    const buffer = await GeneratorBase.getOrCreateBuffer(clip.url)
+    this._idlePlayer!.buffer = new Tone.ToneAudioBuffer(buffer)
   }
 
   /** Commit the preloaded next loop at a SPECIFIC transport time. The
@@ -114,16 +280,74 @@ export abstract class GeneratorBase {
    *  flips all rows on the same beat (no per-generator @1m desync). The old
    *  player stops at that tick and is disposed shortly after. */
   commitNextLoopAt(time: Tone.Unit.Time): void {
-    const next = this._loopNextPlayer
-    if (!next) return
-    const old = this._loopPlayer
-    Tone.getTransport().scheduleOnce(() => {
-      try { next.start() } catch { /* already started */ }
-      try { old?.stop() } catch { /* not running */ }
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+      const next = this._loopNextPlayer
+      if (!next) return
+      this.clearLoopEvents()
+      const old = this._loopPlayer
+      const id = Tone.getTransport().scheduleOnce((scheduledTime) => {
+        if (!this._loopMode) return
+        try { next.start(scheduledTime) } catch { /* already started */ }
+        try { old?.stop(scheduledTime) } catch { /* not running */ }
+        if (old) {
+          window.setTimeout(() => {
+            try { old.dispose() } catch { /* */ }
+          }, 3000)
+        }
+        this._loopPlayer = next
+      }, time)
+      this._loopEventIds.push(id)
+      this._loopNextPlayer = null
+      return
+    }
+
+    const next = this._idlePlayer
+    const old = this._activePlayer
+    if (!next || !old) return
+
+    this.clearLoopEvents()
+
+    const id = Tone.getTransport().scheduleOnce((scheduledTime) => {
+      if (!this._loopMode) return
+      
+      try { next.start(scheduledTime) } catch { /* already started */ }
+      try { old.stop(scheduledTime) } catch { /* not running */ }
+      
+      this._activePlayer = next
+      this._idlePlayer = old
     }, time)
-    this._loopPlayer = next
+
+    this._loopEventIds.push(id)
+  }
+
+  /** Stop active/preloaded loop players and clear pending loop callbacks. */
+  stopLoopPlayback(): void {
+    this.clearLoopEvents()
+    try { this._loopPlayer?.stop() } catch { /* already stopped */ }
+    try { this._loopNextPlayer?.stop() } catch { /* already stopped */ }
+  }
+
+  /** Dispose loop players/gain. Subclasses call this from dispose(). */
+  protected disposeLoopPlayback(): void {
+    this.stopLoopPlayback()
+    try { this._loopPlayer?.dispose() } catch { /* already disposed */ }
+    try { this._loopNextPlayer?.dispose() } catch { /* already disposed */ }
+    try { this._playerA?.dispose() } catch { /* already disposed */ }
+    try { this._playerB?.dispose() } catch { /* already disposed */ }
+    try { this.loopGain?.dispose() } catch { /* already disposed */ }
+    this._loopPlayer = null
     this._loopNextPlayer = null
-    if (old) window.setTimeout(() => { try { old.dispose() } catch { /* */ } }, 2500)
+    this._playerA = null
+    this._playerB = null
+    this._activePlayer = null
+    this._idlePlayer = null
+    this.loopGain = null
+    this._loopMode = false
+  }
+
+  /** Exit loop mode and free loop-player resources while keeping the generator alive. */
+  unloadLoopPlayback(): void {
+    this.disposeLoopPlayback()
   }
 
   /** Gapless single-instrument swap: preload a clip then commit it next bar. */

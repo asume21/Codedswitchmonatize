@@ -415,12 +415,14 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private rebuildPart(hits: DrumHit[]): void {
+    if (this._loopMode) return
     this.applyKitPreset()
     const quantizedHits = hits.map(h => ({
       ...h,
       time: quantizeGridTime(h.time),
     }))
     this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
+    this.emitDrumEvents(quantizedHits)
 
     const events = quantizedHits.map(h => {
       const parts = h.time.split(':')
@@ -733,9 +735,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   dispose(): void {
-    this._loopPlayer?.stop()
-    this._loopPlayer?.dispose()
-    this._loopPlayer = null
+    this.disposeLoopPlayback()
     this.stopPart()
     this.kickSub.dispose()
     this.kickClick.dispose()

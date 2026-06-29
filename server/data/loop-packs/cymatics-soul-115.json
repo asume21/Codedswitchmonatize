@@ -64,32 +64,6 @@
     "melody": [
       {
         "id": "melody-1",
-        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-1.wav",
-        "bars": 8,
-        "label": "Guitar",
-        "profile": {
-          "description": "This audio features a sustained, evolving, and highly textural synthesizer soundscape.\n\n**Instruments:**\nThe primary instrument is a **synthesizer**, used to create:\n1.  **High-frequency drone/pad:** A prominent, high-pitched, slightly wavering or modulating sine/saw wave-like tone (heard from the start). It has a shimmering, airy quality.\n2.  **Mid-range evolving pad:** A rich, somewhat detuned or layered synth pad that sweeps in, providing harmonic complexity and warmth, possibly with a slow filter open/close.\n3.  **Low-mid/sub pad/drone:** A deep, resonant, and sustained synth layer that adds weight and gravitas, providing the foundation for the sound.\n\n**Genre:** Ambient Drone, Cinematic. It evokes a soundscape rather than a traditional musical piece.\n\n**Mood:** Eerie, mysterious, expansive, ominous, and subtly foreboding. There's a sense of vastness and slow-building tension, then a gradual release.\n\n**Rhythm:** A-rhythmic. There is no discernible beat or pulse. The movement is solely through slow harmonic and timbral evolution.\n\n**Tone:** Dark, resonant, airy, and full-bodied. The initial high tones are clear and almost pure, while the fuller sections are rich and slightly gritty/metallic in their upper harmonics.\n\n**Textures and Frequencies (Ambient/Structural):**\nThis is distinctly ambient and structural, focusing on evolving textures.\n*   **Textures:** Starts with a smooth, almost glassy high-end texture with subtle LFO modulation. As other elements enter, the texture becomes lush, layered, and slightly gritty in the mid-range, then deep and resonant in the low-mids. The overall texture is synthetic and evolving.\n*   **Frequencies:**\n    *   **High End:** Prominent with sustained, wavering tones, giving an airy, shimmering quality throughout, particularly noticeable at the beginning. It's present but never harsh.\n    *   **Mid-Range:** Extremely rich and full, where the main harmonic body and evolution occur. There's a clear sweep or growth of frequencies in this range as the sound develops (around 0:03-0:07).\n    *   **Low-Mid/Low End:** A deep, resonant foundation emerges around 0:07, providing weight and a sense of gravity without being excessively boomy or muddy. It's supportive and contributes significantly to the ominous mood.\n\n**Obvious Mix Problems:**\nThere are **no obvious mix problems**.\n*   The sound is clean and well-balanced across the frequency spectrum.\n*   No clipping or distortion.\n*   The low end is present and adds weight without becoming muddy.\n*   The high end is clear and shimmering but not harsh or fatiguing.\n*   The overall dynamic range feels intentionally managed, with a controlled swell and decay.",
-          "energy": 0.322,
-          "brightness": 0.517,
-          "busyness": 0.816,
-          "bands": {
-            "sub": 0.008,
-            "bass": 0.026,
-            "lowMid": 0.652,
-            "highMid": 0.137,
-            "high": 0.178
-          },
-          "metrics": {
-            "rmsDb": -22.272,
-            "spectralCentroidHz": 3201,
-            "estimatedBpm": 65,
-            "onsetCount": 109
-          },
-          "profiledAt": "2026-06-27T10:52:49.287Z"
-        }
-      },
-      {
-        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-2.wav",
         "bars": 8,
         "label": "Piano",
@@ -115,7 +89,7 @@
         }
       },
       {
-        "id": "melody-3",
+        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-3.wav",
         "bars": 8,
         "label": "Vibraphone",
@@ -144,7 +118,7 @@
         "label": "Nylon Guitar Gm",
         "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-4.wav",
         "bars": 4,
-        "id": "melody-4",
+        "id": "melody-3",
         "profile": {
           "description": "This audio features a **prominent arpeggiated instrument resembling a harp or pizzicato strings**, playing a repetitive, flowing melodic phrase. Beneath this, a **subtle, high-frequency, sustained synth pad** provides an ethereal, shimmering background texture.\n\n**Genre:** Ambient, New Age, or contemplative film score.\n**Mood:** Serene, peaceful, meditative, and slightly reflective or melancholic. It evokes a sense of calm and introspection.\n**Rhythm:** The tempo is slow to medium, with a consistent, gentle pulse driven by the arpeggiated pattern, likely in a 3/4 or 6/8 time signature, creating a fluid, cyclical feel.\n**Tone:** Bright, clean, and ethereal. The arpeggios have a crystalline, resonant quality with clear attacks and smooth decays. The pad is airy and unobtrusive.\n\nThe audio is primarily **structural** due to the repeating melodic motif of the arpeggio, but it also possesses strong **ambient** qualities from the sustained pad, which creates an atmospheric backdrop.\n\n**Textures & Frequencies:** The primary texture is the delicate, plucked string sound, which is very clear and occupies the mid-high to high frequencies. This is layered with a soft, very high-frequency shimmering texture from the pad, which adds breadth and airiness to the soundscape. The overall frequency balance is heavily skewed towards the higher end.\n\n**Mix Problems:**\n*   **Weak Low End:** The most obvious characteristic is the complete **absence of any low-end information**. There is no bass, sub-bass, or low-mid presence whatsoever, resulting in a very \"light\" and \"thin\" sound. While this might be an intentional artistic choice for an ethereal mood, it leaves the mix lacking foundation.\n*   There is no discernible clipping, muddiness, or harshness; the higher frequencies, while dominant, are clean and well-controlled.",
           "energy": 0.367,
@@ -221,6 +195,33 @@
         }
       }
     ],
-    "texture": []
+    "texture": [
+      {
+        "id": "texture-1",
+        "url": "/api/loops/pack-audio?p=cymatics-soul-115/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Guitar",
+        "profile": {
+          "description": "This audio features a sustained, evolving, and highly textural synthesizer soundscape.\n\n**Instruments:**\nThe primary instrument is a **synthesizer**, used to create:\n1.  **High-frequency drone/pad:** A prominent, high-pitched, slightly wavering or modulating sine/saw wave-like tone (heard from the start). It has a shimmering, airy quality.\n2.  **Mid-range evolving pad:** A rich, somewhat detuned or layered synth pad that sweeps in, providing harmonic complexity and warmth, possibly with a slow filter open/close.\n3.  **Low-mid/sub pad/drone:** A deep, resonant, and sustained synth layer that adds weight and gravitas, providing the foundation for the sound.\n\n**Genre:** Ambient Drone, Cinematic. It evokes a soundscape rather than a traditional musical piece.\n\n**Mood:** Eerie, mysterious, expansive, ominous, and subtly foreboding. There's a sense of vastness and slow-building tension, then a gradual release.\n\n**Rhythm:** A-rhythmic. There is no discernible beat or pulse. The movement is solely through slow harmonic and timbral evolution.\n\n**Tone:** Dark, resonant, airy, and full-bodied. The initial high tones are clear and almost pure, while the fuller sections are rich and slightly gritty/metallic in their upper harmonics.\n\n**Textures and Frequencies (Ambient/Structural):**\nThis is distinctly ambient and structural, focusing on evolving textures.\n*   **Textures:** Starts with a smooth, almost glassy high-end texture with subtle LFO modulation. As other elements enter, the texture becomes lush, layered, and slightly gritty in the mid-range, then deep and resonant in the low-mids. The overall texture is synthetic and evolving.\n*   **Frequencies:**\n    *   **High End:** Prominent with sustained, wavering tones, giving an airy, shimmering quality throughout, particularly noticeable at the beginning. It's present but never harsh.\n    *   **Mid-Range:** Extremely rich and full, where the main harmonic body and evolution occur. There's a clear sweep or growth of frequencies in this range as the sound develops (around 0:03-0:07).\n    *   **Low-Mid/Low End:** A deep, resonant foundation emerges around 0:07, providing weight and a sense of gravity without being excessively boomy or muddy. It's supportive and contributes significantly to the ominous mood.\n\n**Obvious Mix Problems:**\nThere are **no obvious mix problems**.\n*   The sound is clean and well-balanced across the frequency spectrum.\n*   No clipping or distortion.\n*   The low end is present and adds weight without becoming muddy.\n*   The high end is clear and shimmering but not harsh or fatiguing.\n*   The overall dynamic range feels intentionally managed, with a controlled swell and decay.",
+          "energy": 0.322,
+          "brightness": 0.517,
+          "busyness": 0.816,
+          "bands": {
+            "sub": 0.008,
+            "bass": 0.026,
+            "lowMid": 0.652,
+            "highMid": 0.137,
+            "high": 0.178
+          },
+          "metrics": {
+            "rmsDb": -22.272,
+            "spectralCentroidHz": 3201,
+            "estimatedBpm": 65,
+            "onsetCount": 109
+          },
+          "profiledAt": "2026-06-27T10:52:49.287Z"
+        }
+      }
+    ]
   }
 }

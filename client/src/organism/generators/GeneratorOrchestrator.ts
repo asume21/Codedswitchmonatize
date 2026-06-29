@@ -26,7 +26,8 @@ import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
 import type { LoopPack, LoopClip } from '@shared/loopPack'
-import type { GeneratorBase } from './GeneratorBase'
+import { GeneratorBase } from './GeneratorBase'
+import type { GeneratorEvent } from '../session/types'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -37,6 +38,7 @@ export type LoopInstrument = 'drums' | 'bass' | 'melody' | 'chords' | 'texture'
 export type LoopScene = Record<LoopInstrument, string | null>
 import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
+import { useStudioStore } from '../../stores/useStudioStore'
 
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
@@ -47,6 +49,7 @@ export class GeneratorOrchestrator {
 
   private lastPhysics:  PhysicsState  | null = null
   private lastOrganism: OrganismState | null = null
+  private generatorEventCallbacks: Set<(event: GeneratorEvent) => void> = new Set()
 
   private physicsEngineRef: PhysicsEngine | null = null
   private running: boolean = false
@@ -161,6 +164,12 @@ export class GeneratorOrchestrator {
     this.texture = new TextureGenerator()
     this.chord   = new ChordGenerator()
     this.director = new MusicalDirector()
+
+    const emitGeneratorEvent = (event: GeneratorEvent) => {
+      this.generatorEventCallbacks.forEach(cb => cb(event))
+    }
+    ;[this.drum, this.bass, this.melody, this.texture, this.chord]
+      .forEach(g => g.setGeneratorEventSink(emitGeneratorEvent))
 
     // Load real recorded multisamples (Sonatina / VCSL / SK pianos) and upgrade
     // the chord + melody voices from thin GM soundfonts to real samples the
@@ -420,6 +429,16 @@ export class GeneratorOrchestrator {
     reseedPerformerSelection()
     this.melody.reseed()
     getConductor().pickNewProgression()
+
+    if (this._loopPack) {
+      ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+        .forEach(g => g.setLoopMode(true))
+    }
+  }
+
+  onGeneratorEvent(callback: (event: GeneratorEvent) => void): () => void {
+    this.generatorEventCallbacks.add(callback)
+    return () => this.generatorEventCallbacks.delete(callback)
   }
 
   /**
@@ -443,6 +462,8 @@ export class GeneratorOrchestrator {
     this.bass.reset()
     this.melody.reset()
     this.chord.reset()
+    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
+      .forEach(g => g.stopLoopPlayback())
 
     // Clear any pending scheduled break events
     const transport = Tone.getTransport()
@@ -1720,6 +1741,17 @@ export class GeneratorOrchestrator {
    * flip all five generators into loop-playback mode.
    */
   async loadLoopPack(pack: LoopPack): Promise<void> {
+    // 1. Gather all clips in the pack and warm up the buffer cache in parallel
+    const clips: LoopClip[] = []
+    const rows: LoopInstrument[] = ['drums', 'bass', 'melody', 'chords', 'texture']
+    for (const r of rows) {
+      if (pack.loops[r]) {
+        clips.push(...pack.loops[r])
+      }
+    }
+    await Promise.all(clips.map(clip => GeneratorBase.getOrCreateBuffer(clip.url).catch(() => null)))
+
+    // 2. Load the baseline first clips into active player slots
     await Promise.all([
       pack.loops.drums[0]   ? this.drum.loadLoop(pack.loops.drums[0])     : Promise.resolve(),
       pack.loops.bass[0]    ? this.bass.loadLoop(pack.loops.bass[0])      : Promise.resolve(),
@@ -1742,12 +1774,25 @@ export class GeneratorOrchestrator {
     }
 
     // Save session BPM before locking to pack tempo so clearLoopPack can restore it
-    this._preLockBpm = Tone.getTransport().bpm.value
+    this._preLockBpm = useStudioStore.getState().bpm ?? Tone.getTransport().bpm.value
     // Lock BPM to the pack
+    useStudioStore.getState().setBpm(pack.bpm)
     Tone.getTransport().bpm.value = pack.bpm
     // Flip all generators to loop playback
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(true))
+
+    // Record what's now playing (clip[0] per row) as the baseline scene, so a
+    // subsequent AI arrangement (setLoopArrangement → applyScene) only SWAPS the
+    // rows it actually changes. Without this, applyScene treats every row as new
+    // and re-starts a second player over the one we just started — a doubled loop.
+    this._currentScene = {
+      drums:   pack.loops.drums[0]?.id   ?? null,
+      bass:    pack.loops.bass[0]?.id    ?? null,
+      melody:  pack.loops.melody[0]?.id  ?? null,
+      chords:  pack.loops.chords[0]?.id  ?? null,
+      texture: pack.loops.texture[0]?.id ?? null,
+    }
   }
 
   /**
@@ -1760,10 +1805,11 @@ export class GeneratorOrchestrator {
     this._loopPack = null
     this._loopScenes = null
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
-      .forEach(g => g.setLoopMode(false))
+      .forEach(g => g.unloadLoopPlayback())
 
     // Restore BPM if we locked it to the pack
     if (this._preLockBpm !== null) {
+      useStudioStore.getState().setBpm(this._preLockBpm)
       Tone.getTransport().bpm.value = this._preLockBpm
       this._preLockBpm = null
     }

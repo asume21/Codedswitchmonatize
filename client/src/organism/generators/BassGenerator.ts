@@ -592,6 +592,7 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private rebuildPart(physics?: PhysicsState): boolean {
+    if (this._loopMode) return false
     const now = performance.now()
     if (now - this.lastRebuildTime < BassGenerator.MIN_REBUILD_INTERVAL_MS) return false
     this.lastRebuildTime = now
@@ -608,6 +609,7 @@ export class BassGenerator extends GeneratorBase {
       dur:  n.duration,
       vel:  n.velocity,
     }))
+    this.emitNoteEvents(events)
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -799,9 +801,7 @@ export class BassGenerator extends GeneratorBase {
   }
 
   dispose(): void {
-    this._loopPlayer?.stop()
-    this._loopPlayer?.dispose()
-    this._loopPlayer = null
+    this.disposeLoopPlayback()
     this.stopPart()
     if (this.unsubscribeConductor) {
       this.unsubscribeConductor()

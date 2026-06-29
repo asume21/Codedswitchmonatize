@@ -509,6 +509,7 @@ export class ChordGenerator extends GeneratorBase {
   private static readonly MIN_REBUILD_INTERVAL_MS = 500
 
   private rebuildPart(): boolean {
+    if (this._loopMode) return false
     const now = performance.now()
     if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return false
     this.lastRebuildTime = now
@@ -585,6 +586,16 @@ export class ChordGenerator extends GeneratorBase {
       ...event,
       time: quantizeGridTime(event.time, loopBars),
     }))
+    this.emitNoteEvents(
+      quantizedEvents.flatMap(event =>
+        event.notes.map(note => ({
+          time: event.time,
+          note,
+          dur: event.dur,
+          vel: event.vel,
+        })),
+      ),
+    )
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -812,9 +823,7 @@ export class ChordGenerator extends GeneratorBase {
 
 
   dispose(): void {
-    this._loopPlayer?.stop()
-    this._loopPlayer?.dispose()
-    this._loopPlayer = null
+    this.disposeLoopPlayback()
     this.stopPart()
     this.unsubscribeConductor?.()
     this.unsubscribeConductor = null

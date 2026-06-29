@@ -90,32 +90,6 @@
       },
       {
         "id": "melody-2",
-        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-2.wav",
-        "bars": 8,
-        "label": "Lead 2",
-        "profile": {
-          "description": "This audio presents an ethereal, ambient soundscape characterized by sustained, evolving textures.\n\n**Instruments:**\nThe primary instruments are **synthesized pads**. There are at least two distinct layers: a high-frequency, shimmery, and slowly evolving pad that creates a bright, airy texture, and a lower, warmer, sustained pad that provides harmonic depth. Additionally, a prominent **deep, highly resonant synth tone** with a very long decay plays sparingly, mimicking qualities of a large gong or bowed metal. It has a rich, metallic overtone but a profound low-frequency fundamental.\n\n**Genre:**\n**Ambient**, with elements of **Drone** and **New Age**. The lack of rhythm, emphasis on sustained tones, and atmospheric quality firmly place it within these genres.\n\n**Mood:**\nThe mood is **serene, contemplative, vast, and slightly mysterious**, with an underlying sense of **melancholy** or introspection. It evokes a feeling of calm spaciousness.\n\n**Rhythm:**\n**Amorphous**. There is no discernible beat, tempo, or rhythmic pulse. The sounds are characterized by slow attack, long sustain, and gradual evolution, creating a sense of timelessness.\n\n**Tone:**\nThe overall tone is **lush, resonant, warm, ethereal, and deep**. The high end is bright but not harsh, the mids are full and smooth, and the low end is profound and weighty.\n\n**Ambient/Structural:**\nPredominantly **ambient**. The piece focuses on creating an immersive sound environment through continuous layering and subtle evolution rather than a structured melodic or rhythmic progression.\n\n*   **Textures:** The high frequencies offer a shimmery, almost crystalline texture. The mid-range is lush, smooth, and evolving, providing harmonic richness. The low frequencies are deep, resonant, and weighty, characterized by the long, ringing decay of the gong-like synth, adding a subtle metallic yet organic feel.\n*   **Frequencies:** The soundscape occupies a broad frequency spectrum, from airy, sparkling highs to profound, resonant sub-bass.\n\n**Mix Problems:**\nThe mix appears well-executed. There is **no apparent clipping, muddiness, or harshness**. The different frequency ranges are clear and well-defined, allowing each element to breathe. The **low end is robust, present, and clear**, providing a solid foundation without overpowering other elements.",
-          "energy": 0.031,
-          "brightness": 0.429,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.011,
-            "bass": 0.023,
-            "lowMid": 0.683,
-            "highMid": 0.164,
-            "high": 0.119
-          },
-          "metrics": {
-            "rmsDb": -29.265,
-            "spectralCentroidHz": 2690,
-            "estimatedBpm": null,
-            "onsetCount": 235
-          },
-          "profiledAt": "2026-06-27T10:41:14.882Z"
-        }
-      },
-      {
-        "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-3.wav",
         "bars": 8,
         "label": "Synth",
@@ -141,7 +115,7 @@
         }
       },
       {
-        "id": "melody-4",
+        "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-4.wav",
         "bars": 8,
         "label": "Full Hook",
@@ -220,6 +194,32 @@
             "onsetCount": 182
           },
           "profiledAt": "2026-06-27T10:42:22.242Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-lofi-105/melody-loop-2.wav",
+        "bars": 8,
+        "label": "Lead 2",
+        "profile": {
+          "description": "This audio presents an ethereal, ambient soundscape characterized by sustained, evolving textures.\n\n**Instruments:**\nThe primary instruments are **synthesized pads**. There are at least two distinct layers: a high-frequency, shimmery, and slowly evolving pad that creates a bright, airy texture, and a lower, warmer, sustained pad that provides harmonic depth. Additionally, a prominent **deep, highly resonant synth tone** with a very long decay plays sparingly, mimicking qualities of a large gong or bowed metal. It has a rich, metallic overtone but a profound low-frequency fundamental.\n\n**Genre:**\n**Ambient**, with elements of **Drone** and **New Age**. The lack of rhythm, emphasis on sustained tones, and atmospheric quality firmly place it within these genres.\n\n**Mood:**\nThe mood is **serene, contemplative, vast, and slightly mysterious**, with an underlying sense of **melancholy** or introspection. It evokes a feeling of calm spaciousness.\n\n**Rhythm:**\n**Amorphous**. There is no discernible beat, tempo, or rhythmic pulse. The sounds are characterized by slow attack, long sustain, and gradual evolution, creating a sense of timelessness.\n\n**Tone:**\nThe overall tone is **lush, resonant, warm, ethereal, and deep**. The high end is bright but not harsh, the mids are full and smooth, and the low end is profound and weighty.\n\n**Ambient/Structural:**\nPredominantly **ambient**. The piece focuses on creating an immersive sound environment through continuous layering and subtle evolution rather than a structured melodic or rhythmic progression.\n\n*   **Textures:** The high frequencies offer a shimmery, almost crystalline texture. The mid-range is lush, smooth, and evolving, providing harmonic richness. The low frequencies are deep, resonant, and weighty, characterized by the long, ringing decay of the gong-like synth, adding a subtle metallic yet organic feel.\n*   **Frequencies:** The soundscape occupies a broad frequency spectrum, from airy, sparkling highs to profound, resonant sub-bass.\n\n**Mix Problems:**\nThe mix appears well-executed. There is **no apparent clipping, muddiness, or harshness**. The different frequency ranges are clear and well-defined, allowing each element to breathe. The **low end is robust, present, and clear**, providing a solid foundation without overpowering other elements.",
+          "energy": 0.031,
+          "brightness": 0.429,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.011,
+            "bass": 0.023,
+            "lowMid": 0.683,
+            "highMid": 0.164,
+            "high": 0.119
+          },
+          "metrics": {
+            "rmsDb": -29.265,
+            "spectralCentroidHz": 2690,
+            "estimatedBpm": null,
+            "onsetCount": 235
+          },
+          "profiledAt": "2026-06-27T10:41:14.882Z"
         }
       }
     ]

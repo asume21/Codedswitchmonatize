@@ -72,7 +72,7 @@ import { getConductor } from '../../organism/conductor/Conductor'
 import { requestAceStems } from './requestAceStems'
 import { AceStemLayer } from '../../organism/loops/AceStemLayer'
 import { AceHybridController } from './AceHybridController'
-import { getProducerArrangementTotalBars } from '../../organism/state/ProducerArrangement'
+import { getProducerArrangementTotalBars, getActiveProducerSlots } from '../../organism/state/ProducerArrangement'
 
 interface Props {
   children:  React.ReactNode
@@ -298,6 +298,81 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const loopsModeEnabledRef = useRef(false)
   const [isLoopsLoading, setIsLoopsLoading] = useState(false)
   const loopsLoadGenerationRef = useRef(0)
+
+  const loadLoops = useCallback(async (enabled: boolean, preset: QuickStartPreset | null) => {
+    setLoopsModeEnabledState(enabled)
+    loopsModeEnabledRef.current = enabled
+    const orchestr = orchestrRef.current
+    if (!orchestr) return
+
+    // Increment load generation to cancel any active previous loads
+    loopsLoadGenerationRef.current++
+    const gen = loopsLoadGenerationRef.current
+
+    if (enabled) {
+      const packId = preset?.loopPackId
+      if (!packId) {
+        console.warn('[loops] No loopPackId for preset', preset?.id, '— staying in generate mode')
+        setLoopsModeEnabledState(false)
+        loopsModeEnabledRef.current = false
+        orchestr.clearLoopPack()
+        return
+      }
+      setIsLoopsLoading(true)
+      try {
+        const res = await fetch(`/api/loops/packs/${packId}`)
+        if (!res.ok) throw new Error(`Pack fetch failed: ${res.status}`)
+        const { pack } = await res.json()
+        
+        // Check if this load task has been cancelled/staled
+        if (gen !== loopsLoadGenerationRef.current) return
+
+        await orchestr.loadLoopPack(pack)
+
+        // Ask the AI music mind (loopMind) to arrange the loops across the
+        // song's sections, then install the per-section scene plan so the band
+        // swaps loops on each section change. Falls back silently to the
+        // default first-clip scene if there's no plan or the call fails.
+        const plan = orchestr.getArrangementPlan()
+        const activeSlots = plan?.sections ?? getActiveProducerSlots()
+        const sections = (activeSlots ?? []).map((s: any) => ({
+          name: s.name,
+          energy: typeof s.energy === 'number' ? s.energy : 0.5,
+          density: typeof s.density === 'number' ? s.density : (typeof s.energy === 'number' ? s.energy : 0.5),
+        }))
+        if (sections.length && gen === loopsLoadGenerationRef.current) {
+          try {
+            const ares = await fetch('/api/loops/arrange', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ packId, sections }),
+            })
+            if (ares.ok && gen === loopsLoadGenerationRef.current) {
+              const { arrangement } = await ares.json()
+              if (arrangement?.sections?.length) {
+                await orchestr.setLoopArrangement(pack, arrangement)
+              }
+            }
+          } catch (e) {
+            console.warn('[loops] arrange failed — using default scene', e)
+          }
+        }
+      } catch (err) {
+        console.warn('[loops] Failed to load pack:', err)
+        if (gen === loopsLoadGenerationRef.current) {
+          setLoopsModeEnabledState(false)
+          loopsModeEnabledRef.current = false
+        }
+      } finally {
+        if (gen === loopsLoadGenerationRef.current) {
+          setIsLoopsLoading(false)
+        }
+      }
+    } else {
+      setIsLoopsLoading(false)
+      orchestr.clearLoopPack()
+    }
+  }, [])
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -1510,6 +1585,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       window.dispatchEvent(new CustomEvent('organism:started', {
         detail: { quickStart: true, presetId, preset: preset.label },
       }))
+
+      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared
+      if (loopsModeEnabledRef.current) {
+        void loadLoops(true, preset)
+      } else {
+        orchestr.clearLoopPack()
+      }
+
       endPhase({
         presetId,
         bpm: preset.bpm,
@@ -1668,6 +1751,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // ("melody: off" in the debug HUD, no lead audible). onStarted is the only
       // listener and is idempotent, so re-dispatching just re-applies voicing.
       window.dispatchEvent(new CustomEvent('organism:started', { detail: { presetId } }))
+
+      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared
+      if (loopsModeEnabledRef.current) {
+        void loadLoops(true, preset)
+      } else {
+        orchestr.clearLoopPack()
+      }
 
       endSwap({ presetId, bpm: preset.bpm, mode: preset.mode, subGenre: preset.subGenre })
     } catch (err) {
@@ -3483,79 +3573,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     loopsModeEnabled,
     isLoopsLoading,
-    setLoopsModeEnabled: async (enabled: boolean) => {
-      setLoopsModeEnabledState(enabled)
-      loopsModeEnabledRef.current = enabled
-      const orchestr = orchestrRef.current
-      if (!orchestr) return
-
-      // Increment load generation to cancel any active previous loads
-      loopsLoadGenerationRef.current++
-      const gen = loopsLoadGenerationRef.current
-
-      if (enabled) {
-        const preset = currentPresetRef.current     // the active QuickStartPreset
-        const packId = preset?.loopPackId
-        if (!packId) {
-          console.warn('[loops] No loopPackId for preset', preset?.id, '— staying in generate mode')
-          setLoopsModeEnabledState(false)
-          loopsModeEnabledRef.current = false
-          return
-        }
-        setIsLoopsLoading(true)
-        try {
-          const res = await fetch(`/api/loops/packs/${packId}`)
-          if (!res.ok) throw new Error(`Pack fetch failed: ${res.status}`)
-          const { pack } = await res.json()
-          
-          // Check if this load task has been cancelled/staled
-          if (gen !== loopsLoadGenerationRef.current) return
-
-          await orchestr.loadLoopPack(pack)
-
-          // Ask the AI music mind (loopMind) to arrange the loops across the
-          // song's sections, then install the per-section scene plan so the band
-          // swaps loops on each section change. Falls back silently to the
-          // default first-clip scene if there's no plan or the call fails.
-          const plan = orchestr.getArrangementPlan()
-          const sections = (plan?.sections ?? []).map((s: any) => ({
-            name: s.name,
-            energy: typeof s.energy === 'number' ? s.energy : 0.5,
-            density: typeof s.density === 'number' ? s.density : 0.5,
-          }))
-          if (sections.length && gen === loopsLoadGenerationRef.current) {
-            try {
-              const ares = await fetch('/api/loops/arrange', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ packId, sections }),
-              })
-              if (ares.ok && gen === loopsLoadGenerationRef.current) {
-                const { arrangement } = await ares.json()
-                if (arrangement?.sections?.length) {
-                  await orchestr.setLoopArrangement(pack, arrangement)
-                }
-              }
-            } catch (e) {
-              console.warn('[loops] arrange failed — using default scene', e)
-            }
-          }
-        } catch (err) {
-          console.warn('[loops] Failed to load pack:', err)
-          if (gen === loopsLoadGenerationRef.current) {
-            setLoopsModeEnabledState(false)
-            loopsModeEnabledRef.current = false
-          }
-        } finally {
-          if (gen === loopsLoadGenerationRef.current) {
-            setIsLoopsLoading(false)
-          }
-        }
-      } else {
-        setIsLoopsLoading(false)
-        orchestr.clearLoopPack()
-      }
-    },
+    setLoopsModeEnabled: (enabled: boolean) => loadLoops(enabled, currentPresetRef.current),
 
     // Instrument picker
     instrumentAssignments,

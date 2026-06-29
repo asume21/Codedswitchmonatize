@@ -7,6 +7,7 @@ import {
 }                             from './types'
 import type {
   CaptureConfig,
+  GeneratorEvent,
   SessionDNA,
   CaptureCallback,
 }                             from './types'
@@ -43,6 +44,10 @@ export class CaptureEngine {
 
   recordTransition(event: TransitionEvent): void {
     this.recorder.recordTransition(event)
+  }
+
+  recordGeneratorEvent(event: GeneratorEvent): void {
+    this.recorder.recordGeneratorEvent(event)
   }
 
   // ── Capture trigger ───────────────────────────────────────────────

@@ -301,9 +301,7 @@ export class TextureGenerator extends GeneratorBase {
 
 
   dispose(): void {
-    this._loopPlayer?.stop()
-    this._loopPlayer?.dispose()
-    this._loopPlayer = null
+    this.disposeLoopPlayback()
     this.stopPadLoop()
     this.padSampler.dispose()
     this.padReverb.dispose()

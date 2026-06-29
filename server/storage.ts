@@ -1379,12 +1379,57 @@ export class MemStorage implements IStorage {
   async upsertUserApiKey(_userId: string, _data: InsertUserApiKey): Promise<UserApiKey> { throw new Error("Not implemented in MemStorage"); }
   async deleteUserApiKey(_userId: string, _service: string): Promise<void> {}
 
-  // WebEar API Keys (MemStorage stubs)
-  async getWebearKeyByValue(_key: string): Promise<WebearApiKey | undefined> { return undefined; }
-  async getWebearKeyByUserId(_userId: string): Promise<WebearApiKey | undefined> { return undefined; }
-  async createWebearKey(_userId: string): Promise<WebearApiKey> { throw new Error("Not implemented in MemStorage"); }
-  async revokeWebearKey(_userId: string): Promise<void> {}
-  async incrementWebearKeyUsage(_keyId: string): Promise<void> {}
+  // WebEar API Keys (MemStorage in-memory implementation)
+  private memWebearKeys = new Map<string, WebearApiKey>(); // userId → key record
+
+  async getWebearKeyByValue(key: string): Promise<WebearApiKey | undefined> {
+    for (const record of this.memWebearKeys.values()) {
+      if (record.key === key && record.isActive) return record;
+    }
+    return undefined;
+  }
+
+  async getWebearKeyByUserId(userId: string): Promise<WebearApiKey | undefined> {
+    const record = this.memWebearKeys.get(userId);
+    return record?.isActive ? record : undefined;
+  }
+
+  async createWebearKey(userId: string): Promise<WebearApiKey> {
+    // Revoke any existing key for this user
+    const existing = this.memWebearKeys.get(userId);
+    if (existing) this.memWebearKeys.set(userId, { ...existing, isActive: false });
+
+    const record: WebearApiKey = {
+      id: randomUUID(),
+      userId,
+      key: 'wbr_' + randomBytes(32).toString('hex'),
+      name: 'Default',
+      usageCount: 0,
+      lastUsedAt: null,
+      isActive: true,
+      createdAt: new Date(),
+    };
+    this.memWebearKeys.set(userId, record);
+    return record;
+  }
+
+  async revokeWebearKey(userId: string): Promise<void> {
+    const existing = this.memWebearKeys.get(userId);
+    if (existing) this.memWebearKeys.set(userId, { ...existing, isActive: false });
+  }
+
+  async incrementWebearKeyUsage(keyId: string): Promise<void> {
+    for (const [userId, record] of this.memWebearKeys.entries()) {
+      if (record.id === keyId) {
+        this.memWebearKeys.set(userId, {
+          ...record,
+          usageCount: (record.usageCount ?? 0) + 1,
+          lastUsedAt: new Date(),
+        });
+        break;
+      }
+    }
+  }
 
   // Blog Posts (MemStorage stubs)
   private memBlogPosts: BlogPost[] = [];

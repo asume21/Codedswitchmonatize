@@ -74,12 +74,12 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     mixPreset: {
       name: 'Trap',
       channels: {
-        drums:  { volume: 0.85, pan: 0, eq: { low: 3, lowMid: -1, highMid: 2, high: 1 } },
-        bass:   { volume: 0.9,  pan: 0, eq: { low: 4, lowMid: 0, highMid: -2, high: -3 } },
-        melody: { volume: 0.6,  pan: 0.1, eq: { low: -3, lowMid: 0, highMid: 1, high: 2 } },
-        chords: { volume: 0.5,  pan: -0.1, eq: { low: -2, lowMid: 1, highMid: 0, high: 1 } },
+        drums:  { volume: 0.85, pan: 0, eq: { low: 2, lowMid: -1, highMid: 2, high: 1 } },
+        bass:   { volume: 0.8,  pan: 0, eq: { low: 2, lowMid: 0, highMid: -2, high: -3 } },
+        melody: { volume: 0.72, pan: 0.1, eq: { low: -3, lowMid: 0, highMid: 1, high: 2 } },
+        chords: { volume: 0.6,  pan: -0.1, eq: { low: -2, lowMid: 1, highMid: 0, high: 1 } },
       },
-      masterLevel: 0.8,
+      masterLevel: 0.78,
     },
     allowedChordTechniques: [
       'guitar-muted-stab',
@@ -103,7 +103,7 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
       name: 'Lo-fi',
       channels: {
         drums:  { volume: 0.65, pan: 0, eq: { low: 1, lowMid: 0, highMid: -2, high: -4 } },
-        bass:   { volume: 0.75, pan: 0, eq: { low: 2, lowMid: 1, highMid: -1, high: -2 } },
+        bass:   { volume: 0.75, pan: 0, eq: { low: 1.5, lowMid: 1, highMid: -1, high: -2 } },
         melody: { volume: 0.7,  pan: 0.15, eq: { low: -1, lowMid: 2, highMid: 0, high: -1 } },
         chords: { volume: 0.65, pan: -0.15, eq: { low: 0, lowMid: 1, highMid: 1, high: -1 } },
       },
@@ -130,12 +130,12 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     mixPreset: {
       name: 'Boom Bap',
       channels: {
-        drums:  { volume: 0.85, pan: 0, eq: { low: 2, lowMid: 1, highMid: 1, high: 0 } },
-        bass:   { volume: 0.8,  pan: 0, eq: { low: 3, lowMid: 0, highMid: -1, high: -2 } },
-        melody: { volume: 0.6,  pan: 0.2, eq: { low: -2, lowMid: 1, highMid: 2, high: 1 } },
-        chords: { volume: 0.55, pan: -0.2, eq: { low: -1, lowMid: 0, highMid: 1, high: 0 } },
+        drums:  { volume: 0.85, pan: 0, eq: { low: 1.5, lowMid: 1, highMid: 1, high: 0 } },
+        bass:   { volume: 0.75, pan: 0, eq: { low: 2, lowMid: 0, highMid: -1, high: -2 } },
+        melody: { volume: 0.68, pan: 0.2, eq: { low: -2, lowMid: 1, highMid: 2, high: 1 } },
+        chords: { volume: 0.62, pan: -0.2, eq: { low: -1, lowMid: 0, highMid: 1, high: 0 } },
       },
-      masterLevel: 0.78,
+      masterLevel: 0.76,
     },
     allowedChordTechniques: [
       'piano-rolled-chord',
@@ -158,12 +158,12 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     mixPreset: {
       name: 'Drill',
       channels: {
-        drums:  { volume: 0.8,  pan: 0, eq: { low: 2, lowMid: 0, highMid: 3, high: 2 } },
-        bass:   { volume: 0.95, pan: 0, eq: { low: 5, lowMid: -1, highMid: -3, high: -4 } },
-        melody: { volume: 0.55, pan: 0.1, eq: { low: -3, lowMid: -1, highMid: 2, high: 3 } },
-        chords: { volume: 0.4,  pan: -0.1, eq: { low: -2, lowMid: 0, highMid: 1, high: 2 } },
+        drums:  { volume: 0.8,  pan: 0, eq: { low: 1.5, lowMid: 0, highMid: 3, high: 2 } },
+        bass:   { volume: 0.82, pan: 0, eq: { low: 2.5, lowMid: -1, highMid: -3, high: -4 } },
+        melody: { volume: 0.68, pan: 0.1, eq: { low: -3, lowMid: -1, highMid: 2, high: 3 } },
+        chords: { volume: 0.52, pan: -0.1, eq: { low: -2, lowMid: 0, highMid: 1, high: 2 } },
       },
-      masterLevel: 0.82,
+      masterLevel: 0.78,
     },
     allowedChordTechniques: [
       'guitar-muted-stab',

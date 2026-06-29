@@ -10,32 +10,6 @@
     "melody": [
       {
         "id": "melody-1",
-        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-1.wav",
-        "bars": 8,
-        "label": "Lead",
-        "profile": {
-          "description": "This audio features a **slow, evolving, ambient drone piece**, primarily driven by **orchestral strings or high-quality string pads**.\n\n**Instruments:** The primary sound source is a layered ensemble of **bowed strings**, likely including cellos/basses for the low end and violins/violas for the mid-to-high range. It has the sustained, rich texture of a full string section, though it could be expertly programmed synthesiser pads emulating strings due to its very smooth, almost synthetic sustain and lack of overt bow noise or individual string articulation.\n\n**Genre:** **Ambient Drone, Dark Ambient, Film Score (Horror/Suspense Underscore).**\n\n**Mood:** **Eerie, suspenseful, haunting, melancholic, desolate, ominous.** It evokes a sense of unease and vast, empty spaces.\n\n**Rhythm:** **Arhythmic.** There is no discernible beat or tempo; the music flows with long, sustained notes and slow harmonic shifts.\n\n**Tone:** **Dark, somber, expansive, slightly cold but deeply resonant.** The harmonies are generally dissonant or suspended, contributing to the unsettling feeling.\n\n**Ambient or Structural:** This is unequivocally **ambient**. It lacks a strong melodic or rhythmic structure, focusing instead on atmosphere, texture, and emotional evocation through sustained soundscapes. It functions as an underscore or textural element rather than a standalone musical piece with traditional progression.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is smooth, thick, and velvety, gradually evolving. It starts with a deep, sustained hum and slowly builds with additional layers of higher strings, creating rich, complex harmonic clusters. There's a subtle sense of a slow, sweeping motion or a very gentle, long LFO applied to the amplitude or filter, giving it an organic, breathing quality. The overall feel is vast and immersive.\n*   **Frequencies:**\n    *   **Low End:** Dominated by a resonant, deep drone. It provides a foundational rumble, full but not boomy, maintaining clarity. It supports the higher frequencies without becoming muddy.\n    *   **Mid-Range:** Rich and full, where the core harmonic movement and body of the strings reside. It's well-balanced, providing warmth and depth without harshness or congestion.\n    *   **High End:** Clear, airy, and slightly shimmery. It gives definition to the higher string notes and adds to the expansive, ethereal quality. It's present enough to create a sense of space but is never piercing or abrasive.\n\n**Obvious Mix Problems:** None. The mix appears very well-controlled and intentionally crafted for this style of ambient music.\n*   **Clipping:** No clipping detected. The dynamic range is handled appropriately for the swells.\n*   **Muddiness:** No muddiness. The different frequency ranges are clear and distinct, even with multiple sustained layers.\n*   **Harshness:** No harshness in the high end or mid-range. The sound is smooth and well-rounded.\n*   **Weak Low End:** The low end is perfectly suited for a drone; it's a strong, resonant hum that underpins the piece, not a weak or absent bass. It provides gravity and depth without needing to be punchy.\n\nThe stereo image is wide, contributing to the expansive and immersive nature of the soundscape.",
-          "energy": 0.135,
-          "brightness": 0.417,
-          "busyness": 1,
-          "bands": {
-            "sub": 0.016,
-            "bass": 0.044,
-            "lowMid": 0.696,
-            "highMid": 0.104,
-            "high": 0.139
-          },
-          "metrics": {
-            "rmsDb": -26.748,
-            "spectralCentroidHz": 2617,
-            "estimatedBpm": 133,
-            "onsetCount": 302
-          },
-          "profiledAt": "2026-06-27T11:10:18.979Z"
-        }
-      },
-      {
-        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-2.wav",
         "bars": 8,
         "label": "Piano",
@@ -61,7 +35,7 @@
         }
       },
       {
-        "id": "melody-3",
+        "id": "melody-2",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-3.wav",
         "bars": 8,
         "label": "Trumpet",
@@ -87,7 +61,7 @@
         }
       },
       {
-        "id": "melody-4",
+        "id": "melody-3",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-4.wav",
         "bars": 8,
         "label": "Guitar",
@@ -113,7 +87,7 @@
         }
       },
       {
-        "id": "melody-5",
+        "id": "melody-4",
         "url": "/api/loops/pack-audio?p=cymatics-vintage-80/drums-loop-1.wav",
         "bars": 8,
         "label": "Vintage Drums",
@@ -270,6 +244,32 @@
             "onsetCount": 0
           },
           "profiledAt": "2026-06-27T11:17:05.101Z"
+        }
+      },
+      {
+        "id": "texture-2",
+        "url": "/api/loops/pack-audio?p=cymatics-vintage-80/melody-loop-1.wav",
+        "bars": 8,
+        "label": "Lead",
+        "profile": {
+          "description": "This audio features a **slow, evolving, ambient drone piece**, primarily driven by **orchestral strings or high-quality string pads**.\n\n**Instruments:** The primary sound source is a layered ensemble of **bowed strings**, likely including cellos/basses for the low end and violins/violas for the mid-to-high range. It has the sustained, rich texture of a full string section, though it could be expertly programmed synthesiser pads emulating strings due to its very smooth, almost synthetic sustain and lack of overt bow noise or individual string articulation.\n\n**Genre:** **Ambient Drone, Dark Ambient, Film Score (Horror/Suspense Underscore).**\n\n**Mood:** **Eerie, suspenseful, haunting, melancholic, desolate, ominous.** It evokes a sense of unease and vast, empty spaces.\n\n**Rhythm:** **Arhythmic.** There is no discernible beat or tempo; the music flows with long, sustained notes and slow harmonic shifts.\n\n**Tone:** **Dark, somber, expansive, slightly cold but deeply resonant.** The harmonies are generally dissonant or suspended, contributing to the unsettling feeling.\n\n**Ambient or Structural:** This is unequivocally **ambient**. It lacks a strong melodic or rhythmic structure, focusing instead on atmosphere, texture, and emotional evocation through sustained soundscapes. It functions as an underscore or textural element rather than a standalone musical piece with traditional progression.\n\n**Textures and Frequencies:**\n*   **Textures:** The texture is smooth, thick, and velvety, gradually evolving. It starts with a deep, sustained hum and slowly builds with additional layers of higher strings, creating rich, complex harmonic clusters. There's a subtle sense of a slow, sweeping motion or a very gentle, long LFO applied to the amplitude or filter, giving it an organic, breathing quality. The overall feel is vast and immersive.\n*   **Frequencies:**\n    *   **Low End:** Dominated by a resonant, deep drone. It provides a foundational rumble, full but not boomy, maintaining clarity. It supports the higher frequencies without becoming muddy.\n    *   **Mid-Range:** Rich and full, where the core harmonic movement and body of the strings reside. It's well-balanced, providing warmth and depth without harshness or congestion.\n    *   **High End:** Clear, airy, and slightly shimmery. It gives definition to the higher string notes and adds to the expansive, ethereal quality. It's present enough to create a sense of space but is never piercing or abrasive.\n\n**Obvious Mix Problems:** None. The mix appears very well-controlled and intentionally crafted for this style of ambient music.\n*   **Clipping:** No clipping detected. The dynamic range is handled appropriately for the swells.\n*   **Muddiness:** No muddiness. The different frequency ranges are clear and distinct, even with multiple sustained layers.\n*   **Harshness:** No harshness in the high end or mid-range. The sound is smooth and well-rounded.\n*   **Weak Low End:** The low end is perfectly suited for a drone; it's a strong, resonant hum that underpins the piece, not a weak or absent bass. It provides gravity and depth without needing to be punchy.\n\nThe stereo image is wide, contributing to the expansive and immersive nature of the soundscape.",
+          "energy": 0.135,
+          "brightness": 0.417,
+          "busyness": 1,
+          "bands": {
+            "sub": 0.016,
+            "bass": 0.044,
+            "lowMid": 0.696,
+            "highMid": 0.104,
+            "high": 0.139
+          },
+          "metrics": {
+            "rmsDb": -26.748,
+            "spectralCentroidHz": 2617,
+            "estimatedBpm": 133,
+            "onsetCount": 302
+          },
+          "profiledAt": "2026-06-27T11:10:18.979Z"
         }
       }
     ]
