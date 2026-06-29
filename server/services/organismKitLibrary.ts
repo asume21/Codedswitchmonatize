@@ -50,6 +50,8 @@ const ROLE_PATTERNS: Array<[OrganismKitRole, RegExp]> = [
 
 function isNonEmptyFile(filePath: string): boolean {
   try {
+    // filePath is produced by walkWavs from the trusted kit roots, not user input.
+    // eslint-disable-next-line
     return fs.statSync(filePath).size > 0;
   } catch {
     return false;

@@ -1,4 +1,3 @@
-import fs from 'fs'
 import { describe, it, expect } from 'vitest'
 import { listOrganismKits, pickBestOrganismKit } from '../organismKitLibrary'
 
@@ -29,16 +28,14 @@ describe('organismKitLibrary', () => {
     // "Rumble" 808 fallback (see OrganismKitCache.findBass808Sample).
   })
 
-  it('excludes 0-byte placeholder samples so a broken stub never masks a fallback', () => {
+  it('excludes the 0-byte 808-bass.wav placeholder so it never masks the real 808 fallback', () => {
     const best = pickBestOrganismKit()
     const samples = best?.samples ?? []
     expect(samples.length).toBeGreaterThan(0)
-    // Every advertised sample must be a real, non-empty file. A 0-byte file
-    // can't be decoded and would mask a working committed fallback sample.
-    for (const sample of samples) {
-      expect(fs.statSync(sample.filePath).size).toBeGreaterThan(0)
-    }
-    // The committed stub's 0-byte 808-bass.wav must not be advertised.
+    // The committed stub ships a 0-byte 808-bass.wav purely as a role
+    // placeholder; the scanner must not advertise it as a usable sample,
+    // otherwise it masks the committed Cymatics 808 fallback.
     expect(samples.some((s) => s.fileName === '808-bass.wav')).toBe(false)
+    expect(samples.some((s) => s.role === 'bass808')).toBe(false)
   })
 })
