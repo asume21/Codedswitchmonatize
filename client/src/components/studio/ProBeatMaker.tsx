@@ -55,6 +55,59 @@ import { useTracks } from '@/hooks/useTracks';
 
 const BEAT_STORAGE_KEY = 'probeat-pattern-state';
 
+// ── Sample-based drum playback ──────────────────────────────────────
+// Maps drum types to actual WAV samples served from /assets/drums/cymatics/
+const DRUM_SAMPLE_MAP: Record<string, string[]> = {
+  kick:    ['/assets/drums/cymatics/kick.wav', '/assets/drums/cymatics/kick-2.wav', '/assets/drums/cymatics/kick-3.wav'],
+  snare:   ['/assets/drums/cymatics/snare.wav', '/assets/drums/cymatics/snare-2.wav', '/assets/drums/cymatics/snare-3.wav'],
+  clap:    ['/assets/drums/cymatics/clap.wav', '/assets/drums/cymatics/clap-2.wav', '/assets/drums/cymatics/clap-3.wav'],
+  hihat:   ['/assets/drums/cymatics/hat-closed.wav', '/assets/drums/cymatics/hat-closed-2.wav', '/assets/drums/cymatics/hat-closed-3.wav'],
+  openhat: ['/assets/drums/cymatics/hat-open.wav', '/assets/drums/cymatics/hat-open-2.wav'],
+  perc:    ['/assets/drums/cymatics/perc.wav', '/assets/drums/cymatics/perc-2.wav', '/assets/drums/cymatics/perc-3.wav'],
+  rim:     ['/assets/drums/cymatics/rim-1.wav'],
+  // Types that share samples
+  cowbell: ['/assets/drums/cymatics/perc-2.wav'],
+  conga:   ['/assets/drums/cymatics/perc-3.wav'],
+  tom:     ['/assets/drums/cymatics/kick-2.wav'],
+  tom_hi:  ['/assets/drums/cymatics/perc.wav'],
+  tom_mid: ['/assets/drums/cymatics/kick-2.wav'],
+  tom_lo:  ['/assets/drums/cymatics/kick-3.wav'],
+  crash:   ['/assets/drums/cymatics/hat-open-2.wav'],
+  ride:    ['/assets/drums/cymatics/hat-open.wav'],
+  shaker:  ['/assets/drums/cymatics/hat-closed-3.wav'],
+  fx:      ['/assets/drums/cymatics/perc-2.wav'],
+  foley:   ['/assets/drums/cymatics/perc-3.wav'],
+  bell:    ['/assets/drums/cymatics/perc.wav'],
+};
+
+// Global sample buffer cache — shared across all ProBeatMaker instances
+const sampleBufferCache = new Map<string, AudioBuffer>();
+const sampleLoadPromises = new Map<string, Promise<AudioBuffer | null>>();
+
+async function loadSample(ctx: AudioContext, url: string): Promise<AudioBuffer | null> {
+  if (sampleBufferCache.has(url)) return sampleBufferCache.get(url)!;
+  if (sampleLoadPromises.has(url)) return sampleLoadPromises.get(url)!;
+
+  const promise = fetch(url)
+    .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
+    .then(buf => ctx.decodeAudioData(buf))
+    .then(decoded => { sampleBufferCache.set(url, decoded); return decoded; })
+    .catch(() => null);
+
+  sampleLoadPromises.set(url, promise);
+  return promise;
+}
+
+function playSampleBuffer(ctx: AudioContext, buffer: AudioBuffer, velocity: number, volume: number, masterVol: number, destination: AudioNode) {
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const gain = ctx.createGain();
+  gain.gain.value = (velocity / 127) * (volume / 100) * (masterVol / 100);
+  source.connect(gain);
+  gain.connect(destination);
+  source.start();
+}
+
 // Default MIDI note number to drum type mapping (General MIDI standard + extended)
 const DEFAULT_MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
   36: 'kick',      // C1 - Bass Drum 1
@@ -351,32 +404,100 @@ const CLASSIC_KIT_PROFILES: Record<string, any> = {
   },
 };
 
-const PRESETS: Record<string, Record<string, boolean[]>> = {
+// Velocity-aware step: true = default velocity, number = custom velocity (1-127)
+type PresetStep = boolean | number;
+
+function presetToPattern(steps: PresetStep[]): boolean[] {
+  return steps.map(s => !!s);
+}
+
+function presetToVelocities(steps: PresetStep[]): number[] {
+  return steps.map(s => {
+    if (typeof s === 'number') return s;
+    return s ? 100 : 0;
+  });
+}
+
+const PRESETS: Record<string, Record<string, PresetStep[]>> = {
   'Hip-Hop': {
-    kick: [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0].map(Boolean),
-    snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
-    hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0].map(Boolean),
+    kick:   [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0].map(Boolean),
+    snare:  [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
+    hihat:  [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0].map(Boolean),
+  },
+  'Boom-Bap': {
+    kick:   [110,0,0,0,0,0,85,0,105,0,0,0,0,0,75,0],
+    snare:  [0,0,0,40,110,0,0,0,0,0,0,35,105,0,0,0],
+    hihat:  [90,0,55,0,80,0,50,0,90,0,55,0,80,0,50,0],
+    clap:   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,70],
   },
   'Trap': {
-    kick: [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0].map(Boolean),
-    snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
-    hihat: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1].map(Boolean),
-    openhat: [0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1].map(Boolean),
+    kick:   [1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0].map(Boolean),
+    snare:  [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
+    hihat:  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1].map(Boolean),
+    openhat:[0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1].map(Boolean),
+  },
+  'Drill': {
+    kick:   [0,0,110,0,0,95,0,0,0,0,0,100,0,0,0,0],
+    snare:  [0,0,0,0,0,0,0,0,110,0,0,0,0,0,0,0],
+    hihat:  [90,80,90,80,90,80,90,80,90,80,90,80,90,80,90,80],
+    openhat:[0,0,0,0,0,0,75,0,0,0,0,0,0,0,80,0],
+  },
+  'Lo-Fi': {
+    kick:   [100,0,0,0,0,0,0,0,90,0,0,0,0,0,0,0],
+    snare:  [0,0,0,0,85,0,0,0,0,0,0,0,80,0,0,40],
+    hihat:  [0,0,65,0,0,0,60,0,0,0,65,0,0,0,55,0],
+    rim:    [0,0,0,0,0,35,0,0,0,0,0,0,0,30,0,0],
+  },
+  'Dirty South': {
+    kick:   [120,0,120,0,0,0,0,0,115,0,110,0,0,0,0,0],
+    snare:  [0,0,0,0,120,0,0,0,0,0,0,0,115,0,0,0],
+    hihat:  [80,0,0,0,80,0,0,0,80,0,0,0,80,0,0,0],
+    cowbell: [90,0,85,0,90,0,85,0,90,0,85,0,90,0,85,0],
+  },
+  'West Coast': {
+    kick:   [105,0,0,0,0,0,75,0,100,0,0,0,0,0,0,0],
+    snare:  [0,0,0,0,100,0,0,0,0,0,0,0,100,0,0,0],
+    hihat:  [80,0,55,0,80,45,55,0,80,0,55,0,80,45,55,0],
+    clap:   [0,0,0,30,0,0,0,0,0,0,0,25,0,0,0,0],
+  },
+  'Afrobeat': {
+    kick:   [100,0,0,70,0,0,90,0,0,0,0,85,0,0,80,0],
+    snare:  [0,0,0,0,95,0,0,0,0,0,0,0,95,0,0,0],
+    hihat:  [90,0,60,0,80,55,60,0,90,0,60,0,80,55,60,0],
+    perc:   [0,65,0,0,0,0,0,70,0,60,0,0,0,0,0,65],
+  },
+  'Phonk': {
+    kick:   [115,0,0,0,0,70,0,0,110,0,0,0,0,0,80,0],
+    snare:  [0,0,0,0,110,0,0,0,0,0,0,0,105,0,0,55],
+    hihat:  [100,85,100,85,100,85,100,85,100,85,100,85,100,85,100,85],
+    cowbell: [0,0,0,0,0,0,0,75,0,0,0,0,0,0,0,70],
   },
   'House': {
-    kick: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0].map(Boolean),
-    clap: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
-    hihat: [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0].map(Boolean),
+    kick:   [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0].map(Boolean),
+    clap:   [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0].map(Boolean),
+    hihat:  [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0].map(Boolean),
   },
   'Techno': {
-    kick: [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0].map(Boolean),
-    hihat: [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1].map(Boolean),
-    openhat: [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0].map(Boolean),
+    kick:   [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0].map(Boolean),
+    hihat:  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1].map(Boolean),
+    openhat:[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0].map(Boolean),
   },
   'D&B': {
-    kick: [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0].map(Boolean),
-    snare: [0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0].map(Boolean),
-    hihat: [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0].map(Boolean),
+    kick:   [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0].map(Boolean),
+    snare:  [0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0].map(Boolean),
+    hihat:  [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0].map(Boolean),
+  },
+  'Reggaeton': {
+    kick:   [110,0,0,0,0,0,100,0,0,0,0,0,110,0,0,0],
+    snare:  [0,0,0,100,0,0,0,95,0,0,0,100,0,0,0,95],
+    hihat:  [80,0,0,0,80,0,0,0,80,0,0,0,80,0,0,0],
+    clap:   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,80],
+  },
+  'Jersey Club': {
+    kick:   [110,0,0,100,0,0,110,0,0,100,0,0,110,0,0,100],
+    snare:  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    clap:   [0,0,105,0,0,100,0,0,105,0,0,100,0,0,105,0],
+    hihat:  [90,70,90,70,90,70,90,70,90,70,90,70,90,70,90,70],
   },
 };
 
@@ -643,13 +764,20 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   const [tracks, setTracks] = useState<DrumTrack[]>(() => {
     const initial = initTracks(16);
     const preset = PRESETS['Hip-Hop'];
-    return initial.map(t => ({
-      ...t,
-      pattern: t.pattern.map((step, i) => ({
-        ...step,
-        active: preset[t.id] ? preset[t.id][i % preset[t.id].length] : false,
-      })),
-    }));
+    return initial.map(t => {
+      const presetPattern = preset[t.id];
+      if (!presetPattern) return t;
+      const boolPattern = presetToPattern(presetPattern);
+      const velPattern = presetToVelocities(presetPattern);
+      return {
+        ...t,
+        pattern: t.pattern.map((step, i) => ({
+          ...step,
+          active: boolPattern[i % boolPattern.length] ?? false,
+          velocity: velPattern[i % velPattern.length] || step.velocity,
+        })),
+      };
+    });
   });
   const [bpm, setBpm] = useState(90);
   const [patternLength, setPatternLength] = useState(16);
@@ -692,7 +820,13 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
 
   useEffect(() => {
     audioCtx.current = getAudioContext();
-    // Do NOT close the shared AudioContext on unmount
+    // Preload all drum samples so playback is instant
+    const ctx = audioCtx.current;
+    if (ctx) {
+      const urls = new Set<string>();
+      Object.values(DRUM_SAMPLE_MAP).forEach(arr => arr.forEach(u => urls.add(u)));
+      urls.forEach(url => loadSample(ctx, url));
+    }
   }, []);
 
   useEffect(() => { if (tempo) setBpm(Math.round(tempo)); }, [tempo]);
@@ -723,15 +857,28 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     const kitKey = selectedKit.toLowerCase();
     const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === 'drums' || ch.name.toLowerCase() === 'drums');
 
+    if (!audioCtx.current) return;
+    const ctx = audioCtx.current;
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    // Try sample-based playback first (producer-grade Cymatics WAVs)
+    const sampleUrls = DRUM_SAMPLE_MAP[drumType] || DRUM_SAMPLE_MAP[normalizedId];
+    if (sampleUrls && sampleUrls.length > 0) {
+      const url = sampleUrls[0];
+      const buffer = sampleBufferCache.get(url);
+      if (buffer) {
+        const dest = mixerChannel?.input || ctx.destination;
+        playSampleBuffer(ctx, buffer, vel, vol, masterVol, dest);
+        return;
+      }
+    }
+
+    // Fall back to realisticAudio synthesis if samples not loaded
     if (useRealisticDrums) {
       const baseVelocity = (vel / 127) * (vol / 100) * (masterVol / 100);
       await realisticAudio.playDrumSound(drumType, baseVelocity, kitKey, mixerChannel?.input);
       return;
     }
-
-    if (!audioCtx.current) return;
-    const ctx = audioCtx.current;
-    if (ctx.state === 'suspended') await ctx.resume();
     const gain = ctx.createGain();
     gain.gain.value = (vel / 127) * (vol / 100) * (masterVol / 100);
     gain.connect(mixerChannel?.input || ctx.destination);
@@ -799,12 +946,148 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.05);
         break;
       }
-      default: {
+      case 'openhat': {
+        const now = ctx.currentTime;
+        const dur = 0.22;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+        const peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 10000; peak.Q.value = 2; peak.gain.value = 4;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        s.connect(hp); hp.connect(peak); peak.connect(g); g.connect(gain);
+        s.start(now); s.stop(now + dur);
+        break;
+      }
+      case 'ride': {
+        const now = ctx.currentTime;
+        const dur = 0.35;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.2);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5500; bp.Q.value = 1.2;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.4, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        s.connect(bp); bp.connect(g); g.connect(gain);
+        s.start(now); s.stop(now + dur);
+        break;
+      }
+      case 'crash': {
+        const now = ctx.currentTime;
+        const dur = 0.6;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.8);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 4000;
+        const peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 8000; peak.Q.value = 0.8; peak.gain.value = 6;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.6, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        s.connect(hp); hp.connect(peak); peak.connect(g); g.connect(gain);
+        s.start(now); s.stop(now + dur);
+        break;
+      }
+      case 'tom':
+      case 'tom_hi':
+      case 'tom_mid':
+      case 'tom_lo': {
+        const now = ctx.currentTime;
+        const freqMap = { tom: 180, tom_hi: 220, tom_mid: 180, tom_lo: 130 };
+        const startFreq = freqMap[drumType] ?? 180;
+        const endFreq = startFreq * 0.5;
+        const dur = 0.3;
         const osc = ctx.createOscillator();
-        osc.frequency.setValueAtTime(200, ctx.currentTime);
-        osc.connect(gain);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.1);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(startFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
+        const bodyGain = ctx.createGain();
+        bodyGain.gain.setValueAtTime(0.001, now);
+        bodyGain.gain.linearRampToValueAtTime(0.7, now + 0.004);
+        bodyGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.03, ctx.sampleRate);
+        const nd = noiseBuf.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 4);
+        const ns = ctx.createBufferSource(); ns.buffer = noiseBuf;
+        const nGain = ctx.createGain(); nGain.gain.value = 0.25;
+        osc.connect(bodyGain); bodyGain.connect(gain);
+        ns.connect(nGain); nGain.connect(gain);
+        osc.start(now); osc.stop(now + dur);
+        ns.start(now); ns.stop(now + 0.03);
+        break;
+      }
+      case 'cowbell': {
+        const now = ctx.currentTime;
+        const dur = 0.18;
+        const osc1 = ctx.createOscillator(); osc1.type = 'square'; osc1.frequency.value = 560;
+        const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.frequency.value = 845;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 3;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        osc1.connect(bp); osc2.connect(bp); bp.connect(g); g.connect(gain);
+        osc1.start(now); osc2.start(now);
+        osc1.stop(now + dur); osc2.stop(now + dur);
+        break;
+      }
+      case 'conga': {
+        const now = ctx.currentTime;
+        const dur = 0.28;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(340, now);
+        osc.frequency.exponentialRampToValueAtTime(160, now + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(0.6, now + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        osc.connect(g); g.connect(gain);
+        osc.start(now); osc.stop(now + dur);
+        break;
+      }
+      case 'rim': {
+        const now = ctx.currentTime;
+        const dur = 0.04;
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1800, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(0.5, now + 0.001);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.015, ctx.sampleRate);
+        const nd = noiseBuf.getChannelData(0);
+        for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 6);
+        const ns = ctx.createBufferSource(); ns.buffer = noiseBuf;
+        const nGain = ctx.createGain(); nGain.gain.value = 0.3;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2000;
+        osc.connect(g); g.connect(gain);
+        ns.connect(hp); hp.connect(nGain); nGain.connect(gain);
+        osc.start(now); osc.stop(now + dur);
+        ns.start(now); ns.stop(now + 0.015);
+        break;
+      }
+      case 'perc':
+      default: {
+        const now = ctx.currentTime;
+        const dur = 0.1;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6500; bp.Q.value = 1.5;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.45, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        s.connect(bp); bp.connect(g); g.connect(gain);
+        s.start(now); s.stop(now + dur);
+        break;
       }
     }
   }, [masterVol, useRealisticDrums, selectedKit]);
@@ -984,11 +1267,14 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     setTracks(prev => prev.map(t => {
       const presetPattern = preset[t.id];
       if (!presetPattern) return t;
+      const boolPattern = presetToPattern(presetPattern);
+      const velPattern = presetToVelocities(presetPattern);
       return {
         ...t,
         pattern: t.pattern.map((step, i) => ({
           ...step,
-          active: presetPattern[i % presetPattern.length] ?? false
+          active: boolPattern[i % boolPattern.length] ?? false,
+          velocity: velPattern[i % velPattern.length] || step.velocity,
         }))
       };
     }));
@@ -1016,7 +1302,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
   };
 
   const exportBeatAsAudio = async () => {
-    toast({ title: '🎬 Rendering Audio Signal...', description: 'Synthesizing neural drum patterns...' });
+    toast({ title: '🎬 Rendering Audio Signal...', description: 'Rendering with samples...' });
     
     try {
       const sampleRate = 44100;
@@ -1032,19 +1318,29 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         
         tracks.forEach(track => {
           const step = track.pattern[stepIdx];
-          if (step?.active) {
-            // Only render if probability passes (simplified for export - always 100% or use a seed)
+          if (step?.active && !track.muted) {
             if (Math.random() * 100 <= step.probability) {
               const drumType = DRUM_ID_TO_TYPE[track.id.toLowerCase()] || 'snare';
               const vel = step.velocity / 127;
               const vol = track.volume / 100;
               const finalGain = vel * vol * (masterVol / 100);
               
-              // Synthesis logic for offline context
-              renderOfflineDrum(offlineCtx, drumType, startTime, finalGain);
+              // Try sample-based rendering first
+              const sampleUrls = DRUM_SAMPLE_MAP[drumType] || DRUM_SAMPLE_MAP[track.id.toLowerCase()];
+              const sampleBuffer = sampleUrls ? sampleBufferCache.get(sampleUrls[0]) : null;
+              
+              if (sampleBuffer) {
+                renderOfflineSample(offlineCtx, sampleBuffer, startTime, finalGain);
+              } else {
+                renderOfflineDrum(offlineCtx, drumType, startTime, finalGain);
+              }
               
               if (step.flam) {
-                renderOfflineDrum(offlineCtx, drumType, startTime + 0.03, finalGain * 0.6);
+                if (sampleBuffer) {
+                  renderOfflineSample(offlineCtx, sampleBuffer, startTime + 0.03, finalGain * 0.6);
+                } else {
+                  renderOfflineDrum(offlineCtx, drumType, startTime + 0.03, finalGain * 0.6);
+                }
               }
             }
           }
@@ -1069,8 +1365,19 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       toast({ title: '❌ Export Failed', description: 'Neural rendering pipeline error', variant: 'destructive' });
     }
   };
+  
+  // Render a cached sample into an OfflineAudioContext
+  const renderOfflineSample = (ctx: OfflineAudioContext, buffer: AudioBuffer, time: number, gainValue: number) => {
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(gainValue, time);
+    gain.connect(ctx.destination);
+    source.connect(gain);
+    source.start(time);
+  };
 
-  // Helper for offline drum synthesis
+  // Helper for offline drum synthesis (fallback when samples not available)
   const renderOfflineDrum = (ctx: OfflineAudioContext, type: DrumEngineType, time: number, gainValue: number) => {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(gainValue, time);
@@ -1078,13 +1385,26 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
     
     switch (type) {
       case 'kick': {
-        const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(60, time);
-        o.frequency.exponentialRampToValueAtTime(40, time + 0.1);
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(0.8, time);
-        g.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-        o.connect(g); g.connect(gain); o.start(time); o.stop(time + 0.3);
+        const bodyOsc = ctx.createOscillator();
+        bodyOsc.type = 'sine';
+        bodyOsc.frequency.setValueAtTime(65, time);
+        bodyOsc.frequency.exponentialRampToValueAtTime(35, time + 0.12);
+        const bodyGain = ctx.createGain();
+        bodyGain.gain.setValueAtTime(0.001, time);
+        bodyGain.gain.linearRampToValueAtTime(0.9, time + 0.005);
+        bodyGain.gain.exponentialRampToValueAtTime(0.001, time + 0.35);
+        const punchOsc = ctx.createOscillator();
+        punchOsc.type = 'sine';
+        punchOsc.frequency.setValueAtTime(150, time);
+        punchOsc.frequency.exponentialRampToValueAtTime(50, time + 0.03);
+        const punchGain = ctx.createGain();
+        punchGain.gain.setValueAtTime(0.001, time);
+        punchGain.gain.linearRampToValueAtTime(0.4, time + 0.003);
+        punchGain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+        bodyOsc.connect(bodyGain); bodyGain.connect(gain);
+        punchOsc.connect(punchGain); punchGain.connect(gain);
+        bodyOsc.start(time); punchOsc.start(time);
+        bodyOsc.stop(time + 0.4); punchOsc.stop(time + 0.05);
         break;
       }
       case 'snare':
@@ -1099,9 +1419,8 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         s.connect(g); g.connect(gain); s.start(time); s.stop(time + 0.1);
         break;
       }
-      case 'hihat':
-      case 'openhat': {
-        const dur = type === 'hihat' ? 0.05 : 0.2;
+      case 'hihat': {
+        const dur = 0.05;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
         for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
@@ -1110,10 +1429,109 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         s.connect(f); f.connect(gain); s.start(time); s.stop(time + dur);
         break;
       }
+      case 'openhat': {
+        const dur = 0.22;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, time);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        s.connect(hp); hp.connect(g); g.connect(gain);
+        s.start(time); s.stop(time + dur);
+        break;
+      }
+      case 'tom':
+      case 'tom_hi':
+      case 'tom_mid':
+      case 'tom_lo': {
+        const freqMap: Record<string, number> = { tom: 180, tom_hi: 220, tom_mid: 180, tom_lo: 130 };
+        const startFreq = freqMap[type] ?? 180;
+        const dur = 0.3;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(startFreq, time);
+        osc.frequency.exponentialRampToValueAtTime(startFreq * 0.5, time + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.001, time);
+        g.gain.linearRampToValueAtTime(0.7, time + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        osc.connect(g); g.connect(gain);
+        osc.start(time); osc.stop(time + dur);
+        break;
+      }
+      case 'cowbell': {
+        const dur = 0.18;
+        const osc1 = ctx.createOscillator(); osc1.type = 'square'; osc1.frequency.value = 560;
+        const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.frequency.value = 845;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 3;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, time);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        osc1.connect(bp); osc2.connect(bp); bp.connect(g); g.connect(gain);
+        osc1.start(time); osc2.start(time);
+        osc1.stop(time + dur); osc2.stop(time + dur);
+        break;
+      }
+      case 'conga': {
+        const dur = 0.28;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(340, time);
+        osc.frequency.exponentialRampToValueAtTime(160, time + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.001, time);
+        g.gain.linearRampToValueAtTime(0.6, time + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        osc.connect(g); g.connect(gain);
+        osc.start(time); osc.stop(time + dur);
+        break;
+      }
+      case 'rim': {
+        const dur = 0.04;
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1800, time);
+        osc.frequency.exponentialRampToValueAtTime(800, time + dur);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.001, time);
+        g.gain.linearRampToValueAtTime(0.5, time + 0.001);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        osc.connect(g); g.connect(gain);
+        osc.start(time); osc.stop(time + dur);
+        break;
+      }
+      case 'crash':
+      case 'ride': {
+        const dur = type === 'crash' ? 0.6 : 0.35;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, type === 'crash' ? 0.8 : 1.2);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = type === 'crash' ? 4000 : 5500;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.5, time);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        s.connect(hp); hp.connect(g); g.connect(gain);
+        s.start(time); s.stop(time + dur);
+        break;
+      }
+      case 'perc':
       default: {
-        const o = ctx.createOscillator();
-        o.frequency.setValueAtTime(200, time);
-        o.connect(gain); o.start(time); o.stop(time + 0.1);
+        const dur = 0.1;
+        const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6500; bp.Q.value = 1.5;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.45, time);
+        g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+        s.connect(bp); bp.connect(g); g.connect(gain);
+        s.start(time); s.stop(time + dur);
+        break;
       }
     }
   };
