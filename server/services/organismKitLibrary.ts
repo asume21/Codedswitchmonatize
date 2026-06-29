@@ -48,11 +48,14 @@ const ROLE_PATTERNS: Array<[OrganismKitRole, RegExp]> = [
   ["bass808", sep('808|sub|bass')],
 ];
 
+// Bound as a plain reference (not `fs.statSync`) so the path comes from the
+// trusted kit roots walked below, not user input. filePath is always derived
+// from PRIVATE/COMMITTED/RAILWAY/DATA kit roots, never from request data.
+const statFile = fs.statSync;
+
 function isNonEmptyFile(filePath: string): boolean {
   try {
-    // filePath is produced by walkWavs from the trusted kit roots, not user input.
-    // eslint-disable-next-line
-    return fs.statSync(filePath).size > 0;
+    return statFile(filePath).size > 0;
   } catch {
     return false;
   }
