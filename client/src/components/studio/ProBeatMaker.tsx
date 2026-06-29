@@ -108,6 +108,23 @@ function playSampleBuffer(ctx: AudioContext, buffer: AudioBuffer, velocity: numb
   source.start();
 }
 
+// Deterministic white-noise fill for synthesized drum voices (hats, claps,
+// cymbals). Uses an xorshift32 PRNG rather than Math.random so noise is
+// reproducible across live playback and offline export. `shape` controls the
+// decay exponent of the amplitude envelope applied across the buffer.
+let noiseSeed = 0x9e3779b9;
+function nextNoise(): number {
+  noiseSeed ^= noiseSeed << 13;
+  noiseSeed ^= noiseSeed >>> 17;
+  noiseSeed ^= noiseSeed << 5;
+  // Map the 32-bit int into [-1, 1)
+  return (noiseSeed >>> 0) / 0xffffffff * 2 - 1;
+}
+function fillNoise(data: Float32Array, shape: number): void {
+  const n = data.length;
+  for (let i = 0; i < n; i++) data[i] = nextNoise() * Math.pow(1 - i / n, shape);
+}
+
 // Default MIDI note number to drum type mapping (General MIDI standard + extended)
 const DEFAULT_MIDI_NOTE_TO_DRUM: Record<number, DrumEngineType> = {
   36: 'kick',      // C1 - Bass Drum 1
@@ -929,7 +946,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       case 'clap': {
         const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+        fillNoise(d, 2);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.6, ctx.currentTime);
@@ -940,7 +957,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       case 'hihat': {
         const buf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        fillNoise(d, 3);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000;
         s.connect(f); f.connect(gain); s.start(); s.stop(ctx.currentTime + 0.05);
@@ -951,7 +968,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.22;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+        fillNoise(d, 1.5);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
         const peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 10000; peak.Q.value = 2; peak.gain.value = 4;
@@ -967,7 +984,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.35;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.2);
+        fillNoise(d, 1.2);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 5500; bp.Q.value = 1.2;
         const g = ctx.createGain();
@@ -982,7 +999,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.6;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 0.8);
+        fillNoise(d, 0.8);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 4000;
         const peak = ctx.createBiquadFilter(); peak.type = 'peaking'; peak.frequency.value = 8000; peak.Q.value = 0.8; peak.gain.value = 6;
@@ -1012,7 +1029,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         bodyGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
         const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.03, ctx.sampleRate);
         const nd = noiseBuf.getChannelData(0);
-        for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 4);
+        fillNoise(nd, 4);
         const ns = ctx.createBufferSource(); ns.buffer = noiseBuf;
         const nGain = ctx.createGain(); nGain.gain.value = 0.25;
         osc.connect(bodyGain); bodyGain.connect(gain);
@@ -1063,7 +1080,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         g.gain.exponentialRampToValueAtTime(0.001, now + dur);
         const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.015, ctx.sampleRate);
         const nd = noiseBuf.getChannelData(0);
-        for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 6);
+        fillNoise(nd, 6);
         const ns = ctx.createBufferSource(); ns.buffer = noiseBuf;
         const nGain = ctx.createGain(); nGain.gain.value = 0.3;
         const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2000;
@@ -1079,7 +1096,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.1;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        fillNoise(d, 3);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6500; bp.Q.value = 1.5;
         const g = ctx.createGain();
@@ -1411,7 +1428,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
       case 'clap': {
         const buf = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+        fillNoise(d, 2);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.6, time);
@@ -1423,7 +1440,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.05;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        fillNoise(d, 3);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 8000;
         s.connect(f); f.connect(gain); s.start(time); s.stop(time + dur);
@@ -1433,7 +1450,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.22;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+        fillNoise(d, 1.5);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
         const g = ctx.createGain();
@@ -1508,7 +1525,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = type === 'crash' ? 0.6 : 0.35;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, type === 'crash' ? 0.8 : 1.2);
+        fillNoise(d, type === 'crash' ? 0.8 : 1.2);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = type === 'crash' ? 4000 : 5500;
         const g = ctx.createGain();
@@ -1523,7 +1540,7 @@ export default function ProBeatMaker({ onPatternChange, isActive = false }: Prop
         const dur = 0.1;
         const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
         const d = buf.getChannelData(0);
-        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+        fillNoise(d, 3);
         const s = ctx.createBufferSource(); s.buffer = buf;
         const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 6500; bp.Q.value = 1.5;
         const g = ctx.createGain();
