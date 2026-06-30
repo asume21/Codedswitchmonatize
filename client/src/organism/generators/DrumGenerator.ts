@@ -65,6 +65,11 @@ export class DrumGenerator extends GeneratorBase {
   private hatDensityMult:      number = 1.0
   private kickVelocityMult:    number = 1.0
 
+  // Section density — drives hit thinning so an intro actually sounds sparse
+  // rather than playing the full drop pattern at low volume. Set by the
+  // orchestrator from the ProducerArrangement drums multiplier.
+  private sectionDensity: number = 1.0
+
   // Sidechain callback — fired on every kick hit so the bass channel can duck
   private onKickTrigger: ((time: number) => void) | null = null
 
@@ -219,6 +224,18 @@ export class DrumGenerator extends GeneratorBase {
     this.hatShuffleMaxPct = Math.max(minPct, maxPct)
   }
 
+  setSectionDensity(density: number): void {
+    const prev = this.sectionDensity
+    this.sectionDensity = Math.max(0, Math.min(1.5, density))
+    // If the density tier changed (skeleton ↔ verse ↔ full) and we have a
+    // previously-built pattern, re-apply the filter immediately rather than
+    // waiting for the next physics-state transition to trigger rebuildPart.
+    const tierOf = (d: number) => d >= 0.75 ? 2 : d >= 0.45 ? 1 : 0
+    if (tierOf(prev) !== tierOf(this.sectionDensity) && this.rawHits.length > 0 && !this.patternLocked) {
+      this.rebuildPart(this.rawHits)
+    }
+  }
+
   onStateTransition(to: OState, physics: PhysicsState): void {
     if (this._loopMode) return
     if (!this.enabled) return
@@ -273,6 +290,9 @@ export class DrumGenerator extends GeneratorBase {
   private patternLocked = false
   private lockedHits: DrumHit[] = []
   private currentHits: DrumHit[] = []   // snapshot updated by rebuildPart
+  // Unfiltered hits from the last pattern build — kept so setSectionDensity()
+  // can re-filter and re-schedule without needing a full physics-state rebuild.
+  private rawHits: DrumHit[] = []
 
   lockPattern(): DrumHit[] {
     this.patternLocked = true
@@ -422,7 +442,23 @@ export class DrumGenerator extends GeneratorBase {
   private rebuildPart(hits: DrumHit[]): void {
     if (this._loopMode) return
     this.applyKitPreset()
-    const quantizedHits = hits.map(h => ({
+
+    // Preserve unfiltered hits so setSectionDensity() can re-filter on section
+    // changes without waiting for a full physics-state pattern rebuild.
+    this.rawHits = [...hits]
+
+    // Section density thinning: sparse sections (intro, breakdown) play a
+    // skeleton pattern — only kicks and hi-hats. Mid-energy sections (verse)
+    // drop perc fills but keep the full kick+snare+hat pattern. Full density
+    // (build, drop) plays every hit. This turns the volume-only arrangement
+    // multiplier into an audible structural difference between sections.
+    const thinned = hits.filter(h => {
+      if (this.sectionDensity >= 0.75) return true                 // drop/build: full pattern
+      if (this.sectionDensity >= 0.45) return h.instrument !== DrumInstrument.Perc  // verse: no fills
+      return h.instrument === DrumInstrument.Kick || h.instrument === DrumInstrument.Hat  // intro/breakdown: skeleton
+    })
+
+    const quantizedHits = thinned.map(h => ({
       ...h,
       time: quantizeGridTime(h.time),
     }))

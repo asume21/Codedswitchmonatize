@@ -1637,6 +1637,10 @@ export class GeneratorOrchestrator {
     const melodyMultiplier = aiOverride ? aiOverride.melodyVolume     : section.melody
 
     this.drum.applyArrangementMultiplier(drumsMultiplier)
+    // Density drives HIT COUNT (pattern thinning) separate from volume.
+    // Intro (0.28) → kick+hat skeleton; verse (0.85) → full minus percs;
+    // drop (1.0) → every hit including fills.
+    this.drum.setSectionDensity(drumsMultiplier)
     this.bass.applyArrangementMultiplier(bassMultiplier)
     this.melody.applyArrangementMultiplier(melodyMultiplier)
     this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
@@ -1655,6 +1659,17 @@ export class GeneratorOrchestrator {
     if (aiOverride) {
       this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * aiOverride.hatDensity)
       this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * aiOverride.kickPunch)
+    }
+
+    // Build section ramp: progressively louder hats over the build bars create
+    // the classic pre-drop tension without needing extra hits. sectionBar goes
+    // from 0 → (bars-1), so progress goes 0 → 1 across the section.
+    if (section.name === 'build' && !aiOverride) {
+      const buildProgress = section.bars > 1 ? sectionBar / (section.bars - 1) : 0
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + buildProgress * 0.8))
+    } else if (!aiOverride && section.name !== 'build') {
+      // Reset to base after leaving build
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier)
     }
 
     // Notify on section change: swap instrument voices + dispatch event

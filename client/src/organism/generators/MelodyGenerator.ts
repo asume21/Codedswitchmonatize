@@ -115,6 +115,11 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSectionMotif: MelodyMotif | null = null
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
+  // Cross-phrase continuity: the MIDI pitch of the final note in the last phrase.
+  // Used to pick the starting octave of the next phrase so the lead doesn't jump
+  // back to a fixed home register — it picks up near where it left off.
+  // Cleared on section change so each section is a fresh musical thought.
+  private lastPhraseFinalMidi: number | null = null
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
   // by default: timbre variety only pays off once the LINE is good, and we don't
   // want to debug a jumping voice while the note logic is still settling.
@@ -536,6 +541,10 @@ export class MelodyGenerator extends GeneratorBase {
     // contrasting bank (fills = bigger, more active) so the song has shape
     // section-to-section; everything else uses the smoother ostinato/arp banks.
     this.currentSectionMotif = null
+    // Clear cross-phrase continuity so the new section opens with a deliberate
+    // register choice (octave selected by mode hash) rather than continuing from
+    // wherever the previous section's phrase happened to land.
+    this.lastPhraseFinalMidi = null
     const isHook = /chorus|hook|drop/i.test(_sectionName)
     this.preferredMotifBankKey = isHook ? 'fills' : null  // null = existing default choice
 
@@ -1121,10 +1130,24 @@ export class MelodyGenerator extends GeneratorBase {
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
     const notes: ScheduledNote[] = []
     const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
-    
-    // Deterministic octave based on mode hash
-    const modeHash = physics.mode.toString().length
-    const octave  = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
+
+    // Cross-phrase continuity: pick the octave that puts the root nearest to where
+    // the previous phrase ended. Without this every phrase restarts from the same
+    // home register regardless of where the melody had climbed or descended —
+    // the "gets something going then starts over" feeling the user heard.
+    // Falls back to the deterministic mode hash if no previous phrase exists yet.
+    let octave: number
+    if (this.lastPhraseFinalMidi !== null) {
+      const refMidi = this.lastPhraseFinalMidi
+      octave = octaves.reduce((best, oct) => {
+        const bestDist = Math.abs(12 * best + this.rootPitchClass - refMidi)
+        const thisDist = Math.abs(12 * oct  + this.rootPitchClass - refMidi)
+        return thisDist < bestDist ? oct : best
+      }, octaves[0])
+    } else {
+      const modeHash = physics.mode.toString().length
+      octave = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
+    }
     
     const isHint  = this.currentBehavior === MelodyBehavior.Hint
     const velocityEnergy = this.voiceActive
@@ -1364,6 +1387,15 @@ export class MelodyGenerator extends GeneratorBase {
     const uniquePitches = new Set(notes.map(n => n.pitch))
     if (uniquePitches.size <= 1) {
       return this.defaultMinorContour(length16ths, melodicOctave)
+    }
+
+    // Record where this phrase lands so the NEXT phrase can start near here
+    // instead of jumping back to the fixed home register.
+    const lastNote = notes[notes.length - 1]
+    if (lastNote) {
+      try {
+        this.lastPhraseFinalMidi = Tone.Frequency(lastNote.pitch).toMidi()
+      } catch { /* non-critical */ }
     }
 
     return notes
