@@ -1241,7 +1241,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       // Start self-listen only with a live mic — it runs a continuous FFT on the
       // output and is wasted CPU for preset/auto playback (crackle contributor).
-      if (inputSource === 'mic') selfListenRef.current?.start()
+      if (inputSource === 'mic') {
+        selfListenRef.current?.start()
+        // Re-calibrate the adaptive VAD threshold now that the beat is playing.
+        // The 1.4s calibration window measures beat bleed + room noise so that
+        // voiceActive only fires when the user's voice exceeds that floor.
+        if (inputRef.current instanceof AudioAnalysisEngine) {
+          inputRef.current.recalibrate()
+        }
+      }
       if (inputSource === 'mic' && transcriptionEnabled && transcriberRef.current) {
         transcriberRef.current.start()
       }

@@ -36,6 +36,16 @@ export class AudioAnalysisEngine {
   private frameIndex = 0
   private lastFrame: AnalysisFrame | null = null
 
+  // Adaptive voice-activity threshold. On start() we measure the ambient noise
+  // floor (which includes beat bleed through speakers) for ~1.4 seconds, then
+  // set the threshold to 3.5× that floor. Rapping is always much louder than
+  // beat bleed, so this keeps voiceActive false when the beat plays but you're
+  // not rapping, and true when you are.
+  private readonly CALIBRATION_FRAMES = 60   // ~1.4s at typical frame rate
+  private calibrationFrames = 0
+  private calibrationPeakRms = 0
+  private adaptiveVoiceThreshold: number
+
   /**
    * Returns the live MediaStream if the mic is open, else null. Callers
    * (e.g. the Organism's MediaRecorder) can reuse this instead of calling
@@ -53,6 +63,7 @@ export class AudioAnalysisEngine {
       ...DEFAULT_ANALYSIS_CONFIG,
       ...config,
     }
+    this.adaptiveVoiceThreshold = this.config.voiceActivityThreshold
 
     this.rmsAnalyzer = new RmsAnalyzer(
       this.config.sampleRate,
@@ -180,6 +191,17 @@ export class AudioAnalysisEngine {
     return this.running
   }
 
+  /**
+   * Reset the adaptive noise-floor calibration. Call this whenever the beat
+   * starts or the preset changes so the threshold re-calibrates against the
+   * new ambient level (beat bleed + room noise).
+   */
+  recalibrate(): void {
+    this.calibrationFrames = 0
+    this.calibrationPeakRms = 0
+    this.adaptiveVoiceThreshold = this.config.voiceActivityThreshold
+  }
+
   getLastFrame(): AnalysisFrame | null {
     return this.lastFrame
   }
@@ -225,8 +247,22 @@ export class AudioAnalysisEngine {
       flux: spectralFlux,
     } = this.spectralAnalyzer.process(linearSpectrum)
 
-    const voiceActive = rms > this.config.voiceActivityThreshold
-    const voiceConfidence = Math.min(1, rms / (this.config.voiceActivityThreshold * 5))
+    // Calibration window: measure peak ambient RMS (beat bleed + room noise)
+    // for the first ~1.4s, then lock the adaptive threshold to 3.5× that floor.
+    // Rapping voice will always be significantly louder than passive beat bleed.
+    if (this.calibrationFrames < this.CALIBRATION_FRAMES) {
+      this.calibrationFrames++
+      if (rms > this.calibrationPeakRms) this.calibrationPeakRms = rms
+      if (this.calibrationFrames === this.CALIBRATION_FRAMES) {
+        this.adaptiveVoiceThreshold = Math.max(
+          this.config.voiceActivityThreshold,
+          this.calibrationPeakRms * 3.5,
+        )
+      }
+    }
+
+    const voiceActive = rms > this.adaptiveVoiceThreshold
+    const voiceConfidence = Math.min(1, rms / (this.adaptiveVoiceThreshold * 5))
 
     const frame: AnalysisFrame = {
       timestamp: now,
