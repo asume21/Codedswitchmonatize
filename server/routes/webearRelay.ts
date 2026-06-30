@@ -183,6 +183,36 @@ async function handleMcpMessage(
               required: ['capture_id'],
             },
           },
+          {
+            name: 'capture_and_analyze',
+            description: 'Capture live audio from the browser tab and immediately run signal analysis on it. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to record (default 3000, max 30000)',
+                  minimum: 500,
+                  maximum: 30000,
+                },
+              },
+            },
+          },
+          {
+            name: 'mix_coach',
+            description: 'Capture live audio from the browser tab and receive structured mixing coaching feedback (loudness, dynamic punch, low-end mud, clipping, DC offset). Costs 3 credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to record (default 5000, max 30000)',
+                  minimum: 1000,
+                  maximum: 30000,
+                },
+              },
+            },
+          },
         ],
       },
     };
@@ -651,6 +681,173 @@ async function handleMcpMessage(
         return mcpText(id, lines.join('\n'));
       } catch (err: any) {
         return mcpErr(id, `Groove analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── capture_and_analyze ──────────────────────────────────────────────────
+    if (toolName === 'capture_and_analyze') {
+      const durationMs = Math.min(30000, Math.max(500, Number(args.duration_ms ?? 3000)));
+      const browserRes = browserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No browser tab is connected. Make sure your app is open in a browser and WebEar.init() has been called.');
+      }
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingCaptures.delete(captureId);
+            reject(new Error(`Capture timed out after ${durationMs + 8000}ms. Browser may have stopped recording.`));
+          }, durationMs + 8000);
+          pendingCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      const blob = audioBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Captured audio blob lost or failed to write to server cache.`);
+
+      try {
+        const decoded = await decodeWebmToPcm(blob.buffer);
+        const report  = analyzePcm(decoded.samples, decoded.sampleRate);
+        await creditService.deductCredits(session.userId, 1, 'webear capture_and_analyze', { tool: 'capture_and_analyze' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+        return mcpText(id, JSON.stringify(report, null, 2));
+      } catch (err: any) {
+        return mcpErr(id, `Analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── mix_coach ────────────────────────────────────────────────────────────
+    if (toolName === 'mix_coach') {
+      const durationMs = Math.min(30000, Math.max(1000, Number(args.duration_ms ?? 5000)));
+      const browserRes = browserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No browser tab is connected. Make sure your app is open in a browser and WebEar.init() has been called.');
+      }
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 3) return mcpErr(id, `Insufficient credits (have ${balance}, need 3). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingCaptures.delete(captureId);
+            reject(new Error(`Capture timed out after ${durationMs + 8000}ms. Browser may have stopped recording.`));
+          }, durationMs + 8000);
+          pendingCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      const blob = audioBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Captured audio blob lost or failed to write to server cache.`);
+
+      try {
+        const decoded = await decodeWebmToPcm(blob.buffer);
+        const report  = analyzePcm(decoded.samples, decoded.sampleRate);
+        await creditService.deductCredits(session.userId, 3, 'webear mix_coach', { tool: 'mix_coach' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### Virtual Mix Coach Report`);
+        lines.push(`Analyzed capture **${captureId}** (${(durationMs / 1000).toFixed(1)}s)`);
+        lines.push(``);
+
+        lines.push(`#### 1. Loudness & Headroom`);
+        const rms = report.rmsDb;
+        const peak = report.peakDb;
+        lines.push(`- **RMS Loudness:** ${rms.toFixed(1)} dBFS`);
+        lines.push(`- **Peak Level:** ${peak.toFixed(1)} dBFS`);
+        
+        if (rms > -9) {
+          lines.push(`- **Coach Advice:** ⚠ **Mix is extremely loud/brickwalled.** The RMS is sitting at ${rms.toFixed(1)} dBFS. You have very little dynamic range left, which can make the track feel fatiguing and flat. Consider bringing down individual channel faders and reducing any heavy master bus compression/limiting.`);
+        } else if (rms < -18) {
+          lines.push(`- **Coach Advice:** **Mix is very quiet.** The RMS is sitting at ${rms.toFixed(1)} dBFS. While this preserves great transient dynamics, it is too quiet for modern listening standards. You can safely boost the master gain or add light compression/limiting to bring the average level up to around -14 to -12 dBFS.`);
+        } else {
+          lines.push(`- **Coach Advice:** ✓ **Healthy average loudness.** Sitting at ${rms.toFixed(1)} dBFS RMS is a great sweet spot. It preserves dynamic punch while remaining competitively loud.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 2. Digital Clipping`);
+        if (report.hasClipping) {
+          lines.push(`- **Status:** ⚠ **CLIPPING DETECTED** (${report.clippingPercent.toFixed(2)}% of samples clipped)`);
+          lines.push(`- **Coach Advice:** **CRITICAL:** You are exceeding digital maximum headroom (0 dBFS). This causes harsh digital distortion/square-wave clipping. Immediately lower the master output fader or reduce the output gain of your master bus limiter by at least ${Math.max(1, Math.abs(peak) + 0.5).toFixed(1)} dB. Make sure none of your individual instrument channels are clipping their inputs/outputs (gain staging).`);
+        } else {
+          lines.push(`- **Status:** ✓ **Safe headroom.** No digital clipping detected.`);
+          lines.push(`- **Coach Advice:** Your peak is at ${peak.toFixed(1)} dBFS, leaving a safe headroom of ${(0 - peak).toFixed(1)} dB. Excellent gain staging.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 3. Dynamics & Punch`);
+        const crest = report.crestFactor;
+        lines.push(`- **Crest Factor:** ${crest.toFixed(2)} (Peak-to-RMS ratio: ${report.dynamicRangeDb.toFixed(1)} dB)`);
+        if (crest > 3.6) {
+          lines.push(`- **Coach Advice:** **Highly dynamic mix.** The peaks are very high relative to the average body of the sound. This is very punchy, but it might sound disconnected or "loose." Consider using a master compressor with a slow attack (30ms) and fast release to "glue" the elements together and make the mix feel cohesive.`);
+        } else if (crest < 2.0) {
+          lines.push(`- **Coach Advice:** ⚠ **Over-compressed / Lifeless.** A crest factor of ${crest.toFixed(2)} indicates that the transients (drum hits, vocal plosives) have been squashed flat. The mix will sound dense but lack punch. Turn down the threshold or ratio on your compressors, or reduce the drive on your master limiter.`);
+        } else {
+          lines.push(`- **Coach Advice:** ✓ **Excellent dynamic balance.** A crest factor of ${crest.toFixed(2)} represents the ideal commercial balance of transient punch and compressed density.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 4. Spectral Balance & Tonal Coaching`);
+        lines.push(`- **Spectral Centroid:** ${report.spectralCentroidHz.toFixed(0)} Hz`);
+        
+        const subPct = report.bandEnergy.sub * 100;
+        const bassPct = report.bandEnergy.bass * 100;
+        const lowMidPct = report.bandEnergy.lowMid * 100;
+        const highMidPct = report.bandEnergy.highMid * 100;
+        const highPct = report.bandEnergy.high * 100;
+
+        lines.push(`- **Energy Distribution:** Sub: ${subPct.toFixed(0)}% | Bass: ${bassPct.toFixed(0)}% | Mid: ${lowMidPct.toFixed(0)}% | Hi-Mid: ${highMidPct.toFixed(0)}% | Hi: ${highPct.toFixed(0)}%`);
+
+        if (subPct + bassPct > 45) {
+          lines.push(`- **Coach Advice (Low End):** ⚠ **Heavy/Muddy low-end.** Over 45% of your spectral energy is in the sub and bass region. This will eat up all your master headroom and make the track sound muddy. Ensure you apply a high-pass filter (HPF) on all non-bass elements (vocals, guitars, keys, hi-hats) around 80-120 Hz to clear space for the kick and bass line.`);
+        } else if (subPct + bassPct < 15) {
+          lines.push(`- **Coach Advice (Low End):** **Thin low-end.** Only ${(subPct + bassPct).toFixed(0)}% energy is in the bass register. The track lacks weight and warmth. Check your bass channel volume, or add a sub-oscillator / gentle low shelf boost around 60-80 Hz.`);
+        } else {
+          lines.push(`- **Coach Advice (Low End):** ✓ **Balanced low-end.** The kick and bass are sitting nicely in the mix without overwhelming other elements.`);
+        }
+
+        if (highMidPct + highPct > 40) {
+          lines.push(`- **Coach Advice (High End):** ⚠ **Harshness detected in highs.** High-mid and high energy is elevated. This can make hats, vocals, or synth leads sound piercing. Consider a subtle high-shelf cut starting at 8 kHz, or use a de-esser / dynamic EQ to tame transients in the 3 kHz to 6 kHz range.`);
+        } else if (highMidPct + highPct < 12) {
+          lines.push(`- **Coach Advice (High End):** **Dull / Dark mix.** The high end lacks air and brightness. Consider a gentle high-shelf boost (+1 to +2 dB) at 10 kHz or higher to add modern commercial "sheen."`);
+        } else {
+          lines.push(`- **Coach Advice (High End):** ✓ **Clean high-end.** Brightness is present and crisp without being harsh.`);
+        }
+
+        if (report.hasDcOffset) {
+          lines.push(``);
+          lines.push(`#### 5. DC Bias / Offset Alert`);
+          lines.push(`- **DC Offset Value:** ${report.dcOffset.toFixed(4)}`);
+          lines.push(`- **Coach Advice:** ⚠ **DC Offset is present.** This is a sub-audible constant voltage bias. It reduces headroom and can cause pops during playback/edits. Apply a high-pass filter (HPF) at 10-20 Hz on the master bus or on the offending hardware/synth track to resolve it.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### Summary Evaluation`);
+        lines.push(`*${report.summary}*`);
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Mix coaching failed: ${err.message}`);
       }
     }
 
