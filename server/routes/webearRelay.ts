@@ -171,6 +171,18 @@ async function handleMcpMessage(
               required: ['capture_id_a', 'capture_id_b'],
             },
           },
+          {
+            name: 'groove_score',
+            description: 'Analyze rhythmic accuracy and groove of an 8-16 bar capture. Measures kick timing accuracy vs grid, reporting average deviation, swing factor, and consistency score. Costs 2 credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id: { type: 'string', description: 'ID returned by capture_audio' },
+                bpm: { type: 'number', description: 'Optional BPM of the track. If not specified, it will be automatically estimated.' }
+              },
+              required: ['capture_id'],
+            },
+          },
         ],
       },
     };
@@ -411,6 +423,234 @@ async function handleMcpMessage(
         return mcpText(id, lines.join('\n'));
       } catch (err: any) {
         return mcpErr(id, `Diff failed: ${err.message}`);
+      }
+    }
+
+    // ── groove_score ─────────────────────────────────────────────────────────
+    if (toolName === 'groove_score') {
+      const captureId = String(args.capture_id ?? '');
+      let targetBpm = args.bpm ? Number(args.bpm) : 0;
+
+      const blob = audioBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Capture "${captureId}" not found or expired. Run capture_audio again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const decoded = await decodeWebmToPcm(blob.buffer);
+        const { samples, sampleRate } = decoded;
+
+        // If BPM is not provided, estimate it or fallback to 120
+        if (targetBpm <= 0) {
+          const mainReport = analyzePcm(samples, sampleRate);
+          targetBpm = mainReport.estimatedBpm || 120;
+        }
+
+        // 1. First-order low-pass filter (cutoff ~140Hz at 44.1kHz sample rate)
+        // alpha = 0.02
+        const lowPassed = new Float32Array(samples.length);
+        let y = 0;
+        const alpha = 0.02;
+        for (let i = 0; i < samples.length; i++) {
+          y = y + alpha * (samples[i] - y);
+          lowPassed[i] = y;
+        }
+
+        // 2. energy envelope tracking + onset detection for kick
+        const kickOnsets: number[] = [];
+        let prevEnergy = 0;
+        let lastKickMs = -Infinity;
+        const FRAME_SIZE = 512;
+        const HOP_SIZE = 256;
+        const MIN_GAP_MS = 150; // Kicks don't usually repeat faster than every 150ms
+
+        for (let offset = 0; offset + FRAME_SIZE <= lowPassed.length; offset += HOP_SIZE) {
+          let energy = 0;
+          for (let i = offset; i < offset + FRAME_SIZE; i++) {
+            const s = lowPassed[i];
+            energy += s * s;
+          }
+          energy = Math.sqrt(energy / FRAME_SIZE);
+
+          const delta = energy - prevEnergy;
+          const nowMs = (offset / sampleRate) * 1000;
+
+          // Thresholds for low-frequency transient onset detection
+          if (delta > 0.012 && nowMs - lastKickMs > MIN_GAP_MS && energy > 0.006) {
+            kickOnsets.push(nowMs);
+            lastKickMs = nowMs;
+          }
+          prevEnergy = energy;
+        }
+
+        await creditService.deductCredits(session.userId, 2, 'webear groove_score', { tool: 'groove_score' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        if (kickOnsets.length < 3) {
+          return mcpText(id, 
+            `### Groove Score Report\n\n` +
+            `* **Capture ID:** ${captureId}\n` +
+            `* **Estimated/Target BPM:** ${targetBpm.toFixed(1)} BPM\n\n` +
+            `⚠ **Analysis Alert:** Too few low-frequency transients detected (${kickOnsets.length} kick-like events found).\n` +
+            `Rhythmic/groove analysis requires at least 3 kick beats to analyze grid timing. Ensure the loop contains kick drum hits.`
+          );
+        }
+
+        const beatIntervalMs = 60000 / targetBpm;
+        const gridIntervalMs = beatIntervalMs / 4; // 16th note grid
+
+        // 3. Phase Alignment Optimizer
+        // Find best grid phase offset (bestPhi) in ms from 0 to gridIntervalMs
+        let bestPhi = 0;
+        let minError = Infinity;
+        const searchStep = 1; // 1 ms resolution
+        for (let phi = 0; phi < gridIntervalMs; phi += searchStep) {
+          let sumError = 0;
+          for (const t of kickOnsets) {
+            const relative = t - phi;
+            const dist = Math.abs(((relative + gridIntervalMs / 2) % gridIntervalMs) - gridIntervalMs / 2);
+            sumError += dist * dist;
+          }
+          if (sumError < minError) {
+            minError = sumError;
+            bestPhi = phi;
+          }
+        }
+
+        // 4. Calculate deviations and metrics
+        let totalAbsDev = 0;
+        const deviations: number[] = [];
+        const offBeatPhases: number[] = []; // phase relative to beat [0, 1)
+
+        for (const t of kickOnsets) {
+          const relative = t - bestPhi;
+          // Distance to closest 16th note grid line
+          const closestGrid = Math.round(relative / gridIntervalMs) * gridIntervalMs + bestPhi;
+          const dev = t - closestGrid; // between -gridIntervalMs/2 and +gridIntervalMs/2
+          deviations.push(dev);
+          totalAbsDev += Math.abs(dev);
+
+          // Phase relative to the full beat [0, 1)
+          const beatPhase = ((t - bestPhi) % beatIntervalMs + beatIntervalMs) % beatIntervalMs / beatIntervalMs;
+          
+          // Offbeats (16th notes 1 & 3 are at 0.25 and 0.75 in a straight grid)
+          // Look for hits near 0.25 and 0.75 to calculate swing factor
+          const distTo16thOff1 = Math.abs(beatPhase - 0.25);
+          const distTo16thOff3 = Math.abs(beatPhase - 0.75);
+          if (distTo16thOff1 < 0.125 || distTo16thOff3 < 0.125) {
+            offBeatPhases.push(beatPhase);
+          }
+        }
+
+        const meanAbsDeviationMs = totalAbsDev / kickOnsets.length;
+
+        // Calculate standard deviation of the deviations (jitter)
+        const meanDev = deviations.reduce((a, b) => a + b, 0) / deviations.length;
+        const variance = deviations.reduce((s, v) => s + (v - meanDev) ** 2, 0) / deviations.length;
+        const stdDevMs = Math.sqrt(variance);
+
+        // Tightness Consistency Score (0 - 100%)
+        // Excellent: < 5ms mean dev => 90-100%
+        // Tight: < 10ms mean dev => 75-90%
+        // Loose: > 15ms mean dev => < 60%
+        const consistencyScore = Math.max(0, Math.min(100, Math.round(100 * (1 - stdDevMs / 25))));
+
+        // 5. Swing Factor Estimation
+        // Straight = 50%, Triplet = 66.7%, Dotted Eighth = 75%
+        let swingFactorPercent = 50.0;
+        if (offBeatPhases.length >= 2) {
+          let sumShift = 0;
+          let countedOffbeats = 0;
+          for (const ph of offBeatPhases) {
+            if (ph < 0.5) {
+              // Target is 0.25
+              sumShift += ph - 0.25;
+              countedOffbeats++;
+            } else {
+              // Target is 0.75
+              sumShift += ph - 0.75;
+              countedOffbeats++;
+            }
+          }
+          const avgShift = sumShift / countedOffbeats;
+          // Swing factor ratio = (0.25 + avgShift) / 0.5
+          swingFactorPercent = Math.max(50.0, Math.min(80.0, ((0.25 + avgShift) / 0.5) * 100));
+        }
+
+        // Rhythmic timing evaluation
+        let timingRating = 'Loose / Unsteady';
+        if (meanAbsDeviationMs < 6) timingRating = 'In the Pocket (Super Tight)';
+        else if (meanAbsDeviationMs < 12) timingRating = 'Acceptable (Human Groove)';
+        else if (meanAbsDeviationMs < 20) timingRating = 'Loose / Laidback';
+
+        const lines: string[] = [];
+        lines.push(`### Groove Score & Timing Report`);
+        lines.push(`Analyzed capture **${captureId}** using kick drum transient detection.`);
+        lines.push(``);
+        lines.push(`- **Tempo Reference:** ${targetBpm.toFixed(1)} BPM`);
+        lines.push(`- **Kick Drum Hits Detected:** ${kickOnsets.length}`);
+        lines.push(`- **Rhythmic Grid Resolution:** 1/16 Note (${gridIntervalMs.toFixed(1)} ms intervals)`);
+        lines.push(``);
+        lines.push(`#### Groove Metrics`);
+        lines.push(`- **Groove Rating:** **${timingRating}**`);
+        lines.push(`- **Average Deviation:** ${meanAbsDeviationMs.toFixed(1)} ms`);
+        lines.push(`- **Timing Jitter (StdDev):** ${stdDevMs.toFixed(1)} ms`);
+        lines.push(`- **Tightness Consistency Score:** **${consistencyScore}%**`);
+        lines.push(`- **Estimated Swing Factor:** **${swingFactorPercent.toFixed(1)}%** ${swingFactorPercent > 52 ? '(Swung)' : '(Straight/Even)'}`);
+        lines.push(``);
+        
+        // Show hit-by-hit details (first 10 hits)
+        lines.push(`#### Hit-by-Hit Alignment (First 10 hits)`);
+        lines.push(`| Hit # | Onset Time | Closest Grid Line | Deviation | Alignment |`);
+        lines.push(`| :--- | :--- | :--- | :--- | :--- |`);
+        
+        const maxHitsToShow = Math.min(10, kickOnsets.length);
+        for (let i = 0; i < maxHitsToShow; i++) {
+          const t = kickOnsets[i];
+          const relative = t - bestPhi;
+          const gridIdx = Math.round(relative / gridIntervalMs);
+          const closestGrid = gridIdx * gridIntervalMs + bestPhi;
+          const dev = t - closestGrid;
+
+          // Convert gridIdx to bar/beat/sixteenth format (e.g. 1.1.1)
+          const total16ths = gridIdx;
+          const bar = Math.floor(total16ths / 16) + 1;
+          const beat = Math.floor((total16ths % 16) / 4) + 1;
+          const sixteenth = (total16ths % 4) + 1;
+          const positionStr = `${bar}.${beat}.${sixteenth}`;
+
+          const alignmentIndicator = dev < -3 ? '◄ early (rushed)' : dev > 3 ? 'late (laidback) ►' : '✓ ON TIME';
+          
+          lines.push(`| Hit ${i + 1} | ${t.toFixed(0)} ms | ${closestGrid.toFixed(0)} ms (Grid: ${positionStr}) | ${dev > 0 ? '+' : ''}${dev.toFixed(1)} ms | ${alignmentIndicator} |`);
+        }
+
+        if (kickOnsets.length > 10) {
+          lines.push(`*...and ${kickOnsets.length - 10} more kick hits analyzed.*`);
+        }
+
+        lines.push(``);
+        lines.push(`#### Production Insight`);
+        if (consistencyScore > 85) {
+          lines.push(`✓ **Excellent timing consistency.** The beat is locked down and steady. Perfect for driving a high-energy section.`);
+        } else if (consistencyScore > 70) {
+          lines.push(`✓ **Solid human groove.** The timing exhibits a natural, acceptable variance. It feels alive without sounding sloppy.`);
+        } else {
+          lines.push(`⚠ **Timing jitter is high.** The deviation between hits is inconsistent. This can cause the groove to feel unsteady or muddy, especially in the low-end. Consider quantizing key elements or adjusting the trigger envelopes.`);
+        }
+
+        if (swingFactorPercent > 53 && swingFactorPercent < 64) {
+          lines.push(`- **Groove Note:** Light swing detected (${swingFactorPercent.toFixed(1)}%). Adds subtle shuffle/bounce.`);
+        } else if (swingFactorPercent >= 64 && swingFactorPercent < 70) {
+          lines.push(`- **Groove Note:** Medium/heavy swing detected (${swingFactorPercent.toFixed(1)}%). Classic hip-hop / MPC triplet style shuffle.`);
+        } else if (swingFactorPercent >= 70) {
+          lines.push(`- **Groove Note:** Extreme swing detected (${swingFactorPercent.toFixed(1)}%). Dotted feel.`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Groove analysis failed: ${err.message}`);
       }
     }
 
