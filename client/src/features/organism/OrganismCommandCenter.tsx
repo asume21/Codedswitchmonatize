@@ -378,7 +378,7 @@ export function OrganismCommandCenter() {
   const [takeBars,       setTakeBars]       = useState(32)
   const [pendingSession, setPendingSession] = useState<import('../organism/OrganismContext').SavedSession | null>(null)
   const [takes,          setTakes]          = useState<Array<{
-    label: string; audioUrl: string; bars: number; bpm: number; sessionId: string
+    label: string; audioUrl: string; vocalUrl?: string; bars: number; bpm: number; sessionId: string
   }>>([])
 
   const handleRecordTake = useCallback(async () => {
@@ -394,8 +394,9 @@ export function OrganismCommandCenter() {
     if (takeLabel.trim()) await interpretVibe(takeLabel.trim())
     const session = await recordForBars(takeBars, label)
     if (session?.beatBlob) {
-      const audioUrl = URL.createObjectURL(session.beatBlob)
-      setTakes(prev => [...prev, { label, audioUrl, bars: takeBars, bpm: contextBpm ?? 90, sessionId: session.sessionId }])
+      const audioUrl  = URL.createObjectURL(session.beatBlob)
+      const vocalUrl  = session.vocalBlob ? URL.createObjectURL(session.vocalBlob) : undefined
+      setTakes(prev => [...prev, { label, audioUrl, vocalUrl, bars: takeBars, bpm: contextBpm ?? 90, sessionId: session.sessionId }])
       setPendingSession(session)
     }
     setTakeLabel('')
@@ -2251,16 +2252,44 @@ export function OrganismCommandCenter() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {takes.map((take, i) => (
                   <div key={take.sessionId} style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: C.bg2, borderRadius: 6, padding: '5px 8px',
+                    background: C.bg2, borderRadius: 6, padding: '6px 8px',
                     border: `0.5px solid ${C.border2}`,
                   }}>
-                    <span style={{ fontSize: 9, color: C.text3, minWidth: 16 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {take.label}
-                    </span>
-                    <span style={{ fontSize: 9, color: C.text3 }}>{take.bars}b</span>
-                    <audio controls src={take.audioUrl} style={{ height: 20, width: 80 }} />
+                    {/* Take header row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, color: C.text3, minWidth: 16 }}>{i + 1}</span>
+                      <span style={{ flex: 1, fontSize: 11, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {take.label}
+                      </span>
+                      <span style={{ fontSize: 9, color: C.text3 }}>{take.bars}b</span>
+                      {/* Download beat */}
+                      <a href={take.audioUrl} download={`${take.label}-beat.webm`} style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4,
+                        background: 'rgba(99,102,241,0.15)', color: '#a5b4fc',
+                        border: '1px solid rgba(99,102,241,0.4)', textDecoration: 'none',
+                      }} title="Download beat">↓ Beat</a>
+                      {take.vocalUrl && (
+                        <a href={take.vocalUrl} download={`${take.label}-vocals.webm`} style={{
+                          fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4,
+                          background: 'rgba(34,197,94,0.15)', color: '#86efac',
+                          border: '1px solid rgba(34,197,94,0.4)', textDecoration: 'none',
+                        }} title="Download vocals">↓ Mic</a>
+                      )}
+                    </div>
+                    {/* Beat player */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: take.vocalUrl ? 4 : 0 }}>
+                      <span style={{ fontSize: 9, color: C.text3, width: 30 }}>Beat</span>
+                      <audio controls src={take.audioUrl} style={{ height: 20, flex: 1 }} />
+                    </div>
+                    {/* Vocal player — only shown when mic was open */}
+                    {take.vocalUrl && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 9, color: '#86efac', width: 30 }}>Mic</span>
+                        <audio controls src={take.vocalUrl} style={{ height: 20, flex: 1 }} />
+                      </div>
+                    )}
+                    {/* DAW send */}
+                    <div style={{ marginTop: 5, display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       onClick={() => handleSendToArrangement(take)}
                       title="Send this take to the Studio arrangement"
@@ -2269,6 +2298,7 @@ export function OrganismCommandCenter() {
                         background: 'rgba(6,182,212,0.15)', color: C.cyan, border: `1px solid ${C.cyan}`,
                       }}
                     >+ DAW</button>
+                    </div>
                   </div>
                 ))}
               </div>
