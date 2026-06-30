@@ -372,6 +372,7 @@ app.use((req, res, next) => {
     "/api/social/feed/public", // public social feed
     "/api/songs/public",      // public shared songs
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
+    "/api/samples",           // drum/instrument sample library WAVs (static, not user data). In dev an earlier express.static mount also serves these, but whitelist the prefix too so the route path doesn't depend on middleware ordering (prod has no static mount). generate-pack keeps its own route-level requireAuth().
     "/api/neumann-bass",      // 159 shared chromatic bass multisamples (static instrument, not user data; like /api/loops). Tone.Player media fetches can't attach a bearer token, so this MUST be public or the bass collapses to the synth fallback.
     "/api/organism/kits",     // shared drum kits + 808 bass samples (static instruments, not user data; like /api/neumann-bass). Raw fetch / Tone.Sampler media fetches can't attach a bearer token, so this MUST be public or the kit collapses to the synth fallback.
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys (trailing slash keeps /api/webear-keys session-gated)
