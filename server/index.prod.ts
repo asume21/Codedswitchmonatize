@@ -219,6 +219,9 @@ app.use((req, res, next) => {
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/webeye/",           // WebEye browser capture relay
     "/api/websense/",         // WebSense performance telemetry relay
+    "/api/webnerve/",         // WebNerve query & resource timing relay
+    "/api/webshield/",        // WebShield security scan relay
+    "/api/weblog/",           // WebLog console & state snapshot relay
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
   ]));
 

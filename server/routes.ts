@@ -28,7 +28,14 @@ import { createBlogRouter } from "./routes/blog";
 import { createAudioDebugRoutes } from "./routes/audioDebug";
 import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createWebearKeyRoutes } from "./routes/webearKeys";
-import { createWebearRelayRoutes, createWebeyeRelayRoutes, createWebsenseRelayRoutes } from "./routes/webearRelay";
+import {
+  createWebearRelayRoutes,
+  createWebeyeRelayRoutes,
+  createWebsenseRelayRoutes,
+  createWebnerveRelayRoutes,
+  createWebshieldRelayRoutes,
+  createWeblogRelayRoutes
+} from "./routes/webearRelay";
 import { createOrganismKitRoutes } from "./routes/organismKits";
 import { createAceStepRoutes } from "./routes/aceStep";
 import { createCheckoutHandler } from "./api/create-checkout";
@@ -411,6 +418,9 @@ ${urls
   app.use("/api/webear", createWebearRelayRoutes(storage));
   app.use("/api/webeye", createWebeyeRelayRoutes(storage));
   app.use("/api/websense", createWebsenseRelayRoutes(storage));
+  app.use("/api/webnerve", createWebnerveRelayRoutes(storage));
+  app.use("/api/webshield", createWebshieldRelayRoutes(storage));
+  app.use("/api/weblog", createWeblogRelayRoutes(storage));
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

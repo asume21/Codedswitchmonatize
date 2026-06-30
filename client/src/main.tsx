@@ -6,6 +6,11 @@ import App from "./App";
 import "./index.css";
 import { initAudioDebugBridge } from './lib/audioDebugBridge';
 import { startLongTaskMonitor } from './lib/perf/longTaskMonitor';
+import './lib/webeyeBridge';
+import './lib/websenseBridge';
+import './lib/webnerveBridge';
+import './lib/webshieldBridge';
+import './lib/weblogBridge';
 
 initAudioDebugBridge();
 

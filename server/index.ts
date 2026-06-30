@@ -378,6 +378,9 @@ app.use((req, res, next) => {
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys (trailing slash keeps /api/webear-keys session-gated)
     "/api/webeye/",           // WebEye browser capture relay
     "/api/websense/",         // WebSense performance telemetry relay
+    "/api/webnerve/",         // WebNerve query & resource timing relay
+    "/api/webshield/",        // WebShield security scan relay
+    "/api/weblog/",           // WebLog console & state snapshot relay
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
     "/api/ai-music/compose",  // deterministic song-arc plan — no user data; guests need this for the demo build
     // Dev-only: audio-debug bridge is gated by NODE_ENV !== 'production' at

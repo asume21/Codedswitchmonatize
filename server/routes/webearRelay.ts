@@ -24,6 +24,64 @@ interface BlobEntry { buffer: Buffer; contentType: string; expiresAt: number; }
 interface McpSession { res: Response; userId: string; rawKey: string; }
 interface PendingCapture { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout>; }
 
+interface WebNerveReport {
+  captureId: string;
+  timestamp: number;
+  windowMs: number;
+  actualWindowMs: number;
+  metrics: {
+    totalResources: number;
+    apiRequestsCount: number;
+    apiRequests: Array<{
+      name: string;
+      durationMs: number;
+      transferSize: number;
+      decodedBodySize: number;
+      initiatorType: string;
+    }>;
+    storage: {
+      localStorageBytes: number;
+      sessionStorageBytes: number;
+    };
+    connection: {
+      effectiveType: string;
+      rttMs: number;
+      downlinkMb: number;
+      saveData: boolean;
+    } | null;
+  };
+}
+
+interface WebShieldReport {
+  captureId: string;
+  timestamp: number;
+  protocol: string;
+  origin: string;
+  isHttps: boolean;
+  security: {
+    isFramed: boolean;
+    metaCsps: string[];
+    readableCookies: string[];
+    storageRisks: string[];
+  };
+}
+
+interface WebLogReport {
+  captureId: string;
+  timestamp: number;
+  durationMs: number;
+  logs: Array<{
+    type: 'log' | 'warn' | 'error' | 'exception';
+    message: string;
+    timestamp: number;
+  }>;
+  stateSnapshot: {
+    audioState: string;
+    isPlaying: boolean;
+    activeBpm: number;
+  };
+}
+
 interface TelemetryData {
   fps: {
     average: number;
@@ -57,16 +115,25 @@ interface TelemetryData {
 const audioBlobs              = new Map<string, BlobEntry>();
 const videoBlobs              = new Map<string, BlobEntry>();
 const telemetryBlobs          = new Map<string, BlobEntry>();
+const nerveBlobs              = new Map<string, BlobEntry>();
+const shieldBlobs             = new Map<string, BlobEntry>();
+const logBlobs                = new Map<string, BlobEntry>();
 
 const browserSessions         = new Map<string, Response>();      // userId → webear browser SSE
 const webeyeBrowserSessions   = new Map<string, Response>();      // userId → webeye browser SSE
 const websenseBrowserSessions = new Map<string, Response>();      // userId → websense browser SSE
+const webnerveBrowserSessions = new Map<string, Response>();      // userId → webnerve browser SSE
+const webshieldBrowserSessions = new Map<string, Response>();     // userId → webshield browser SSE
+const weblogBrowserSessions   = new Map<string, Response>();      // userId → weblog browser SSE
 
 const mcpSessions             = new Map<string, McpSession>();    // sessionId → Claude SSE
 
 const pendingCaptures         = new Map<string, PendingCapture>(); // WebEar captures
 const pendingWebeyeCaptures   = new Map<string, PendingCapture>(); // WebEye captures
 const pendingWebsenseCaptures = new Map<string, PendingCapture>(); // WebSense captures
+const pendingWebnerveCaptures = new Map<string, PendingCapture>(); // WebNerve captures
+const pendingWebshieldCaptures = new Map<string, PendingCapture>(); // WebShield captures
+const pendingWeblogCaptures   = new Map<string, PendingCapture>(); // WebLog captures
 
 // ── Audio Blob store with a hard memory ceiling ──────────────────────────────────────
 const MAX_TOTAL_AUDIO_BYTES = 256 * 1024 * 1024;
@@ -140,12 +207,87 @@ function storeTelemetryBlob(id: string, entry: BlobEntry): void {
   }
 }
 
+// ── WebNerve Blob store with a hard memory ceiling ──────────────────────────────────
+const MAX_TOTAL_NERVE_BYTES = 32 * 1024 * 1024;
+const MAX_NERVE_COUNT       = 64;
+let totalNerveBytes = 0;
+
+function deleteNerveBlob(id: string): void {
+  const existing = nerveBlobs.get(id);
+  if (existing) {
+    totalNerveBytes -= existing.buffer.byteLength;
+    nerveBlobs.delete(id);
+  }
+}
+
+function storeNerveBlob(id: string, entry: BlobEntry): void {
+  deleteNerveBlob(id);
+  nerveBlobs.set(id, entry);
+  totalNerveBytes += entry.buffer.byteLength;
+  while ((totalNerveBytes > MAX_TOTAL_NERVE_BYTES || nerveBlobs.size > MAX_NERVE_COUNT) && nerveBlobs.size > 1) {
+    const oldest = nerveBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteNerveBlob(oldest);
+  }
+}
+
+// ── WebShield Blob store with a hard memory ceiling ──────────────────────────────────
+const MAX_TOTAL_SHIELD_BYTES = 32 * 1024 * 1024;
+const MAX_SHIELD_COUNT       = 64;
+let totalShieldBytes = 0;
+
+function deleteShieldBlob(id: string): void {
+  const existing = shieldBlobs.get(id);
+  if (existing) {
+    totalShieldBytes -= existing.buffer.byteLength;
+    shieldBlobs.delete(id);
+  }
+}
+
+function storeShieldBlob(id: string, entry: BlobEntry): void {
+  deleteShieldBlob(id);
+  shieldBlobs.set(id, entry);
+  totalShieldBytes += entry.buffer.byteLength;
+  while ((totalShieldBytes > MAX_TOTAL_SHIELD_BYTES || shieldBlobs.size > MAX_SHIELD_COUNT) && shieldBlobs.size > 1) {
+    const oldest = shieldBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteShieldBlob(oldest);
+  }
+}
+
+// ── WebLog Blob store with a hard memory ceiling ───────────────────────────────────
+const MAX_TOTAL_LOG_BYTES = 64 * 1024 * 1024;
+const MAX_LOG_COUNT       = 64;
+let totalLogBytes = 0;
+
+function deleteLogBlob(id: string): void {
+  const existing = logBlobs.get(id);
+  if (existing) {
+    totalLogBytes -= existing.buffer.byteLength;
+    logBlobs.delete(id);
+  }
+}
+
+function storeLogBlob(id: string, entry: BlobEntry): void {
+  deleteLogBlob(id);
+  logBlobs.set(id, entry);
+  totalLogBytes += entry.buffer.byteLength;
+  while ((totalLogBytes > MAX_TOTAL_LOG_BYTES || logBlobs.size > MAX_LOG_COUNT) && logBlobs.size > 1) {
+    const oldest = logBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteLogBlob(oldest);
+  }
+}
+
 // Purge all expired blobs older than 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [id, b] of audioBlobs) if (b.expiresAt < now) deleteAudioBlob(id);
   for (const [id, b] of videoBlobs) if (b.expiresAt < now) deleteVideoBlob(id);
   for (const [id, b] of telemetryBlobs) if (b.expiresAt < now) deleteTelemetryBlob(id);
+  for (const [id, b] of nerveBlobs) if (b.expiresAt < now) deleteNerveBlob(id);
+  for (const [id, b] of shieldBlobs) if (b.expiresAt < now) deleteShieldBlob(id);
+  for (const [id, b] of logBlobs) if (b.expiresAt < now) deleteLogBlob(id);
 }, 60_000);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -357,8 +499,97 @@ async function handleMcpMessage(
             },
           },
           {
-            name: 'diff_telemetry',
-            description: 'Compare two telemetry captures. Reports changes in FPS, frame time jitter, heap footprint, and layout stability. Costs 1 credit.',
+            name: 'capture_nerve',
+            description: 'Capture live performance timings of API requests, connection quality indicators, and storage utilization. Free — no credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to track (default 3000, max 30000)',
+                  minimum: 500,
+                  maximum: 30000,
+                },
+              },
+            },
+          },
+          {
+            name: 'analyze_nerve',
+            description: 'Analyze API timings, latency problems, network indicators, and local storage consumption. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: { capture_id: { type: 'string', description: 'ID returned by capture_nerve' } },
+              required: ['capture_id'],
+            },
+          },
+          {
+            name: 'diff_nerve',
+            description: 'Compare API timings and latencies between two nerve captures. Reports changes in query speeds and load. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id_a: { type: 'string', description: 'First capture ID' },
+                capture_id_b: { type: 'string', description: 'Second capture ID' },
+              },
+              required: ['capture_id_a', 'capture_id_b'],
+            },
+          },
+          {
+            name: 'capture_shield',
+            description: 'Capture browser-side security attributes: cookie scopes, framings, storage exposure, and CSP policies. Free — no credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+          {
+            name: 'analyze_shield',
+            description: 'Analyze captured security profile for CORS wildcarding, unsecure cookies, token leaks, and CSP misses. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: { capture_id: { type: 'string', description: 'ID returned by capture_shield' } },
+              required: ['capture_id'],
+            },
+          },
+          {
+            name: 'diff_shield',
+            description: 'Compare two security captures to trace policy changes or patch validations. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id_a: { type: 'string', description: 'First capture ID' },
+                capture_id_b: { type: 'string', description: 'Second capture ID' },
+              },
+              required: ['capture_id_a', 'capture_id_b'],
+            },
+          },
+          {
+            name: 'capture_logs',
+            description: 'Record browser console outputs (logs/warns/errors), exception triggers, and editor status snapshot. Free — no credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to record (default 3000, max 30000)',
+                  minimum: 500,
+                  maximum: 30000,
+                },
+              },
+            },
+          },
+          {
+            name: 'analyze_logs',
+            description: 'Review uncaught exceptions, promise rejections, warning patterns, and active editor state snapshot. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: { capture_id: { type: 'string', description: 'ID returned by capture_logs' } },
+              required: ['capture_id'],
+            },
+          },
+          {
+            name: 'diff_logs',
+            description: 'Compare console output logs and editor state mutations between two log captures. Costs 1 credit.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -1269,6 +1500,470 @@ async function handleMcpMessage(
       }
     }
 
+    // ── capture_nerve ────────────────────────────────────────────────────────
+    if (toolName === 'capture_nerve') {
+      const durationMs = Math.min(30000, Math.max(500, Number(args.duration_ms ?? 3000)));
+      const browserRes = webnerveBrowserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No WebNerve browser connection found. Make sure your app is open in a browser and WebNerve has connected.');
+      }
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingWebnerveCaptures.delete(captureId);
+            reject(new Error(`Nerve capture timed out after ${durationMs + 8000}ms.`));
+          }, durationMs + 8000);
+          pendingWebnerveCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      return mcpText(id,
+        `Nerve capture complete.\ncapture_id: ${captureId}\nDuration: ${durationMs}ms\n\n` +
+        `Run analyze_nerve with capture_id="${captureId}" to analyze query and latency stats.`
+      );
+    }
+
+    // ── analyze_nerve ────────────────────────────────────────────────────────
+    if (toolName === 'analyze_nerve') {
+      const captureId = String(args.capture_id ?? '');
+      const blob = nerveBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Nerve capture "${captureId}" not found or expired.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1).`);
+
+      try {
+        const data = JSON.parse(blob.buffer.toString('utf-8')) as WebNerveReport;
+        await creditService.deductCredits(session.userId, 1, 'webnerve analyze_nerve', { tool: 'analyze_nerve' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### WebNerve Timing & Performance Report`);
+        lines.push(`Capture ID: **${captureId}**`);
+        lines.push(``);
+
+        lines.push(`#### 1. API Request Latency`);
+        lines.push(`- **Total API Requests (in window):** ${data.metrics.apiRequestsCount}`);
+        
+        let totalMs = 0;
+        let slowestRequest = { name: '', durationMs: 0 };
+        for (const req of data.metrics.apiRequests) {
+          totalMs += req.durationMs;
+          if (req.durationMs > slowestRequest.durationMs) {
+            slowestRequest = req;
+          }
+        }
+        
+        const avgMs = data.metrics.apiRequestsCount > 0 ? (totalMs / data.metrics.apiRequestsCount) : 0;
+        lines.push(`- **Average API Latency:** ${avgMs.toFixed(1)} ms`);
+        if (data.metrics.apiRequestsCount > 0) {
+          lines.push(`- **Slowest Request:** \`${slowestRequest.name.split('?')[0]}\` (${slowestRequest.durationMs.toFixed(1)} ms)`);
+        }
+
+        if (avgMs > 250) {
+          lines.push(`- **Status:** ⚠ **Slow API queries.** Average API latency is above 250ms. Inspect database query indices or slow Grok API response bounds.`);
+        } else {
+          lines.push(`- **Status:** ✓ **Fast APIs.** API response timings are within healthy constraints (<250ms).`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 2. Local Storage Assets`);
+        const kbUsed = (data.metrics.storage.localStorageBytes / 1024).toFixed(1);
+        const sessionKbUsed = (data.metrics.storage.sessionStorageBytes / 1024).toFixed(1);
+        lines.push(`- **LocalStorage Bytes:** ${kbUsed} KB`);
+        lines.push(`- **SessionStorage Bytes:** ${sessionKbUsed} KB`);
+
+        if (data.metrics.storage.localStorageBytes > 4 * 1024 * 1024) {
+          lines.push(`- **Status:** ⚠ **High LocalStorage Usage.** You are approaching the 5MB browser localStorage maximum. Consider caching waveforms in IndexedDB instead.`);
+        } else {
+          lines.push(`- **Status:** ✓ **Storage footprint healthy.**`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 3. Client Network Indicator`);
+        if (data.metrics.connection) {
+          lines.push(`- **Effective Connection Type:** ${data.metrics.connection.effectiveType}`);
+          lines.push(`- **Round-Trip Time (RTT):** ${data.metrics.connection.rttMs} ms`);
+          lines.push(`- **Downlink Speed:** ${data.metrics.connection.downlinkMb} Mbps`);
+          
+          if (data.metrics.connection.effectiveType !== '4g') {
+            lines.push(`- **Status:** ⚠ **Slow Connection detected.** User has a ${data.metrics.connection.effectiveType} speed. Reduce large sample file preloads.`);
+          } else {
+            lines.push(`- **Status:** ✓ **High-bandwidth client connection.**`);
+          }
+        } else {
+          lines.push(`- *Detailed network indicator not supported in this browser.*`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Nerve analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_nerve ───────────────────────────────────────────────────────────
+    if (toolName === 'diff_nerve') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = nerveBlobs.get(captureIdA);
+      const blobB = nerveBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A "${captureIdA}" not found or expired.`);
+      if (!blobB) return mcpErr(id, `Capture B "${captureIdB}" not found or expired.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1).`);
+
+      try {
+        const dataA = JSON.parse(blobA.buffer.toString('utf-8')) as WebNerveReport;
+        const dataB = JSON.parse(blobB.buffer.toString('utf-8')) as WebNerveReport;
+
+        await creditService.deductCredits(session.userId, 1, 'webnerve diff_nerve', { tool: 'diff_nerve' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        let totalMsA = 0;
+        for (const req of dataA.metrics.apiRequests) totalMsA += req.durationMs;
+        const avgMsA = dataA.metrics.apiRequestsCount > 0 ? (totalMsA / dataA.metrics.apiRequestsCount) : 0;
+
+        let totalMsB = 0;
+        for (const req of dataB.metrics.apiRequests) totalMsB += req.durationMs;
+        const avgMsB = dataB.metrics.apiRequestsCount > 0 ? (totalMsB / dataB.metrics.apiRequestsCount) : 0;
+
+        const delta = avgMsB - avgMsA;
+
+        const lines: string[] = [];
+        lines.push(`### WebNerve Comparison Report`);
+        lines.push(`Comparing **${captureIdA}** vs **${captureIdB}**`);
+        lines.push(``);
+        lines.push(`- **Capture A Avg API Latency:** ${avgMsA.toFixed(1)} ms`);
+        lines.push(`- **Capture B Avg API Latency:** ${avgMsB.toFixed(1)} ms`);
+        
+        const deltaSign = delta > 0 ? '+' : '';
+        lines.push(`- **Latency Delta:** ${deltaSign}${delta.toFixed(1)} ms`);
+
+        if (delta < -30) {
+          lines.push(`- **Diagnostic:** ✓ **Query times decreased significantly.** WebNerve indicates query optimization success.`);
+        } else if (delta > 30) {
+          lines.push(`- **Diagnostic:** ⚠ **Latency regression detected.** Average API timings increased by ${delta.toFixed(1)}ms. Verify database locks or Grok concurrency limits.`);
+        } else {
+          lines.push(`- **Diagnostic:** API latency remained relatively stable.`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Nerve diff failed: ${err.message}`);
+      }
+    }
+
+    // ── capture_shield ───────────────────────────────────────────────────────
+    if (toolName === 'capture_shield') {
+      const browserRes = webshieldBrowserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No WebShield browser connection found. Make sure your app is open in a browser and WebShield has connected.');
+      }
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingWebshieldCaptures.delete(captureId);
+            reject(new Error(`Security scan timed out.`));
+          }, 8000);
+          pendingWebshieldCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      return mcpText(id,
+        `Security capture complete.\ncapture_id: ${captureId}\n\n` +
+        `Run analyze_shield with capture_id="${captureId}" to evaluate app security configurations.`
+      );
+    }
+
+    // ── analyze_shield ───────────────────────────────────────────────────────
+    if (toolName === 'analyze_shield') {
+      const captureId = String(args.capture_id ?? '');
+      const blob = shieldBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Security capture "${captureId}" not found or expired.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits.`);
+
+      try {
+        const data = JSON.parse(blob.buffer.toString('utf-8')) as WebShieldReport;
+        await creditService.deductCredits(session.userId, 1, 'webshield analyze_shield', { tool: 'analyze_shield' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### WebShield Security Analysis Report`);
+        lines.push(`Capture ID: **${captureId}**`);
+        lines.push(``);
+
+        // HTTPS Checks
+        lines.push(`#### 1. Transport Security (TLS)`);
+        lines.push(`- **Protocol:** ${data.protocol}`);
+        if (data.isHttps) {
+          lines.push(`- **Status:** ✓ **Secure transport.** API and client channels are using SSL/TLS.`);
+        } else {
+          lines.push(`- **Status:** ⚠ **INSECURE PROTOCOL.** HTTP is active. Tokens and session metadata are susceptible to intercept. Immediately enforce HSTS redirects.`);
+        }
+
+        // Cookie HttpOnly visibility
+        lines.push(``);
+        lines.push(`#### 2. Cookie Protections`);
+        lines.push(`- **JS-Readable Cookies:** ${data.security.readableCookies.join(', ') || '*none*'}`);
+        const sessionCookie = data.security.readableCookies.find(c => /session|sid|token|jwt/i.test(c));
+        if (sessionCookie) {
+          lines.push(`- **Status:** ⚠ **EXPOSED SESSION COOKIE.** The cookie \`${sessionCookie}\` is readable via JavaScript. It lacks the \`HttpOnly\` flag. This makes it vulnerable to Cross-Site Scripting (XSS) session theft. Configure session cookies with \`httpOnly: true\`.`);
+        } else {
+          lines.push(`- **Status:** ✓ **Session cookies hidden.** No readable session tokens found in document.cookie.`);
+        }
+
+        // Token Leaks in WebStorage
+        lines.push(``);
+        lines.push(`#### 3. WebStorage Token Audit`);
+        if (data.security.storageRisks.length > 0) {
+          lines.push(`- **Risks found:**`);
+          for (const risk of data.security.storageRisks) {
+            lines.push(`  - ⚠ Sensitive key exposed in client-accessible storage: \`${risk}\``);
+          }
+          lines.push(`- **Status:** ⚠ **Token Exposure.** Keeping auth tokens in localStorage makes them readable by any script on the origin. If you have an XSS vulnerability, these can be stolen. Consider migrating to secure, HttpOnly cookies for session state.`);
+        } else {
+          lines.push(`- **Status:** ✓ **No raw auth tokens exposed in localStorage.**`);
+        }
+
+        // Clickjacking Frame Checks
+        lines.push(``);
+        lines.push(`#### 4. Framability & Clickjacking Protection`);
+        lines.push(`- **Is Framed currently:** ${data.security.isFramed ? 'Yes' : 'No'}`);
+        if (data.security.isFramed) {
+          lines.push(`- **Status:** ⚠ **Framed execution.** The site is running within an iframe. Check if Frame Ancestors policy is missing.`);
+        } else {
+          lines.push(`- **Status:** ✓ **Standard viewport execution.**`);
+        }
+
+        // CSP policy Checks
+        lines.push(``);
+        lines.push(`#### 5. Content Security Policy (CSP)`);
+        if (data.security.metaCsps.length > 0) {
+          for (const policy of data.security.metaCsps) {
+            lines.push(`- **Meta CSP:** \`${policy}\``);
+          }
+        } else {
+          lines.push(`- **Status:** ⚠ **Missing Content Security Policy.** No CSP meta tags were found on the client side. This leaves the app vulnerable to XSS injection attacks. Define a CSP policy header.`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Security analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_shield ──────────────────────────────────────────────────────────
+    if (toolName === 'diff_shield') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = shieldBlobs.get(captureIdA);
+      const blobB = shieldBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A not found.`);
+      if (!blobB) return mcpErr(id, `Capture B not found.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits.`);
+
+      try {
+        const dataA = JSON.parse(blobA.buffer.toString('utf-8')) as WebShieldReport;
+        const dataB = JSON.parse(blobB.buffer.toString('utf-8')) as WebShieldReport;
+
+        await creditService.deductCredits(session.userId, 1, 'webshield diff_shield', { tool: 'diff_shield' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### WebShield Security Comparison`);
+        lines.push(`Comparing **${captureIdA}** vs **${captureIdB}**`);
+        lines.push(``);
+        
+        const risksA = dataA.security.storageRisks.length;
+        const risksB = dataB.security.storageRisks.length;
+        lines.push(`- **Storage risk keys count:** ${risksA} -> ${risksB}`);
+        
+        if (risksB < risksA) {
+          lines.push(`- **Diagnostic:** ✓ **Storage token exposure cleared.** Sensitive values were scrubbed or migrated out of storage.`);
+        }
+
+        const cspA = dataA.security.metaCsps.length > 0;
+        const cspB = dataB.security.metaCsps.length > 0;
+        if (!cspA && cspB) {
+          lines.push(`- **Diagnostic:** ✓ **CSP protection active.** Content Security Policy has been successfully deployed.`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Security diff failed: ${err.message}`);
+      }
+    }
+
+    // ── capture_logs ─────────────────────────────────────────────────────────
+    if (toolName === 'capture_logs') {
+      const durationMs = Math.min(30000, Math.max(500, Number(args.duration_ms ?? 3000)));
+      const browserRes = weblogBrowserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No WebLog browser connection found. Make sure your app is open in a browser and WebLog has connected.');
+      }
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingWeblogCaptures.delete(captureId);
+            reject(new Error(`Log capture timed out after ${durationMs + 8000}ms.`));
+          }, durationMs + 8000);
+          pendingWeblogCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      return mcpText(id,
+        `Log capture complete.\ncapture_id: ${captureId}\nDuration: ${durationMs}ms\n\n` +
+        `Run analyze_logs with capture_id="${captureId}" to trace exceptions and view state snapshots.`
+      );
+    }
+
+    // ── analyze_logs ─────────────────────────────────────────────────────────
+    if (toolName === 'analyze_logs') {
+      const captureId = String(args.capture_id ?? '');
+      const blob = logBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Log capture "${captureId}" not found or expired.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits.`);
+
+      try {
+        const data = JSON.parse(blob.buffer.toString('utf-8')) as WebLogReport;
+        await creditService.deductCredits(session.userId, 1, 'weblog analyze_logs', { tool: 'analyze_logs' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### WebLog Diagnostic & State Report`);
+        lines.push(`Capture ID: **${captureId}**`);
+        lines.push(``);
+
+        // Captured Logs counts
+        const logs = data.logs || [];
+        const errors = logs.filter(l => l.type === 'error' || l.type === 'exception');
+        const warns = logs.filter(l => l.type === 'warn');
+
+        lines.push(`#### 1. Console Log Overview`);
+        lines.push(`- **Total logs captured:** ${logs.length}`);
+        lines.push(`- **Uncaught exceptions & errors:** ${errors.length}`);
+        lines.push(`- **Warnings:** ${warns.length}`);
+
+        if (errors.length > 0) {
+          lines.push(``);
+          lines.push(`#### 2. Exception/Error Traces`);
+          for (const errLog of errors) {
+            lines.push(`- **[${errLog.type.toUpperCase()}]** \`${errLog.message}\``);
+          }
+          lines.push(``);
+          lines.push(`- **Diagnostic:** ⚠ **Active UI/State Exceptions.** The browser main thread triggered critical errors. Inspect stack trace values above.`);
+        } else {
+          lines.push(`- **Diagnostic:** ✓ **Zero console errors.** No exceptions were thrown during the capture window.`);
+        }
+
+        if (warns.length > 0) {
+          lines.push(``);
+          lines.push(`#### 3. Tonal/Console Warnings`);
+          for (const warnLog of warns.slice(0, 5)) {
+            lines.push(`- **[WARN]** ${warnLog.message}`);
+          }
+          if (warns.length > 5) lines.push(`- *...and ${warns.length - 5} more warnings.*`);
+        }
+
+        // Active State Dump
+        lines.push(``);
+        lines.push(`#### 4. Active Editor State Snapshot`);
+        lines.push(`- **Audio Engine State:** \`${data.stateSnapshot.audioState}\``);
+        lines.push(`- **Transport Playing:** ${data.stateSnapshot.isPlaying ? 'Yes' : 'No'}`);
+        lines.push(`- **Active BPM:** ${data.stateSnapshot.activeBpm} BPM`);
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Log analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_logs ────────────────────────────────────────────────────────────
+    if (toolName === 'diff_logs') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = logBlobs.get(captureIdA);
+      const blobB = logBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A not found.`);
+      if (!blobB) return mcpErr(id, `Capture B not found.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits.`);
+
+      try {
+        const dataA = JSON.parse(blobA.buffer.toString('utf-8')) as WebLogReport;
+        const dataB = JSON.parse(blobB.buffer.toString('utf-8')) as WebLogReport;
+
+        await creditService.deductCredits(session.userId, 1, 'weblog diff_logs', { tool: 'diff_logs' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const errorsA = (dataA.logs || []).filter(l => l.type === 'error' || l.type === 'exception').length;
+        const errorsB = (dataB.logs || []).filter(l => l.type === 'error' || l.type === 'exception').length;
+
+        const lines: string[] = [];
+        lines.push(`### WebLog Console Difference Report`);
+        lines.push(`Comparing **${captureIdA}** vs **${captureIdB}**`);
+        lines.push(``);
+        lines.push(`- **Console Errors in A:** ${errorsA}`);
+        lines.push(`- **Console Errors in B:** ${errorsB}`);
+
+        if (errorsB === 0 && errorsA > 0) {
+          lines.push(`- **Diagnostic:** ✓ **Exceptions cleared.** Errors present in Capture A have been resolved in Capture B.`);
+        } else if (errorsB > errorsA) {
+          lines.push(`- **Diagnostic:** ⚠ **New exceptions thrown.** Capture B introduced ${errorsB - errorsA} new error trace(s). Inspect code logic changes.`);
+        } else {
+          lines.push(`- **Diagnostic:** Console error load remains consistent.`);
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Log comparison failed: ${err.message}`);
+      }
+    }
+
     return { jsonrpc: '2.0', id, error: { code: -32601, message: `Unknown tool: ${toolName}` } };
   }
 
@@ -1547,6 +2242,228 @@ export function createWebsenseRelayRoutes(storage: IStorage): Router {
       clearTimeout(pending.timer);
       pending.resolve();
       pendingWebsenseCaptures.delete(captureId);
+    }
+
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+
+// ── WebNerve Relay Routes ─────────────────────────────────────────────────────
+export function createWebnerveRelayRoutes(storage: IStorage): Router {
+  const router = Router();
+
+  // Shared CORS
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return void res.sendStatus(204);
+    next();
+  });
+
+  async function resolveKey(rawKey: string) {
+    if (!rawKey?.startsWith('wbr_')) return null;
+    const keyRecord = await storage.getWebearKeyByValue(rawKey);
+    if (!keyRecord || !keyRecord.isActive) return null;
+    return keyRecord;
+  }
+
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
+  // 1. Browser SSE — receives capture commands for WebNerve
+  router.get('/connect', async (req: Request, res: Response) => {
+    const key = extractApiKey(req);
+    const keyRecord = await resolveKey(key);
+    if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    webnerveBrowserSessions.set(keyRecord.userId, res);
+    res.write('event: connected\ndata: {"status":"ready"}\n\n');
+
+    const ping = setInterval(() => res.write(':\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(ping);
+      if (webnerveBrowserSessions.get(keyRecord.userId) === res) {
+        webnerveBrowserSessions.delete(keyRecord.userId);
+      }
+    });
+  });
+
+  // 2. Browser POSTs captured nerve report
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '10mb' }), (req: Request, res: Response) => {
+    const { captureId } = req.params;
+    const buffer      = req.body as Buffer;
+    const contentType = req.headers['content-type'] || 'application/json';
+
+    storeNerveBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+
+    const pending = pendingWebnerveCaptures.get(captureId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+      pendingWebnerveCaptures.delete(captureId);
+    }
+
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+
+// ── WebShield Relay Routes ────────────────────────────────────────────────────
+export function createWebshieldRelayRoutes(storage: IStorage): Router {
+  const router = Router();
+
+  // Shared CORS
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return void res.sendStatus(204);
+    next();
+  });
+
+  async function resolveKey(rawKey: string) {
+    if (!rawKey?.startsWith('wbr_')) return null;
+    const keyRecord = await storage.getWebearKeyByValue(rawKey);
+    if (!keyRecord || !keyRecord.isActive) return null;
+    return keyRecord;
+  }
+
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
+  // 1. Browser SSE — receives capture commands for WebShield
+  router.get('/connect', async (req: Request, res: Response) => {
+    const key = extractApiKey(req);
+    const keyRecord = await resolveKey(key);
+    if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    webshieldBrowserSessions.set(keyRecord.userId, res);
+    res.write('event: connected\ndata: {"status":"ready"}\n\n');
+
+    const ping = setInterval(() => res.write(':\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(ping);
+      if (webshieldBrowserSessions.get(keyRecord.userId) === res) {
+        webshieldBrowserSessions.delete(keyRecord.userId);
+      }
+    });
+  });
+
+  // 2. Browser POSTs captured security scan report
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '10mb' }), (req: Request, res: Response) => {
+    const { captureId } = req.params;
+    const buffer      = req.body as Buffer;
+    const contentType = req.headers['content-type'] || 'application/json';
+
+    storeShieldBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+
+    const pending = pendingWebshieldCaptures.get(captureId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+      pendingWebshieldCaptures.delete(captureId);
+    }
+
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+
+// ── WebLog Relay Routes ───────────────────────────────────────────────────────
+export function createWeblogRelayRoutes(storage: IStorage): Router {
+  const router = Router();
+
+  // Shared CORS
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return void res.sendStatus(204);
+    next();
+  });
+
+  async function resolveKey(rawKey: string) {
+    if (!rawKey?.startsWith('wbr_')) return null;
+    const keyRecord = await storage.getWebearKeyByValue(rawKey);
+    if (!keyRecord || !keyRecord.isActive) return null;
+    return keyRecord;
+  }
+
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
+  // 1. Browser SSE — receives capture commands for WebLog
+  router.get('/connect', async (req: Request, res: Response) => {
+    const key = extractApiKey(req);
+    const keyRecord = await resolveKey(key);
+    if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    weblogBrowserSessions.set(keyRecord.userId, res);
+    res.write('event: connected\ndata: {"status":"ready"}\n\n');
+
+    const ping = setInterval(() => res.write(':\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(ping);
+      if (weblogBrowserSessions.get(keyRecord.userId) === res) {
+        weblogBrowserSessions.delete(keyRecord.userId);
+      }
+    });
+  });
+
+  // 2. Browser POSTs captured log buffer report
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '10mb' }), (req: Request, res: Response) => {
+    const { captureId } = req.params;
+    const buffer      = req.body as Buffer;
+    const contentType = req.headers['content-type'] || 'application/json';
+
+    storeLogBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+
+    const pending = pendingWeblogCaptures.get(captureId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+      pendingWeblogCaptures.delete(captureId);
     }
 
     res.json({ ok: true });
