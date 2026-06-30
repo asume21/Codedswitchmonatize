@@ -206,7 +206,13 @@ const TEMPLATES_BY_ID = new Map(ARRANGEMENT_TEMPLATES.map(t => [t.id, t]))
 // Plan-mode sections (composer ArrangementPlan / ACE-Step) are NOT scaled —
 // their bar counts must stay in lockstep with the rendered audio. Only the
 // named-template (jam mode) path below applies this.
-const SECTION_LENGTH_SCALE: number = 2
+//
+// ×2 was still too fast: a 4-bar classic verse became 8 bars = ~13s at 140 BPM,
+// not enough time for a freestyle rapper to settle in. ×3 makes the same verse
+// 12 bars = ~21s at 140 BPM, ~32s at 90 BPM — closer to a real rap verse.
+// Templates that already have 8-bar verses (storytelling, slow-burn) become
+// 24 bars ≈ 43s at 90 BPM — plenty of room for extended freestyling.
+const SECTION_LENGTH_SCALE: number = 4
 
 function scaleSlots(slots: ProducerArrangementSlot[]): ProducerArrangementSlot[] {
   if (SECTION_LENGTH_SCALE === 1) return slots
