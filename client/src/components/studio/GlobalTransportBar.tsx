@@ -87,6 +87,53 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
   const [isLooping, setIsLooping] = useState(false);
   const [playbackMode, setPlaybackMode] = useState<'all' | 'beat' | 'melody' | 'custom'>('all');
 
+  // ─── Wall-clock transport timer (BPM-independent) ─────────────────
+  // We track elapsed seconds with Date.now() rather than deriving them from
+  // beats/tempo. That way a preset BPM change never makes the display jump.
+  const wallClockRef = useRef<{ accum: number; startMs: number | null }>({ accum: 0, startMs: null });
+  const [displaySeconds, setDisplaySeconds] = useState(0);
+  const prevPositionRef = useRef(0);
+
+  useEffect(() => {
+    if (transportPlaying) {
+      wallClockRef.current.startMs = Date.now();
+      const id = setInterval(() => {
+        const extra = (Date.now() - wallClockRef.current.startMs!) / 1000;
+        setDisplaySeconds(wallClockRef.current.accum + extra);
+      }, 100);
+      return () => {
+        clearInterval(id);
+        if (wallClockRef.current.startMs !== null) {
+          wallClockRef.current.accum += (Date.now() - wallClockRef.current.startMs) / 1000;
+          wallClockRef.current.startMs = null;
+        }
+      };
+    } else {
+      setDisplaySeconds(wallClockRef.current.accum);
+    }
+  }, [transportPlaying]);
+
+  // Reset the wall-clock accumulator whenever position is seeked backward
+  // (skip-back, stop-to-zero, or loop restart). Convert the new beat position
+  // to seconds at the current tempo so the display matches the playhead.
+  useEffect(() => {
+    if (position < prevPositionRef.current - 1) {
+      const secs = (position / tempo) * 60;
+      wallClockRef.current.accum = secs;
+      wallClockRef.current.startMs = transportPlaying ? Date.now() : null;
+      setDisplaySeconds(secs);
+    }
+    prevPositionRef.current = position;
+  }, [position, tempo, transportPlaying]);
+
+  const formatDisplayTime = (totalSeconds: number) => {
+    const s = Math.max(0, totalSeconds);
+    const minutes = Math.floor(s / 60);
+    const seconds = Math.floor(s % 60);
+    const cs = Math.floor((s % 1) * 100);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
+  };
+
   // ─── Recording State ──────────────────────────────────────────────
   const recorder = useRef(getTimelineRecorder()).current;
   const [recorderState, setRecorderState] = useState<RecorderState>(recorder.getState());
@@ -145,15 +192,6 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     { id: 'vocals', name: 'Vocals', type: 'vocals', icon: <Mic2 className="w-3 h-3" />, muted: false, solo: false, volume: 80, color: 'bg-pink-500' },
     { id: 'fx', name: 'FX/Other', type: 'fx', icon: <Layers className="w-3 h-3" />, muted: false, solo: false, volume: 80, color: 'bg-green-500' },
   ]);
-
-  // Format time display
-  const formatTime = (beats: number) => {
-    const totalSeconds = (beats / tempo) * 60;
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = Math.floor(totalSeconds % 60);
-    const ms = Math.floor((totalSeconds % 1) * 100);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-  };
 
   // Format bar/beat display respecting time signature
   const formatBarBeat = (beats: number) => {
@@ -389,7 +427,7 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
       <div className={mainRowClasses}>
         {/* Time Display */}
         <div className="flex flex-col items-center min-w-[100px] bg-gray-800 rounded px-3 py-1">
-          <span className="text-lg font-mono text-green-400">{formatTime(position)}</span>
+          <span className="text-lg font-mono text-green-400">{formatDisplayTime(displaySeconds)}</span>
           <span className="text-xs text-gray-400">Bar {formatBarBeat(position)}</span>
         </div>
 

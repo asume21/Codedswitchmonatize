@@ -60,6 +60,20 @@ export const globalLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
   max: 400,
+  // Skip static media routes — a single Tone.Sampler load fires 50+ parallel WAV
+  // requests, blowing through the per-client budget before the user does anything.
+  // Also skip the session-check (/me) which fires on every page navigation.
+  skip: (req: Request) => {
+    const path = req.originalUrl.split('?')[0];
+    return (
+      path.startsWith('/api/samples') ||
+      path.startsWith('/api/neumann-bass') ||
+      path.startsWith('/api/loops') ||
+      path.startsWith('/api/reference-beats') ||
+      path.startsWith('/api/organism/kits') ||
+      path === '/api/auth/me'
+    );
+  },
   handler: jsonRateLimitHandler(
     'Too many requests. Please slow down and try again shortly.',
   ),
