@@ -213,6 +213,7 @@ app.use((req, res, next) => {
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
     "/api/samples",           // drum/instrument sample library WAVs (static, not user data). Tone.Sampler/raw-fetch media requests can't attach a bearer token, so this MUST be public or DrumGenerator collapses to silence (no synth fallback). The /api/samples/generate-pack POST keeps its own route-level requireAuth().
     "/api/neumann-bass",      // 159 shared chromatic bass multisamples (static instrument, not user data; like /api/loops). Tone.Player media fetches can't attach a bearer token, so this MUST be public or the bass collapses to the synth fallback.
+    "/api/sample-profiles",   // DSP fingerprints for drum/bass WAVs — public read-only, no user data
     "/api/organism/kits",     // shared drum kits + 808 bass samples (static instruments, not user data). Raw fetch / Tone.Sampler media fetches can't attach a bearer token, so this MUST be public or the kit collapses to the synth fallback.
     "/api/ai-music/compose",  // deterministic song-arc plan — no user data; guests need this for the demo build
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys

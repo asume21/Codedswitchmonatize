@@ -326,6 +326,30 @@ ${urls
   // Mount Sample Library routes
   app.use("/api/samples", createSampleRoutes());
 
+  // Sample profiles — DSP fingerprints for every WAV the AI can reason over.
+  // Keyed by filename (basename) so clients match by URL tail, not full path.
+  // Public: no user data, read-only, consumed by SampledDrumKit at startup.
+  app.get("/api/sample-profiles", (_req: Request, res: Response) => {
+    const dbPath = path.resolve(process.cwd(), 'server', 'data', 'sample-profiles.json')
+    if (!fs.existsSync(dbPath)) {
+      return res.json({ byFilename: {}, count: 0, profiledAt: null })
+    }
+    try {
+      const raw = JSON.parse(fs.readFileSync(dbPath, 'utf-8'))
+      // Re-key by basename so the client can match "/api/samples/kick_808.wav" → "kick_808.wav"
+      const byFilename: Record<string, unknown> = {}
+      for (const [absPath, profile] of Object.entries(raw.samples ?? {})) {
+        const filename = path.basename(absPath)
+        // On collisions keep the first (usually the project's own copy wins)
+        if (!byFilename[filename]) byFilename[filename] = profile
+      }
+      res.set('Cache-Control', 'public, max-age=3600')
+      res.json({ byFilename, count: Object.keys(byFilename).length, profiledAt: raw.profiledAt ?? null })
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to load sample profiles' })
+    }
+  });
+
   // Mount Melodic Loop routes (real string/key/guitar loop packs for the
   // Organism loop layer). Public, like /api/samples.
   app.use("/api/loops", createLoopRoutes());

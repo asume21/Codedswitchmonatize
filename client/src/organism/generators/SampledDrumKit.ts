@@ -2,6 +2,14 @@ import * as Tone from 'tone'
 import { DrumInstrument } from './types'
 import { OrganismMode } from '../physics/types'
 import { loadOrganismKits, type OrganismKitSample } from '../instruments/OrganismKitCache'
+import {
+  loadSampleProfiles,
+  getProfileByFilename,
+  scoreForVoice,
+  getGenreTarget,
+  type SampleProfile,
+  type GenreTarget,
+} from '../instruments/sampleProfileCache'
 
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
@@ -253,6 +261,10 @@ export class SampledDrumKit {
   private privateKitDefinition: SampleKitDefinition | null = null
   private warnedVoices = new Set<SampleVoice>()
 
+  // Profile-based kit selection
+  private profiles: Map<string, SampleProfile> = new Map()
+  private genreTarget: GenreTarget = getGenreTarget('hip-hop')
+
   constructor(output: Tone.Gain) {
     this.output = output
     // Seed the merged Cymatics kit (primary + fallback URLs) as the initial
@@ -262,6 +274,22 @@ export class SampledDrumKit {
     this.privateKitDefinition = CYMATICS_BANG_WITH_FALLBACKS
     this.setMode(OrganismMode.Glow)
     void this.hydratePrivateKit()
+    // Load DSP profiles in the background — used by setGenreTarget() to re-rank
+    // voice pools once profiles arrive. No-ops silently if the DB isn't ready yet.
+    void loadSampleProfiles().then((p) => { this.profiles = p })
+  }
+
+  /**
+   * Tell the kit what genre we're playing so it can re-rank its voice pools.
+   * Safe to call at any time — re-builds voice pools from the current definition.
+   */
+  setGenreTarget(subGenre: string): void {
+    const target = getGenreTarget(subGenre)
+    this.genreTarget = target
+    // Rebuild the private kit definition using the new target if profiles are ready
+    if (this.profiles.size > 0 && this.privateKitDefinition) {
+      this.rebuildVoicePools(this.privateKitDefinition)
+    }
   }
 
   setMode(mode: OrganismMode): void {
@@ -405,6 +433,26 @@ export class SampledDrumKit {
     this.slotCursor.clear()
   }
 
+  /** Re-rank the voice pools inside an already-built definition using profile scores. */
+  private rebuildVoicePools(definition: SampleKitDefinition): void {
+    const voiceMap: Record<string, SampleVoice> = {
+      kick: 'kick', snare: 'snare', hatClosed: 'hatClosed', hatOpen: 'hatOpen', perc: 'perc',
+    }
+    for (const [voiceKey, urls] of Object.entries(definition) as [string, string[]][]) {
+      const voice = voiceMap[voiceKey] as SampleVoice
+      if (!voice || urls.length < 2) continue  // nothing to re-rank
+      // Score each URL by profile fit; URLs without profiles keep a neutral 0.5 score
+      const scored = urls.map((url) => {
+        const profile = getProfileByFilename(this.profiles, url)
+        const score = profile ? scoreForVoice(profile, voice, this.genreTarget) : 0.5
+        return { url, score }
+      })
+      scored.sort((a, b) => b.score - a.score)
+      // Mutate the urls array in-place so the existing definition reflects the new ranking
+      scored.forEach(({ url }, i) => { (definition as Record<string, string[]>)[voiceKey][i] = url })
+    }
+  }
+
   private async hydratePrivateKit(): Promise<void> {
     try {
       const response = await loadOrganismKits()
@@ -417,6 +465,8 @@ export class SampledDrumKit {
       if (!definition) return
 
       this.privateKitDefinition = definition
+      // If profiles already arrived, rank the new definition before loading voices
+      if (this.profiles.size > 0) this.rebuildVoicePools(definition)
       const mode = this.currentMode ?? OrganismMode.Glow
       this.currentMode = null
       this.setMode(mode)

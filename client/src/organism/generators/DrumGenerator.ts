@@ -399,6 +399,11 @@ export class DrumGenerator extends GeneratorBase {
 
   private currentPhysicsMode: OrganismMode = OrganismMode.Glow
 
+  /** Forward genre target to the sampled kit so it can re-rank voice pools by profile. */
+  setGenreTarget(subGenre: string): void {
+    this.sampledKit.setGenreTarget(subGenre)
+  }
+
   private applyKitPreset(): void {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]

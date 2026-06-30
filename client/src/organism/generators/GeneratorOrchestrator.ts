@@ -1233,6 +1233,9 @@ export class GeneratorOrchestrator {
     this.chord.setSwing(swing)
     this.melody.setSwing(swing)
     this.bass.setSubGenre(subGenre)
+    // Tell the drum kit which genre we're in so it re-ranks voice pools
+    // by DSP profile score (sub weight, punch, brightness) not hardcoded names.
+    this.drum.setGenreTarget(subGenre)
 
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern

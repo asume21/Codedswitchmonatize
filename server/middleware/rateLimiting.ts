@@ -71,6 +71,7 @@ export const globalLimiter = rateLimit({
       path.startsWith('/api/loops') ||
       path.startsWith('/api/reference-beats') ||
       path.startsWith('/api/organism/kits') ||
+      path === '/api/sample-profiles' ||
       path === '/api/auth/me'
     );
   },
