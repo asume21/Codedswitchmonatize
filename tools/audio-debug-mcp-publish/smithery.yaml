@@ -1,14 +1,14 @@
 name: webear
-displayName: WebEar
+displayName: WebEar — Browser Perception Suite
 description: >
-  Give your AI coding assistant ears. Capture, analyze, and describe live audio
-  from any running web application via the Web Audio API — not a file on disk,
-  not the microphone. Works with Claude Code, Cursor, Windsurf, and any
-  MCP-compatible IDE.
-version: 1.0.0
+  Give your AI coding assistant full senses for your running web app.
+  Capture and analyze live audio, visuals, performance, network, security,
+  and console output in real time — not files, not the microphone.
+  Works with Claude Code, Cursor, Windsurf, and any MCP-compatible IDE.
+version: 1.2.4
 license: MIT
 author: asume21
-homepage: https://github.com/asume21/webear
+homepage: https://www.codedswitch.com/developer
 repository: https://github.com/asume21/webear
 npm: webear
 
@@ -16,6 +16,8 @@ categories:
   - developer-tools
   - audio
   - debugging
+  - performance
+  - security
 
 tags:
   - web-audio
@@ -25,30 +27,111 @@ tags:
   - debugging
   - browser
   - real-time
+  - performance
+  - security
+  - canvas
+  - telemetry
+  - mcp
 
 tools:
+  # ── WebEar — Audio ────────────────────────────────────────────────────────
   - name: capture_audio
     description: >
       Record a short clip (500ms–30s) of what the running web app is currently
-      outputting via its Web Audio API context. Returns a capture ID for use
-      with analyze_audio or describe_audio.
+      outputting via its Web Audio API context. Free — no credits.
 
   - name: analyze_audio
     description: >
-      Run signal analysis on a captured clip. Returns RMS, peak dB, clipping
-      status, spectral centroid, frequency band energy (sub/bass/mid/hi-mid/high),
-      estimated BPM, onset count, and timing jitter.
+      Signal analysis: RMS, peak dB, clipping, spectral centroid,
+      frequency band energy (sub/bass/mid/hi-mid/high), BPM, timing jitter.
+      Costs 1 credit.
 
   - name: describe_audio
     description: >
-      Get a plain-English AI description of a capture — useful when something
-      sounds wrong but you cannot describe it in technical terms.
+      Plain-English AI description of the capture — instruments, genre, mood.
+      Costs 2 credits.
 
   - name: diff_audio
     description: >
-      Compare two captures and flag what changed: loudness delta, tonal shift,
-      clipping introduced/removed, timing changes. Use before and after a code
-      change to catch audio regressions.
+      Compare two captures: loudness delta, tonal shift, clipping introduced/removed,
+      timing changes. Use before/after a code change to catch audio regressions.
+      Costs 1 credit.
+
+  - name: groove_score
+    description: >
+      Measures kick drum timing accuracy vs. a 16th-note grid. Reports average
+      deviation (ms), swing factor %, consistency score, and a hit-by-hit table.
+      Costs 2 credits.
+
+  - name: capture_and_analyze
+    description: >
+      Capture + signal analysis in a single call. Costs 1 credit.
+
+  - name: mix_coach
+    description: >
+      Capture and receive structured mixing feedback: loudness headroom,
+      digital clipping, dynamic punch, spectral balance coaching, DC offset.
+      Like a virtual mixing engineer in your IDE. Costs 3 credits.
+
+  # ── WebEye — Visuals ──────────────────────────────────────────────────────
+  - name: capture_video
+    description: >
+      Capture a canvas or video element from the browser tab. Free — no credits.
+
+  - name: describe_video
+    description: >
+      AI plain-English visual description — layout, animations, contrast, visual bugs.
+      Costs 2 credits.
+
+  - name: diff_visuals
+    description: >
+      Compare two visual captures — layout changes, element movements, design shifts.
+      Costs 2 credits.
+
+  # ── WebSense — Performance ────────────────────────────────────────────────
+  - name: capture_telemetry
+    description: >
+      Capture live performance telemetry: FPS, JS heap, layout shift, audio latency.
+      Free — no credits.
+
+  - name: analyze_telemetry
+    description: >
+      Analyze frame rate, memory, CLS, and audio engine state. Costs 1 credit.
+
+  # ── WebNerve — Network ────────────────────────────────────────────────────
+  - name: capture_nerve
+    description: >
+      Capture API request timings, connection quality, and storage utilization.
+      Free — no credits.
+
+  - name: analyze_nerve
+    description: >
+      Diagnose slow API calls, latency, and storage load. Costs 1 credit.
+
+  - name: diff_nerve
+    description: >
+      Compare API timings between two captures. Costs 1 credit.
+
+  # ── WebShield — Security ──────────────────────────────────────────────────
+  - name: capture_shield
+    description: >
+      Capture browser-side security attributes: cookies, CSP, storage, framing.
+      Free — no credits.
+
+  - name: analyze_shield
+    description: >
+      Audit for CORS issues, unsecured cookies, token leaks, CSP gaps.
+      Costs 1 credit.
+
+  # ── WebLog — Console ──────────────────────────────────────────────────────
+  - name: capture_logs
+    description: >
+      Record browser console output, uncaught exceptions, and app state snapshot.
+      Free — no credits.
+
+  - name: analyze_logs
+    description: >
+      Review exceptions, rejections, warnings, and active app state. Costs 1 credit.
 
 setup:
   steps:
@@ -62,19 +145,18 @@ setup:
 
     - title: Add the client snippet
       description: >
-        Import `WebEar` from `webear/client` and call
-        `WebEar.init()` in your web app. Supports raw Web Audio API,
-        Tone.js, and custom AudioContext.
+        Import `WebEar` from `webear/client` and call `WebEar.init()` in your
+        web app. Supports Tone.js, raw Web Audio API, Three.js, and plain script tag.
 
-    - title: Get an API key
+    - title: Get a free API key
       description: >
-        Get a free CODEDSWITCH_API_KEY at https://www.codedswitch.com.
-        Free tier: 50 analyses/day.
+        Get a free CODEDSWITCH_API_KEY at https://www.codedswitch.com/developer.
+        Free tier: 50 analyses/day. No credit card required.
 
     - title: Configure your IDE
       description: >
-        Add the MCP server config to your IDE (see README for Cursor, Claude
-        Code, and Windsurf examples). Set WEBEAR_BASE_URL to your dev
+        Add the MCP server config to your IDE (see README for Claude Code,
+        Cursor, and Windsurf examples). Set WEBEAR_BASE_URL to your dev
         server URL and CODEDSWITCH_API_KEY to your key.
 
 config:
@@ -84,5 +166,5 @@ config:
       default: "http://localhost:4000"
       required: false
     CODEDSWITCH_API_KEY:
-      description: API key from codedswitch.com — required for analyze_audio and describe_audio
+      description: API key from codedswitch.com/developer — required for analysis tools
       required: true

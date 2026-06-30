@@ -1,29 +1,41 @@
 # Reddit — r/webdev
 
 **Title:**
-I built an MCP server that gives AI coding assistants the ability to hear your web app's audio output in real-time
+I built an MCP server that gives AI coding assistants real-time perception of your running web app (audio, visuals, performance, network, security, console)
 
 **Body:**
-If you're building anything with the Web Audio API and using an AI coding assistant (Claude Code, Cursor, Windsurf), you've probably hit this wall: you describe a problem like "the bass sounds muddy" or "there's clipping somewhere" and the AI is completely blind — it can only read your code.
+If you use an AI coding assistant (Claude Code, Cursor, Windsurf), you've probably hit this wall: your app is running in the browser, something is wrong, and your AI can only read your code. It can't actually see what's on screen, hear what's playing, measure the frame rate, or watch the network traffic.
 
-I spent weeks on this exact problem while building a music production app. So I made **webear**.
+I spent a long time on this problem while building a browser DAW. So I made **webear** — an MCP server that gives AI assistants real-time perception of your running app.
 
-**What it does:**
+**What it captures:**
 
-- `capture_audio` — tells the browser to record N milliseconds of what your Web Audio `AudioContext` is actually outputting
-- `analyze_audio` — returns RMS, peak dB, spectral centroid, frequency band energy breakdown, estimated BPM, and timing jitter
-- `describe_audio` — asks an AI model to describe the sound in plain English
-- `diff_audio` — compares two captures and flags what changed (great for catching audio regressions between commits)
+- **Audio (WebEar)** — capture what your Web Audio API context is outputting right now
+- **Visual (WebEye)** — capture your canvas or video element
+- **Performance (WebSense)** — FPS, JS heap, cumulative layout shift, audio latency
+- **Network (WebNerve)** — API request timings, connection quality, storage usage
+- **Security (WebShield)** — cookie scope, CSP headers, storage exposure, framing
+- **Console (WebLog)** — uncaught exceptions, promise rejections, app state snapshot
 
-**The architecture:**
+Every system has three tools: capture, analyze, and diff (compare before/after a code change).
 
-It's an Express middleware + SSE bridge + browser client snippet. The middleware mounts on your dev server, the client taps your audio output node, and the MCP server coordinates between your IDE and the browser. No microphone needed — it reads the digital signal directly from the Web Audio graph.
+**Some tools that saved me real time:**
 
-**Why this is different from other audio MCPs:**
+`mix_coach` — 5 second capture, returns structured mixing advice: is it clipping? is the low-end muddy? is the crest factor showing over-compression? Like having a mixing engineer inside your IDE.
 
-Every other audio MCP I found either analyzes an existing file on disk or turns on the physical microphone. This one reads from the `AudioContext` itself, so you get zero room noise and no need to export files.
+`groove_score` — detects kick drum transients, measures timing against a 16th-note grid, returns swing factor and a consistency score. Tells you if the beat scheduler is drifting under load.
+
+`diff_audio` — capture before your code change, capture after, get a full report of what changed. Caught a gain staging bug (peak went from -3.1 to -0.2 dBFS) before it hit prod.
+
+`capture_telemetry` + `analyze_telemetry` — caught a memory leak from audio nodes not being disconnected. JS heap grew from 180MB to 310MB between two captures.
+
+**Architecture:**
+Express middleware + SSE bridge + browser client snippets. Each sensor (WebEar, WebEye, etc.) is a small client snippet that connects to the middleware and streams data back when the MCP server requests a capture. No microphone, no file exports, no screen sharing.
+
+Works with Claude Code, Cursor, Windsurf, and any MCP-compatible IDE.
 
 **npm:** `npm install webear`
 **GitHub:** https://github.com/asume21/webear
+**Free key:** codedswitch.com/developer (50 analyses/day, no credit card)
 
-Free tier: 50 analyses/day. Would love to hear if anyone has use cases beyond music apps — game audio, podcast tools, streaming apps, anything that uses Web Audio.
+Happy to go deep on the architecture — the SSE-based browser bridge was the interesting part to build.

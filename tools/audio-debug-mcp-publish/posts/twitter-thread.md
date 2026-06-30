@@ -1,11 +1,9 @@
 # Twitter / X Thread
 
 **Tweet 1 (hook):**
-I built an MCP server that gives AI coding assistants ears 🎧
+I gave my AI coding assistant full senses for my running web app.
 
-You can now ask Claude/Cursor/Windsurf to capture and analyze live audio from your running web app.
-
-No microphone. No file exports. Direct tap on the Web Audio API.
+It can now hear the audio, see the canvas, feel the FPS, diagnose the network, audit the security, and read the console — all live, without touching a file.
 
 npm install webear
 
@@ -14,61 +12,94 @@ npm install webear
 ---
 
 **Tweet 2 (the problem):**
-The problem I was solving:
+The problem I kept hitting:
 
-I'm building a browser DAW with Tone.js. I kept telling my AI "the bass sounds muddy" and it had NO idea what I meant — it can only read code.
+I'm building a browser DAW with Tone.js. I'd tell my AI "the bass sounds muddy" — it had NO idea what I meant. It can only read code.
 
-There was no way for it to actually hear what my app was outputting.
+Same story for visual bugs, memory leaks, slow API calls. The AI is flying blind while your app is running.
 
 ---
 
 **Tweet 3 (the solution):**
-So I built a bridge:
+So I built a perception layer for the browser.
 
-• Express middleware mounts on your dev server
-• Client snippet taps your AudioContext output node
-• MCP server coordinates between IDE and browser via SSE
-• AI gets back: RMS, peak dB, frequency bands, BPM, timing jitter, clipping
+One npm package. One snippet. Your AI can now capture and analyze your live app across 6 dimensions:
+
+• WebEar — audio
+• WebEye — canvas/video
+• WebSense — FPS, memory, layout shift
+• WebNerve — API timing, network
+• WebShield — cookies, CSP, security
+• WebLog — console output, exceptions
 
 ---
 
-**Tweet 4 (the demo — replace with GIF):**
+**Tweet 4 (mix_coach demo — replace with GIF):**
 [INSERT DEMO GIF HERE]
 
-Ask: "capture 3s and tell me why the bass sounds muddy"
+Ask: "coach me on this mix"
 
-AI response: "Bass band is 41% of mix, spectral centroid 580 Hz — low-mid buildup. High-pass the bass synth around 120 Hz."
+AI response:
+> ⚠ Heavy low-end — sub+bass is 47% of mix, eating your headroom.
+> ✓ No clipping. Peak at -2.1 dBFS.
+> ⚠ Muddy — spectral centroid 580 Hz. High-pass non-bass elements at 120 Hz.
+> ✓ Groove: 8.3ms avg deviation. In the pocket.
 
 ---
 
-**Tweet 5 (the diff tool):**
-My favorite feature: diff_audio
+**Tweet 5 (groove_score):**
+My favorite tool: groove_score
+
+It detects kick drum transients, aligns them to a 16th-note grid, and tells you:
+- Average deviation from the beat (ms)
+- Swing factor %
+- Tightness consistency score
+- Hit-by-hit table: early / on-time / late
+
+"In the Pocket (Super Tight)" hits different from your AI.
+
+---
+
+**Tweet 6 (diff_audio):**
+diff_audio is git diff for sound.
 
 Capture before your code change. Capture after. Ask your AI what changed.
 
 It'll tell you if you introduced clipping, shifted the tonal character, or messed up the timing.
 
-Like git diff but for sound.
+Caught a gain bug before it hit prod. The peak went from -3.1 to -0.2 dBFS.
 
 ---
 
-**Tweet 6 (why it's different):**
-Every other audio MCP either:
-- Analyzes a file on disk
-- Turns on your physical microphone (room noise 🙈)
+**Tweet 7 (beyond audio — the full suite):**
+And it goes way beyond audio.
 
-This one reads from the AudioContext BEFORE it hits the DAC.
+capture_telemetry → analyze frame rate, JS heap, layout shift, audio latency
+capture_nerve → diagnose slow API calls, network quality
+capture_shield → audit cookie scope, CSP headers, storage exposure
+capture_logs → catch uncaught exceptions and warnings
 
-Clean digital signal. Zero room noise. No file export.
+All from your running app. No file exports. No microphone.
 
 ---
 
-**Tweet 7 (CTA):**
-Free tier: 50 analyses/day
+**Tweet 8 (architecture):**
+Architecture:
 
-Works with Claude Code, Cursor, Windsurf, and any MCP-compatible IDE
+• Express middleware mounts on your dev server
+• Each client snippet (WebEar/WebEye/etc.) connects via SSE
+• MCP server coordinates between your IDE and the browser
+• Clean digital signal — no room noise, no file export
 
+Works with Claude Code, Cursor, Windsurf, any MCP-compatible IDE.
+
+---
+
+**Tweet 9 (CTA):**
+Free tier: 50 analyses/day. No credit card.
+
+npm install webear
 GitHub: github.com/asume21/webear
-npm: npmjs.com/package/webear
+Get a key: codedswitch.com/developer
 
-Would love to hear what you build with it 👇
+What would you ask your AI if it could actually perceive your running app? 👇
