@@ -857,19 +857,18 @@ export class MelodyGenerator extends GeneratorBase {
     if (!lengths || lengths.length === 0) return true
 
     const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
-    // Leads play ≥2-bar phrases (32 sixteenths). A 1-bar phrase replays identical
-    // once before the PHRASE_REFRESH_BARS=2 refresh — the "short loop" feel. Two
-    // bars fills with a developing statement→answer idea (the motif-chaining below)
-    // that lines up with the 2-bar chord cycle. Same fix the bowed strings already
-    // had; now applied to guitar and every other lead.
+    // Leads play ≥4-bar phrases (64 sixteenths). The chord cycle is 4 bars
+    // (advanceChord fires at barNumber % 4 === 3 → lands on bar 4). Aligning
+    // phrases to the chord cycle means the melody starts a new idea exactly
+    // when the harmony changes — the fundamental unit of musical coherence.
+    // A 2-bar phrase would start mid-cycle 50% of the time, making the melody
+    // feel disconnected from the harmony even though both are in the same key.
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
-      ? Math.max(32, selectedLength)
+      ? Math.max(64, selectedLength)
       : selectedLength
-    // Strings: force ≥2-bar phrases so the phrase length lines up with the
-    // PHRASE_REFRESH_BARS=2 refresh. A 1-bar phrase would loop (replay identical)
-    // once before refreshing — the "looping" the violin lead was criticised for.
-    // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
-    if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
+    // Bowed strings: same 4-bar minimum so violin/cello phrases align with
+    // chord cycles and breathe at the same time as the harmony shifts.
+    if (this.isBowedString()) phraseLength = Math.max(64, phraseLength)
     let notes          = this.generatePhrase(phraseLength, physics)
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes

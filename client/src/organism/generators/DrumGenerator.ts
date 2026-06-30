@@ -16,6 +16,7 @@ import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
+import { getConductor }        from '../conductor/Conductor'
 
 export class DrumGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -82,6 +83,11 @@ export class DrumGenerator extends GeneratorBase {
   // MetalSynth) require every new trigger time to be ≥ the previous one on that voice.
   // Humanization jitter can go negative, so we clamp each voice's next time here.
   private lastTriggerByVoice: Map<string, number> = new Map()
+
+  // Subscribe to conductor chord changes so we can accent beat 1 of each
+  // new harmonic cycle — the musical "arrival" moment that makes the kit
+  // feel like it's playing WITH the harmony, not beside it.
+  private unsubConductor: (() => void) | null = null
 
   constructor() {
     super(GeneratorName.Drum)
@@ -175,6 +181,24 @@ export class DrumGenerator extends GeneratorBase {
     this.perc.connect(this.percFilter)
 
     this.setOutputLevel(0)
+
+    // Chord-change kick accent: on every advanceChord() call (fires one bar before
+    // the chord lands at barNumber % 4 === 3), schedule a strong kick on the
+    // downbeat of the landing bar. This is the head-nod moment — kick + bass root
+    // arriving together on the new chord. The accent is additive (one-shot on top
+    // of the looping pattern) so it doesn't require a Part rebuild.
+    this.unsubConductor = getConductor().onChordChange(() => {
+      const transport = Tone.getTransport()
+      if (transport.state !== 'started') return
+      // Chord fires 1 bar early (barNumber % 4 === 3); landing is next bar.
+      // Use the transport position to compute the exact next-bar downbeat.
+      const pos = String(transport.position)
+      const bar = parseInt(pos.split(':')[0], 10) || 0
+      const landingBar = `${bar + 1}:0:0`
+      transport.scheduleOnce((audioTime) => {
+        this.triggerDrum(DrumInstrument.Kick, audioTime, 0.95)
+      }, landingBar)
+    })
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
@@ -837,6 +861,7 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   dispose(): void {
+    this.unsubConductor?.()
     this.disposeLoopPlayback()
     this.stopPart()
     this.kickSub.dispose()

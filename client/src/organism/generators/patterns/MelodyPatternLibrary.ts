@@ -18,7 +18,11 @@ export const MODE_SCALES: Record<string, number[]> = {
 export const PHRASE_LENGTHS: Record<string, number[]> = {
   [MelodyBehavior.Hint]:    [4, 6, 8],
   [MelodyBehavior.Respond]: [8, 12, 16],
-  [MelodyBehavior.Lead]:    [16, 24, 32],
+  // Lead phrases are 4 bars (64 sixteenths) — one full chord cycle. Aligning
+  // phrase length to the chord cycle means the melody starts a new musical
+  // statement exactly when the harmony changes. Shorter options removed because
+  // they were guaranteed to start mid-chord-cycle 50% of the time.
+  [MelodyBehavior.Lead]:    [64],
 }
 
 // Octave range per mode [low, high]
