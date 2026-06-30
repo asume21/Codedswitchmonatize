@@ -28,7 +28,7 @@ import { createBlogRouter } from "./routes/blog";
 import { createAudioDebugRoutes } from "./routes/audioDebug";
 import { createMcpApiRoutes } from "./routes/mcpApi";
 import { createWebearKeyRoutes } from "./routes/webearKeys";
-import { createWebearRelayRoutes } from "./routes/webearRelay";
+import { createWebearRelayRoutes, createWebeyeRelayRoutes, createWebsenseRelayRoutes } from "./routes/webearRelay";
 import { createOrganismKitRoutes } from "./routes/organismKits";
 import { createAceStepRoutes } from "./routes/aceStep";
 import { createCheckoutHandler } from "./api/create-checkout";
@@ -409,6 +409,8 @@ ${urls
 
   // WebEar relay + remote MCP SSE server (browser capture bridge + Claude Code MCP transport)
   app.use("/api/webear", createWebearRelayRoutes(storage));
+  app.use("/api/webeye", createWebeyeRelayRoutes(storage));
+  app.use("/api/websense", createWebsenseRelayRoutes(storage));
 
   // ============================================
   // GROK AI ENDPOINT - General purpose AI generation

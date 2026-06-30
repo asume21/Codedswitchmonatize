@@ -15,6 +15,7 @@ import { spawn } from 'child_process';
 import type { IStorage } from '../storage';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
 import { describeAudio } from '../services/audioDescribe';
+import { describeVideo, compareVideos } from '../services/videoDescribe';
 import { getCreditService } from '../services/credits';
 
 // ── In-memory stores ──────────────────────────────────────────────────────────
@@ -23,50 +24,128 @@ interface BlobEntry { buffer: Buffer; contentType: string; expiresAt: number; }
 interface McpSession { res: Response; userId: string; rawKey: string; }
 interface PendingCapture { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout>; }
 
-const audioBlobs        = new Map<string, BlobEntry>();
-const browserSessions   = new Map<string, Response>();      // userId → browser SSE
-const mcpSessions       = new Map<string, McpSession>();    // sessionId → Claude SSE
-const pendingCaptures   = new Map<string, PendingCapture>();
+interface TelemetryData {
+  fps: {
+    average: number;
+    min: number;
+    max: number;
+    jitterMs: number;
+  };
+  memory: {
+    supported: boolean;
+    usedHeapMb: number;
+    totalHeapMb: number;
+    limitMb: number;
+    heapUsagePercent: number;
+  };
+  vitals: {
+    cumulativeLayoutShift: number;
+    firstInputDelayMs: number | null;
+  };
+  interaction: {
+    clicks: number;
+    keypresses: number;
+    scrolls: number;
+  };
+  audioState: {
+    state: string;
+    sampleRate: number;
+    latencySeconds: number;
+  };
+}
 
-// ── Blob store with a hard memory ceiling ──────────────────────────────────────
-// The blob POST below is intentionally unauthenticated: the in-app mastering card
-// and headless capture scripts mint their own captureId and can't attach a bearer
-// token. To stop that open endpoint from being used to exhaust server memory, the
-// store is bounded — oldest blobs are evicted once either ceiling is hit. A single
-// blob is already capped at 50 MB by express.raw() on the route, so no one blob can
-// exceed the total ceiling.
-const MAX_TOTAL_BLOB_BYTES = 256 * 1024 * 1024; // 256 MB resident across all captures
-const MAX_BLOB_COUNT       = 64;                // independent of size
-let totalBlobBytes = 0;
+const audioBlobs              = new Map<string, BlobEntry>();
+const videoBlobs              = new Map<string, BlobEntry>();
+const telemetryBlobs          = new Map<string, BlobEntry>();
 
-function deleteBlob(id: string): void {
+const browserSessions         = new Map<string, Response>();      // userId → webear browser SSE
+const webeyeBrowserSessions   = new Map<string, Response>();      // userId → webeye browser SSE
+const websenseBrowserSessions = new Map<string, Response>();      // userId → websense browser SSE
+
+const mcpSessions             = new Map<string, McpSession>();    // sessionId → Claude SSE
+
+const pendingCaptures         = new Map<string, PendingCapture>(); // WebEar captures
+const pendingWebeyeCaptures   = new Map<string, PendingCapture>(); // WebEye captures
+const pendingWebsenseCaptures = new Map<string, PendingCapture>(); // WebSense captures
+
+// ── Audio Blob store with a hard memory ceiling ──────────────────────────────────────
+const MAX_TOTAL_AUDIO_BYTES = 256 * 1024 * 1024;
+const MAX_AUDIO_COUNT       = 64;
+let totalAudioBytes = 0;
+
+function deleteAudioBlob(id: string): void {
   const existing = audioBlobs.get(id);
   if (existing) {
-    totalBlobBytes -= existing.buffer.byteLength;
+    totalAudioBytes -= existing.buffer.byteLength;
     audioBlobs.delete(id);
   }
 }
 
-function storeBlob(id: string, entry: BlobEntry): void {
-  deleteBlob(id);                       // replacing an id: drop its old bytes first
+function storeAudioBlob(id: string, entry: BlobEntry): void {
+  deleteAudioBlob(id);
   audioBlobs.set(id, entry);
-  totalBlobBytes += entry.buffer.byteLength;
-  // Evict oldest (Map preserves insertion order) until back under both ceilings.
-  // Never evict the blob we just stored.
-  while (
-    (totalBlobBytes > MAX_TOTAL_BLOB_BYTES || audioBlobs.size > MAX_BLOB_COUNT) &&
-    audioBlobs.size > 1
-  ) {
+  totalAudioBytes += entry.buffer.byteLength;
+  while ((totalAudioBytes > MAX_TOTAL_AUDIO_BYTES || audioBlobs.size > MAX_AUDIO_COUNT) && audioBlobs.size > 1) {
     const oldest = audioBlobs.keys().next().value as string | undefined;
     if (oldest === undefined || oldest === id) break;
-    deleteBlob(oldest);
+    deleteAudioBlob(oldest);
   }
 }
 
-// Purge blobs older than 5 minutes
+// ── Video Blob store with a hard memory ceiling ──────────────────────────────────────
+const MAX_TOTAL_VIDEO_BYTES = 256 * 1024 * 1024;
+const MAX_VIDEO_COUNT       = 64;
+let totalVideoBytes = 0;
+
+function deleteVideoBlob(id: string): void {
+  const existing = videoBlobs.get(id);
+  if (existing) {
+    totalVideoBytes -= existing.buffer.byteLength;
+    videoBlobs.delete(id);
+  }
+}
+
+function storeVideoBlob(id: string, entry: BlobEntry): void {
+  deleteVideoBlob(id);
+  videoBlobs.set(id, entry);
+  totalVideoBytes += entry.buffer.byteLength;
+  while ((totalVideoBytes > MAX_TOTAL_VIDEO_BYTES || videoBlobs.size > MAX_VIDEO_COUNT) && videoBlobs.size > 1) {
+    const oldest = videoBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteVideoBlob(oldest);
+  }
+}
+
+// ── Telemetry Blob store with a hard memory ceiling ──────────────────────────────────
+const MAX_TOTAL_TELEMETRY_BYTES = 32 * 1024 * 1024;
+const MAX_TELEMETRY_COUNT       = 128;
+let totalTelemetryBytes = 0;
+
+function deleteTelemetryBlob(id: string): void {
+  const existing = telemetryBlobs.get(id);
+  if (existing) {
+    totalTelemetryBytes -= existing.buffer.byteLength;
+    telemetryBlobs.delete(id);
+  }
+}
+
+function storeTelemetryBlob(id: string, entry: BlobEntry): void {
+  deleteTelemetryBlob(id);
+  telemetryBlobs.set(id, entry);
+  totalTelemetryBytes += entry.buffer.byteLength;
+  while ((totalTelemetryBytes > MAX_TOTAL_TELEMETRY_BYTES || telemetryBlobs.size > MAX_TELEMETRY_COUNT) && telemetryBlobs.size > 1) {
+    const oldest = telemetryBlobs.keys().next().value as string | undefined;
+    if (oldest === undefined || oldest === id) break;
+    deleteTelemetryBlob(oldest);
+  }
+}
+
+// Purge all expired blobs older than 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [id, b] of audioBlobs) if (b.expiresAt < now) deleteBlob(id);
+  for (const [id, b] of audioBlobs) if (b.expiresAt < now) deleteAudioBlob(id);
+  for (const [id, b] of videoBlobs) if (b.expiresAt < now) deleteVideoBlob(id);
+  for (const [id, b] of telemetryBlobs) if (b.expiresAt < now) deleteTelemetryBlob(id);
 }, 60_000);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -211,6 +290,82 @@ async function handleMcpMessage(
                   maximum: 30000,
                 },
               },
+            },
+          },
+          {
+            name: 'capture_video',
+            description: 'Capture live canvas or video stream from the browser tab. Free — no credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to record (default 3000, max 30000)',
+                  minimum: 500,
+                  maximum: 30000,
+                },
+                selector: {
+                  type: 'string',
+                  description: 'Optional DOM selector for the canvas or video element. If omitted, captures first canvas/video or screen.',
+                },
+              },
+            },
+          },
+          {
+            name: 'describe_video',
+            description: 'AI plain-English visual description — layout, animations, contrast, and visual bugs. Costs 2 credits.',
+            inputSchema: {
+              type: 'object',
+              properties: { capture_id: { type: 'string', description: 'ID returned by capture_video' } },
+              required: ['capture_id'],
+            },
+          },
+          {
+            name: 'diff_visuals',
+            description: 'Compare two visual captures. Reports visual changes, layout modifications, element movements, or design shifts. Costs 2 credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id_a: { type: 'string', description: 'First capture ID (before)' },
+                capture_id_b: { type: 'string', description: 'Second capture ID (after) to compare' },
+              },
+              required: ['capture_id_a', 'capture_id_b'],
+            },
+          },
+          {
+            name: 'capture_telemetry',
+            description: 'Capture live performance telemetry and vital stats from the browser. Free — no credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                duration_ms: {
+                  type: 'number',
+                  description: 'Milliseconds to track (default 3000, max 30000)',
+                  minimum: 500,
+                  maximum: 30000,
+                },
+              },
+            },
+          },
+          {
+            name: 'analyze_telemetry',
+            description: 'Analyze telemetry stats — frame rate, JS heap memory usage, layout shifts, audio latency. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: { capture_id: { type: 'string', description: 'ID returned by capture_telemetry' } },
+              required: ['capture_id'],
+            },
+          },
+          {
+            name: 'diff_telemetry',
+            description: 'Compare two telemetry captures. Reports changes in FPS, frame time jitter, heap footprint, and layout stability. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id_a: { type: 'string', description: 'First capture ID' },
+                capture_id_b: { type: 'string', description: 'Second capture ID' },
+              },
+              required: ['capture_id_a', 'capture_id_b'],
             },
           },
         ],
@@ -851,6 +1006,269 @@ async function handleMcpMessage(
       }
     }
 
+    // ── capture_video ────────────────────────────────────────────────────────
+    if (toolName === 'capture_video') {
+      const durationMs = Math.min(30000, Math.max(500, Number(args.duration_ms ?? 3000)));
+      const selector   = args.selector ? String(args.selector) : undefined;
+      const browserRes = webeyeBrowserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No WebEye browser connection found. Make sure your app is open in a browser and WebEye has connected.');
+      }
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs, selector })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingWebeyeCaptures.delete(captureId);
+            reject(new Error(`Video capture timed out after ${durationMs + 8000}ms.`));
+          }, durationMs + 8000);
+          pendingWebeyeCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      return mcpText(id,
+        `Video capture complete.\ncapture_id: ${captureId}\nDuration: ${durationMs}ms\n\n` +
+        `Run describe_video with capture_id="${captureId}" for visual AI review, ` +
+        `or diff_visuals with capture_id_a/b to compare visual states.`
+      );
+    }
+
+    // ── describe_video ───────────────────────────────────────────────────────
+    if (toolName === 'describe_video') {
+      const captureId = String(args.capture_id ?? '');
+      const blob = videoBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Video capture "${captureId}" not found or expired. Run capture_video again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const description = await describeVideo(blob.buffer, blob.contentType);
+        await creditService.deductCredits(session.userId, 2, 'webeye describe_video', { tool: 'describe_video' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+        return mcpText(id, description);
+      } catch (err: any) {
+        return mcpErr(id, `Video description failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_visuals ─────────────────────────────────────────────────────────
+    if (toolName === 'diff_visuals') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = videoBlobs.get(captureIdA);
+      const blobB = videoBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A "${captureIdA}" not found or expired. Run capture_video again.`);
+      if (!blobB) return mcpErr(id, `Capture B "${captureIdB}" not found or expired. Run capture_video again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const description = await compareVideos(blobA.buffer, blobA.contentType, blobB.buffer, blobB.contentType);
+        await creditService.deductCredits(session.userId, 2, 'webeye diff_visuals', { tool: 'diff_visuals' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+        return mcpText(id, `### Visual Comparison Report\n\n${description}`);
+      } catch (err: any) {
+        return mcpErr(id, `Visual comparison failed: ${err.message}`);
+      }
+    }
+
+    // ── capture_telemetry ────────────────────────────────────────────────────
+    if (toolName === 'capture_telemetry') {
+      const durationMs = Math.min(30000, Math.max(500, Number(args.duration_ms ?? 3000)));
+      const browserRes = websenseBrowserSessions.get(session.userId);
+
+      if (!browserRes) {
+        return mcpErr(id,
+          'No WebSense browser connection found. Make sure your app is open in a browser and WebSense has connected.');
+      }
+
+      const captureId = crypto.randomBytes(8).toString('hex');
+      browserRes.write(`event: capture\ndata: ${JSON.stringify({ captureId, durationMs })}\n\n`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingWebsenseCaptures.delete(captureId);
+            reject(new Error(`Telemetry capture timed out after ${durationMs + 8000}ms.`));
+          }, durationMs + 8000);
+          pendingWebsenseCaptures.set(captureId, { resolve, reject, timer });
+        });
+      } catch (err: any) {
+        return mcpErr(id, err.message);
+      }
+
+      return mcpText(id,
+        `Telemetry capture complete.\ncapture_id: ${captureId}\nDuration: ${durationMs}ms\n\n` +
+        `Run analyze_telemetry with capture_id="${captureId}" to view system performance metrics.`
+      );
+    }
+
+    // ── analyze_telemetry ────────────────────────────────────────────────────
+    if (toolName === 'analyze_telemetry') {
+      const captureId = String(args.capture_id ?? '');
+      const blob = telemetryBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Telemetry capture "${captureId}" not found or expired. Run capture_telemetry again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const data = JSON.parse(blob.buffer.toString('utf-8')) as TelemetryData;
+        await creditService.deductCredits(session.userId, 1, 'websense analyze_telemetry', { tool: 'analyze_telemetry' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const lines: string[] = [];
+        lines.push(`### Performance & Telemetry Report`);
+        lines.push(`Capture ID: **${captureId}**`);
+        lines.push(``);
+
+        lines.push(`#### 1. Frame Rate (FPS)`);
+        lines.push(`- **Average FPS:** ${data.fps.average.toFixed(1)} FPS`);
+        lines.push(`- **Minimum FPS:** ${data.fps.min.toFixed(1)} FPS`);
+        lines.push(`- **Maximum FPS:** ${data.fps.max.toFixed(1)} FPS`);
+        lines.push(`- **Frame Jitter:** ${data.fps.jitterMs.toFixed(2)} ms`);
+
+        if (data.fps.average < 50) {
+          lines.push(`- **Status:** ⚠ **Lagging UI.** Average FPS is below 50. The interface may feel sluggish or choppy to the user. Inspect heavy React re-renders or audio visualization logic.`);
+        } else if (data.fps.jitterMs > 5.0) {
+          lines.push(`- **Status:** ⚠ **Stuttering / Micro-stutters.** Frame jitter is high (${data.fps.jitterMs.toFixed(1)} ms), indicating stuttering animations. Heavy synchronous tasks are blocking the main thread.`);
+        } else {
+          lines.push(`- **Status:** ✓ **Silky smooth.** Interface rendering is stable at 60 FPS.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 2. JS Heap Memory`);
+        if (data.memory.supported) {
+          lines.push(`- **Used Heap:** ${data.memory.usedHeapMb.toFixed(1)} MB`);
+          lines.push(`- **Total Allocated:** ${data.memory.totalHeapMb.toFixed(1)} MB`);
+          lines.push(`- **Limit:** ${data.memory.limitMb.toFixed(0)} MB`);
+          lines.push(`- **Heap Utilization:** ${data.memory.heapUsagePercent.toFixed(1)}%`);
+          
+          if (data.memory.heapUsagePercent > 80) {
+            lines.push(`- **Status:** ⚠ **High Memory Load.** Heap utilization is above 80%. Risk of out-of-memory crash or garbage collection freezes.`);
+          } else {
+            lines.push(`- **Status:** ✓ **Healthy memory footprint.**`);
+          }
+        } else {
+          lines.push(`- *Memory tracking not supported by this browser.*`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 3. UX Web Vitals`);
+        lines.push(`- **Cumulative Layout Shift (CLS):** ${data.vitals.cumulativeLayoutShift.toFixed(4)}`);
+        const fidStr = data.vitals.firstInputDelayMs !== null ? `${data.vitals.firstInputDelayMs.toFixed(1)} ms` : 'N/A';
+        lines.push(`- **First Input Delay (FID):** ${fidStr}`);
+        
+        if (data.vitals.cumulativeLayoutShift > 0.1) {
+          lines.push(`- **Status:** ⚠ **Unstable layout.** CLS is above 0.1. Elements are shifting unexpectedly during rendering. Set explicit dimensions on dynamic panels.`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 4. Web Audio Engine`);
+        lines.push(`- **Context State:** ${data.audioState.state}`);
+        lines.push(`- **Sample Rate:** ${data.audioState.sampleRate} Hz`);
+        lines.push(`- **Base Latency:** ${(data.audioState.latencySeconds * 1000).toFixed(1)} ms`);
+
+        if (data.audioState.state === 'suspended') {
+          lines.push(`- **Status:** ⚠ **Audio Context Suspended.** The audio engine is blocked. Make sure the user interacted with the page (click/gesture) to unlock context.`);
+        } else if (data.audioState.state === 'running') {
+          lines.push(`- **Status:** ✓ **Audio engine running.**`);
+        }
+
+        lines.push(``);
+        lines.push(`#### 5. Interaction Load (during window)`);
+        lines.push(`- **Clicks:** ${data.interaction.clicks}`);
+        lines.push(`- **Keypresses:** ${data.interaction.keypresses}`);
+        lines.push(`- **Scroll Events:** ${data.interaction.scrolls}`);
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Telemetry analysis failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_telemetry ───────────────────────────────────────────────────────
+    if (toolName === 'diff_telemetry') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = telemetryBlobs.get(captureIdA);
+      const blobB = telemetryBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A "${captureIdA}" not found or expired.`);
+      if (!blobB) return mcpErr(id, `Capture B "${captureIdB}" not found or expired.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1).`);
+
+      try {
+        const dataA = JSON.parse(blobA.buffer.toString('utf-8')) as TelemetryData;
+        const dataB = JSON.parse(blobB.buffer.toString('utf-8')) as TelemetryData;
+
+        await creditService.deductCredits(session.userId, 1, 'websense diff_telemetry', { tool: 'diff_telemetry' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const formatDelta = (val: number, unit = '', decimals = 1, showPlus = true) => {
+          if (val === 0) return 'no change';
+          const sign = showPlus && val > 0 ? '+' : '';
+          return `${sign}${val.toFixed(decimals)}${unit}`;
+        };
+
+        const lines: string[] = [];
+        lines.push(`### Telemetry Comparison Report`);
+        lines.push(`Comparing **${captureIdA}** (A) vs **${captureIdB}** (B)`);
+        lines.push(``);
+        lines.push(`| Metric | Capture A | Capture B | Delta |`);
+        lines.push(`| :--- | :--- | :--- | :--- |`);
+        lines.push(`| **Avg FPS** | ${dataA.fps.average.toFixed(1)} FPS | ${dataB.fps.average.toFixed(1)} FPS | ${formatDelta(dataB.fps.average - dataA.fps.average, ' FPS')} |`);
+        lines.push(`| **Min FPS** | ${dataA.fps.min.toFixed(1)} FPS | ${dataB.fps.min.toFixed(1)} FPS | ${formatDelta(dataB.fps.min - dataA.fps.min, ' FPS')} |`);
+        lines.push(`| **Frame Jitter** | ${dataA.fps.jitterMs.toFixed(2)} ms | ${dataB.fps.jitterMs.toFixed(2)} ms | ${formatDelta(dataB.fps.jitterMs - dataA.fps.jitterMs, ' ms', 2)} |`);
+        
+        if (dataA.memory.supported && dataB.memory.supported) {
+          lines.push(`| **Used JS Heap** | ${dataA.memory.usedHeapMb.toFixed(1)} MB | ${dataB.memory.usedHeapMb.toFixed(1)} MB | ${formatDelta(dataB.memory.usedHeapMb - dataA.memory.usedHeapMb, ' MB')} |`);
+          lines.push(`| **Heap Allocation** | ${dataA.memory.totalHeapMb.toFixed(1)} MB | ${dataB.memory.totalHeapMb.toFixed(1)} MB | ${formatDelta(dataB.memory.totalHeapMb - dataA.memory.totalHeapMb, ' MB')} |`);
+        }
+
+        lines.push(`| **Layout Shift (CLS)** | ${dataA.vitals.cumulativeLayoutShift.toFixed(4)} | ${dataB.vitals.cumulativeLayoutShift.toFixed(4)} | ${formatDelta(dataB.vitals.cumulativeLayoutShift - dataA.vitals.cumulativeLayoutShift, '', 4)} |`);
+        
+        lines.push(``);
+        lines.push(`#### Diagnostic Changes`);
+        const fpsChange = dataB.fps.average - dataA.fps.average;
+        if (fpsChange > 3) {
+          lines.push(`- **Performance:** ✓ **Significant frame-rate improvement (+${fpsChange.toFixed(1)} FPS).** The optimization has successfully freed up render resources.`);
+        } else if (fpsChange < -3) {
+          lines.push(`- **Performance:** ⚠ **Performance regression (-${Math.abs(fpsChange).toFixed(1)} FPS).** The recent changes are causing render blocking.`);
+        }
+
+        if (dataA.memory.supported && dataB.memory.supported) {
+          const memChange = dataB.memory.usedHeapMb - dataA.memory.usedHeapMb;
+          if (memChange > 15) {
+            lines.push(`- **Memory:** ⚠ **High heap growth (+${memChange.toFixed(1)} MB).** Potential memory leak or excessive cache retention. Review heap allocation patterns.`);
+          } else if (memChange < -15) {
+            lines.push(`- **Memory:** ✓ **Memory footprint reduced (-${Math.abs(memChange).toFixed(1)} MB).**`);
+          }
+        }
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Telemetry diff failed: ${err.message}`);
+      }
+    }
+
     return { jsonrpc: '2.0', id, error: { code: -32601, message: `Unknown tool: ${toolName}` } };
   }
 
@@ -918,7 +1336,7 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     const buffer      = req.body as Buffer;
     const contentType = req.headers['content-type'] || 'audio/webm';
 
-    storeBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+    storeAudioBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
 
     const pending = pendingCaptures.get(captureId);
     if (pending) {
@@ -984,6 +1402,154 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     if (response !== null) {
       session.res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
     }
+  });
+
+  return router;
+}
+
+// ── WebEye Relay Routes ───────────────────────────────────────────────────────
+export function createWebeyeRelayRoutes(storage: IStorage): Router {
+  const router = Router();
+
+  // Shared CORS
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return void res.sendStatus(204);
+    next();
+  });
+
+  async function resolveKey(rawKey: string) {
+    if (!rawKey?.startsWith('wbr_')) return null;
+    const keyRecord = await storage.getWebearKeyByValue(rawKey);
+    if (!keyRecord || !keyRecord.isActive) return null;
+    return keyRecord;
+  }
+
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
+  // 1. Browser SSE — receives capture commands for WebEye
+  router.get('/connect', async (req: Request, res: Response) => {
+    const key = extractApiKey(req);
+    const keyRecord = await resolveKey(key);
+    if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    webeyeBrowserSessions.set(keyRecord.userId, res);
+    res.write('event: connected\ndata: {"status":"ready"}\n\n');
+
+    const ping = setInterval(() => res.write(':\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(ping);
+      if (webeyeBrowserSessions.get(keyRecord.userId) === res) {
+        webeyeBrowserSessions.delete(keyRecord.userId);
+      }
+    });
+  });
+
+  // 2. Browser POSTs captured video blob
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '50mb' }), (req: Request, res: Response) => {
+    const { captureId } = req.params;
+    const buffer      = req.body as Buffer;
+    const contentType = req.headers['content-type'] || 'video/webm';
+
+    storeVideoBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+
+    const pending = pendingWebeyeCaptures.get(captureId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+      pendingWebeyeCaptures.delete(captureId);
+    }
+
+    res.json({ ok: true });
+  });
+
+  return router;
+}
+
+// ── WebSense Relay Routes ─────────────────────────────────────────────────────
+export function createWebsenseRelayRoutes(storage: IStorage): Router {
+  const router = Router();
+
+  // Shared CORS
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') return void res.sendStatus(204);
+    next();
+  });
+
+  async function resolveKey(rawKey: string) {
+    if (!rawKey?.startsWith('wbr_')) return null;
+    const keyRecord = await storage.getWebearKeyByValue(rawKey);
+    if (!keyRecord || !keyRecord.isActive) return null;
+    return keyRecord;
+  }
+
+  function extractApiKey(req: Request): string {
+    const auth = req.headers['authorization'];
+    if (typeof auth === 'string') {
+      const match = auth.match(/^Bearer\s+(.+)$/i);
+      if (match?.[1]) return match[1].trim();
+    }
+    const queryKey = req.query.key;
+    return typeof queryKey === 'string' ? queryKey.trim() : '';
+  }
+
+  // 1. Browser SSE — receives capture commands for WebSense
+  router.get('/connect', async (req: Request, res: Response) => {
+    const key = extractApiKey(req);
+    const keyRecord = await resolveKey(key);
+    if (!keyRecord) return void res.status(401).json({ error: 'Invalid API key' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    websenseBrowserSessions.set(keyRecord.userId, res);
+    res.write('event: connected\ndata: {"status":"ready"}\n\n');
+
+    const ping = setInterval(() => res.write(':\n\n'), 20_000);
+    req.on('close', () => {
+      clearInterval(ping);
+      if (websenseBrowserSessions.get(keyRecord.userId) === res) {
+        websenseBrowserSessions.delete(keyRecord.userId);
+      }
+    });
+  });
+
+  // 2. Browser POSTs captured telemetry JSON blob
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '10mb' }), (req: Request, res: Response) => {
+    const { captureId } = req.params;
+    const buffer      = req.body as Buffer;
+    const contentType = req.headers['content-type'] || 'application/json';
+
+    storeTelemetryBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+
+    const pending = pendingWebsenseCaptures.get(captureId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve();
+      pendingWebsenseCaptures.delete(captureId);
+    }
+
+    res.json({ ok: true });
   });
 
   return router;
