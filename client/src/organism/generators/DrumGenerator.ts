@@ -48,6 +48,7 @@ export class DrumGenerator extends GeneratorBase {
 
   private part: Tone.Part | null = null
   private breakFillPart: Tone.Part | null = null
+  private microFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
 
   // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
@@ -722,6 +723,7 @@ export class DrumGenerator extends GeneratorBase {
    *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
   stopPart(): void {
     this.clearBarEndBreakFill()
+    this.clearMicroFill()
     if (this.part) {
       this.part.stop()
       this.part.dispose()
@@ -756,6 +758,65 @@ export class DrumGenerator extends GeneratorBase {
       try { this.breakFillPart.stop() } catch { /* */ }
       try { this.breakFillPart.dispose() } catch { /* */ }
       this.breakFillPart = null
+    }
+  }
+
+  /**
+   * Trigger a 1-beat micro-fill at `time` (audio-clock seconds).
+   * Fires on beat 3 of every 4th bar to break up the loop feeling without
+   * a full section break. Three types rotate so consecutive 4-bar marks
+   * each have a different character:
+   *   0 — hat stutter  (4× 32nd closed hats: "tss tss tss tss")
+   *   1 — ghost snare  (quiet ghost on the "and" of beat 2 → normal snare on beat 3)
+   *   2 — kick echo    (extra kick on the "and" of beat 4 — trap stuttered kick)
+   */
+  triggerMicroFill(time: number, fillIndex: number): void {
+    this.clearMicroFill()
+    const transport = Tone.getTransport()
+    const bpm  = transport.bpm.value || 120
+    const beat = 60 / bpm
+    const s16  = beat / 4
+    const s32  = beat / 8
+
+    // Schedule individual hits via scheduleOnce — avoids Tone.Part generic typing.
+    // IDs are stored so clearMicroFill can cancel them if the fill fires early.
+    const ids: number[] = []
+    const sched = (dt: number, instr: DrumInstrument, vel: number) => {
+      ids.push(transport.scheduleOnce(t => this.triggerDrum(instr, t, vel), time + dt))
+    }
+
+    switch (fillIndex % 3) {
+      case 0: // hat stutter — 4 rapid 32nd hats, crescendo into beat 4
+        sched(0,       DrumInstrument.Hat,   0.55)
+        sched(s32,     DrumInstrument.Hat,   0.63)
+        sched(s32 * 2, DrumInstrument.Hat,   0.71)
+        sched(s32 * 3, DrumInstrument.Hat,   0.80)
+        break
+      case 1: // ghost snare — whisper on "and" of beat 2, accent on beat 3
+        sched(-s16, DrumInstrument.Snare, 0.22)
+        sched(0,    DrumInstrument.Snare, 0.75)
+        break
+      case 2: // kick echo — double kick on beat 4 + a 16th later (trap stutter)
+        sched(beat,       DrumInstrument.Kick, 0.80)
+        sched(beat + s16, DrumInstrument.Kick, 0.55)
+        break
+    }
+
+    this._microFillEventIds = ids
+  }
+
+  private _microFillEventIds: number[] = []
+
+  clearMicroFill(): void {
+    const transport = Tone.getTransport()
+    for (const id of this._microFillEventIds) {
+      try { transport.clear(id) } catch { /* */ }
+    }
+    this._microFillEventIds = []
+    if (this.microFillPart) {
+      try { this.microFillPart.stop() } catch { /* */ }
+      try { this.microFillPart.dispose() } catch { /* */ }
+      this.microFillPart = null
     }
   }
 

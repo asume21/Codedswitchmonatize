@@ -1661,15 +1661,31 @@ export class GeneratorOrchestrator {
       this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * aiOverride.kickPunch)
     }
 
-    // Build section ramp: progressively louder hats over the build bars create
-    // the classic pre-drop tension without needing extra hits. sectionBar goes
-    // from 0 → (bars-1), so progress goes 0 → 1 across the section.
-    if (section.name === 'build' && !aiOverride) {
-      const buildProgress = section.bars > 1 ? sectionBar / (section.bars - 1) : 0
-      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + buildProgress * 0.8))
-    } else if (!aiOverride && section.name !== 'build') {
-      // Reset to base after leaving build
-      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier)
+    if (!aiOverride) {
+      if (section.name === 'build') {
+        // Build section ramp: hats climb 1x → 1.8x over the build bars for
+        // the classic pre-drop tension squeeze.
+        const buildProgress = section.bars > 1 ? sectionBar / (section.bars - 1) : 0
+        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + buildProgress * 0.8))
+      } else {
+        // Within-section arc: hats gradually open up over the first 8 bars so
+        // bar 8 of a verse sounds noticeably fuller than bar 1. Caps at 8 bars
+        // so there's a natural "settled" plateau rather than endless growth.
+        const intraProgress = Math.min(1, sectionBar / 8)
+        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + intraProgress * 0.3))
+      }
+    }
+
+    // 4-bar micro-fills: a 1-beat variation on beat 3 of every 4th cycle bar
+    // breaks the "looping" feeling without a full section break. Three fill
+    // types rotate so bar 4, 8, 12 each have a different character.
+    // Skip bars that already have the full pre-drop break scheduled.
+    const isPreDropBar = sectionBar === section.bars - 1 && this.lastScheduledBreakBar === barNumber
+    if (cycleBar % 4 === 3 && !isPreDropBar) {
+      const fillIndex = Math.floor(cycleBar / 4)
+      transport.scheduleOnce((time) => {
+        this.drum.triggerMicroFill(time, fillIndex)
+      }, `${barNumber}:2:0`)
     }
 
     // Notify on section change: swap instrument voices + dispatch event
