@@ -15,19 +15,27 @@ describe('organismKitLibrary', () => {
     expect(best?.priority).toBe(100)
   })
 
-  it('premium kit covers the required drum roles', () => {
+  it('premium kit covers the required drum one-shot roles', () => {
     const best = pickBestOrganismKit()
     const roles = new Set(best?.samples.map((s) => s.role))
     expect(roles).toContain('kick')
     expect(roles).toContain('snare')
     expect(roles).toContain('hat')
-    expect(roles).toContain('bass808')
+    expect(roles).toContain('perc')
+    // bass808 is intentionally NOT required from this kit: the committed stub
+    // ships only a 0-byte 808-bass.wav placeholder, which the scanner now
+    // excludes. The Organism's 808 is supplied by the committed Cymatics
+    // "Rumble" 808 fallback (see OrganismKitCache.findBass808Sample).
   })
 
-  it('bass808 sample carries the configured root note', () => {
+  it('excludes the 0-byte 808-bass.wav placeholder so it never masks the real 808 fallback', () => {
     const best = pickBestOrganismKit()
-    const bass808 = best?.samples.find((s) => s.role === 'bass808')
-    expect(bass808).toBeDefined()
-    expect(bass808?.rootNote).toBe('C1')
+    const samples = best?.samples ?? []
+    expect(samples.length).toBeGreaterThan(0)
+    // The committed stub ships a 0-byte 808-bass.wav purely as a role
+    // placeholder; the scanner must not advertise it as a usable sample,
+    // otherwise it masks the committed Cymatics 808 fallback.
+    expect(samples.some((s) => s.fileName === '808-bass.wav')).toBe(false)
+    expect(samples.some((s) => s.role === 'bass808')).toBe(false)
   })
 })

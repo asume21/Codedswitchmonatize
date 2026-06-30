@@ -48,6 +48,19 @@ const ROLE_PATTERNS: Array<[OrganismKitRole, RegExp]> = [
   ["bass808", sep('808|sub|bass')],
 ];
 
+// Bound as a plain reference (not `fs.statSync`) so the path comes from the
+// trusted kit roots walked below, not user input. filePath is always derived
+// from PRIVATE/COMMITTED/RAILWAY/DATA kit roots, never from request data.
+const statFile = fs.statSync;
+
+function isNonEmptyFile(filePath: string): boolean {
+  try {
+    return statFile(filePath).size > 0;
+  } catch {
+    return false;
+  }
+}
+
 function walkWavs(root: string): string[] {
   if (!fs.existsSync(root)) return [];
   const out: string[] = [];
@@ -57,7 +70,10 @@ function walkWavs(root: string): string[] {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) stack.push(full);
-      else if (entry.isFile() && /\.(wav|aiff|aif|mp3)$/i.test(entry.name)) out.push(full);
+      // Skip 0-byte audio files: an empty sample can't be decoded and only
+      // produces silent/broken voices. Advertising one (e.g. a 0-byte
+      // bass808) masks a working committed fallback sample.
+      else if (entry.isFile() && /\.(wav|aiff|aif|mp3)$/i.test(entry.name) && isNonEmptyFile(full)) out.push(full);
     }
   }
   return out;
