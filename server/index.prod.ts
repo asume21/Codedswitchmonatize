@@ -69,6 +69,20 @@ const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
 
+// Serve audio assets (Cymatics drum/bass/keys one-shots, loops, etc.) the same
+// way dev (index.ts) does. Without this, /assets/* fell through to the SPA
+// catch-all and returned index.html — so Tone/decodeAudioData got HTML instead
+// of a WAV and the Organism drums/texture (and the Beat Maker) went silent or
+// synth-only in production. Static files, not user data — served before auth.
+const assetsRoot = path.resolve(process.cwd(), "server", "Assets");
+app.use("/assets", express.static(assetsRoot, {
+  maxAge: "7d",
+  setHeaders: (res) => {
+    res.set("Accept-Ranges", "bytes");
+  },
+}));
+console.log(`📂 Audio assets served from: ${assetsRoot}`);
+
 const referenceBeatsPath = [
   path.resolve(process.cwd(), "audio", "reference-beats"),
   path.resolve(process.cwd(), "..", "audio", "reference-beats"),
