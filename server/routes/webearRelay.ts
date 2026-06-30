@@ -159,6 +159,18 @@ async function handleMcpMessage(
               required: ['capture_id'],
             },
           },
+          {
+            name: 'diff_audio',
+            description: 'Compare two audio captures. Reports differences in loudness, peak, dynamic range, clipping, spectral balance, and timing/groove. Costs 1 credit.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id_a: { type: 'string', description: 'First capture ID (before)' },
+                capture_id_b: { type: 'string', description: 'Second capture ID (after) to compare against the first' }
+              },
+              required: ['capture_id_a', 'capture_id_b'],
+            },
+          },
         ],
       },
     };
@@ -240,6 +252,165 @@ async function handleMcpMessage(
         return mcpText(id, description);
       } catch (err: any) {
         return mcpErr(id, `Description failed: ${err.message}`);
+      }
+    }
+
+    // ── diff_audio ───────────────────────────────────────────────────────────
+    if (toolName === 'diff_audio') {
+      const captureIdA = String(args.capture_id_a ?? '');
+      const captureIdB = String(args.capture_id_b ?? '');
+
+      const blobA = audioBlobs.get(captureIdA);
+      const blobB = audioBlobs.get(captureIdB);
+
+      if (!blobA) return mcpErr(id, `Capture A "${captureIdA}" not found or expired. Run capture_audio again.`);
+      if (!blobB) return mcpErr(id, `Capture B "${captureIdB}" not found or expired. Run capture_audio again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 1) return mcpErr(id, `Insufficient credits (have ${balance}, need 1). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const decodedA = await decodeWebmToPcm(blobA.buffer);
+        const decodedB = await decodeWebmToPcm(blobB.buffer);
+
+        const reportA = analyzePcm(decodedA.samples, decodedA.sampleRate);
+        const reportB = analyzePcm(decodedB.samples, decodedB.sampleRate);
+
+        await creditService.deductCredits(session.userId, 1, 'webear diff_audio', { tool: 'diff_audio' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+
+        const formatDelta = (val: number, unit = '', decimals = 1, showPlus = true) => {
+          if (val === 0) return 'no change';
+          const sign = showPlus && val > 0 ? '+' : '';
+          return `${sign}${val.toFixed(decimals)}${unit}`;
+        };
+
+        const formatPercentChange = (oldVal: number, newVal: number, decimals = 1) => {
+          if (oldVal === 0) return newVal === 0 ? 'no change' : 'new value';
+          const pct = ((newVal - oldVal) / oldVal) * 100;
+          return pct === 0 ? 'no change' : `${pct > 0 ? '+' : ''}${pct.toFixed(decimals)}%`;
+        };
+
+        const dbDeltaStr = (aDb: number, bDb: number) => {
+          if (aDb === -Infinity || bDb === -Infinity) {
+            if (aDb === bDb) return 'no change';
+            return bDb === -Infinity ? '-∞ dB (silenced)' : '+∞ dB (activated)';
+          }
+          const diff = bDb - aDb;
+          return `${diff > 0 ? '+' : ''}${diff.toFixed(1)} dB`;
+        };
+
+        const lines: string[] = [];
+        lines.push(`### Audio Comparison Report`);
+        lines.push(`Comparing **${captureIdA}** (A) vs **${captureIdB}** (B)`);
+        lines.push(``);
+        lines.push(`| Metric | Capture A | Capture B | Delta |`);
+        lines.push(`| :--- | :--- | :--- | :--- |`);
+        lines.push(`| **Duration** | ${reportA.durationSeconds.toFixed(2)}s | ${reportB.durationSeconds.toFixed(2)}s | ${formatDelta(reportB.durationSeconds - reportA.durationSeconds, 's', 2)} |`);
+        
+        const rmsAStr = reportA.rmsDb === -Infinity ? '-∞' : reportA.rmsDb.toFixed(1);
+        const rmsBStr = reportB.rmsDb === -Infinity ? '-∞' : reportB.rmsDb.toFixed(1);
+        lines.push(`| **RMS Loudness** | ${rmsAStr} dBFS | ${rmsBStr} dBFS | ${dbDeltaStr(reportA.rmsDb, reportB.rmsDb)} |`);
+
+        const peakAStr = reportA.peakDb === -Infinity ? '-∞' : reportA.peakDb.toFixed(1);
+        const peakBStr = reportB.peakDb === -Infinity ? '-∞' : reportB.peakDb.toFixed(1);
+        lines.push(`| **Peak Level** | ${peakAStr} dBFS | ${peakBStr} dBFS | ${dbDeltaStr(reportA.peakDb, reportB.peakDb)} |`);
+        lines.push(`| **Dynamic Range** | ${reportA.dynamicRangeDb.toFixed(1)} dB | ${reportB.dynamicRangeDb.toFixed(1)} dB | ${formatDelta(reportB.dynamicRangeDb - reportA.dynamicRangeDb, ' dB', 1)} |`);
+        lines.push(`| **Crest Factor** | ${reportA.crestFactor.toFixed(2)} | ${reportB.crestFactor.toFixed(2)} | ${formatDelta(reportB.crestFactor - reportA.crestFactor, '', 2)} |`);
+        lines.push(`| **Clipped Samples** | ${reportA.clippedSampleCount} (${reportA.clippingPercent.toFixed(2)}%) | ${reportB.clippedSampleCount} (${reportB.clippingPercent.toFixed(2)}%) | ${formatDelta(reportB.clippedSampleCount - reportA.clippedSampleCount, ' samples', 0)} (${formatDelta(reportB.clippingPercent - reportA.clippingPercent, '%', 2)}) |`);
+        lines.push(`| **DC Offset** | ${reportA.dcOffset.toFixed(4)} | ${reportB.dcOffset.toFixed(4)} | ${formatDelta(reportB.dcOffset - reportA.dcOffset, '', 4)} |`);
+        lines.push(`| **Spectral Centroid** | ${reportA.spectralCentroidHz.toFixed(0)} Hz | ${reportB.spectralCentroidHz.toFixed(0)} Hz | ${formatDelta(reportB.spectralCentroidHz - reportA.spectralCentroidHz, ' Hz', 0)} (${formatPercentChange(reportA.spectralCentroidHz, reportB.spectralCentroidHz, 1)}) |`);
+
+        lines.push(``);
+        lines.push(`#### Frequency Band Energy Distribution`);
+        lines.push(`| Band | Capture A | Capture B | Delta (Absolute) |`);
+        lines.push(`| :--- | :--- | :--- | :--- |`);
+        
+        const bands: Array<{ name: string, key: keyof typeof reportA.bandEnergy }> = [
+          { name: 'Sub (20-80 Hz)', key: 'sub' },
+          { name: 'Bass (80-250 Hz)', key: 'bass' },
+          { name: 'Low-Mid (250-2000 Hz)', key: 'lowMid' },
+          { name: 'High-Mid (2000-6000 Hz)', key: 'highMid' },
+          { name: 'High (6000-20000 Hz)', key: 'high' }
+        ];
+
+        for (const band of bands) {
+          const valA = reportA.bandEnergy[band.key] * 100;
+          const valB = reportB.bandEnergy[band.key] * 100;
+          lines.push(`| ${band.name} | ${valA.toFixed(1)}% | ${valB.toFixed(1)}% | ${formatDelta(valB - valA, '%', 1)} |`);
+        }
+
+        lines.push(``);
+        lines.push(`#### Rhythm & Timing`);
+        
+        const bpmA = reportA.estimatedBpm ? `${reportA.estimatedBpm} BPM` : 'N/A';
+        const bpmB = reportB.estimatedBpm ? `${reportB.estimatedBpm} BPM` : 'N/A';
+        const bpmDelta = (reportA.estimatedBpm && reportB.estimatedBpm) 
+          ? formatDelta(reportB.estimatedBpm - reportA.estimatedBpm, ' BPM', 0) 
+          : 'N/A';
+        
+        lines.push(`- **Estimated Tempo:** ${bpmA} → ${bpmB} (${bpmDelta})`);
+        lines.push(`- **Onset Count:** ${reportA.onsetCount} → ${reportB.onsetCount} (${formatDelta(reportB.onsetCount - reportA.onsetCount, ' onsets', 0)})`);
+        
+        const jitterA = reportA.onsetCount >= 2 ? `${reportA.onsetTimingStdDevMs.toFixed(1)} ms` : 'N/A';
+        const jitterB = reportB.onsetCount >= 2 ? `${reportB.onsetTimingStdDevMs.toFixed(1)} ms` : 'N/A';
+        const jitterDelta = (reportA.onsetCount >= 2 && reportB.onsetCount >= 2)
+          ? formatDelta(reportB.onsetTimingStdDevMs - reportA.onsetTimingStdDevMs, ' ms', 1)
+          : 'N/A';
+        lines.push(`- **Timing Jitter:** ${jitterA} → ${jitterB} (${jitterDelta})`);
+
+        lines.push(``);
+        lines.push(`#### Diagnostic & Audio Character Changes`);
+        
+        if (reportA.isSilent !== reportB.isSilent) {
+          lines.push(`- **Silence Status:** Changed from ${reportA.isSilent ? 'Silent' : 'Active'} to ${reportB.isSilent ? 'Silent' : 'Active'}.`);
+        }
+        
+        if (reportA.hasClipping !== reportB.hasClipping) {
+          lines.push(`- **Clipping Status:** ${reportB.hasClipping ? '⚠ Headroom exceeded — clipping has started.' : '✓ Clipping resolved.'}`);
+        } else if (reportB.hasClipping && reportB.clippingPercent !== reportA.clippingPercent) {
+          const clipDiff = reportB.clippingPercent - reportA.clippingPercent;
+          lines.push(`- **Clipping Severity:** ${clipDiff > 0 ? `⚠ Increased clipping by ${clipDiff.toFixed(2)}%` : `✓ Reduced clipping by ${Math.abs(clipDiff).toFixed(2)}%`}`);
+        }
+
+        if (reportA.hasDcOffset !== reportB.hasDcOffset) {
+          lines.push(`- **DC Offset Status:** ${reportB.hasDcOffset ? '⚠ DC Offset detected (> 0.01).' : '✓ DC Offset resolved.'}`);
+        }
+
+        const toneCategory = (centroid: number) => {
+          if (centroid < 800) return 'Very Dark';
+          if (centroid < 2000) return 'Warm';
+          if (centroid < 4000) return 'Balanced';
+          return 'Bright/Harsh';
+        };
+        const catA = toneCategory(reportA.spectralCentroidHz);
+        const catB = toneCategory(reportB.spectralCentroidHz);
+        if (catA !== catB) {
+          lines.push(`- **Tonal Balance:** Shifted from **${catA}** to **${catB}**.`);
+        }
+
+        const jitterCategory = (jitter: number) => {
+          if (jitter < 5) return 'Very Tight';
+          if (jitter < 15) return 'Acceptable';
+          return 'Loose/Erratic';
+        };
+        if (reportA.onsetCount >= 2 && reportB.onsetCount >= 2) {
+          const jitCatA = jitterCategory(reportA.onsetTimingStdDevMs);
+          const jitCatB = jitterCategory(reportB.onsetTimingStdDevMs);
+          if (jitCatA !== jitCatB) {
+            lines.push(`- **Timing Quality:** Shifted from **${jitCatA}** to **${jitCatB}**.`);
+          }
+        }
+
+        lines.push(``);
+        lines.push(`#### Plain English Summaries`);
+        lines.push(`* **A:** *${reportA.summary}*`);
+        lines.push(`* **B:** *${reportB.summary}*`);
+
+        return mcpText(id, lines.join('\n'));
+      } catch (err: any) {
+        return mcpErr(id, `Diff failed: ${err.message}`);
       }
     }
 
