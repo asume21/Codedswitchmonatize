@@ -6,11 +6,9 @@ import App from "./App";
 import "./index.css";
 import { initAudioDebugBridge } from './lib/audioDebugBridge';
 import { startLongTaskMonitor } from './lib/perf/longTaskMonitor';
-import './lib/webeyeBridge';
-import './lib/websenseBridge';
-import './lib/webnerveBridge';
-import './lib/webshieldBridge';
-import './lib/weblogBridge';
+// AI Perception bridges (WebEye, WebSense, WebNerve, WebShield, WebLog) are
+// opt-in developer snippets — do NOT auto-import here. Developers drop the
+// relevant bridge script into their own app to activate a sensor.
 
 initAudioDebugBridge();
 
