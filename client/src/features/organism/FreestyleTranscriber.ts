@@ -118,8 +118,17 @@ export class FreestyleTranscriber {
     }
 
     recognition.onerror = (event: SpeechRecognitionErrorEventCompat) => {
-      // 'no-speech' and 'aborted' are normal during freestyle pauses
+      // 'no-speech' and 'aborted' are normal during freestyle pauses — ignore them.
       if (event.error === 'no-speech' || event.error === 'aborted') return
+      // Permission denied or hardware missing: stop the restart loop immediately.
+      if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+        this.active = false
+        this.state.isActive = false
+        console.warn('[FreestyleTranscriber] Mic unavailable:', event.error)
+        this.emit()
+        return
+      }
+      // Transient errors (network, service-not-allowed): log but let onend restart.
       console.warn('[FreestyleTranscriber] Speech error:', event.error)
     }
 

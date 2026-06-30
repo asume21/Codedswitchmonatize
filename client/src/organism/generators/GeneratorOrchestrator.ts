@@ -71,6 +71,9 @@ export class GeneratorOrchestrator {
   // performer state, and self-listen are layered separately so frame-by-frame
   // behavior cannot overwrite what the user set in the UI.
   private hatDensityMultiplier:   number = 1.0
+  // Tracks the section-arc hat multiplier separately so applyPerformerState
+  // can layer syllabic reactivity ON TOP of the ramp rather than clobbering it.
+  private hatArcMultiplier:       number = 1.0
   private kickVelocityMultiplier: number = 1.0
   private bassVolumeMultiplier:   number = 1.0
   private melodyPitchOffset:      number = 0
@@ -659,11 +662,13 @@ export class GeneratorOrchestrator {
     )
     this.drum.setKickVelocityMultiplier(kickMult)
 
-    // 2. Syllabic rate → hi-hat density
+    // 2. Syllabic rate → hi-hat density, layered on top of the section arc.
+    // hatArcMultiplier is updated once per bar by onArrangementBar; combining
+    // here ensures performer reactivity rides the arc rather than clobbering it.
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
     const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
     this.drum.setHatDensityMultiplier(
-      this.hatDensityMultiplier * hatPerformance,
+      this.hatDensityMultiplier * this.hatArcMultiplier * hatPerformance,
     )
 
     // 3. Breathing / rest — REMOVED (Part 2). Per-frame melody/texture volume
@@ -1657,7 +1662,8 @@ export class GeneratorOrchestrator {
     this.texture.setRole(orch?.texture ?? 'support')
 
     if (aiOverride) {
-      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * aiOverride.hatDensity)
+      this.hatArcMultiplier = aiOverride.hatDensity
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier)
       this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier * aiOverride.kickPunch)
     }
 
@@ -1666,14 +1672,15 @@ export class GeneratorOrchestrator {
         // Build section ramp: hats climb 1x → 1.8x over the build bars for
         // the classic pre-drop tension squeeze.
         const buildProgress = section.bars > 1 ? sectionBar / (section.bars - 1) : 0
-        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + buildProgress * 0.8))
+        this.hatArcMultiplier = 1.0 + buildProgress * 0.8
       } else {
         // Within-section arc: hats gradually open up over the first 8 bars so
         // bar 8 of a verse sounds noticeably fuller than bar 1. Caps at 8 bars
         // so there's a natural "settled" plateau rather than endless growth.
         const intraProgress = Math.min(1, sectionBar / 8)
-        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * (1.0 + intraProgress * 0.3))
+        this.hatArcMultiplier = 1.0 + intraProgress * 0.3
       }
+      this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier)
     }
 
     // 4-bar micro-fills: a 1-beat variation on beat 3 of every 4th cycle bar
