@@ -3,6 +3,7 @@ import * as Tone from "tone";
 import { audioEngine, InstrumentName } from "../lib/audioEngine";
 import { useToast } from "@/hooks/use-toast";
 import { professionalAudio } from "@/lib/professionalAudio";
+import { useStudioStore } from "@/stores/useStudioStore";
 
 export type DrumType = 'kick' | 'snare' | 'hihat' | 'openhat' | 'clap' | 'tom' | 'crash' | 'perc';
 
@@ -97,7 +98,7 @@ export function useSequencer() {
     stopPattern();
     isPlayingRef.current = true;
 
-    Tone.Transport.bpm.value = bpm;
+    useStudioStore.getState().setBpm(bpm);
     const totalSteps = 16;
     const stepDuration = Tone.Time('16n').toSeconds();
 

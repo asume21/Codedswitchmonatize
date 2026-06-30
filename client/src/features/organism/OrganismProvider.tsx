@@ -488,7 +488,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setV2Status(prev => {
           if (!prev.active) return prev
           const transport = Tone.getTransport()
-          const currentBpm = Math.round(transport.bpm.value)
+          const currentBpm = Math.round(useStudioStore.getState().bpm)
           const pos = transport.position as string
           const currentBar = parseInt(pos.split(':')[0], 10) || 0
           
@@ -1315,8 +1315,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     if (captureRef.current) {
       captureRef.current.capture().then((dna) => {
         if (dna && dna.generatorEvents && dna.generatorEvents.length > 0) {
-          const orch = orchestrRef.current
-          const bpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+          const bpm = useStudioStore.getState().bpm
           bridgeOrganismToStore(dna.generatorEvents, bpm, 'organism')
         }
       }).catch(() => { /* capture failed — no-op */ })
@@ -1336,8 +1335,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
       // Bridge captured generator events into the store
       if (dna.generatorEvents && dna.generatorEvents.length > 0) {
-        const orch = orchestrRef.current
-        const sessionBpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+        const sessionBpm = useStudioStore.getState().bpm
         bridgeOrganismToStore(dna.generatorEvents, sessionBpm, 'organism')
       }
     }
@@ -2207,8 +2205,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Bridge generator events into the global store so Piano Roll / Beat Maker
     // can display the notes the user just freestyled over.
     if (dna && dna.generatorEvents && dna.generatorEvents.length > 0) {
-      const orch = orchestrRef.current
-      const sessionBpm = orch ? orch.getBpm() : useStudioStore.getState().bpm
+      const sessionBpm = useStudioStore.getState().bpm
       bridgeOrganismToStore(dna.generatorEvents, sessionBpm, 'organism')
     }
 
@@ -2252,7 +2249,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
    * with the SavedSession when the recording finishes.
    */
   const recordForBars = useCallback(async (bars: number, label?: string): Promise<SavedSession | null> => {
-    const bpm = orchestrRef.current?.getBpm() ?? useStudioStore.getState().bpm ?? 90
+    const bpm = useStudioStore.getState().bpm ?? 90
     const msPerBar = (60_000 / bpm) * 4  // 4 beats per bar
     const durationMs = bars * msPerBar
 
@@ -2692,16 +2689,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
           break
         case 'bpm-up': {
           const delta = typeof action.value === 'number' ? action.value : 10
-          const newBpm = orch.getBpm() + delta
-          orch.setBpm(newBpm)
-          useStudioStore.getState().setBpm(newBpm)
+          // orch.setBpm routes through the store, which writes Transport too.
+          orch.setBpm(useStudioStore.getState().bpm + delta)
           break
         }
         case 'bpm-down': {
           const delta = typeof action.value === 'number' ? action.value : 10
-          const newBpm = orch.getBpm() - delta
-          orch.setBpm(newBpm)
-          useStudioStore.getState().setBpm(newBpm)
+          orch.setBpm(useStudioStore.getState().bpm - delta)
           break
         }
         case 'drop':
@@ -2796,9 +2790,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const lock = cadenceLockRef.current
     if (!lock || !transcription) return
 
-    // Update the lock with current BPM
-    const orch = orchestrRef.current
-    if (orch) lock.setCurrentBpm(orch.getBpm())
+    // Update the lock with current BPM from the store (single source of truth)
+    lock.setCurrentBpm(useStudioStore.getState().bpm)
 
     // Only feed lines we haven't seen yet
     const lines = transcription.lines
@@ -3208,8 +3201,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         beatBlob = lastSavedSession.beatBlob
       }
 
-      const orch = orchestrRef.current
-      const bpm  = orch ? orch.getBpm() : useStudioStore.getState().bpm
+      const bpm  = useStudioStore.getState().bpm
       const key  = useStudioStore.getState().key
 
       const form = new FormData()
@@ -3271,7 +3263,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       starting: isStarting,
       inputSource,
       activePresetId,
-      bpm: orchestrRef.current?.getBpm() ?? useStudioStore.getState().bpm,
+      bpm: useStudioStore.getState().bpm,
       physics: physicsState ? {
         mode: physicsState.mode,
         pulse: physicsState.pulse,
@@ -3443,8 +3435,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     savedSessions,
     downloadSession,
 
-    // Multi-take producer workflow
-    currentBpm: orchestrRef.current?.getBpm() ?? 90,
+    // Multi-take producer workflow — read from store (single source of truth)
+    currentBpm: useStudioStore.getState().bpm ?? 90,
     isProgressionLocked,
     lockChordProgression,
     unlockChordProgression,

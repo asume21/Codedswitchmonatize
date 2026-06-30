@@ -1,6 +1,7 @@
 import * as Tone from 'tone';
 import { getAudioContext } from './audioContext';
 import { requestTransportCancel, requestTransportPosition, requestTransportStart, requestTransportStop } from './transportController';
+import { useStudioStore } from '@/stores/useStudioStore';
 
 interface PackSample {
   id: string;
@@ -253,7 +254,7 @@ export class PackAudioSynthesizer {
     if (this.bassSynth) this.bassSynth.volume.value = Tone.gainToDb(masterVolume) - 3;
     if (this.drumSynth) this.drumSynth.volume.value = Tone.gainToDb(masterVolume);
 
-    Tone.Transport.bpm.value = pack.bpm || 120;
+    useStudioStore.getState().setBpm(pack.bpm || 120);
     
     const genre = pack.genre || 'Electronic';
     const key = pack.key || 'C';

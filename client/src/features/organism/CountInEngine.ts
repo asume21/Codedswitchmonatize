@@ -11,6 +11,7 @@
 
 import * as Tone from 'tone'
 import { requestTransportStart } from '../../lib/transportController'
+import { useStudioStore } from '../../stores/useStudioStore'
 
 export interface CountInOptions {
   bpm:       number
@@ -50,8 +51,8 @@ export class CountInEngine {
       volume:      -12,
     }).toDestination()
 
-    // Temporarily set BPM for count-in timing
-    this.transport.bpm.value = bpm
+    // Temporarily set BPM for count-in timing (through the store — single source of truth)
+    useStudioStore.getState().setBpm(bpm)
 
     // Schedule each beat
     const beatDuration = 60 / bpm  // seconds per beat
@@ -109,7 +110,7 @@ export class CountInEngine {
       }
       // Restore the BPM that was active before the count-in
       if (this.savedBpm > 0) {
-        this.transport.bpm.value = this.savedBpm
+        useStudioStore.getState().setBpm(this.savedBpm)
       }
     }
     this.eventIds = []

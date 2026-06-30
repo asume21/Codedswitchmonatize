@@ -74,8 +74,13 @@ export const globalLimiter = rateLimit({
 export const authLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
-  max: 100,                 // 100 auth requests per 15 min — covers /me on every page load
+  max: 100,                 // 100 auth requests per 15 min
   skipFailedRequests: false, // Count failures so brute-force still hits the cap
+  // /me is a session check fired on every page load, not a login attempt — exempt it.
+  // This limiter is mounted at app.use("/api/auth", …), so inside it req.path is the
+  // mount-relative "/me" (NOT "/api/auth/me"). Check originalUrl too in case the
+  // mount point ever changes.
+  skip: (req) => req.path === '/me' || req.originalUrl.split('?')[0] === '/api/auth/me',
   handler: jsonRateLimitHandler(
     'Too many login attempts. Please wait a few minutes and try again.',
   ),

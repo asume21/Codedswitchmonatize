@@ -381,10 +381,10 @@ export class GeneratorOrchestrator {
     // transient, but when the ramp was skipped it silently bricked audio.
     dest.volume.value = 0
 
-    // BPM is synced from TransportContext (the single source of truth).
-    // Only set BPM here as a fallback if Transport hasn't been configured yet.
+    // BPM is synced from TransportContext via the store (single source of truth).
+    // Route through the store so the UI and Transport stay in lock-step.
     if (bpm != null && transport.bpm.value !== bpm) {
-      transport.bpm.value = bpm
+      useStudioStore.getState().setBpm(bpm)
     }
 
     if (!startTransport) {
@@ -491,8 +491,13 @@ export class GeneratorOrchestrator {
    * also sync the Zustand store so TransportContext stays consistent.
    */
   setBpm(bpm: number): void {
+    // Clamp to the organism's musical range, then route through the store — the
+    // single source of truth that also writes Tone.Transport. Previously this set
+    // transport.bpm.rampTo() directly, which (a) bypassed the store so UI/organism
+    // reads went stale and (b) reintroduced the bpm.rampTo seconds→ticks skew that
+    // has silenced audio before (project_organism_silence_audio_routing memory).
     const clamped = Math.max(40, Math.min(200, bpm))
-    Tone.getTransport().bpm.rampTo(clamped, 0.5)
+    useStudioStore.getState().setBpm(clamped)
   }
 
   /** Get current BPM from Tone Transport. */
@@ -1775,9 +1780,9 @@ export class GeneratorOrchestrator {
 
     // Save session BPM before locking to pack tempo so clearLoopPack can restore it
     this._preLockBpm = useStudioStore.getState().bpm ?? Tone.getTransport().bpm.value
-    // Lock BPM to the pack
+    // Lock BPM to the pack — store.setBpm writes Transport too, so no direct
+    // transport write is needed (and a direct write would desync the store).
     useStudioStore.getState().setBpm(pack.bpm)
-    Tone.getTransport().bpm.value = pack.bpm
     // Flip all generators to loop playback
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.setLoopMode(true))
@@ -1807,10 +1812,9 @@ export class GeneratorOrchestrator {
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.unloadLoopPlayback())
 
-    // Restore BPM if we locked it to the pack
+    // Restore BPM if we locked it to the pack (store.setBpm writes Transport too)
     if (this._preLockBpm !== null) {
       useStudioStore.getState().setBpm(this._preLockBpm)
-      Tone.getTransport().bpm.value = this._preLockBpm
       this._preLockBpm = null
     }
 

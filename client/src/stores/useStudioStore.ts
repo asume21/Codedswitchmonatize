@@ -10,6 +10,7 @@
  */
 import { create } from 'zustand'
 import { subscribeWithSelector, persist } from 'zustand/middleware'
+import * as Tone from 'tone'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -211,6 +212,11 @@ export const useStudioStore = create<StudioState>()(
 
     setBpm: (bpm: number) => {
       const clamped = Math.max(20, Math.min(300, bpm))
+      // Single source of truth: this is the ONLY place that writes Tone.Transport's
+      // tempo. Every other caller (TransportContext, GeneratorOrchestrator, count-in,
+      // pack synth, use-audio) routes through here so the store and the audio clock
+      // can never disagree. See project_audio_clock_ownership memory.
+      Tone.getTransport().bpm.value = clamped
       set({ bpm: clamped })
     },
 

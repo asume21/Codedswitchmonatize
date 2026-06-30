@@ -241,8 +241,9 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
         pianoRollScheduler.start(effectiveBpm, pianoRollScheduler.patternSteps, startAt);
       }
 
-      // Start Tone.Transport at the same offset so Tone.js generators are in lock-step
-      Tone.getTransport().bpm.value = effectiveBpm;
+      // Start Tone.Transport at the same offset so Tone.js generators are in lock-step.
+      // setBpm is the single writer of Transport tempo (keeps store + clock synced).
+      useStudioStore.getState().setBpm(effectiveBpm);
       Tone.getTransport().start(`+0.05`);
     })();
   }, [storePlay]);
@@ -267,9 +268,8 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     globalAudioKillSwitch.killAllAudio();
   }, [clearRaf, storeStop]);
   const setTempo = useCallback((v: number) => {
-    storeBpm(v);
+    storeBpm(v); // store.setBpm writes Transport.bpm too — single source of truth
     pianoRollScheduler.setBpm(v);
-    Tone.getTransport().bpm.value = v;
   }, [storeBpm]);
   const seek = useCallback((v: number) => { storeSeek(v); }, [storeSeek]);
   const setLoop = useCallback((cfg: Partial<LoopRegion>) => { storeSetLoop(cfg); }, [storeSetLoop]);
@@ -293,7 +293,8 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
         await resumeAudioContext();
         const bpm = useStudioStore.getState().bpm ?? 120;
         const t   = Tone.getTransport();
-        t.bpm.value = bpm;
+        // Safety sync: ensure Transport tempo matches the store before starting.
+        useStudioStore.getState().setBpm(bpm);
         if (t.state !== 'started') t.start();
         // Mirror the playing state into the studio store so observers
         // (transport bar, etc.) see we're playing.
