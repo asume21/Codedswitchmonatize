@@ -65,7 +65,9 @@ function buildCatalog(pack: LoopPack): string {
 }
 
 function buildPrompt(pack: LoopPack, sections: SectionBrief[]): string {
-  return `You are a professional hip-hop producer arranging pre-made loops into a FIRE beat that BUILDS over its sections — sparse, inviting intro; full, hard-hitting drop; dynamics in between. You are arranging the "${pack.label}" pack (${pack.bpm} BPM, key ${pack.key}).
+  // Random variation token so the LLM doesn't anchor to the same picks
+  const roll = Math.floor(Math.random() * 10000)
+  return `[variation:${roll}] You are a professional hip-hop producer arranging pre-made loops into a FIRE beat that BUILDS over its sections — sparse, inviting intro; full, hard-hitting drop; dynamics in between. You are arranging the "${pack.label}" pack (${pack.bpm} BPM, key ${pack.key}). Make bold, creative choices — avoid defaulting to the obvious picks every time.
 
 Available loops, by instrument row (each with how it sounds — energy/brightness/busyness 0–1):
 ${buildCatalog(pack)}
@@ -150,8 +152,14 @@ export async function arrangeLoops(
     let lastErr: unknown
     for (const modelName of MODEL_CANDIDATES) {
       try {
-        const model = genAI.getGenerativeModel({ model: modelName })
-        const result = await model.generateContent(prompt)
+        const model = genAI.getGenerativeModel(
+          { model: modelName },
+          { apiVersion: 'v1beta' },
+        )
+        const result = await model.generateContent({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.1, topP: 0.95 },
+        })
         text = result.response.text()
         break
       } catch (err: any) {
