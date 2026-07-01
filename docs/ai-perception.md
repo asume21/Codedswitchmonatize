@@ -1,59 +1,227 @@
 # AI Perception Platform
 
-"Your AI can think. Now let it hear, see, and feel."
+> "Your AI can think. Now let it hear, see, and feel."
 
-## The Vision
-AI models (LLMs) currently operate as "brains in a jar." They possess high cognitive intelligence and logical reasoning, but lack real-time sensory perception of the physical or digital environments their users are active in. The **AI Perception Platform** is an infrastructure layer designed to deliver real-time sensory capabilities to AI models via standardized Model Context Protocol (MCP) APIs.
+AI models are brains in a jar — high cognitive intelligence, zero real-time senses. The **AI Perception Platform** is an infrastructure layer that gives any AI model direct sensory access to a live browser session via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io).
 
-Instead of a user manually describing audio, layouts, or metrics to a model, the platform grants the AI its own direct senses:
-- **WebEar (AI Hearing):** Real-time audio capture, signal analysis, rhythmic analysis, and mix coaching.
-- **WebEye (AI Sight):** Video, canvas, and UI layout capture, computer vision, visual comparison, and design critique.
-- **WebSense (AI Feeling):** Real-time telemetry, haptics, and system/sensor data streams.
+Instead of describing what's on screen or in the mix to an AI, you let it listen, watch, and monitor for itself.
 
 ---
 
-## Core Architecture Pattern
-The platform uses a unified sensor-agnostic infrastructure, enabling new modalities to be added rapidly by reusing the same transport and auth mechanics.
+## Sensors
 
-```mermaid
-graph TD
-    Browser[Browser / Web Client] -- "1. SSE Connect /api/{sensor}/connect" --> Relay[Webear Relay Server]
-    Claude[Claude / MCP Client] -- "2. MCP SSE /api/{sensor}/mcp/sse" --> Relay
-    Relay -- "3. Trigger Capture Event" --> Browser
-    Browser -- "4. Record MediaRecorder/Sensors" --> Browser
-    Browser -- "5. POST binary blob /api/{sensor}/blob/{id}" --> Relay
-    Relay -- "6. Signal Analysis / AI Processing" --> Relay
-    Relay -- "7. Return Text/Markdown Result" --> Claude
+| Sensor | What it perceives | Status |
+|---|---|---|
+| **WebEar** | Audio — mix quality, rhythm, instruments, clipping | ✅ Shipped |
+| **WebEye** | Visual — canvas, UI layout, animations, screenshots | ✅ Shipped |
+| **WebSense** | Performance — frame rate, memory, audio latency | ✅ Shipped |
+| **WebNerve** | Network — API latencies, connection quality, storage | ✅ Shipped |
+| **WebShield** | Security — cookies, storage exposure, CSP, framing | ✅ Shipped |
+| **WebLog** | Console — logs, warnings, errors, uncaught exceptions | ✅ Shipped |
+
+---
+
+## Architecture
+
+Every sensor follows the same three-component pattern:
+
+```
+Browser Bridge ──SSE──▶ Relay Server ◀──MCP──▶ AI Model (Claude)
+                ◀── capture command ──
+                ──── blob POST ──────▶
+                                      ──── analysis ──▶ AI response
 ```
 
-### Shared Reusable Infrastructure
-1. **SSE Browser Relay (`/api/{sensor}/connect`):** Maintains persistent Server-Sent Events connections from active browser tabs, keyed by user/developer API keys.
-2. **Blob Storage Engine (`/api/{sensor}/blob/:captureId`):** Temporary in-memory cache with eviction policies to store captured sensory data without risking disk or RAM exhaustion.
-3. **MCP SSE Transport & Messages:** Standardized JSON-RPC protocol implementation for Claude Code and other MCP clients.
-4. **Credit Ledger Billing:** Billed usage per tool call based on compute costs (e.g., simple analysis vs. high-tier multimodal processing).
+1. **Browser Bridge** (`client/src/lib/{sensor}Bridge.ts`) — a script running inside the user's browser tab. It connects to the relay server over SSE, listens for capture commands, records media/data, and POSTs the result back as a blob.
+
+2. **Relay Server** (`server/routes/webearRelay.ts`) — Express routes that:
+   - Keep persistent SSE connections from active browser tabs (`/api/webeye/connect`, `/api/webear/connect`, etc.)
+   - Store captured blobs in memory with TTL eviction
+   - Expose all tools as a single MCP SSE endpoint at `/api/webear/mcp/sse`
+
+3. **MCP Client** (Claude Code, Cursor, etc.) — connects to the MCP endpoint and calls tools like `capture_audio`, `describe_video`, `analyze_telemetry` etc.
+
+---
+
+## Activating Bridges (Opt-In)
+
+Bridges are **off by default** for all users. Activate any sensor by adding URL params to the app:
+
+```
+https://yourapp.com/studio?webeye=1&webear=1&websense=1&webnerve=1&webshield=1&weblog=1
+```
+
+Each param independently boots its bridge:
+
+| URL Param | Bridge File | Sensor Activated |
+|---|---|---|
+| `?webeye=1` | `webeyeBridge.ts` | WebEye (visual) |
+| `?websense=1` | `websenseBridge.ts` | WebSense (telemetry) |
+| `?webnerve=1` | `webnerveBridge.ts` | WebNerve (network) |
+| `?webshield=1` | `webshieldBridge.ts` | WebShield (security) |
+| `?weblog=1` | `weblogBridge.ts` | WebLog (console) |
+| *(WebEar is always on for logged-in users)* | `webearBridge.ts` | WebEar (audio) |
+
+---
+
+## Connecting as an MCP Server
+
+Add to your `claude_desktop_config.json` or Claude Code MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "webear": {
+      "url": "https://yourapp.com/api/webear/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer wbr_YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+API keys are issued per-user and visible in Settings → WebEar. Keys start with `wbr_`.
+
+---
+
+## Tool Reference
+
+### WebEar — Audio Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_audio` | Free | Record live tab audio. Returns a `capture_id`. |
+| `analyze_audio` | 1 | BPM, loudness (RMS/peak), frequency bands, clipping %, dynamic range, spectral centroid. |
+| `describe_audio` | 2 | AI plain-English description — instruments, genre, mood, mixing notes (powered by Gemini multimodal). |
+| `diff_audio` | 1 | Compare two captures. Reports deltas in loudness, peak, clipping, spectral balance, and groove tightness. |
+| `groove_score` | 2 | Kick transient detection → grid alignment → deviation, swing factor, consistency score (0–100%). Pass `bpm` param for accuracy. |
+| `capture_and_analyze` | 1 | Capture + signal analysis in one call. |
+| `mix_coach` | 3 | Longer capture + structured mixing feedback: loudness, dynamic punch, low-end mud, clipping, DC offset. |
+
+**Capture parameters:** `duration_ms` (500–30000, default 3000)
+
+**Typical workflow:**
+```
+capture_audio → [analyze_audio | describe_audio | groove_score | diff_audio]
+```
+
+---
+
+### WebEye — Visual Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_video` | Free | Record canvas/video stream from the browser tab. Returns a `capture_id`. Optional: `selector` for a specific DOM element. |
+| `describe_video` | 2 | AI visual description — layout, animations, contrast, color, visual bugs (powered by Gemini Vision). |
+| `diff_visuals` | 2 | Compare two visual captures. Reports layout changes, element movements, design shifts. |
+
+**Requires:** `?webeye=1` URL param (or WebEye bridge manually imported)
+
+**Typical workflow:**
+```
+capture_video → describe_video
+capture_video (before) → [change something] → capture_video (after) → diff_visuals
+```
+
+---
+
+### WebSense — Performance Telemetry Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_telemetry` | Free | Record frame rate, JS heap memory, layout shifts, and audio latency over a time window. |
+| `analyze_telemetry` | 1 | Report on frame drops, memory pressure, layout instability, audio underruns. |
+
+**Requires:** `?websense=1` URL param
+
+---
+
+### WebNerve — Network Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_nerve` | Free | Record API request timings, connection quality indicators, and local/session storage size. |
+| `analyze_nerve` | 1 | Report slow API calls, connection quality, storage bloat. |
+| `diff_nerve` | 1 | Compare two nerve captures to track latency regressions or improvements. |
+
+**Requires:** `?webnerve=1` URL param
+
+---
+
+### WebShield — Security Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_shield` | Free | Snapshot cookie scopes, storage key exposure, CSP policies, and iframe framing status. |
+| `analyze_shield` | 1 | Flag CORS wildcarding, non-HttpOnly cookies, sensitive key names in storage, missing CSP. |
+| `diff_shield` | 1 | Compare two security snapshots to verify patch effectiveness or detect regressions. |
+
+**Requires:** `?webshield=1` URL param
+
+---
+
+### WebLog — Console Tools
+
+| Tool | Credits | Description |
+|---|---|---|
+| `capture_logs` | Free | Record `console.log/warn/error`, uncaught exceptions, and unhandled rejections over a time window. |
+| `analyze_logs` | 1 | Surface error patterns, repeated warnings, exception stack traces, and active app state at capture time. |
+| `diff_logs` | 1 | Compare two log captures to identify new errors introduced by a code change. |
+
+**Requires:** `?weblog=1` URL param
+
+---
+
+## Credit Pricing Summary
+
+| Cost | Tools |
+|---|---|
+| **Free** | `capture_audio`, `capture_video`, `capture_telemetry`, `capture_nerve`, `capture_shield`, `capture_logs` |
+| **1 credit** | `analyze_audio`, `diff_audio`, `capture_and_analyze`, `analyze_telemetry`, `analyze_nerve`, `diff_nerve`, `analyze_shield`, `diff_shield`, `analyze_logs`, `diff_logs` |
+| **2 credits** | `describe_audio`, `groove_score`, `describe_video`, `diff_visuals` |
+| **3 credits** | `mix_coach` |
+
+---
+
+## Vision: Complete AI Sensory Stack
+
+The goal is a complete sensory stack for AI agents operating in browser environments:
+
+```
+WebEar   — hears what users hear
+WebEye   — sees what users see
+WebSense — feels performance pressure users feel
+WebNerve — measures latency users experience
+WebShield— audits the security surface users are exposed to
+WebLog   — reads the error stream developers debug with
+```
+
+Combined, an AI model can understand a live app session the way a human expert sitting beside the user would — without the user having to describe anything.
+
+---
+
+## File Map
+
+```
+server/routes/webearRelay.ts      ← All MCP tools + SSE relay + blob store (single file)
+client/src/lib/webeyeBridge.ts    ← WebEye browser bridge
+client/src/lib/websenseBridge.ts  ← WebSense browser bridge
+client/src/lib/webnerveBridge.ts  ← WebNerve browser bridge
+client/src/lib/webshieldBridge.ts ← WebShield browser bridge
+client/src/lib/weblogBridge.ts    ← WebLog browser bridge
+client/src/main.tsx               ← URL-param opt-in loader (all bridges)
+server/services/videoDescribe.ts  ← Gemini Vision wrapper for describe_video
+docs/ai-perception.md             ← This file
+```
 
 ---
 
 ## Roadmap
 
-### Phase 1: WebEar (AI Hearing) — COMPLETE
-- **Status:** Shipped & Working.
-- **Tools:**
-  - `capture_audio` (Free): Captures tab audio via Tone.js tap.
-  - `analyze_audio` (1 credit): Decodes PCM and calculates RMS, peak, dynamic range, spectral centroid, frequency bands, and BPM.
-  - `describe_audio` (2 credits): High-fidelity description using Gemini multimodal voice analysis.
-  - `diff_audio` (1 credit): Structural comparison delta report (A/B testing).
-  - `groove_score` (2 credits): Isolation of kick drums, grid alignment optimization, swing percentage, and tightness rating.
-  - `capture_and_analyze` (1 credit): Capture and signal analysis combined.
-  - `mix_coach` (3 credits): Virtual mix coaching feedback.
-
-### Phase 2: WebEye (AI Sight) — ACTIVE
-- **Status:** Building browser capture snippet.
-- **Concept:** Allowing models to inspect HTML5 canvases, video elements, and browser viewport layout to perform automated design critiques, layout bug detection, and visual verification.
-- **Target Tools:**
-  - `capture_video` / `capture_frame`: Capture a canvas stream or screenshot.
-  - `diff_visuals`: Perform structural pixel and layout delta analysis.
-  - `ui_critique`: Analyze contrast, spacing, accessibility compliance, and visual balance.
-
-### Phase 3: WebSense (AI Telemetry/Feeling) — FUTURE
-- **Concept:** Exposing real-time telemetry, haptics, CPU profiles, or streaming performance data as a direct feed to the AI.
+- [ ] Persistent blob storage (currently in-memory, lost on Railway redeploy)
+- [ ] WebEar MCP registry listing on mcp.so
+- [ ] AI Perception landing page for external developers
+- [ ] WebEye: `ui_critique` tool — accessibility, contrast, spacing analysis
+- [ ] WebSense: streaming telemetry (real-time feed vs. capture-then-analyze)
+- [ ] Multi-sensor correlation: audio clipping + CPU spike + API timeout = one diagnosis
