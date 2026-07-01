@@ -83,3 +83,51 @@ export async function compareVideos(
   }
   throw new Error(`No Gemini model accepted the video comparison request — ${errors.join(' | ')}`);
 }
+
+export async function createPostFromVideo(
+  videoBuffer: Buffer,
+  mimeType: string,
+  postType: 'devlog' | 'social' | 'bug_report' | 'marketing',
+  context?: string
+): Promise<string> {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY environment variable is missing.');
+  }
+
+  const base64Data = videoBuffer.toString('base64');
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const errors: string[] = [];
+
+  let styleInstructions = '';
+  if (postType === 'devlog') {
+    styleInstructions = 'Format as a markdown devlog/blog post. Focus on technical features, UI/UX changes, implementation details, and overall progress. Keep it engaging, professional, and clear.';
+  } else if (postType === 'social') {
+    styleInstructions = 'Format as an engaging social media post (like X/Twitter, LinkedIn, or Threads). Use short, punchy paragraphs, bullet points, maybe a few relevant emojis, and a hook. Do not overdo hashtags.';
+  } else if (postType === 'bug_report') {
+    styleInstructions = 'Format as a professional bug/issue report. Include a Summary, Observed Behavior, Visual Evidence description, and potential impact. Keep it clean, precise, and objective.';
+  } else if (postType === 'marketing') {
+    styleInstructions = 'Format as a marketing/product update. Focus on the value proposition, user benefits, visual aesthetics, and excitement. Keep it highly persuasive, polished, and direct.';
+  }
+
+  const prompt = `You are an AI content creator and developer advocate. Analyze this video capture of a web page/app and generate a high-quality post.
+${styleInstructions}
+${context ? `Additional user context to incorporate: "${context}"` : ''}
+Generate only the post content, formatted cleanly in Markdown. Do not include introductory conversational filler.`;
+
+  for (const modelName of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent([
+        { text: prompt },
+        { inlineData: { mimeType, data: base64Data } },
+      ]);
+      return result.response.text();
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      errors.push(`${modelName}: ${msg}`);
+      if (!/404|not found|no longer available|not supported/i.test(msg)) throw err;
+    }
+  }
+  throw new Error(`No Gemini model accepted the video post request — ${errors.join(' | ')}`);
+}
+

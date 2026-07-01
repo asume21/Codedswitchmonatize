@@ -15,7 +15,7 @@ import { spawn } from 'child_process';
 import type { IStorage } from '../storage';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
 import { describeAudio } from '../services/audioDescribe';
-import { describeVideo, compareVideos } from '../services/videoDescribe';
+import { describeVideo, compareVideos, createPostFromVideo } from '../services/videoDescribe';
 import { getCreditService } from '../services/credits';
 
 // ── In-memory stores ──────────────────────────────────────────────────────────
@@ -472,6 +472,26 @@ async function handleMcpMessage(
                 capture_id_b: { type: 'string', description: 'Second capture ID (after) to compare' },
               },
               required: ['capture_id_a', 'capture_id_b'],
+            },
+          },
+          {
+            name: 'create_post_from_video',
+            description: 'Generate a structured markdown post (devlog, social, bug_report, or marketing) from a captured video. Costs 2 credits.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                capture_id: { type: 'string', description: 'ID returned by capture_video' },
+                post_type: {
+                  type: 'string',
+                  description: 'The target style/destination of the generated post (default: devlog)',
+                  enum: ['devlog', 'social', 'bug_report', 'marketing'],
+                },
+                context: {
+                  type: 'string',
+                  description: 'Optional additional context or instructions to influence the post contents',
+                },
+              },
+              required: ['capture_id'],
             },
           },
           {
@@ -1314,6 +1334,30 @@ async function handleMcpMessage(
         return mcpErr(id, `Visual comparison failed: ${err.message}`);
       }
     }
+
+    // ── create_post_from_video ───────────────────────────────────────────────
+    if (toolName === 'create_post_from_video') {
+      const captureId = String(args.capture_id ?? '');
+      const postType = (args.post_type as 'devlog' | 'social' | 'bug_report' | 'marketing') ?? 'devlog';
+      const context = args.context ? String(args.context) : undefined;
+
+      const blob = videoBlobs.get(captureId);
+      if (!blob) return mcpErr(id, `Video capture "${captureId}" not found or expired. Run capture_video again.`);
+
+      const balance = await creditService.getBalance(session.userId);
+      if (balance < 2) return mcpErr(id, `Insufficient credits (have ${balance}, need 2). Buy more at https://www.codedswitch.com/buy-credits`);
+
+      try {
+        const post = await createPostFromVideo(blob.buffer, blob.contentType, postType, context);
+        await creditService.deductCredits(session.userId, 2, 'webeye create_post_from_video', { tool: 'create_post_from_video' });
+        const keyRecord = await storage.getWebearKeyByValue(session.rawKey);
+        if (keyRecord) await storage.incrementWebearKeyUsage(keyRecord.id);
+        return mcpText(id, post);
+      } catch (err: any) {
+        return mcpErr(id, `Post generation failed: ${err.message}`);
+      }
+    }
+
 
     // ── capture_telemetry ────────────────────────────────────────────────────
     if (toolName === 'capture_telemetry') {
