@@ -9,6 +9,7 @@ interface PerceptionResult {
   spectralCentroidHz: number | null;
   bands: { sub: number; bass: number; lowMid: number; mid: number; high: number };
   description: string | null;
+  descriptionGated: boolean;
   durationSec: number;
 }
 
@@ -62,18 +63,30 @@ export default function DemoPage() {
     setError(null);
     setResult(null);
 
-    // Step 1: Ask user to share tab audio
+    // Step 1: Ask user to share tab audio.
+    // Chrome requires video:true in getDisplayMedia — we request it then immediately
+    // stop the video tracks so only audio is captured.
     setCaptureState('requesting');
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 } as any,
-        video: false,
+        audio: { echoCancellation: false, noiseSuppression: false } as any,
+        video: true,
       } as any);
+      // Drop video tracks — we only want audio
+      stream.getVideoTracks().forEach(t => t.stop());
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach(t => t.stop());
+        throw new Error('No audio track. Make sure to pick a browser tab (not a window or screen) and check "Share tab audio".');
+      }
       streamRef.current = stream;
     } catch (e: any) {
       setCaptureState('error');
-      setError('Screen/tab audio share was cancelled or denied. Click the button and share your tab audio when prompted.');
+      setError(
+        e.name === 'NotAllowedError' || e.name === 'AbortError'
+          ? 'Share was cancelled. Click Perceive again and pick a browser tab, then confirm sharing.'
+          : e.message ?? 'Could not capture tab audio.'
+      );
       return;
     }
 
@@ -248,6 +261,20 @@ export default function DemoPage() {
                   <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
                     <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">🤖 Claude hears…</p>
                     <p className="text-zinc-300 text-sm leading-relaxed">{result.description}</p>
+                  </div>
+                )}
+                {result.descriptionGated && (
+                  <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-white">🤖 AI Description locked</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">Sign up free to hear what Claude says about your music.</p>
+                    </div>
+                    <a
+                      href="/signup"
+                      className="shrink-0 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs rounded-lg transition-colors"
+                    >
+                      Sign up free →
+                    </a>
                   </div>
                 )}
 

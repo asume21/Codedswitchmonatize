@@ -3,6 +3,7 @@ import multer from 'multer';
 import { spawn } from 'child_process';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
 import { describeAudio } from '../services/audioDescribe';
+import { demoPercieveLimiter } from '../middleware/rateLimiting';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -27,25 +28,33 @@ async function decodeWebmToPcm(buf: Buffer): Promise<{ samples: Float32Array; sa
 }
 
 // POST /api/demo/perceive
-// Public endpoint — no auth, no credits. Accepts audio/webm blob, returns perception JSON.
-// Used by the /demo page for the live AI Perception demo.
-router.post('/perceive', upload.single('audio'), async (req: Request, res: Response) => {
+// Public — no credits. Rate-limited: 5 req/hour per IP.
+// Signal analysis is always returned. AI description (Gemini) only for logged-in users —
+// this gates the "wow" feature behind signup without breaking the demo experience.
+router.post('/perceive', demoPercieveLimiter, upload.single('audio'), async (req: Request, res: Response) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No audio file provided.' });
 
     const buf = file.buffer;
 
-    // Decode + signal analysis (always)
+    // Signal analysis — always free
     const decoded = await decodeWebmToPcm(buf);
     const report = analyzePcm(decoded.samples, decoded.sampleRate);
 
-    // AI description (best-effort — skip gracefully if no provider key)
+    // AI description — only for authenticated users (Gemini costs money per call)
+    const isLoggedIn = !!(req as any).user;
     let description: string | null = null;
-    try {
-      description = await describeAudio(buf);
-    } catch {
-      description = null;
+    let descriptionGated = false;
+
+    if (isLoggedIn) {
+      try {
+        description = await describeAudio(buf);
+      } catch {
+        description = null;
+      }
+    } else {
+      descriptionGated = true;  // tell the client WHY description is null
     }
 
     const bands = report.bandEnergy;
@@ -67,6 +76,7 @@ router.post('/perceive', upload.single('audio'), async (req: Request, res: Respo
         high:   bands.high,
       },
       description,
+      descriptionGated,  // true = user needs to sign up to unlock
       durationSec: Math.round(decoded.samples.length / decoded.sampleRate),
     });
   } catch (err: any) {

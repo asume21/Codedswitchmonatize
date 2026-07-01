@@ -195,3 +195,14 @@ export const analysisLimiter = rateLimit({
     'Analysis limit reached. Please wait before analysing more.',
   ),
 });
+
+/** Demo /api/demo/perceive: 5 req / hour per IP — signal analysis is free but
+ *  Gemini describe_audio costs real money. Tight limit stops scraping abuse. */
+export const demoPercieveLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,  // 1 hour
+  max: 5,
+  handler: jsonRateLimitHandler(
+    'Demo limit reached (5 per hour). Sign up for unlimited analysis with credits.',
+  ),
+});
