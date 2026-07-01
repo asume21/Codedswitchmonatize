@@ -73,6 +73,7 @@ const StudioWindowRenderer = React.lazy(() => import('./StudioWindowRenderer'));
 import UndoRedoControls from './UndoRedoControls';
 import { useMasteringAnalyzer } from '@/hooks/useMasteringAnalyzer';
 import { bounceMaster } from '@/lib/freezeBounce';
+import { StudioListenPanel } from './StudioListenPanel';
 
 function TabLoadingFallback() {
   return (
@@ -3943,6 +3944,7 @@ export default function UnifiedStudioWorkspace() {
 
         {/* Window Launcher Dock + Undo/Redo — right side of top bar */}
         <div className="flex items-center gap-2 shrink-0">
+          <StudioListenPanel />
           <UndoRedoControls />
           <WindowLauncher />
         </div>
