@@ -298,12 +298,14 @@ function glowPattern(sw = SWING['chill']): DrumHit[] {
     h.push(hit(K, bar, 0, 0, 0.80, sw, -0.03))
     if (bar % 2 === 1) h.push(hit(K, bar, 2, 0, 0.65, sw, -0.03))
 
-    h.push(hit(S, bar, 2, 0, 0.75, sw))
+    // Backbeat on 2 and 4 (hip-hop standard)
+    h.push(hit(S, bar, 1, 0, 0.75, sw))
+    h.push(hit(S, bar, 3, 0, 0.65, sw))
     h.push(hit(S, bar, 1, 3, 0.12, sw))
-    if (bar % 2 === 1) h.push(hit(S, bar, 3, 2, 0.10, sw))
 
     for (let beat = 0; beat < 4; beat++) {
       h.push(hit(H, bar, beat, 0, 0.30, sw, 0.02))
+      h.push(hit(H, bar, beat, 2, 0.18, sw, 0.02))  // 8th note upbeats
     }
 
     if (bar % 2 === 0) {

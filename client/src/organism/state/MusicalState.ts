@@ -186,7 +186,7 @@ export const MODE_SUBGENRES: Record<string, HipHopSubGenre[]> = {
   ice:    ['lo-fi', 'chill', 'west-coast'],
   smoke:  ['boom-bap', 'west-coast', 'afrobeat', 'dirty-south'],
   gravel: ['drill', 'phonk', 'trap'],
-  glow:   ['chill', 'lo-fi', 'reggaeton', 'bounce'],
+  glow:   ['boom-bap', 'lo-fi', 'reggaeton', 'bounce'],
 }
 
 // ── Sub-genre → Groove defaults ───────────────────────────────────────
@@ -268,8 +268,8 @@ export function createDefaultMusicalState(): MusicalState {
     rootPitchClass: 0,
     scaleIntervals: [0, 3, 5, 7, 10],  // minor pentatonic default
     tempo: 90,
-    mode: 'glow' as OrganismMode,
-    subGenre: 'chill',
+    mode: 'smoke' as OrganismMode,
+    subGenre: 'boom-bap',
     section: 'none',
     sectionBar: 0,
     arrangementTotalBars: 0,
@@ -277,9 +277,9 @@ export function createDefaultMusicalState(): MusicalState {
     density: 0,
     voiceActive: false,
     flowDepth: 0,
-    groove: { ...SUBGENRE_GROOVES['chill'] },
+    groove: { ...SUBGENRE_GROOVES['boom-bap'] },
     drums: {
-      subGenre: 'chill',
+      subGenre: 'boom-bap',
       variantIndex: 0,
       hatDensityMult: 1.0,
       kickVelocityMult: 1.0,

@@ -84,7 +84,7 @@ function rootMidiFromPitchClass(pitchClass: number): number {
 export class MusicalDirector {
   private state: MusicalState = createDefaultMusicalState()
   private lastArrangementBar = -1
-  private lastSubGenre: HipHopSubGenre = 'chill'
+  private lastSubGenre: HipHopSubGenre = 'boom-bap'
   private subGenreLockBars = 0  // don't change sub-genre too often
   private isGrooveLocked = false // Story Mode: lock the rhythm once in Flow
   private arrangementEnabled = false

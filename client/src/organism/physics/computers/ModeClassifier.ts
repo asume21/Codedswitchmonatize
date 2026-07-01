@@ -18,7 +18,7 @@ export class ModeClassifier {
   private centroidBuffer: number[] = []
   private hnrBuffer:      number[] = []
 
-  private currentMode:          OrganismMode = OrganismMode.Glow
+  private currentMode:          OrganismMode = OrganismMode.Smoke
   private framesSinceLastChange: number      = Infinity
 
   constructor(windowFrames: number, hysteresisFrames: number) {
