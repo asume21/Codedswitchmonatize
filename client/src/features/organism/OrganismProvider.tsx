@@ -1208,13 +1208,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         const fallbackBeatMs = 60000 / fallbackPulse
         const fallbackSixteenthMs = fallbackBeatMs / 4
         const fallbackPhysics: PhysicsState = {
-          mode: OrganismMode.Glow,
+          mode: OrganismMode.Smoke,
           pulse: fallbackPulse,
           bounce: 0.5,
-          swing: 0.5,
+          swing: 0.3,
           pocket: 0.5,
-          presence: 0.4,
-          density: 0.4,
+          presence: 0.1,
+          density: 0.1,
           beatDurationMs: fallbackBeatMs,
           sixteenthDurationMs: fallbackSixteenthMs,
           swungSixteenthMs: fallbackSixteenthMs,

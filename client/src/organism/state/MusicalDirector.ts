@@ -264,7 +264,10 @@ export class MusicalDirector {
   onStateTransition(to: OState, physics: PhysicsState): void {
     // On awakening: pick initial sub-genre and groove
     if (to === OState.Awakening) {
-      const subGenre = classifySubGenre(physics.mode, 0.3, 0.2)
+      // Use energy=0 so we always pick candidates[0] — the calm anchor subGenre
+      // (boom-bap for Smoke/Glow, trap for Heat) rather than a mid-list pick
+      // that depends on the bootstrap physics energy value.
+      const subGenre = classifySubGenre(physics.mode, 0, 0)
       this.state.subGenre = subGenre
       this.lastSubGenre = subGenre
       this.state.groove = { ...SUBGENRE_GROOVES[subGenre] }
