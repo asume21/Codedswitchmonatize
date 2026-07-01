@@ -14,6 +14,7 @@ import { OState }              from '../state/types'
 import type { GeneratorOutput, MelodyBehavior } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
+import { SUBGENRE_BPM } from '../state/MusicalState'
 import { getProducerArrangementTotalBars, getProducerArrangementSlot, setArrangementFromPlan, clearArrangementFromPlan } from '../state/ProducerArrangement'
 import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
@@ -408,6 +409,12 @@ export class GeneratorOrchestrator {
     // state would leave chord/melody swinging by their mode-table fallback
     // while drums swing by sub-genre (the "not playing together" mismatch).
     const startSubGenre = this.director.getState().subGenre
+
+    // Set BPM to match the starting sub-genre. Without this, Tone.js defaults
+    // to 120 BPM on every cold start — house music tempo, not hip-hop.
+    const [startBpmMin, startBpmMax] = SUBGENRE_BPM[startSubGenre] ?? [85, 100]
+    this.setBpm(Math.round(startBpmMin + Math.random() * (startBpmMax - startBpmMin)))
+
     const startSwing = swingForSubGenre(startSubGenre)
     setBassSwingFromSubGenre(startSubGenre)
     this.chord.setSwing(startSwing)
@@ -1233,6 +1240,13 @@ export class GeneratorOrchestrator {
     // stomped its sub-genre swing per state transition — on trap, drums were
     // near-straight at 0.20 while everything else dragged at 0.38, which is
     // why the generators sounded like they weren't playing together.)
+
+    // Lock transport BPM to subGenre's range. SUBGENRE_BPM was defined but
+    // never called, leaving Tone.js at its default 120 BPM (house tempo).
+    const [bpmMin, bpmMax] = SUBGENRE_BPM[subGenre] ?? [85, 100]
+    const targetBpm = Math.round(bpmMin + Math.random() * (bpmMax - bpmMin))
+    this.setBpm(targetBpm)
+
     const swing = swingForSubGenre(subGenre)
     setBassSwingFromSubGenre(subGenre)
     this.chord.setSwing(swing)
