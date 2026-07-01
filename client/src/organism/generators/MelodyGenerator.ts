@@ -450,14 +450,17 @@ export class MelodyGenerator extends GeneratorBase {
   private buildDefaultSynth(): Tone.PolySynth {
     // 6 voices dropped notes when ornaments (trill/grace) overlapped a sustained
     // legato phrase. 12 covers the realistic worst case without bloating CPU.
+    // Warm flute/cello-like fallback. harmonicity:1 (unison FM) + low modulationIndex
+    // eliminates the metallic OPL2 sidebands. High sustain keeps notes singing
+    // instead of ping-decay chiptune. Only plays while the real sampler is loading.
     return new Tone.PolySynth(Tone.FMSynth, {
       maxPolyphony: 12,
-      harmonicity: 2,
-      modulationIndex: 1.5,
+      harmonicity: 1,
+      modulationIndex: 0.25,
       oscillator:    { type: 'sine' },
-      modulation:    { type: 'triangle' },
-      envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
-      modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
+      modulation:    { type: 'sine' },
+      envelope:      { attack: 0.15, decay: 0.5, sustain: 0.80, release: 2.5 },
+      modulationEnvelope: { attack: 0.2, decay: 0.8, sustain: 0.4, release: 1.5 },
     } as any)
   }
 

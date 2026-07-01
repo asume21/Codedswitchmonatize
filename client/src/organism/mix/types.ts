@@ -47,11 +47,11 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // bass channel ~17 dB hotter than drums — completely inverted; the beat
       // had no authority. +8 here with the bass pulled down restores the
       // producer hierarchy: kick/snare in front, bass just underneath.
-      // +4 (was +6): audio-debug capture (2026-06-19, Real Beat: Trap) measured
-      // +3.6 dBFS peak / 7.7% clipping — drum +6 with master only -3 puts a kick
-      // sample at +3 dBFS BEFORE summing, and Tone.Limiter's 3ms attack lets that
-      // transient through. +4 with master -6 gives the loudest kick real headroom.
-      name: 'drum', pan: 0, gainDb: 4,
+      // +1 (was +4): WebEar capture (2026-06-29) still measured +3.6 dBFS / 3.68%
+      // clipping with drum +4 and master -6. The drum bus is the hottest path before
+      // summing; each dB here adds directly to transient headroom needed. +1 keeps
+      // kick authoritative without slamming the limiter above its -0.3 dBFS ceiling.
+      name: 'drum', pan: 0, gainDb: 1,
       // Punch tuning (2026-06-22): live prod captures (Cypher + Violin Trap) measured
       // crest factor 3.3-3.7 and "no clear beat" — 4:1 @ 5ms was squashing the kick/snare
       // transient into the bed (low crest = no thwack). Ease to 2:1 and slow the attack to
@@ -96,8 +96,8 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
     },
   },
   master: {
-    gainDb: -6,              // -6 (was -3): real headroom so the sum + kick transients don't slam Tone.Limiter past 0 dBFS (measured +3.6 dBFS / 7.7% clipping at -3)
-    limiterThreshDb: -1.0,   // ceiling just under 0 dBFS; with the lower input level the soft limiter no longer overshoots into clipping
+    gainDb: -9,              // -9 (was -6): drum channel at +1 + master at -9 gives ~8 dB of headroom before the WaveShaper ceiling at -0.3 dBFS
+    limiterThreshDb: -3.0,   // -3 dBFS ceiling: wider window for the DynamicsCompressorNode attack so transients don't overshoot into the WaveShaper
     limiterLookaheadMs: 5,
     saturationAmount: 0.02,  // minimal warmth — less harmonic buildup
   },
