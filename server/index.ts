@@ -383,6 +383,7 @@ app.use((req, res, next) => {
     "/api/weblog/",           // WebLog console & state snapshot relay
     "/api/mcp",               // legacy REST gateway (validate-key/analyze/describe) — self-authed
     "/api/ai-music/compose",  // deterministic song-arc plan — no user data; guests need this for the demo build
+    "/api/demo",              // public AI Perception demo endpoint (audio analyze, no credits)
     // Dev-only: audio-debug bridge is gated by NODE_ENV !== 'production' at
     // route mount time (server/routes.ts), so the prefix can never reach
     // production. Whitelisted here so the local MCP capture flow works

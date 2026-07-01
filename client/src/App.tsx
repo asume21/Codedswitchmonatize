@@ -74,6 +74,7 @@ const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() =>
 const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() => ({ default: () => <NotFound /> })));
 const DawLayoutLanding = React.lazy(() => import("@/pages/daw-layout").catch(() => ({ default: () => <NotFound /> })));
 const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").catch(() => ({ default: () => <NotFound /> })));
+const DemoPage = React.lazy(() => import("@/pages/DemoPage").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -237,6 +238,7 @@ function App() {
                   No audio providers = FAST initial load
                   ============================================ */}
               <Route path="/" component={Landing} />
+              <Route path="/demo" component={DemoPage} />
               
               {/* ============================================
                   LIGHTWEIGHT ROUTES - No audio providers

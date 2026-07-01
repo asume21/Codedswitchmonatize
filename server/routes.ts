@@ -37,6 +37,7 @@ import {
   createWeblogRelayRoutes
 } from "./routes/webearRelay";
 import { createOrganismKitRoutes } from "./routes/organismKits";
+import demoRoutes from "./routes/demo";
 import { createAceStepRoutes } from "./routes/aceStep";
 import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
@@ -410,6 +411,9 @@ ${urls
 
   // MCP Cloud API endpoints for monetization (legacy — kept for backward compat)
   app.use("/api/mcp", createMcpApiRoutes(storage));
+
+  // Public demo endpoint — no auth, no credits. Powers the /demo page.
+  app.use("/api/demo", demoRoutes);
 
   // WebEar API key management (generate, reveal, revoke)
   app.use("/api/webear-keys", createWebearKeyRoutes(storage));
