@@ -63,13 +63,13 @@ describe('MusicalDirector arrangement masks', () => {
     expect(director.getState().bass.dropout).toBe(false)
     expect(director.getState().melody.dropout).toBe(false)
 
-    director.update(physics, organism, 4)
+    director.update(physics, organism, 10)
     expect(director.getState().section).toBe('verse')
     expect(director.getState().drums.dropout).toBe(false)
     expect(director.getState().bass.dropout).toBe(false)
     expect(director.getState().melody.dropout).toBe(false)
 
-    director.update(physics, makeOrganism({ current: OState.Flow, flowDepth: 1 }), 16)
+    director.update(physics, makeOrganism({ current: OState.Flow, flowDepth: 1 }), 36)
     expect(director.getState().section).toBe('drop')
     expect(director.getState().drums.dropout).toBe(false)
     expect(director.getState().bass.dropout).toBe(false)

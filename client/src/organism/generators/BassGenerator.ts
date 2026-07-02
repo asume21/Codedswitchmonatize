@@ -456,27 +456,39 @@ export class BassGenerator extends GeneratorBase {
       // provides one. The synth 808 stays as the live fallback while the sample
       // streams in, so the beat never goes silent during cold-start.
       const isSlide = this.currentBehavior === BassBehavior.Slide808 || this.currentBehavior === BassBehavior.Trap
+      
+      // Saturated synth-808 path: warm triangle wave run through custom distortion
+      // for mid-range harmonic presence on small speakers, filtered to stay smooth.
+      const s808Dist = new Tone.Distortion({ distortion: 0.38, wet: 0.45 })
       const s808 = new Tone.MonoSynth({
-        oscillator: { type: 'fatsine', count: 2, spread: 6 } as any,
-        filter:     { Q: 1.2, type: 'lowpass', rolloff: -24 },
+        oscillator: { type: 'triangle' },
+        filter:     { Q: 1.0, type: 'lowpass', rolloff: -12 },
         envelope:   {
-          attack:  0.001,
-          decay:   1.5,
-          sustain: 0.08,
-          release: 2.2,
+          attack:  0.002,
+          decay:   1.0,
+          sustain: 0.05,
+          release: 1.8,
         },
         filterEnvelope: {
-          attack: 0.001,
-          decay:  0.45,
+          attack: 0.002,
+          decay:  0.35,
           sustain: 0.0,
           release: 0.6,
-          baseFrequency: 55,
-          octaves: 4.0,
+          baseFrequency: 60,
+          octaves: 3.0,
         },
         portamento: isSlide ? 0.10 : 0.04,
       })
-      s808.volume.value = -4
-      s808.connect(this.compressor)
+      s808.volume.value = -5.5
+      s808.connect(s808Dist)
+      s808Dist.connect(this.compressor)
+      
+      const originalDispose = s808.dispose.bind(s808)
+      s808.dispose = () => {
+        s808Dist.dispose()
+        return originalDispose()
+      }
+
       this.synth = s808
       this.isCurrentVoiceSampler = false
       this.use808Active = true

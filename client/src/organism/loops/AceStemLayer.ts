@@ -44,6 +44,7 @@ interface ActiveStem {
   level: number
   muted: boolean
   started: boolean
+  bpm: number
 }
 
 export class AceStemLayer {
@@ -84,7 +85,7 @@ export class AceStemLayer {
         fadeIn: 0.02,
         fadeOut: 0.05,
         onload: () => {
-          const active: ActiveStem = { player, gain, level: 1, muted: false, started: false }
+          const active: ActiveStem = { player, gain, level: 1, muted: false, started: false, bpm: stem.bpm }
           this.stems.set(stem.name, active)
           if (this.playing) this.startStem(active)
           resolve()
@@ -147,6 +148,21 @@ export class AceStemLayer {
 
   isPlaying(): boolean {
     return this.playing && this.stems.size > 0
+  }
+
+  /** Dynamically adjust all stem players' playbackRate to match the transport BPM. */
+  syncBpm(targetBpm: number): void {
+    for (const s of this.stems.values()) {
+      if (s.player && s.bpm > 0) {
+        const rate = Math.max(0.5, Math.min(2, targetBpm / s.bpm))
+        const pbRate = s.player.playbackRate as any
+        if (pbRate && typeof pbRate === 'object' && 'value' in pbRate) {
+          pbRate.value = rate
+        } else {
+          s.player.playbackRate = rate as any
+        }
+      }
+    }
   }
 
   stop(): void {

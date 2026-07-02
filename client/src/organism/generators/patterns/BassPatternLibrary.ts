@@ -338,8 +338,14 @@ export function buildSlide808Notes(rootMidi: number, density: number = 0.5): Sch
   
   const mainDur = density > 0.8 ? '4n' : '2n'
 
-  // Slide targets — notes that create satisfying glides from root
-  const slideTargets = [fifth - 12, minor3 - 12, minor7 - 12, rootMidi - 5]
+  // Slide targets — include high octaves (+7, +12, +15) for authentic high-flying trap 808 glides
+  const slideTargets = [
+    rootMidi + 12, // +1 octave
+    rootMidi + 7,  // +perfect 5th
+    rootMidi + 15, // +octave + minor 3rd (high slide)
+    fifth - 12,    // low 5th
+    minor3 - 12,   // low 3rd
+  ]
 
   for (let bar = 0; bar < 4; bar++) {
     const isLastBar = bar === 3

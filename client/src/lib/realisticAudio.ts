@@ -325,8 +325,12 @@ export class RealisticAudioEngine {
     this.activeNotes.forEach((nodes, key) => {
       // Filter out nodes that should have finished
       const activeNodes = nodes.filter(node => {
-        // If node has a stop time and it's passed, disconnect it
-        if (node && node.playbackState === 'finished') {
+        const nodeDuration = (node as any).duration || 0;
+        const nodeStartTime = (node as any).startTime || 0;
+        const hasFinishedTime = nodeStartTime > 0 && nodeDuration > 0 && (currentTime - nodeStartTime > nodeDuration + 0.15);
+
+        // If node has finished playing, disconnect it to free resources immediately
+        if (node && (node.playbackState === 'finished' || hasFinishedTime)) {
           try {
             node.disconnect();
           } catch (e) {
@@ -366,6 +370,20 @@ export class RealisticAudioEngine {
     
     // Log cleanup activity for debugging
     // Cleanup complete
+  }
+
+  private scheduleNodeCleanup(nodes: any[], delayMs: number) {
+    setTimeout(() => {
+      nodes.forEach(node => {
+        if (node) {
+          try {
+            if (typeof node.disconnect === 'function') {
+              node.disconnect();
+            }
+          } catch {}
+        }
+      });
+    }, delayMs);
   }
 
   async initialize() {
@@ -486,8 +504,9 @@ export class RealisticAudioEngine {
         );
 
         if (audioNode) {
-          // Track start time for cleanup
+          // Track start time and duration for cleanup
           (audioNode as any).startTime = playAt;
+          (audioNode as any).duration = duration;
 
           // Track active node for cleanup/noteOff
           const noteKey = `${realInstrument}:${noteName}`;
@@ -499,7 +518,7 @@ export class RealisticAudioEngine {
           // Track for polyphony management
           this.trackVoice(audioNode, noteKey);
 
-          // If duration is provided, automatically schedule removal from tracking
+          // If duration is provided, automatically schedule removal from tracking & disconnect node
           if (duration > 0) {
             setTimeout(() => {
               const nodes = this.activeNotes.get(noteKey);
@@ -509,7 +528,12 @@ export class RealisticAudioEngine {
                 if (nodes.length === 0) this.activeNotes.delete(noteKey);
               }
               this.untrackVoice(audioNode);
-            }, duration * 1000 + 100);
+              try {
+                if (typeof audioNode.disconnect === 'function') {
+                  audioNode.disconnect();
+                }
+              } catch {}
+            }, (duration + 0.15) * 1000);
           }
           return;
         }
@@ -878,6 +902,12 @@ export class RealisticAudioEngine {
       bodyOsc.stop(currentTime + k.bodyDecay + 0.05);
       clickOsc.stop(currentTime + 0.04);
       
+      this.scheduleNodeCleanup([
+        bodyOsc, bodyFilter, bodySubCleanup, bodyGain,
+        clickOsc, clickFilter, clickGain,
+        noiseSource, noiseFilter, noiseGain
+      ], (k.bodyDecay + 0.15) * 1000);
+      
     } catch (error) {
       // Kick drum error - silent fail
     }
@@ -941,6 +971,10 @@ export class RealisticAudioEngine {
       snareNoise.start(currentTime);
       snareTone.start(currentTime);
       snareTone.stop(currentTime + s.toneDecay);
+
+      this.scheduleNodeCleanup([
+        snareNoise, snareTone, snareGain, snareToneGain, snareFilter
+      ], (Math.max(s.toneDecay, s.noiseDecay) + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Snare drum error:', error);
     }
@@ -980,6 +1014,10 @@ export class RealisticAudioEngine {
       hihatGain.connect(destination || defaultDestination());
 
       hihatNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        hihatNoise, hihatFilter, hihatGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Hi-hat error:', error);
     }
@@ -1023,6 +1061,10 @@ export class RealisticAudioEngine {
 
       tomOsc.start(currentTime);
       tomOsc.stop(currentTime + decay);
+
+      this.scheduleNodeCleanup([
+        tomOsc, tomFilter, tomGain
+      ], (decay + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Tom drum error:', error);
     }
@@ -1058,6 +1100,10 @@ export class RealisticAudioEngine {
 
       congaOsc.start(currentTime);
       congaOsc.stop(currentTime + duration);
+
+      this.scheduleNodeCleanup([
+        congaOsc, congaFilter, congaGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Conga error:', error);
     }
@@ -1091,6 +1137,10 @@ export class RealisticAudioEngine {
       percGain.connect(destination || defaultDestination());
 
       percNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        percNoise, percFilter, percGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Perc error:', error);
     }
@@ -1136,6 +1186,10 @@ export class RealisticAudioEngine {
       rimTone.start(currentTime);
       rimClick.stop(currentTime + 0.01);
       rimTone.stop(currentTime + duration);
+
+      this.scheduleNodeCleanup([
+        rimClick, rimTone, clickGain, toneGain, masterGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Rimshot error:', error);
     }
@@ -1175,6 +1229,10 @@ export class RealisticAudioEngine {
       openhatGain.connect(destination || defaultDestination());
 
       openhatNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        openhatNoise, openhatFilter, openhatGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Open hi-hat error:', error);
     }
@@ -1217,6 +1275,10 @@ export class RealisticAudioEngine {
       clapGain.connect(destination || defaultDestination());
 
       clapNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        clapNoise, clapFilter, clapFilter2, clapGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Clap error:', error);
     }
@@ -1253,6 +1315,10 @@ export class RealisticAudioEngine {
       crashGain.connect(destination || defaultDestination());
 
       crashNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        crashNoise, crashFilter, crashGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Crash cymbal error:', error);
     }
@@ -1291,6 +1357,10 @@ export class RealisticAudioEngine {
 
       bassOsc.start(currentTime);
       bassOsc.stop(currentTime + duration);
+
+      this.scheduleNodeCleanup([
+        bassOsc, bassFilter, bassGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Bass drum error:', error);
     }
@@ -1344,6 +1414,10 @@ export class RealisticAudioEngine {
       osc2.start(currentTime);
       osc1.stop(currentTime + duration);
       osc2.stop(currentTime + duration);
+
+      this.scheduleNodeCleanup([
+        osc1, osc2, gain1, gain2, filter, masterGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Cowbell error:', error);
     }
@@ -1400,6 +1474,10 @@ export class RealisticAudioEngine {
       rideNoise.start(currentTime);
       rideTone.start(currentTime);
       rideTone.stop(currentTime + 0.15);
+
+      this.scheduleNodeCleanup([
+        rideNoise, rideTone, noiseGain, toneGain, rideFilter, masterGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Ride cymbal error:', error);
     }
@@ -1435,6 +1513,10 @@ export class RealisticAudioEngine {
       fxGain.connect(destination || defaultDestination());
 
       fxNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        fxNoise, fxFilter, fxGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 FX error:', error);
     }
@@ -1488,6 +1570,10 @@ export class RealisticAudioEngine {
       foleyOsc.start(currentTime);
       foleyNoise.start(currentTime);
       foleyOsc.stop(currentTime + 0.1);
+
+      this.scheduleNodeCleanup([
+        foleyOsc, foleyNoise, oscGain, noiseGain, foleyFilter, masterGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Foley error:', error);
     }
@@ -1544,6 +1630,10 @@ export class RealisticAudioEngine {
       bell1.stop(currentTime + duration);
       bell2.stop(currentTime + duration * 0.8);
       bell3.stop(currentTime + duration * 0.6);
+
+      this.scheduleNodeCleanup([
+        bell1, bell2, bell3, gain1, gain2, gain3, masterGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Bell error:', error);
     }
@@ -1578,6 +1668,10 @@ export class RealisticAudioEngine {
       vinylGain.connect(destination || defaultDestination());
 
       vinylNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        vinylNoise, vinylFilter, vinylGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Vinyl FX error:', error);
     }
@@ -1611,6 +1705,10 @@ export class RealisticAudioEngine {
       shakerGain.connect(destination || defaultDestination());
 
       shakerNoise.start(currentTime);
+
+      this.scheduleNodeCleanup([
+        shakerNoise, shakerFilter, shakerGain
+      ], (duration + 0.15) * 1000);
     } catch (error) {
       console.error('🎵 Shaker error:', error);
     }

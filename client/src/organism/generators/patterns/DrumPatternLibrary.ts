@@ -94,6 +94,25 @@ export function swingForSubGenre(subGenre: string): number {
   return SWING[subGenre] ?? 0.35
 }
 
+/** Create a hi-hat 32nd roll (4 hits in the space of two 16th notes / one 8th note) */
+function hit32ndRoll(bar: number, beat: number, startSub: number, baseVel: number, sw: number): DrumHit[] {
+  return [
+    hit(H, bar, beat, startSub, baseVel * 0.7, sw),
+    hit(H, bar, beat, startSub + 0.5, baseVel * 0.9, sw),
+    hit(H, bar, beat, startSub + 1.0, baseVel * 0.8, sw),
+    hit(H, bar, beat, startSub + 1.5, baseVel * 1.0, sw),
+  ]
+}
+
+/** Create a hi-hat 16th triplet roll (3 hits in the space of two 16th notes / one 8th note) */
+function hitTripletRoll(bar: number, beat: number, startSub: number, baseVel: number, sw: number): DrumHit[] {
+  return [
+    { instrument: H, time: swingTime(bar, beat, startSub, sw), velocity: hv(baseVel * 0.8) },
+    { instrument: H, time: swingTime(bar, beat, startSub + 0.67, sw), velocity: hv(baseVel * 0.9) },
+    { instrument: H, time: swingTime(bar, beat, startSub + 1.33, sw), velocity: hv(baseVel * 1.0) },
+  ]
+}
+
 // ══════════════════════════════════════════════════════════════════════
 //  PATTERN BUILDERS — each returns a 4-bar (4m) DrumHit[] array
 // ══════════════════════════════════════════════════════════════════════
@@ -120,9 +139,11 @@ function boomBapPattern(sw = SWING['boom-bap']): DrumHit[] {
     h.push(hit(S, bar, 0, 2, 0.25, sw))
     h.push(hit(S, bar, 2, 2, 0.22, sw))
     if (isFill) {
-      h.push(hit(S, bar, 3, 1, 0.55, sw))
-      h.push(hit(S, bar, 3, 2, 0.60, sw))
-      h.push(hit(S, bar, 3, 3, 0.70, sw))
+      // Classic triplet snare roll fill on beat 4 of the fill bar
+      h.push(hit(S, bar, 3, 0, 0.55, sw))
+      h.push({ instrument: S, time: swingTime(bar, 3, 2, sw), velocity: hv(0.60) })
+      h.push({ instrument: S, time: swingTime(bar, 3, 2.67, sw), velocity: hv(0.70) })
+      h.push({ instrument: S, time: swingTime(bar, 3, 3.33, sw), velocity: hv(0.85) })
     }
 
     // Hats: 8th notes with accented downbeats
@@ -202,14 +223,34 @@ function trapPattern(sw = SWING['trap']): DrumHit[] {
     h.push(hit(S, bar, 2, 3, 0.16, sw))
     if (bar % 2 === 1) h.push(hit(S, bar, 1, 2, 0.20, sw))
     if (isFill) {
-      for (let s = 0; s < 4; s++) h.push(hit(S, bar, 3, s, 0.50 + s * 0.12, sw))
+      // Snare roll: 16th downbeats then rapid 32nd notes for tension!
+      h.push(hit(S, bar, 3, 0, 0.50, sw))
+      h.push(hit(S, bar, 3, 1, 0.62, sw))
+      h.push(hit(S, bar, 3, 2, 0.70, sw))
+      h.push(hit(S, bar, 3, 2.5, 0.76, sw))
+      h.push(hit(S, bar, 3, 3, 0.85, sw))
+      h.push(hit(S, bar, 3, 3.5, 0.95, sw))
     }
 
     for (let beat = 0; beat < 4; beat++) {
-      for (let sub = 0; sub < 4; sub++) {
-        if ((beat === 1 || beat === 3) && sub === 0) continue
-        const accent = sub === 0 ? 0.48 : sub === 2 ? 0.35 : 0.22
-        h.push(hit(H, bar, beat, sub, isHalf ? accent * 0.6 : accent, sw))
+      // hi-hat roll variation per bar
+      if (beat === 2 && bar % 2 === 0) {
+        // Triplet roll on beat 3
+        h.push(...hitTripletRoll(bar, beat, 0, 0.45, sw))
+        h.push(hit(H, bar, beat, 2, 0.35, sw))
+        h.push(hit(H, bar, beat, 3, 0.22, sw))
+      } else if (beat === 3 && bar % 2 === 1) {
+        // 32nd roll on beat 4 (ending on beat 4's offbeats)
+        h.push(hit(H, bar, beat, 0, 0.48, sw))
+        h.push(hit(H, bar, beat, 1, 0.22, sw))
+        h.push(...hit32ndRoll(bar, beat, 2, 0.45, sw))
+      } else {
+        // Standard hats
+        for (let sub = 0; sub < 4; sub++) {
+          if ((beat === 1 || beat === 3) && sub === 0) continue
+          const accent = sub === 0 ? 0.48 : sub === 2 ? 0.35 : 0.22
+          h.push(hit(H, bar, beat, sub, isHalf ? accent * 0.6 : accent, sw))
+        }
       }
     }
 
@@ -237,7 +278,11 @@ function trapPattern2(sw = SWING['trap']): DrumHit[] {
     h.push(hit(S, bar, 3, 0, 0.92, sw))
 
     for (let beat = 0; beat < 4; beat++) {
-      if ((beat === 1 || beat === 3) && !isFill) {
+      if (beat === 3 && isFill) {
+        // Triplet roll on beat 4 of the fill bar
+        h.push(...hitTripletRoll(bar, beat, 0, 0.42, sw))
+        h.push(hit(H, bar, beat, 2, 0.25, sw))
+      } else if ((beat === 1 || beat === 3) && !isFill) {
         h.push(hit(H, bar, beat, 1, 0.28, sw))
         h.push(hit(H, bar, beat, 2, 0.35, sw))
       } else {

@@ -433,6 +433,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const capture     = new CaptureEngine()
 
     const stemLayer  = new AceStemLayer(mix.master.input)
+    orchestr.setAceStemLayer(stemLayer)
     const controller = new AceHybridController({
       stemLayer,
       setBandSilenced: (silenced) => {
@@ -979,6 +980,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         melodicLoopRef.current = new MelodicLoopPlayer(
           mixRef.current?.melodyChannel?.input ?? mixRef.current?.master?.input,
         )
+        orchestrRef.current?.setMelodicLoopPlayer(melodicLoopRef.current)
       }
       const player = melodicLoopRef.current
       // Map the selected STYLE to its melodic voice so EVERY style — not just
@@ -1405,17 +1407,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       return
     }
     currentPresetRef.current = preset
-    // DIAGNOSTIC: stack trace reveals WHO triggered this quickStart (UI click /
-    // Astutely bridge / voice / FFOD), so we can see what fires the 2nd call.
-    console.trace(`[quickStart] CALLED presetId=${presetId} running=${isRunningRef.current} inFlight=${!!startInFlightRef.current}`)
-    console.log('[quickStart] refs:', {
-      input: !!inputRef.current,
-      orchestr: !!orchestrRef.current,
-      stateMach: !!stateMachRef.current,
-      physics: !!physicsRef.current,
-      isRunning: isRunningRef.current,
-      startInFlight: !!startInFlightRef.current,
-    })
     if (!inputRef.current || !orchestrRef.current || !stateMachRef.current || !physicsRef.current) {
       console.error('[quickStart] Engines not initialized — aborting')
       setError('Engines not initialized')
@@ -1525,14 +1516,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       await waitForStartupParts()
 
       // Start v1 generators — real hip-hop drum samples + patterns from DrumPatternLibrary
-      console.log('[quickStart] calling orchestr.start', {
-        bpm: preset.bpm,
-        transportState: Tone.getTransport().state,
-        transportPos: Tone.getTransport().position,
-        ctxState: Tone.getContext().state,
-      })
       await orchestr.start(preset.bpm, true)
-      console.log('[quickStart] orchestr.start done — transport:', Tone.getTransport().state)
       if (startTokenRef.current !== token) {
         orchestr.stop()
         input.stop()

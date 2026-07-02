@@ -63,13 +63,22 @@ describe('ModeClassifier', () => {
     const hysteresis = 5
     const classifier = new ModeClassifier(1, hysteresis)
 
-    classifier.process(0.3, 200, 1500, 2)
-    const modeAfterFirstFrame = classifier.getCurrentMode()
-    expect(modeAfterFirstFrame).toBe(OrganismMode.Smoke)
+    // 1. Force a transition to Heat first (since default is Smoke and framesSinceLastChange = Infinity)
+    classifier.process(0.9, 300, 3000, 2) // Heat
+    expect(classifier.getCurrentMode()).toBe(OrganismMode.Heat)
 
-    for (let i = 0; i < hysteresis - 1; i += 1) {
-      classifier.process(0.9, 300, 3000, 2)
+    // 2. Try to transition to Glow on the very next frame — should be blocked
+    classifier.process(0.5, 300, 2200, 6) // Glow
+    expect(classifier.getCurrentMode()).toBe(OrganismMode.Heat)
+
+    // 3. Process hysteresis - 2 more Glow frames — should still be blocked (total 4 frames of Glow)
+    for (let i = 0; i < hysteresis - 2; i += 1) {
+      classifier.process(0.5, 300, 2200, 6) // Glow
     }
-    expect(classifier.getCurrentMode()).toBe(OrganismMode.Smoke)
+    expect(classifier.getCurrentMode()).toBe(OrganismMode.Heat)
+
+    // 4. One more Glow frame should now trigger the transition
+    classifier.process(0.5, 300, 2200, 6) // Glow
+    expect(classifier.getCurrentMode()).toBe(OrganismMode.Glow)
   })
 })

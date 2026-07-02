@@ -294,6 +294,30 @@ export class MelodicLoopPlayer {
     return this.current
   }
 
+  /** Dynamically adjust active loop and chop players' playbackRate to match the transport BPM. */
+  syncBpm(targetBpm: number): void {
+    const applyRate = (player: any, originalBpm: number) => {
+      if (!player || !(originalBpm > 0)) return
+      const rate = Math.max(0.5, Math.min(2, targetBpm / originalBpm))
+      if (player.playbackRate && typeof player.playbackRate === 'object' && 'value' in player.playbackRate) {
+        player.playbackRate.value = rate
+      } else {
+        player.playbackRate = rate
+      }
+    }
+
+    if (this.player && this.current && this.current.bpm > 0) {
+      applyRate(this.player, this.current.bpm)
+    }
+
+    for (const [loopId, player] of this.chopPlayers.entries()) {
+      const chop = this.currentChops.find(c => c.loopId === loopId)
+      if (chop && chop.bpm > 0) {
+        applyRate(player, chop.bpm)
+      }
+    }
+  }
+
   stop(): void {
     const transport = Tone.getTransport()
     for (const id of this.chopEventIds) {

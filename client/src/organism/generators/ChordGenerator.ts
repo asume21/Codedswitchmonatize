@@ -660,8 +660,27 @@ export class ChordGenerator extends GeneratorBase {
           voice.triggerAttackRelease(n.note, n.duration, Math.max(0, time + n.timeOffset), noteVel)
         }
       } else {
-        // Legacy block-chord path: fire all notes simultaneously
-        voice.triggerAttackRelease(playableNotes, event.dur, Math.max(0, time), vel)
+        // Humanised block-chord path: micro-strum note arrivals (lowest to highest)
+        // and apply velocity variation so it sounds like a human pianist.
+        const sortedNotes = [...playableNotes].sort((a, b) => {
+          try {
+            return Tone.Frequency(a).toMidi() - Tone.Frequency(b).toMidi()
+          } catch {
+            return 0
+          }
+        })
+
+        sortedNotes.forEach((note, index) => {
+          // Stagger: 12ms to 24ms delay per note, rolling upward
+          const strumDelay = index * (0.012 + Math.random() * 0.008)
+          // Velocity spread: scale base velocity, random fluctuation +/- 0.08,
+          // and accent the bass/root note (index === 0) for solidity.
+          const randomShift = (Math.random() - 0.5) * 0.16
+          const baseScale = index === 0 ? 1.05 : 0.92
+          const noteVel = Math.min(1.0, Math.max(0.1, vel * baseScale + randomShift))
+
+          voice.triggerAttackRelease(note, event.dur, Math.max(0, time + strumDelay), noteVel)
+        })
       }
     }, quantizedEvents)
 

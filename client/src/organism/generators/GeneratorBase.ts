@@ -176,6 +176,9 @@ export abstract class GeneratorBase {
   protected _activePlayer: Tone.Player | null = null
   protected _idlePlayer: Tone.Player | null = null
   protected _loopMode = false
+  protected _loopBpm = 120
+  protected _currentLoopClip: LoopClip | null = null
+  protected _nextLoopClip: LoopClip | null = null
   private _loopEventIds: number[] = []
 
   private clearLoopEvents(): void {
@@ -207,22 +210,28 @@ export abstract class GeneratorBase {
   /** Load a loop as the active player (replaces any current one immediately). */
   async loadLoop(clip: LoopClip): Promise<void> {
     this.stopLoopPlayback()
+    this._currentLoopClip = clip
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
       try { this._loopPlayer?.dispose() } catch { /* already disposed */ }
       try { this._loopNextPlayer?.dispose() } catch { /* already disposed */ }
       this._loopNextPlayer = null
       this._loopPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
+      this.syncBpm(Tone.getTransport().bpm.value)
       return
     }
     this.ensureLoopGain()
     const buffer = await GeneratorBase.getOrCreateBuffer(clip.url)
     this._activePlayer!.buffer = new Tone.ToneAudioBuffer(buffer)
+    this.syncBpm(Tone.getTransport().bpm.value)
   }
 
   /** Enter/exit loop mode. On enter, stop generator playback/parts so the loop
    *  can be the sole source; then start the loop player grid-locked. On exit,
    *  stop the loop player — normal generator scheduling will resume later. */
-  setLoopMode(enabled: boolean): void {
+  setLoopMode(enabled: boolean, packBpm?: number): void {
+    if (packBpm) {
+      this._loopBpm = packBpm
+    }
     this.clearLoopEvents()
     this._loopMode = enabled
     if (enabled) {
@@ -265,14 +274,17 @@ export abstract class GeneratorBase {
   /** Preload a variant into the NEXT slot without disturbing the active loop —
    *  so a swap can be committed gaplessly on a bar boundary. */
   async preloadNextLoop(clip: LoopClip): Promise<void> {
+    this._nextLoopClip = clip
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
       this._loopNextPlayer?.dispose()
       this._loopNextPlayer = new Tone.Player({ url: clip.url, loop: true }).connect(this.ensureLoopGain())
+      this.syncBpm(Tone.getTransport().bpm.value)
       return
     }
     this.ensureLoopGain()
     const buffer = await GeneratorBase.getOrCreateBuffer(clip.url)
     this._idlePlayer!.buffer = new Tone.ToneAudioBuffer(buffer)
+    this.syncBpm(Tone.getTransport().bpm.value)
   }
 
   /** Commit the preloaded next loop at a SPECIFIC transport time. The
@@ -295,6 +307,8 @@ export abstract class GeneratorBase {
           }, 3000)
         }
         this._loopPlayer = next
+        this._currentLoopClip = this._nextLoopClip
+        this._nextLoopClip = null
       }, time)
       this._loopEventIds.push(id)
       this._loopNextPlayer = null
@@ -315,9 +329,33 @@ export abstract class GeneratorBase {
       
       this._activePlayer = next
       this._idlePlayer = old
+      this._currentLoopClip = this._nextLoopClip
+      this._nextLoopClip = null
     }, time)
 
     this._loopEventIds.push(id)
+  }
+
+  /** Dynamically adjust player playbackRate to match the active transport BPM. */
+  syncBpm(targetBpm: number): void {
+    const applyRate = (player: any) => {
+      if (!player || !(this._loopBpm > 0)) return
+      const rate = Math.max(0.5, Math.min(2, targetBpm / this._loopBpm))
+      const pbRate = player.playbackRate as any
+      if (pbRate && typeof pbRate === 'object' && 'value' in pbRate) {
+        pbRate.value = rate
+      } else {
+        player.playbackRate = rate as any
+      }
+    }
+
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+      applyRate(this._loopPlayer)
+      applyRate(this._loopNextPlayer)
+    } else {
+      applyRate(this._activePlayer)
+      applyRate(this._idlePlayer)
+    }
   }
 
   /** Stop active/preloaded loop players and clear pending loop callbacks. */
@@ -343,6 +381,8 @@ export abstract class GeneratorBase {
     this._idlePlayer = null
     this.loopGain = null
     this._loopMode = false
+    this._currentLoopClip = null
+    this._nextLoopClip = null
   }
 
   /** Exit loop mode and free loop-player resources while keeping the generator alive. */

@@ -29,6 +29,8 @@ import type { ArrangementPlan } from '@shared/arrangement'
 import type { LoopPack, LoopClip } from '@shared/loopPack'
 import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
+import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
+import type { AceStemLayer } from '../loops/AceStemLayer'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -54,6 +56,8 @@ export class GeneratorOrchestrator {
 
   private physicsEngineRef: PhysicsEngine | null = null
   private running: boolean = false
+  private melodicLoopPlayer: MelodicLoopPlayer | null = null
+  private aceStemLayer: AceStemLayer | null = null
 
   // Unsub functions saved from wire() — called in dispose() to break the
   // circular reference cycle: physics.callbacks → orchestrator → generators
@@ -71,6 +75,7 @@ export class GeneratorOrchestrator {
   // Public setters own the user's base slider values. Reactive automation,
   // performer state, and self-listen are layered separately so frame-by-frame
   // behavior cannot overwrite what the user set in the UI.
+  private isForcingSubGenre:      boolean = false
   private hatDensityMultiplier:   number = 1.0
   // Tracks the section-arc hat multiplier separately so applyPerformerState
   // can layer syllabic reactivity ON TOP of the ramp rather than clobbering it.
@@ -410,10 +415,13 @@ export class GeneratorOrchestrator {
     // while drums swing by sub-genre (the "not playing together" mismatch).
     const startSubGenre = this.director.getState().subGenre
 
-    // Set BPM to match the starting sub-genre. Without this, Tone.js defaults
-    // to 120 BPM on every cold start — house music tempo, not hip-hop.
-    const [startBpmMin, startBpmMax] = SUBGENRE_BPM[startSubGenre] ?? [85, 100]
-    this.setBpm(Math.round(startBpmMin + Math.random() * (startBpmMax - startBpmMin)))
+    // Set BPM to match the starting sub-genre only when no caller supplied a
+    // concrete tempo. Quick-start/live presets must not be overwritten by the
+    // sub-genre randomizer after they explicitly set their BPM.
+    if (bpm == null) {
+      const [startBpmMin, startBpmMax] = SUBGENRE_BPM[startSubGenre] ?? [85, 100]
+      this.setBpm(Math.round(startBpmMin + Math.random() * (startBpmMax - startBpmMin)))
+    }
 
     const startSwing = swingForSubGenre(startSubGenre)
     setBassSwingFromSubGenre(startSubGenre)
@@ -442,7 +450,7 @@ export class GeneratorOrchestrator {
 
     if (this._loopPack) {
       ;[this.drum, this.bass, this.melody, this.chord, this.texture]
-        .forEach(g => g.setLoopMode(true))
+        .forEach(g => g.setLoopMode(true, this._loopPack!.bpm))
     }
   }
 
@@ -494,6 +502,20 @@ export class GeneratorOrchestrator {
     }
   }
 
+  setMelodicLoopPlayer(player: MelodicLoopPlayer | null): void {
+    this.melodicLoopPlayer = player
+    if (player && this.running) {
+      player.syncBpm(this.getBpm())
+    }
+  }
+
+  setAceStemLayer(layer: AceStemLayer | null): void {
+    this.aceStemLayer = layer
+    if (layer && this.running) {
+      layer.syncBpm(this.getBpm())
+    }
+  }
+
   /**
    * Smoothly ramp BPM to a new value over 0.5 seconds.
    * NOTE: This updates Tone.Transport.bpm directly because the orchestrator
@@ -508,6 +530,24 @@ export class GeneratorOrchestrator {
     // has silenced audio before (project_organism_silence_audio_routing memory).
     const clamped = Math.max(40, Math.min(200, bpm))
     useStudioStore.getState().setBpm(clamped)
+
+    // Broadcast the BPM update immediately to all generators (for their loop playbackRates)
+    this.drum.syncBpm(clamped)
+    this.bass.syncBpm(clamped)
+    this.melody.syncBpm(clamped)
+    this.chord.syncBpm(clamped)
+    this.texture.syncBpm(clamped)
+
+    // Also sync the loop player and ACE stems if present
+    if (this.melodicLoopPlayer) {
+      this.melodicLoopPlayer.syncBpm(clamped)
+    }
+    if (this.aceStemLayer) {
+      this.aceStemLayer.syncBpm(clamped)
+    }
+
+    // Update Conductor context immediately so harmony and other engines are in sync
+    getConductor().updateScoreContext({ bpm: clamped })
   }
 
   /** Get current BPM from Tone Transport. */
@@ -1243,9 +1283,12 @@ export class GeneratorOrchestrator {
 
     // Lock transport BPM to subGenre's range. SUBGENRE_BPM was defined but
     // never called, leaving Tone.js at its default 120 BPM (house tempo).
-    const [bpmMin, bpmMax] = SUBGENRE_BPM[subGenre] ?? [85, 100]
-    const targetBpm = Math.round(bpmMin + Math.random() * (bpmMax - bpmMin))
-    this.setBpm(targetBpm)
+    // Skip if we are forcing subgenre explicitly or in loop pack mode.
+    if (!this.isForcingSubGenre && !this._loopPack) {
+      const [bpmMin, bpmMax] = SUBGENRE_BPM[subGenre] ?? [85, 100]
+      const targetBpm = Math.round(bpmMin + Math.random() * (bpmMax - bpmMin))
+      this.setBpm(targetBpm)
+    }
 
     const swing = swingForSubGenre(subGenre)
     setBassSwingFromSubGenre(subGenre)
@@ -1378,7 +1421,12 @@ export class GeneratorOrchestrator {
 
   /** Force a specific sub-genre (from Astutely bridge) */
   forceSubGenre(subGenre: HipHopSubGenre): void {
-    this.director.forceSubGenre(subGenre)
+    this.isForcingSubGenre = true
+    try {
+      this.director.forceSubGenre(subGenre)
+    } finally {
+      this.isForcingSubGenre = false
+    }
   }
 
   /**
@@ -1433,7 +1481,12 @@ export class GeneratorOrchestrator {
     // "presets pile over each other" bug on a live swap). The rebuild below then
     // builds fresh parts for the new sub-genre.
     this.cutActivePartsForSwap()
-    this.director.forceSubGenre(subGenre)
+    this.isForcingSubGenre = true
+    try {
+      this.director.forceSubGenre(subGenre)
+    } finally {
+      this.isForcingSubGenre = false
+    }
     this.regenerateAll()
   }
 
@@ -1840,7 +1893,7 @@ export class GeneratorOrchestrator {
     useStudioStore.getState().setBpm(pack.bpm)
     // Flip all generators to loop playback
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
-      .forEach(g => g.setLoopMode(true))
+      .forEach(g => g.setLoopMode(true, pack.bpm))
 
     // Record what's now playing (clip[0] per row) as the baseline scene, so a
     // subsequent AI arrangement (setLoopArrangement → applyScene) only SWAPS the

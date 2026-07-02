@@ -2087,6 +2087,14 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     res.json({ ok: true });
   });
 
+  // ── 2b. GET raw captured blob (Dev only / Capture script helper) ───────────
+  router.get('/blob-raw/:captureId', (req: Request, res: Response) => {
+    const blob = audioBlobs.get(req.params.captureId);
+    if (!blob) return res.status(404).send('Not found');
+    res.setHeader('Content-Type', blob.contentType || 'audio/webm');
+    res.send(blob.buffer);
+  });
+
   // ── 3. In-app analyze — no auth, no credits; used by mastering card ─────
   router.get('/analyze-app/:captureId', async (req: Request, res: Response) => {
     const blob = audioBlobs.get(req.params.captureId);
@@ -2098,6 +2106,13 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  router.get('/debug-sessions', (req: Request, res: Response) => {
+    res.json({
+      browserSessions: Array.from(browserSessions.keys()),
+      mcpSessions: Array.from(mcpSessions.keys()).map(id => ({ id, userId: mcpSessions.get(id)?.userId })),
+    });
   });
 
   // ── 4. MCP SSE transport — Claude Code connects here ─────────────────────

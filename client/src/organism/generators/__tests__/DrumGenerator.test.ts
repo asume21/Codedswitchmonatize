@@ -4,7 +4,7 @@ import { OrganismMode } from '../../physics/types'
 import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
 import type { OrganismState } from '../../state/types'
-import { GeneratorName } from '../types'
+import { DrumInstrument, GeneratorName } from '../types'
 import { createToneMock, mockGainRampTo } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
@@ -148,6 +148,21 @@ describe('DrumGenerator', () => {
     const physics = makePhysics()
     expect(() => gen.onStateTransition(OState.Breathing, physics)).not.toThrow()
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+  })
+
+  it('keeps snare backbeats when section density is sparse', () => {
+    const events: import('../../session/types').GeneratorEvent[] = []
+    gen.setGeneratorEventSink(event => events.push(event))
+    gen.setSectionDensity(0.25)
+
+    gen.loadGeneratedPattern([
+      { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
+      { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
+      { instrument: DrumInstrument.Hat, time: '0:2:0', velocity: 0.5 },
+      { instrument: DrumInstrument.Perc, time: '0:3:0', velocity: 0.4 },
+    ], true)
+
+    expect(events.map(event => event.pitch)).toEqual([36, 38, 42])
   })
 
   it('reset() zeros activity level', () => {

@@ -472,15 +472,13 @@ export class DrumGenerator extends GeneratorBase {
     // changes without waiting for a full physics-state pattern rebuild.
     this.rawHits = [...hits]
 
-    // Section density thinning: sparse sections (intro, breakdown) play a
-    // skeleton pattern — only kicks and hi-hats. Mid-energy sections (verse)
-    // drop perc fills but keep the full kick+snare+hat pattern. Full density
-    // (build, drop) plays every hit. This turns the volume-only arrangement
-    // multiplier into an audible structural difference between sections.
+    // Section density thinning: sparse sections (intro, breakdown) keep the
+    // essential kick/snare/hat backbeat and only drop percussive fills. Removing
+    // snares made intros sound like a broken metronome instead of a beat.
     const thinned = hits.filter(h => {
       if (this.sectionDensity >= 0.75) return true                 // drop/build: full pattern
       if (this.sectionDensity >= 0.45) return h.instrument !== DrumInstrument.Perc  // verse: no fills
-      return h.instrument === DrumInstrument.Kick || h.instrument === DrumInstrument.Hat  // intro/breakdown: skeleton
+      return h.instrument !== DrumInstrument.Perc                  // intro/breakdown: no fills, keep backbeat
     })
 
     const quantizedHits = thinned.map(h => ({

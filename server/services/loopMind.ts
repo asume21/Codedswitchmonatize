@@ -98,13 +98,15 @@ function extractJson(text: string): any {
 function fallbackArrange(pack: LoopPack, sections: SectionBrief[]): LoopArrangement {
   const pickClosest = (pool: LoopClip[], target: number): string | null => {
     if (!pool.length) return null
-    let best = pool[0], bestD = Infinity
-    for (const c of pool) {
+    // Compute distance to target energy for all clips in the pool
+    const scored = pool.map(c => {
       const e = c.profile?.energy ?? 0.5
-      const d = Math.abs(e - target)
-      if (d < bestD) { bestD = d; best = c }
-    }
-    return best.id
+      return { id: c.id, distance: Math.abs(e - target) }
+    }).sort((a, b) => a.distance - b.distance)
+
+    // Select randomly from the top 3 closest matches
+    const candidates = scored.slice(0, Math.min(3, scored.length))
+    return candidates[Math.floor(Math.random() * candidates.length)].id
   }
   return {
     source: 'fallback',

@@ -107,6 +107,15 @@ describe('GeneratorOrchestrator', () => {
     expect(mockTransportStart).toHaveBeenCalled()
   })
 
+  it('start(bpm) preserves the explicit preset tempo', async () => {
+    const tone = await import('tone')
+
+    await orchestrator.start(140)
+
+    expect(tone.getTransport().bpm.value).toBe(140)
+    expect(useStudioStore.getState().bpm).toBe(140)
+  })
+
   it('all 5 generators receive processFrame calls after wire()', () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
@@ -267,6 +276,17 @@ describe('GeneratorOrchestrator — loop pack', () => {
     )
     orch.clearLoopPack()
     spies.forEach(spy => expect(spy).toHaveBeenCalledOnce())
+  })
+
+  it('forceSubGenre does not randomize the transport tempo', async () => {
+    const tone = await import('tone')
+    const orch = new GeneratorOrchestrator()
+    useStudioStore.getState().setBpm(144)
+
+    orch.forceSubGenre('trap' as any)
+
+    expect(tone.getTransport().bpm.value).toBe(144)
+    expect(useStudioStore.getState().bpm).toBe(144)
   })
 
   it('emits generator note events when a generated drum pattern is loaded', () => {
