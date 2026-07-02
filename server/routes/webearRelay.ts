@@ -2088,10 +2088,15 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
   });
 
   // ── 2b. GET raw captured blob (Dev only / Capture script helper) ───────────
+  // Hard-gated out of production: captures are user audio and blobs carry no
+  // owner id, so there is no way to authorize per-user access here.
   router.get('/blob-raw/:captureId', (req: Request, res: Response) => {
+    if (process.env.NODE_ENV === 'production') return res.status(404).send('Not found');
     const blob = audioBlobs.get(req.params.captureId);
     if (!blob) return res.status(404).send('Not found');
     res.setHeader('Content-Type', blob.contentType || 'audio/webm');
+    // Download-only: never let a captured blob render in-origin (stored XSS).
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(req.params.captureId)}.webm"`);
     res.send(blob.buffer);
   });
 
@@ -2108,7 +2113,9 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
     }
   });
 
+  // Dev-only diagnostics — leaks session/user ids, must never ship enabled.
   router.get('/debug-sessions', (req: Request, res: Response) => {
+    if (process.env.NODE_ENV === 'production') return void res.status(404).send('Not found');
     res.json({
       browserSessions: Array.from(browserSessions.keys()),
       mcpSessions: Array.from(mcpSessions.keys()).map(id => ({ id, userId: mcpSessions.get(id)?.userId })),
