@@ -5,6 +5,8 @@
 // Broadcasts the current chord so Bass and Melody can target chord tones.
 
 import * as Tone from 'tone'
+import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
+import { hashString, mulberry32 } from './freeplay/utils'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -85,6 +87,10 @@ export class ChordGenerator extends GeneratorBase {
   // Defaults to block-chord (simultaneous notes) for backward compatibility.
   private currentTechniqueId: string = DEFAULT_TECHNIQUE_ID
 
+  // ── Freeplay (spec 2026-07-02) ── comp plans instead of a fixed technique.
+  private freeplayEnabled = true
+  private freeplayCallCounter = 0
+
   // Tracks whether the technique was explicitly set by a warm-up phrase or
   // external caller. When false, mode changes auto-update the technique to
   // the new mode's default (e.g. heat → guitar-muted-stab). When true, the
@@ -111,6 +117,15 @@ export class ChordGenerator extends GeneratorBase {
     this.currentTechniqueId = techniqueId
     // Rebuild on next tick so new technique takes effect at the next chord
     this.lastRebuildTime = -Infinity
+    this.rebuildPart()
+  }
+
+  /** Freeplay on/off. Entering freeplay resets to the default (humanised
+   *  block) renderer so a stale technique doesn't restyle the comp plan. */
+  setFreeplay(enabled: boolean): void {
+    if (this.freeplayEnabled === enabled) return
+    this.freeplayEnabled = enabled
+    if (enabled) this.currentTechniqueId = DEFAULT_TECHNIQUE_ID
     this.rebuildPart()
   }
 
@@ -551,32 +566,58 @@ export class ChordGenerator extends GeneratorBase {
 
     const events: ChordPartEvent[] = []
 
-    switch (this.currentBehavior) {
-      case ChordBehavior.Pad: {
-        events.push({ time: '0:0:0', notes: noteStrings, dur: '1m', vel: 0.55, chordIdx: 0 })
-        break
+    if (this.freeplayEnabled) {
+      // Energy from the current behavior — the behavior resolver already maps
+      // organism state to intensity, so reuse it instead of a second signal.
+      const energy = this.currentBehavior === ChordBehavior.Pad ? 0.3
+        : this.currentBehavior === ChordBehavior.Stab ? 0.85 : 0.6
+      const seed = hashString(`chord:${this.currentSectionName}`)
+      const plan = buildFreeplayCompPlan({
+        rootMidi: 60, chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
+        bars: 1,
+        swing: this.currentSwing,
+        subGenre: 'none',
+        energy,
+        density: energy,
+        sectionName: this.currentSectionName,
+        motifSeed: seed,
+        kickTimes16ths: [],
+        rng: mulberry32(seed + this.freeplayCallCounter++),
+      })
+      for (const ev of plan) {
+        const notes = ev.useNextVoicing
+          ? conductor.nextVoicing().inner.map((m) => Tone.Frequency(m, 'midi').toNote())
+          : noteStrings
+        events.push({ time: ev.time, notes, dur: ev.dur, vel: ev.vel, chordIdx: 0 })
       }
-      case ChordBehavior.Rhythm: {
-        events.push({ time: '0:0:0', notes: noteStrings, dur: '2n', vel: 0.58, chordIdx: 0 })
-        events.push({ time: '0:2:0', notes: noteStrings, dur: '2n', vel: 0.48, chordIdx: 0 })
-        break
-      }
-      case ChordBehavior.Stab: {
-        // Sub 2 is the STRAIGHT eighth — 16th-note swing (the band's
-        // convention, subs 1/3 delayed) never moves it. The old
-        // `2 + swing` pushed every chord off-beat ~35ms late against drums
-        // that play the same eighth straight: 8th-swing against a 16th-swing
-        // band, a constant subtle drag on the "and" of beats 2 and 4.
-        events.push({ time: '0:0:0', notes: noteStrings, dur: '8n', vel: 0.65, chordIdx: 0 })
-        events.push({ time: '0:1:2', notes: noteStrings, dur: '8n', vel: 0.50, chordIdx: 0 })
-        events.push({ time: '0:2:0', notes: noteStrings, dur: '8n', vel: 0.58, chordIdx: 0 })
-        // Pickup to the next chord — Conductor.nextChord() makes this work
-        // even though we only render one bar at a time. The pickup sits on
-        // the swung last 16th (sub 3 + band swing) leading into the downbeat.
-        const nextMidi = conductor.nextVoicing().inner
-        const nextNotes = nextMidi.map((m) => Tone.Frequency(m, 'midi').toNote())
-        events.push({ time: `0:3:${(3 + this.currentSwing).toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
-        break
+    } else {
+      switch (this.currentBehavior) {
+        case ChordBehavior.Pad: {
+          events.push({ time: '0:0:0', notes: noteStrings, dur: '1m', vel: 0.55, chordIdx: 0 })
+          break
+        }
+        case ChordBehavior.Rhythm: {
+          events.push({ time: '0:0:0', notes: noteStrings, dur: '2n', vel: 0.58, chordIdx: 0 })
+          events.push({ time: '0:2:0', notes: noteStrings, dur: '2n', vel: 0.48, chordIdx: 0 })
+          break
+        }
+        case ChordBehavior.Stab: {
+          // Sub 2 is the STRAIGHT eighth — 16th-note swing (the band's
+          // convention, subs 1/3 delayed) never moves it. The old
+          // `2 + swing` pushed every chord off-beat ~35ms late against drums
+          // that play the same eighth straight: 8th-swing against a 16th-swing
+          // band, a constant subtle drag on the "and" of beats 2 and 4.
+          events.push({ time: '0:0:0', notes: noteStrings, dur: '8n', vel: 0.65, chordIdx: 0 })
+          events.push({ time: '0:1:2', notes: noteStrings, dur: '8n', vel: 0.50, chordIdx: 0 })
+          events.push({ time: '0:2:0', notes: noteStrings, dur: '8n', vel: 0.58, chordIdx: 0 })
+          // Pickup to the next chord — Conductor.nextChord() makes this work
+          // even though we only render one bar at a time. The pickup sits on
+          // the swung last 16th (sub 3 + band swing) leading into the downbeat.
+          const nextMidi = conductor.nextVoicing().inner
+          const nextNotes = nextMidi.map((m) => Tone.Frequency(m, 'midi').toNote())
+          events.push({ time: `0:3:${(3 + this.currentSwing).toFixed(2)}`, notes: nextNotes, dur: '16n', vel: 0.42, chordIdx: 0 })
+          break
+        }
       }
     }
 

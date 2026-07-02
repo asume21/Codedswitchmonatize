@@ -34,6 +34,7 @@ import type { AceStemLayer } from '../loops/AceStemLayer'
 import { extractKickSlots, hashString, mulberry32 } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
 import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
+import { clearCompCounters } from './freeplay/ChordImproviser'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -451,6 +452,7 @@ export class GeneratorOrchestrator {
 
     // Per-start variety: each session commits fresh freeplay motifs.
     clearMotifs()
+    clearCompCounters()
 
     // Reset the progressive intro counter so every fresh start replays the
     // instrument-stacking sequence from bar 0.
@@ -1213,6 +1215,11 @@ export class GeneratorOrchestrator {
       const state = this.director.getState()
       this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
     }
+  }
+
+  /** Freeplay switch — chords comp freely vs a named technique. */
+  setChordFreeplay(enabled: boolean): void {
+    this.chord.setFreeplay(enabled)
   }
 
   resetBassArticulationOverride(): void {
