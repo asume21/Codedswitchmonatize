@@ -506,10 +506,12 @@ export function OrganismCommandCenter() {
   }, [isListening, interpretVibe, SpeechRecognitionCtor])
 
   // ── Mode + Technique state ───────────────────────────────────────────────
+  const FREEPLAY_ID = 'freeplay'
   const [lockedMode,   setLockedMode]   = useState<string | null>(null)
-  const [chordTech,    setChordTechLocal]  = useState('piano-block-chord')
+  const [chordTech,    setChordTechLocal]  = useState(FREEPLAY_ID)
   const [melodyArt,    setMelodyArtLocal]  = useState('none')
-  const [bassArt,      setBassArtLocal]    = useState('none')
+  const [bassArt,      setBassArtLocal]    = useState(FREEPLAY_ID)
+  const [drumFreeplay, setDrumFreeplayLocal] = useState(true)
   const [styleShifts,  setStyleShiftsLocal] = useState(true)
   const [bpmInput,     setBpmInput]     = useState('')
   const [v2Gain,       setV2Gain]       = useState(1.45)
@@ -522,7 +524,12 @@ export function OrganismCommandCenter() {
 
   const applyChordTech = useCallback((id: string) => {
     setChordTechLocal(id)
-    orchestrator?.setChordTechnique(id)
+    if (id === FREEPLAY_ID) {
+      orchestrator?.setChordFreeplay(true)
+    } else {
+      orchestrator?.setChordFreeplay(false)
+      orchestrator?.setChordTechnique(id)
+    }
   }, [orchestrator])
 
   const applyMelodyArt = useCallback((id: string) => {
@@ -532,8 +539,19 @@ export function OrganismCommandCenter() {
 
   const applyBassArt = useCallback((id: string) => {
     setBassArtLocal(id)
-    orchestrator?.setBassArticulation(id)
+    if (id === FREEPLAY_ID) {
+      orchestrator?.setBassFreeplay(true)
+    } else {
+      orchestrator?.setBassFreeplay(false)
+      orchestrator?.setBassArticulation(id)
+    }
   }, [orchestrator])
+
+  const toggleDrumFreeplay = useCallback(() => {
+    const next = !drumFreeplay
+    setDrumFreeplayLocal(next)
+    orchestrator?.setDrumFreeplay(next)
+  }, [drumFreeplay, orchestrator])
 
   const resetChordTech = useCallback(() => {
     orchestrator?.resetChordTechniqueOverride()
@@ -551,9 +569,9 @@ export function OrganismCommandCenter() {
   useEffect(() => {
     const handleMusicalState = (e: any) => {
       const { chordTechnique, melodyArticulation, bassArticulation } = e.detail
-      if (chordTechnique) setChordTechLocal(chordTechnique)
+      if (chordTechnique) setChordTechLocal(prev => prev === FREEPLAY_ID ? prev : chordTechnique)
       if (melodyArticulation) setMelodyArtLocal(melodyArticulation)
-      if (bassArticulation) setBassArtLocal(bassArticulation)
+      if (bassArticulation) setBassArtLocal(prev => prev === FREEPLAY_ID ? prev : bassArticulation)
     }
     window.addEventListener('organism:musical-state', handleMusicalState)
     return () => window.removeEventListener('organism:musical-state', handleMusicalState)
@@ -1840,6 +1858,21 @@ export function OrganismCommandCenter() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <span style={{ ...label11, flex: 1 }}>Drums</span>
               <button
+                onClick={toggleDrumFreeplay}
+                style={{
+                  padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 600,
+                  cursor: 'pointer',
+                  border: drumFreeplay ? `1px solid ${C.cyan}55` : `1px solid rgba(100,116,139,0.2)`,
+                  background: drumFreeplay ? `${C.cyan}18` : 'transparent',
+                  color: drumFreeplay ? C.cyan : C.text3,
+                  letterSpacing: '0.05em',
+                  marginRight: 4,
+                }}
+                title="Drums improvise around the genre skeleton"
+              >
+                {drumFreeplay ? 'FREEPLAY' : 'MANUAL'}
+              </button>
+              <button
                 onClick={() => handleSolo('drums')}
                 title={soloRole === 'drums' ? 'Un-solo drums' : 'Solo drums'}
                 style={{
@@ -1966,6 +1999,7 @@ export function OrganismCommandCenter() {
                     color: C.text, paddingLeft: 6, outline: 'none',
                   }}
                 >
+                  <option value="freeplay">Freeplay (improvise)</option>
                   <optgroup label="Piano">
                     <option value="piano-block-chord">Block Chord</option>
                     <option value="piano-rolled-chord">Rolled Chord</option>
@@ -1999,10 +2033,12 @@ export function OrganismCommandCenter() {
                 </select>
                 <button
                   onClick={resetChordTech}
+                  disabled={chordTech === FREEPLAY_ID}
                   style={{
                     fontSize: 9, fontWeight: 700, padding: '4px 6px',
                     borderRadius: 4, border: `0.5px solid ${C.border2}`,
                     background: C.bg2, color: C.cyan, cursor: 'pointer',
+                    opacity: chordTech === FREEPLAY_ID ? 0.5 : 1,
                   }}
                   title="Reset to Mode Auto"
                 >AUTO</button>
@@ -2052,6 +2088,7 @@ export function OrganismCommandCenter() {
                     color: C.text, paddingLeft: 6, outline: 'none',
                   }}
                 >
+                  <option value="freeplay">Freeplay (improvise)</option>
                   <option value="none">Straight</option>
                   <option value="bass-slide-up">Slide-Up</option>
                   <option value="bass-ghost-note">Ghost Note</option>
@@ -2065,10 +2102,12 @@ export function OrganismCommandCenter() {
                 </select>
                 <button
                   onClick={resetBassArt}
+                  disabled={bassArt === FREEPLAY_ID}
                   style={{
                     fontSize: 9, fontWeight: 700, padding: '4px 6px',
                     borderRadius: 4, border: `0.5px solid ${C.border2}`,
                     background: C.bg2, color: C.cyan, cursor: 'pointer',
+                    opacity: bassArt === FREEPLAY_ID ? 0.5 : 1,
                   }}
                   title="Reset to Mode Auto"
                 >AUTO</button>
