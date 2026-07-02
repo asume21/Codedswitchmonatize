@@ -11,7 +11,7 @@ import type { StateMachine }   from '../state/StateMachine'
 import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
-import type { GeneratorOutput, MelodyBehavior } from './types'
+import type { GeneratorOutput, MelodyBehavior, DrumHit } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
 import { SUBGENRE_BPM } from '../state/MusicalState'
@@ -31,8 +31,9 @@ import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
 import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
-import { extractKickSlots } from './freeplay/utils'
+import { extractKickSlots, hashString, mulberry32 } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
+import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -96,6 +97,12 @@ export class GeneratorOrchestrator {
   private duetEnabled: boolean = true
   private duetWasBreathing: boolean = false
   private duetLastAnswerMs: number = 0
+
+  // ── Freeplay (spec 2026-07-02) ──
+  private drumFreeplay = true
+  private currentSectionName = 'intro'
+  private sectionDensityLevel = 0.7
+  private freeplayDrumCounter = 0
 
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = false  // off by default for hip-hop
@@ -269,6 +276,7 @@ export class GeneratorOrchestrator {
       const position = transport.position as string
       const barNumber = parseInt(position.split(':')[0], 10) || 0
       // Freeplay improvisers key their committed motifs on the section name.
+      this.currentSectionName = section
       this.bass.setSectionName(section)
       this.chord.setSectionName(section)
       orgLog('arrangement:section', {
@@ -438,9 +446,7 @@ export class GeneratorOrchestrator {
     // fires on a CHANGE — a cold start whose sub-genre matched the director's
     // default produced a fully "active" but silent drum generator.
     if (this.drumEnabled) {
-      const startPattern = buildSubGenrePattern(startSubGenre, this.director.getState().drums.variantIndex)
-      this.drum.loadGeneratedPattern(startPattern.hits, true)
-      this.bass.setKickAnchors(extractKickSlots(startPattern.hits))
+      this.drum.loadGeneratedPattern(this.buildDrumHits(startSubGenre, this.director.getState().drums.variantIndex), true)
     }
 
     // Per-start variety: each session commits fresh freeplay motifs.
@@ -1199,6 +1205,16 @@ export class GeneratorOrchestrator {
     this.bass.setFreeplay(enabled)
   }
 
+  /** Freeplay switch for drums (UI: DRUMS panel pill). */
+  setDrumFreeplay(enabled: boolean): void {
+    if (this.drumFreeplay === enabled) return
+    this.drumFreeplay = enabled
+    if (this.drumEnabled && this.running) {
+      const state = this.director.getState()
+      this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
+    }
+  }
+
   resetBassArticulationOverride(): void {
     this.bass.resetArticulationOverride()
   }
@@ -1320,9 +1336,7 @@ export class GeneratorOrchestrator {
     // user has soloed off — DrumGenerator.loadGeneratedPattern enforces the
     // same invariant, this is belt-and-suspenders.
     if (this.drumEnabled) {
-      const drumPattern = buildSubGenrePattern(subGenre, this.director.getState().drums.variantIndex)
-      this.drum.loadGeneratedPattern(drumPattern.hits, true)
-      this.bass.setKickAnchors(extractKickSlots(drumPattern.hits))
+      this.drum.loadGeneratedPattern(this.buildDrumHits(subGenre, this.director.getState().drums.variantIndex), true)
     }
 
     // Bass is rebuilt immediately above so the rhythm section changes as one.
@@ -1342,8 +1356,13 @@ export class GeneratorOrchestrator {
     // Solo-lock: pattern mutation must not resurrect disabled drums.
     if (!this.drumEnabled) return
 
-    // Mutate current drum pattern
     const state = this.director.getState()
+    if (this.drumFreeplay) {
+      // Freeplay regenerates a fresh variation each mutation tick — that IS
+      // the mutation (same skeleton + motif, new hats/ghosts/fill roll).
+      this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex))
+      return
+    }
     const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
     const mutated = mutatePattern(pattern.hits, {
       ghostProbability: 0.08,
@@ -1353,6 +1372,32 @@ export class GeneratorOrchestrator {
     })
     this.drum.loadGeneratedPattern(mutated)
     this.bass.setKickAnchors(extractKickSlots(mutated))
+  }
+
+  /** ONE drum-pattern source: freeplay improviser (default) or the authored
+   *  library. Also pushes kick anchors to the bass so the rhythm section is
+   *  glued regardless of which source produced the pattern. */
+  private buildDrumHits(subGenre: HipHopSubGenre, variantIndex: number): DrumHit[] {
+    let hits: DrumHit[]
+    if (this.drumFreeplay) {
+      const seed = hashString(`drums:${this.currentSectionName}:${subGenre}`)
+      hits = buildFreeplayDrumHits({
+        rootMidi: 0, chordIntervals: [0],           // drums don't use pitch
+        bars: 4,
+        swing: swingForSubGenre(subGenre),
+        subGenre: subGenre as string,
+        energy: this.sectionDensityLevel,
+        density: this.sectionDensityLevel,
+        sectionName: this.currentSectionName,
+        motifSeed: seed,
+        kickTimes16ths: [],
+        rng: mulberry32(seed + this.freeplayDrumCounter++),
+      })
+    } else {
+      hits = buildSubGenrePattern(subGenre, variantIndex).hits
+    }
+    this.bass.setKickAnchors(extractKickSlots(hits))
+    return hits
   }
 
   /**
@@ -1729,6 +1774,7 @@ export class GeneratorOrchestrator {
     // Intro (0.28) → kick+hat skeleton; verse (0.85) → full minus percs;
     // drop (1.0) → every hit including fills.
     this.drum.setSectionDensity(drumsMultiplier)
+    this.sectionDensityLevel = Math.max(0, Math.min(1, drumsMultiplier))
     this.bass.applyArrangementMultiplier(bassMultiplier)
     this.melody.applyArrangementMultiplier(melodyMultiplier)
     this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)

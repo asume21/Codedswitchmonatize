@@ -116,6 +116,19 @@ describe('GeneratorOrchestrator', () => {
     expect(slots).toContain(0)   // every sub-genre pattern kicks on beat 1
   })
 
+  it('freeplay drum patterns keep the genre skeleton (loud snares present)', async () => {
+    const spy = vi.spyOn((orchestrator as any).drum, 'loadGeneratedPattern')
+    await orchestrator.start(90)   // startup sub-genre is boom-bap (commit 9d9eb4fc)
+    const hits = spy.mock.calls[spy.mock.calls.length - 1][0] as Array<{ instrument: string; time: string; velocity: number }>
+    const snareSlots = hits
+      .filter(h => h.instrument === 'snare' && h.velocity > 0.4 && h.time.startsWith('0:'))
+      .map(h => { const [, beat, sub] = h.time.split(':').map(parseFloat); return beat * 4 + Math.floor(sub) })
+    // boom-bap skeleton snares (2 and 4). If the harness starts on another
+    // sub-genre, assert that genre's SKELETONS entry instead — don't delete.
+    expect(snareSlots).toContain(4)
+    expect(snareSlots).toContain(12)
+  })
+
   it('start(bpm) preserves the explicit preset tempo', async () => {
     const tone = await import('tone')
 
