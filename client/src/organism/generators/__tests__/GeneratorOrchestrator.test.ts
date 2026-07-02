@@ -107,6 +107,15 @@ describe('GeneratorOrchestrator', () => {
     expect(mockTransportStart).toHaveBeenCalled()
   })
 
+  it('pushes kick anchors from the drum pattern to the bass on start', async () => {
+    const spy = vi.spyOn((orchestrator as any).bass, 'setKickAnchors')
+    await orchestrator.start(90)
+    expect(spy).toHaveBeenCalled()
+    const slots = spy.mock.calls[spy.mock.calls.length - 1][0] as number[]
+    expect(slots.length).toBeGreaterThan(0)
+    expect(slots).toContain(0)   // every sub-genre pattern kicks on beat 1
+  })
+
   it('start(bpm) preserves the explicit preset tempo', async () => {
     const tone = await import('tone')
 

@@ -13,7 +13,10 @@ import {
   buildBassNotes,
   shouldEnableSlide,
   getPortamentoTime,
+  getBassSwing,
 }                              from './patterns/BassPatternLibrary'
+import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
+import { hashString, mulberry32 } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
@@ -60,6 +63,13 @@ export class BassGenerator extends GeneratorBase {
   // until Phase 4 folds ChordProgressionBank routing into Conductor.
   private rootMidi:        number       = 36
   private currentBehavior: BassBehavior = BassBehavior.Breathe
+
+  // ── Freeplay (spec 2026-07-02) — improvise from the live chord instead of
+  // reading BassPatternLibrary. Default ON; the styles dropdown is the opt-out.
+  private freeplayEnabled = true
+  private chordIntervals: number[] = [0, 3, 7]
+  private kickAnchors: number[] = []
+  private freeplayPhraseCounter = 0
 
   private unsubscribeConductor: (() => void) | null = null
   // Set by the Conductor's onChordChange listener; consumed on the next
@@ -257,6 +267,7 @@ export class BassGenerator extends GeneratorBase {
       // Push the chord QUALITY before the same-root early-return — patterns
       // must play the chord's actual third/seventh (a minor-pent bass over
       // the progression's major chords is the "off notes" clash).
+      this.chordIntervals = chord.intervals
       setBassChordQuality(chord.intervals)
       const newRoot = this.currentBassRoot()
       if (newRoot === this.rootMidi) return
@@ -749,7 +760,36 @@ export class BassGenerator extends GeneratorBase {
       } catch { /* */ }
     }
 
+    if (this.freeplayEnabled) {
+      const seed = hashString(`bass:${this.currentSectionName}:${this.currentSubGenre ?? 'none'}`)
+      return buildFreeplayBassNotes({
+        rootMidi: this.rootMidi,
+        chordIntervals: this.chordIntervals,
+        bars: 4,
+        swing: getBassSwing(),
+        subGenre: (this.currentSubGenre ?? 'boom-bap') as string,
+        energy: physics.density,
+        density: physics.density,
+        sectionName: this.currentSectionName,
+        motifSeed: seed,
+        kickTimes16ths: this.kickAnchors,
+        rng: mulberry32(seed + this.freeplayPhraseCounter++),
+      })
+    }
+
     return buildBassNotes(this.currentBehavior, this.rootMidi, physics.density)
+  }
+
+  /** Freeplay on/off. Rebuild immediately so the switch is audible. */
+  setFreeplay(enabled: boolean): void {
+    if (this.freeplayEnabled === enabled) return
+    this.freeplayEnabled = enabled
+    if (this.lastOutputGain > 0) this.rebuildPart()
+  }
+
+  /** Kick onset slots (absolute 16ths, 0..63) from the current drum pattern. */
+  setKickAnchors(slots: number[]): void {
+    this.kickAnchors = slots
   }
 
   private startSubBassRise(): void {

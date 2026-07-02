@@ -176,6 +176,15 @@ export abstract class GeneratorBase {
   protected _activePlayer: Tone.Player | null = null
   protected _idlePlayer: Tone.Player | null = null
   protected _loopMode = false
+
+  /** Current arrangement section (from the orchestrator's section listener).
+   *  Freeplay improvisers key their committed motif on this. */
+  protected currentSectionName = 'verse'
+
+  setSectionName(name: string): void {
+    this.currentSectionName = name
+  }
+
   protected _loopBpm = 120
   protected _currentLoopClip: LoopClip | null = null
   protected _nextLoopClip: LoopClip | null = null

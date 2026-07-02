@@ -31,6 +31,8 @@ import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
 import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
+import { extractKickSlots } from './freeplay/utils'
+import { clearMotifs } from './freeplay/motif'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -266,6 +268,9 @@ export class GeneratorOrchestrator {
       const transport = Tone.getTransport()
       const position = transport.position as string
       const barNumber = parseInt(position.split(':')[0], 10) || 0
+      // Freeplay improvisers key their committed motifs on the section name.
+      this.bass.setSectionName(section)
+      this.chord.setSectionName(section)
       orgLog('arrangement:section', {
         section,
         bars: slot.bars,
@@ -435,7 +440,11 @@ export class GeneratorOrchestrator {
     if (this.drumEnabled) {
       const startPattern = buildSubGenrePattern(startSubGenre, this.director.getState().drums.variantIndex)
       this.drum.loadGeneratedPattern(startPattern.hits, true)
+      this.bass.setKickAnchors(extractKickSlots(startPattern.hits))
     }
+
+    // Per-start variety: each session commits fresh freeplay motifs.
+    clearMotifs()
 
     // Reset the progressive intro counter so every fresh start replays the
     // instrument-stacking sequence from bar 0.
@@ -1185,6 +1194,11 @@ export class GeneratorOrchestrator {
     return this.bass.getArticulation()
   }
 
+  /** Freeplay switch — bass improvises from the live chord vs authored patterns. */
+  setBassFreeplay(enabled: boolean): void {
+    this.bass.setFreeplay(enabled)
+  }
+
   resetBassArticulationOverride(): void {
     this.bass.resetArticulationOverride()
   }
@@ -1308,6 +1322,7 @@ export class GeneratorOrchestrator {
     if (this.drumEnabled) {
       const drumPattern = buildSubGenrePattern(subGenre, this.director.getState().drums.variantIndex)
       this.drum.loadGeneratedPattern(drumPattern.hits, true)
+      this.bass.setKickAnchors(extractKickSlots(drumPattern.hits))
     }
 
     // Bass is rebuilt immediately above so the rhythm section changes as one.
@@ -1337,6 +1352,7 @@ export class GeneratorOrchestrator {
       velocitySpread: 0.04,
     })
     this.drum.loadGeneratedPattern(mutated)
+    this.bass.setKickAnchors(extractKickSlots(mutated))
   }
 
   /**

@@ -79,6 +79,12 @@ export function setBassSwing(mode: string): void {
   currentSwing = MODE_SWING[mode] ?? SUBGENRE_SWING[mode] ?? 0.35
 }
 
+/** Read the live bass swing (set by setBassSwingFromSubGenre) — freeplay
+ *  must swing by the same amount as the authored patterns. */
+export function getBassSwing(): number {
+  return currentSwing
+}
+
 /** Set swing from sub-genre directly — reads the DRUM library's swing table
  *  (the band's single groove source) so bass and drums can never disagree. */
 export function setBassSwingFromSubGenre(subGenre: HipHopSubGenre): void {
