@@ -221,7 +221,7 @@ immutability for drums, comp-avoids-backbeat for chords. `npm run check` +
 | 1 | Bass freeplay + kick anchors | Smallest lift (chord quality already piped), biggest glue win |
 | 2 | Drum freeplay | The beat itself; skeleton table keeps genre identity |
 | 3 | Chord freeplay | Depends on comp-vs-backbeat info from 1–2 |
-| 4 | UI switches + defaults ON | Last, so each engine is ear-verified before exposure |
+| 4 | UI switches | Each engine defaults ON in code as its phase lands (that's how it gets ear-verified); the UI phase adds the per-player opt-out |
 
 Each phase = separate commit(s), by-ear gate before the next. Baseline commit
 for all of this: `fc2ed540`.
