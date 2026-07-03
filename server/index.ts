@@ -210,7 +210,7 @@ app.use(helmet({
       connectSrc: ["'self'", "https:", "wss:", process.env.APP_URL || ""].filter(Boolean),
       mediaSrc: ["'self'", "data:", "blob:", "https:"],
       workerSrc: ["'self'", "blob:"],
-      frameSrc: ["'self'"],
+      frameSrc: ["'self'", "https://accounts.google.com"],
       objectSrc: ["'none'"],
     },
   } : false,

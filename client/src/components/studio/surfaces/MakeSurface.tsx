@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import StudioVocalRecorder, { type VocalTake } from '@/components/studio/StudioVocalRecorder';
+import LyricVideoMaker from '@/components/studio/LyricVideoMaker';
 import { OrganismCommandCenter } from '@/features/organism/OrganismCommandCenter';
 import {
   useOrganismActivation,
@@ -115,6 +116,10 @@ export default function MakeSurface() {
       </div>
 
       <div className="mx-auto grid max-w-[1800px] gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="xl:col-span-2">
+          <LyricVideoMaker />
+        </div>
+
         <section className="min-h-[620px] overflow-hidden rounded-md border border-border bg-background shadow-sm">
           <div className="flex h-10 items-center gap-2 border-b border-border px-3">
             <Radio className="h-4 w-4 text-cyan-300" />
