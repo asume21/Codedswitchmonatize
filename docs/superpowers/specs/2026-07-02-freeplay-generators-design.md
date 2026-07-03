@@ -312,11 +312,16 @@ By-ear verdict on §9 in production: "almost but not there" — mix/loudness fee
    leaving keys/lead a dry mono blob in the centre. A slow mostly-dry stereo
    chorus (0.5 Hz / 3.5 ms / depth 0.35 / wet 0.25, spread 180) now sits on the
    melody+chord bus: modulated width, no static mono comb.
-3. **SESSION_SALT** (`freeplay/utils.ts`) — every freeplay seed was a
-   deterministic string hash + a counter starting at 0, so each fresh app load
-   improvised the IDENTICAL beat per preset. A random per-load salt is mixed in
-   at every call site (drums/bass/chords/groove template). Purity preserved:
-   the salt never enters the improvisers, tests pass explicit rngs.
+3. **Freeplay seed contract** (`freeplay/utils.ts`) — user's rule, verbatim:
+   *"each time I use that preset it should be different — unless I have a seed."*
+   Every freeplay seed was a deterministic string hash + a counter starting at
+   0, so each fresh app load improvised the IDENTICAL beat per preset.
+   Now: `rerollSessionSalt()` draws a fresh random salt on EVERY organism
+   start (new beat per start, not just per page load), all freeplay counters
+   zero on start, and `setFreeplaySeed(n)` (exported + attached to `window`,
+   seed logged to console on each start) pins the salt so the same preset
+   replays the same beat exactly; `setFreeplaySeed(null)` unpins. Purity
+   preserved: the salt never enters the improvisers, tests pass explicit rngs.
 
 Still open if the melodic side needs more: chord instrument choice per
 sub-genre (GM soundfont defaults read dated), melody/chord call-and-response,

@@ -31,7 +31,7 @@ import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
 import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
-import { extractKickSlots, hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
+import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
 import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
 import { clearCompCounters } from './freeplay/ChordImproviser'
@@ -442,6 +442,21 @@ export class GeneratorOrchestrator {
     this.chord.setSwing(startSwing)
     this.melody.setSwing(startSwing)
 
+    // Per-start variety: fresh freeplay salt (a NEW beat every start — unless
+    // the user pinned a seed via setFreeplaySeed), fresh motifs, and counters
+    // back to zero so a pinned seed reproduces the beat EXACTLY. Must run
+    // BEFORE the initial drum pattern below, or bar 1 plays the old session's
+    // motif and self-heals a rebuild later.
+    const freeplaySeed = rerollSessionSalt()
+    clearMotifs()
+    clearCompCounters()
+    this.freeplayDrumCounter = 0
+    this.chord.resetFreeplayCounter()
+    this.bass.resetFreeplayCounter()
+    console.info(
+      `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
+    )
+
     // Load the initial drum pattern explicitly. With Song Mode (arrangement)
     // off there are no section entries to load it, and onSubGenreChange only
     // fires on a CHANGE — a cold start whose sub-genre matched the director's
@@ -449,10 +464,6 @@ export class GeneratorOrchestrator {
     if (this.drumEnabled) {
       this.drum.loadGeneratedPattern(this.buildDrumHits(startSubGenre, this.director.getState().drums.variantIndex), true)
     }
-
-    // Per-start variety: each session commits fresh freeplay motifs.
-    clearMotifs()
-    clearCompCounters()
 
     // Reset the progressive intro counter so every fresh start replays the
     // instrument-stacking sequence from bar 0.
@@ -1398,7 +1409,7 @@ export class GeneratorOrchestrator {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + SESSION_SALT + this.freeplayDrumCounter++),
+        rng: mulberry32(seed + getSessionSalt() + this.freeplayDrumCounter++),
       })
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits

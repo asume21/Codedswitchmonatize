@@ -16,7 +16,7 @@ import {
   getBassSwing,
 }                              from './patterns/BassPatternLibrary'
 import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
-import { hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
@@ -70,6 +70,9 @@ export class BassGenerator extends GeneratorBase {
   private chordIntervals: number[] = [0, 3, 7]
   private kickAnchors: number[] = []
   private freeplayPhraseCounter = 0
+
+  /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
+  resetFreeplayCounter(): void { this.freeplayPhraseCounter = 0 }
 
   private unsubscribeConductor: (() => void) | null = null
   // Set by the Conductor's onChordChange listener; consumed on the next
@@ -773,7 +776,7 @@ export class BassGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
-        rng: mulberry32(seed + SESSION_SALT + this.freeplayPhraseCounter++),
+        rng: mulberry32(seed + getSessionSalt() + this.freeplayPhraseCounter++),
       })
     }
 

@@ -6,7 +6,7 @@
 
 import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
-import { hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt } from './freeplay/utils'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -90,6 +90,9 @@ export class ChordGenerator extends GeneratorBase {
   // ── Freeplay (spec 2026-07-02) ── comp plans instead of a fixed technique.
   private freeplayEnabled = true
   private freeplayCallCounter = 0
+
+  /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
+  resetFreeplayCounter(): void { this.freeplayCallCounter = 0 }
 
   // Tracks whether the technique was explicitly set by a warm-up phrase or
   // external caller. When false, mode changes auto-update the technique to
@@ -587,7 +590,7 @@ export class ChordGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + SESSION_SALT + this.freeplayCallCounter++),
+        rng: mulberry32(seed + getSessionSalt() + this.freeplayCallCounter++),
       })
       for (const ev of plan) {
         const notes = ev.useNextVoicing
