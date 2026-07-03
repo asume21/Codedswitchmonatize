@@ -44,12 +44,17 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
 
   // ONE extra-kick motif per section — repeats every bar (A-A-A-A for kicks;
   // the development lives in hats/ghosts/fill, keeping the floor rock solid).
+  // Extra kicks are SYNCOPATION ONLY: never on the quarter notes (0/4/8/12) —
+  // adding beat-3 kicks turned boom-bap into four-on-the-floor house (measured
+  // by ear + WebEar describe, 2026-07-02). Max 2 per bar keeps the floor hip-hop.
   const kickMotif = getSectionMotif(
     `drums:${ctx.sectionName}:${ctx.subGenre}`,
     ctx.rng,
     Math.min(ctx.density, 0.4),
     [],
-  ).slots.filter(s => !protectedSlots.has(s))
+  ).slots
+    .filter(s => !protectedSlots.has(s) && s % 4 !== 0)
+    .slice(0, 2)
 
   for (let bar = 0; bar < ctx.bars; bar++) {
     const isFillBar = bar === ctx.bars - 1

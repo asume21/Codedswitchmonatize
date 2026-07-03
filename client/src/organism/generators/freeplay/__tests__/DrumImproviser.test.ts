@@ -38,6 +38,23 @@ describe('DrumImproviser', () => {
     expect(SKELETONS['trap'].snares).not.toEqual(SKELETONS['boom-bap'].snares)
   })
 
+  it('improvised extra kicks are syncopation only — never on quarter notes (the four-on-the-floor bug, 2026-07-02)', () => {
+    for (let seed = 0; seed < 15; seed++) {
+      clearMotifs()
+      const hits = buildFreeplayDrumHits(ctx({ rng: mulberry32(seed), density: 1.0 }))
+      const skeletonKicks = new Set(SKELETONS['boom-bap'].kicks)
+      const extraKicks = hits.filter(h =>
+        h.instrument === 'kick' && !skeletonKicks.has(slotOf(h.time).slot))
+      for (const k of extraKicks) {
+        expect(slotOf(k.time).slot % 4, `extra kick on quarter-note slot ${slotOf(k.time).slot} (seed ${seed})`).not.toBe(0)
+      }
+      // and no more than 2 extra kicks per bar
+      for (let bar = 0; bar < 4; bar++) {
+        expect(extraKicks.filter(k => slotOf(k.time).bar === bar).length).toBeLessThanOrEqual(2)
+      }
+    }
+  })
+
   it('density controls hat count', () => {
     const sparse = buildFreeplayDrumHits(ctx({ density: 0.2, sectionName: 'intro' }))
     clearMotifs()

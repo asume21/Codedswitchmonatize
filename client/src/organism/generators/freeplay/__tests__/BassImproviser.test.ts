@@ -80,6 +80,17 @@ describe('BassImproviser', () => {
     }
   })
 
+  it('stays in the pocket — at most 4 onsets per bar (anti-tech-house cap, 2026-07-02)', () => {
+    for (let seed = 0; seed < 15; seed++) {
+      clearMotifs()
+      const notes = buildFreeplayBassNotes(ctx({ rng: mulberry32(seed), density: 1.0 }))
+      for (let bar = 0; bar < 3; bar++) {   // bar 3 may add the turnaround pickup
+        const inBar = notes.filter(n => n.time.startsWith(`${bar}:`))
+        expect(inBar.length, `bar ${bar}, seed ${seed}`).toBeLessThanOrEqual(4)
+      }
+    }
+  })
+
   it('is deterministic for the same seed', () => {
     const n1 = buildFreeplayBassNotes(ctx({ rng: mulberry32(5) }))
     clearMotifs()

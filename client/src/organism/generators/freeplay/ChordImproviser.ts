@@ -10,7 +10,11 @@ export interface CompEvent {
   time: string
   dur: string
   vel: number
-  /** Anticipation: render with the NEXT chord's voicing (pickup into the change). */
+  /** Anticipation: render with the NEXT chord's voicing (pickup into the change).
+   *  CURRENTLY NEVER SET: the comp Part loops 1 bar while the harmonic rhythm is
+   *  2 bars, so a baked-in anticipation fires a full bar early half the time —
+   *  the wrong chord's notes, measured as the user's "not in key" (2026-07-02).
+   *  Re-enable only from a scheduler that knows the real chord boundary. */
   useNextVoicing?: boolean
 }
 
@@ -40,11 +44,6 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     dur: ctx.energy > 0.7 ? '8n' : slot === 0 ? '2n' : '4n',
     vel: Math.min(0.7, Math.max(0.3, (slot === 0 ? 0.6 : 0.48) - i * 0.02)),
   }))
-
-  // High energy: pickup into the next chord on the final swung 16th.
-  if (ctx.energy > 0.7) {
-    events.push({ time: swungTime(0, 15, ctx.swing), dur: '16n', vel: 0.42, useNextVoicing: true })
-  }
 
   return events
 }

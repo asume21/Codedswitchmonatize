@@ -32,10 +32,15 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     kickSlotsBar.slice(0, 4),
   )
 
-  // Kick-glue guarantee: keep ALL kick-slots but at most kickCount/2 free
+  // Kick-glue guarantee: keep kick-slots first and at most kickCount/2 free
   // slots, so ≥60% of onsets land with the kick even for busy motifs.
-  const kickish = motif.slots.filter(s => kickSlotsBar.includes(s))
-  const freeCap = Math.max(1, Math.floor(kickish.length / 2))
+  // HARD CAP 4 onsets/bar: 5+ short notes per bar reads as a bubbly tech-house
+  // bassline, not a hip-hop pocket (WebEar describe heard "very active plucky
+  // bass … Tech House", 2026-07-02). Fewer onsets also lengthens durations.
+  const kickish = motif.slots.filter(s => kickSlotsBar.includes(s)).slice(0, 4)
+  const freeCap = Math.max(4 - kickish.length, 0) > 0
+    ? Math.min(Math.max(1, Math.floor(kickish.length / 2)), 4 - kickish.length)
+    : 0
   const free = motif.slots.filter(s => !kickSlotsBar.includes(s)).slice(0, freeCap)
   const baseMask = { slots: [...new Set([...kickish, ...free])].sort((a, b) => a - b) }
 
@@ -45,7 +50,9 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
 
   for (let bar = 0; bar < ctx.bars; bar++) {
     // A-A-A'-A: bar 3 (index 2) is the single bounded variation.
-    const mask = bar === 2 ? varyMotif(baseMask, ctx.rng) : baseMask
+    // Re-cap after varying — the 'add' op must not break the 4-onset pocket cap.
+    const varied = bar === 2 ? varyMotif(baseMask, ctx.rng) : baseMask
+    const mask = varied.slots.length > 4 ? { slots: varied.slots.slice(0, 4) } : varied
     const slots = mask.slots
 
     slots.forEach((slot, i) => {

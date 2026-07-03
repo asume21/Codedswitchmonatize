@@ -40,12 +40,13 @@ describe('ChordImproviser', () => {
     }
   })
 
-  it('high energy → stabs plus an anticipation of the NEXT chord', () => {
-    const plan = buildFreeplayCompPlan(ctx({ energy: 0.9 }))
-    expect(plan.length).toBeGreaterThanOrEqual(3)
-    const anticipation = plan.find(e => e.useNextVoicing)
-    expect(anticipation).toBeDefined()
-    expect(slotOf(anticipation!.time)).toBe(15)
+  it('NEVER emits next-voicing anticipations — the looping 1-bar part would fire them a bar early (the "not in key" bug, 2026-07-02)', () => {
+    for (let seed = 0; seed < 10; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ energy: 0.9, rng: mulberry32(seed) }))
+      expect(plan.length).toBeGreaterThanOrEqual(3)   // stabs still happen
+      expect(plan.some(e => e.useNextVoicing)).toBe(false)
+    }
   })
 
   it('same section repeats the same comp rhythm (mostly) — motif memory', () => {
