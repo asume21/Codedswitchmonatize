@@ -52,3 +52,46 @@ describe('planAnswer', () => {
     expect(hot!.velocity).toBeLessThanOrEqual(0.95)
   })
 })
+
+// ── Instrumental Duet — the band answers itself in listening mode ───────────
+import { planInstrumentalAnswer, melodyIsQuiet } from '../duet'
+
+const instCtx = (over: Partial<import('../duet').InstrumentalDuetContext> = {}) => ({
+  melodyRestSec: 1.2,        // well past a beat at 90bpm (0.667s/beat)
+  beatSec: 60 / 90,
+  wasQuiet: false,           // rising edge
+  msSinceLastAnswer: 5000,   // not throttled
+  voiceActive: false,        // pure listening mode
+  ...over,
+})
+
+describe('planInstrumentalAnswer', () => {
+  it('answers a melody rest with a chord stab in listening mode', () => {
+    const cue = planInstrumentalAnswer(instCtx())
+    expect(cue).not.toBeNull()
+    expect(cue!.answer).toBe('stab')
+  })
+
+  it('fires on the rising edge of the rest only — not every silent frame', () => {
+    expect(planInstrumentalAnswer(instCtx({ wasQuiet: true }))).toBeNull()
+  })
+
+  it('does not treat the space between two 8th notes as a rest', () => {
+    // 0.3s gap at 90bpm is under the beat-and-a-quarter threshold
+    expect(planInstrumentalAnswer(instCtx({ melodyRestSec: 0.3 }))).toBeNull()
+  })
+
+  it('throttles back-to-back answers', () => {
+    expect(planInstrumentalAnswer(instCtx({ msSinceLastAnswer: 800 }))).toBeNull()
+  })
+
+  it('yields the floor to the vocal Duet while an MC is active', () => {
+    expect(planInstrumentalAnswer(instCtx({ voiceActive: true }))).toBeNull()
+  })
+
+  it('melodyIsQuiet threshold scales with tempo', () => {
+    // 1.0s rest: quiet at 140bpm (beat 0.43s), NOT quiet at 60bpm (beat 1.0s)
+    expect(melodyIsQuiet(1.0, 60 / 140)).toBe(true)
+    expect(melodyIsQuiet(1.0, 60 / 60)).toBe(false)
+  })
+})

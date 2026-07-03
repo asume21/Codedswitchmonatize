@@ -791,8 +791,16 @@ export class MelodyGenerator extends GeneratorBase {
     this.hasStartedPlayback = false
     this.lastRebuildTime = -Infinity
     this.sectionBehavior = null
+    this.lastNoteEndSec  = 0
     this.setOutputLevel(0)
   }
+
+  // ── Instrumental Duet signal ─────────────────────────────────────────
+  // Audio-clock time (seconds) when the melody's most recent note ends.
+  // 0 = the melody hasn't played yet this run (orchestrator ignores it).
+  private lastNoteEndSec = 0
+
+  getLastNoteEndSec(): number { return this.lastNoteEndSec }
 
   applyPitchOffset(semitones: number): void {
     this.pitchOffsetSemitones = Math.round(semitones)
@@ -942,6 +950,13 @@ export class MelodyGenerator extends GeneratorBase {
     this.emitNoteEvents(events)
 
     this.part = new Tone.Part((time, event) => {
+      // Instrumental Duet signal: when this note ENDS, the melody may be
+      // resting — the orchestrator watches this to cue chord answers into the
+      // rests between motifs (see conductor/duet.ts planInstrumentalAnswer).
+      try {
+        this.lastNoteEndSec = Math.max(this.lastNoteEndSec, time + Tone.Time(event.dur).toSeconds())
+      } catch { /* malformed duration — skip the signal, never the note */ }
+
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
       const finalVel = event.vel * presenceDuck

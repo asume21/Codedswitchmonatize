@@ -22,7 +22,7 @@ import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
-import { planAnswer, type DuetCue } from '../conductor/duet'
+import { planAnswer, planInstrumentalAnswer, melodyIsQuiet, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
 import type { ArrangementPlan } from '@shared/arrangement'
@@ -98,6 +98,12 @@ export class GeneratorOrchestrator {
   private duetEnabled: boolean = true
   private duetWasBreathing: boolean = false
   private duetLastAnswerMs: number = 0
+
+  // Instrumental Duet — the band answers ITSELF in listening mode: the chords
+  // stab into the melody's rests (see conductor/duet.ts planInstrumentalAnswer).
+  // Same executeDuetCue path as the vocal Duet; this is only the cue state.
+  private instDuetWasQuiet: boolean = false
+  private instDuetLastAnswerMs: number = 0
 
   // ── Freeplay (spec 2026-07-02) ──
   private drumFreeplay = true
@@ -503,6 +509,8 @@ export class GeneratorOrchestrator {
     // Reset Duet edge/throttle so a new session doesn't fire a stale answer.
     this.duetWasBreathing = false
     this.duetLastAnswerMs = 0
+    this.instDuetWasQuiet = false
+    this.instDuetLastAnswerMs = 0
     // Silence all generators immediately — continuous sources like the pink
     // noise in TextureGenerator keep producing audio after Transport stops.
     // Silence all generators immediately — continuous sources like the pink
@@ -782,6 +790,45 @@ export class GeneratorOrchestrator {
     this.duetWasBreathing = performer.breathingNow
     if (!cue) return
     this.duetLastAnswerMs = now
+    this.executeDuetCue(cue)
+  }
+
+  /**
+   * Instrumental Duet decision. Runs every frame from processFrame: watches
+   * how long the melody has been resting (its own phrase-end signal) and, on
+   * the rising edge of a real rest, cues a chord stab through the SAME
+   * executeDuetCue path as the vocal Duet. Gated off while an MC is active —
+   * the vocal Duet owns the conversation then.
+   */
+  private maybeAnswerMelodyRest(voiceActive: boolean): void {
+    if (!this.duetEnabled || !this.melodyEnabled || !this.chordEnabled) {
+      this.instDuetWasQuiet = false
+      return
+    }
+    const transport = Tone.getTransport()
+    if (transport.state !== 'started') {
+      this.instDuetWasQuiet = false
+      return
+    }
+    const lastNoteEnd = this.melody.getLastNoteEndSec()
+    if (lastNoteEnd <= 0) {
+      // Melody hasn't played yet this run — nothing to answer.
+      this.instDuetWasQuiet = false
+      return
+    }
+
+    const beatSec = 60 / (transport.bpm.value || 90)
+    const restSec = Tone.now() - lastNoteEnd
+    const cue = planInstrumentalAnswer({
+      melodyRestSec: restSec,
+      beatSec,
+      wasQuiet: this.instDuetWasQuiet,
+      msSinceLastAnswer: performance.now() - this.instDuetLastAnswerMs,
+      voiceActive,
+    })
+    this.instDuetWasQuiet = melodyIsQuiet(restSec, beatSec)
+    if (!cue) return
+    this.instDuetLastAnswerMs = performance.now()
     this.executeDuetCue(cue)
   }
 
@@ -1288,6 +1335,10 @@ export class GeneratorOrchestrator {
     if (this.melodyEnabled) this.melody.processFrame(physics, organism)
     this.texture.processFrame(physics, organism)
     if (this.chordEnabled)  this.chord.processFrame(physics, organism)
+
+    // Instrumental Duet: in listening mode (no MC on the mic) the chords
+    // answer the melody's phrase-end rests with a comp stab.
+    this.maybeAnswerMelodyRest(physics.voiceActive)
 
     // Density feedback loop: report generator activity levels to PhysicsEngine
     if (this.physicsEngineRef) {
