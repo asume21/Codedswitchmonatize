@@ -72,6 +72,21 @@ function seededJitter(profileId: string): number {
   return (h / 9973) * 3   // 0..3 — reorders near-tied candidates, not the field
 }
 
+/** Seeded 0..1 roll keyed by a string — stable within a session like the jitter. */
+function seededRoll(key: string): number {
+  let h = performerSessionSeed
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 9973
+  return h / 9973
+}
+
+/** How often a start ignores the mode's preferred pool entirely and gives every
+ *  role-capable instrument a fair roll. ANY instrument can be in ANY genre —
+ *  the genre lives in HOW it's played (skeletons, swing, comping idiom,
+ *  articulations), not the timbre. Without this, the +12 preference bonus made
+ *  the pools de facto gates: a violin boom-bap or marimba trap could never
+ *  happen organically. */
+const WILDCARD_CHANCE = 0.18
+
 export function selectInstrumentPerformer(ctx: PerformerSelectionContext): InstrumentPerformerProfile {
   if (ctx.explicitId) {
     const explicit = INSTRUMENT_PERFORMERS_BY_ID.get(ctx.explicitId)
@@ -79,14 +94,23 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
   }
 
   const candidates = INSTRUMENT_PERFORMERS.filter(profile => profile.roles.includes(ctx.role))
-  const preferred = MODE_ROLE_DEFAULTS[ctx.mode]?.[ctx.role] ?? [DEFAULT_BY_ROLE[ctx.role]]
+  const modePool = MODE_ROLE_DEFAULTS[ctx.mode]?.[ctx.role]
+  const preferred = modePool ?? [DEFAULT_BY_ROLE[ctx.role]]
+  // Wildcard start: the preferred pool becomes advisory, not a gate — the mild
+  // energy/brightness/mode-bias scoring below still keeps the pick sensible.
+  // Scope: lead/chord only (instrument COLOR lives there; the low-end is
+  // structural genre identity), and only when the mode actually has a pool —
+  // an unknown mode keeps its stable piano default.
+  const wildcard = modePool !== undefined
+    && (ctx.role === 'lead' || ctx.role === 'chord')
+    && seededRoll(`wildcard:${ctx.role}:${ctx.mode}`) < WILDCARD_CHANCE
   let best = candidates[0] ?? INSTRUMENT_PERFORMERS_BY_ID.get(DEFAULT_BY_ROLE[ctx.role])!
   let bestScore = -Infinity
 
   for (const profile of candidates) {
     let score = 0
     const preferredIdx = preferred.indexOf(profile.id)
-    if (preferredIdx >= 0) score += 12 - preferredIdx
+    if (!wildcard && preferredIdx >= 0) score += 12 - preferredIdx
     if (profile.modeBias.includes(ctx.mode)) score += 4
     if (ctx.energy > 0.7 && profile.tags.includes('aggressive')) score += 3
     if (ctx.energy < 0.35 && (profile.tags.includes('warm') || profile.tags.includes('air'))) score += 2
