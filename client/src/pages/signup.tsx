@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Music, Loader2 } from "lucide-react";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
@@ -224,6 +225,24 @@ export default function Signup() {
                 "Create Account"
               )}
             </Button>
+            <GoogleSignInButton
+              onSuccess={(data) => {
+                if (data.token) {
+                  localStorage.setItem('authToken', data.token);
+                }
+                if (data.userId) {
+                  localStorage.setItem('authUserId', data.userId);
+                }
+                toast({
+                  title: data.message === "Login successful" ? "Welcome back!" : "Account created!",
+                  description: "You're signed in with Google.",
+                });
+                setLocation("/dashboard");
+              }}
+              onError={(message) =>
+                toast({ title: "Google sign-in failed", description: message, variant: "destructive" })
+              }
+            />
             <div className="text-center text-sm text-gray-400">
               Already have an account?{" "}
               <a href="/login" className="text-blue-400 hover:text-blue-300 underline">

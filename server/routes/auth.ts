@@ -4,6 +4,12 @@ import { z } from "zod";
 import type { IStorage } from "../storage";
 import { grantTrialCredits } from "../middleware/trialCredits";
 import { signUserToken } from "../lib/jwt";
+import {
+  createGoogleVerifier,
+  findOrCreateGoogleUser,
+  GoogleAuthError,
+  type GoogleTokenVerifier,
+} from "../lib/googleAuth";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -137,6 +143,75 @@ export function createAuthRoutes(storage: IStorage) {
       console.error("Login error:", error?.message || error);
       console.error("Login error stack:", error?.stack);
       res.status(500).json({ message: error?.message || "Login failed" });
+    }
+  });
+
+  // Google Sign-In: verify a GIS ID token, then log in or create the account.
+  // Spec: docs/superpowers/specs/2026-07-03-google-login-design.md
+  let googleVerifier: GoogleTokenVerifier | null = null;
+  router.post("/google", async (req: Request, res: Response) => {
+    try {
+      const clientId = process.env.GOOGLE_CLIENT_ID;
+      if (!clientId) {
+        return res.status(501).json({ message: "Google login is not configured" });
+      }
+      const credential = typeof req.body?.credential === "string" ? req.body.credential : "";
+      if (!credential) {
+        return res.status(400).json({ message: "Missing Google credential" });
+      }
+
+      googleVerifier ??= createGoogleVerifier(clientId);
+      let profile;
+      try {
+        profile = await googleVerifier(credential);
+      } catch {
+        return res.status(401).json({ message: "Invalid Google credential" });
+      }
+
+      const { user, created } = await findOrCreateGoogleUser(storage, profile);
+
+      if (created) {
+        // Same as /register: async, don't block the login on it
+        grantTrialCredits(storage, user.id).catch(err => {
+          console.error('Failed to grant trial credits:', err);
+        });
+      }
+
+      // Same session handling as /login: regenerate against fixation, but a
+      // session-store outage must not fail the login (token auth still works)
+      if (req.session) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            req.session!.regenerate((err: Error | null) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          req.session.userId = user.id;
+          await new Promise<void>((resolve, reject) => {
+            req.session!.save((err: Error | null) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+        } catch (sessionError) {
+          console.warn("Session regenerate/save failed (token auth still works):", sessionError);
+        }
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.status(created ? 201 : 200).json({
+        message: created ? "Account created successfully" : "Login successful",
+        user: userWithoutPassword,
+        userId: user.id,
+        token: signUserToken(user.id)
+      });
+    } catch (error: any) {
+      if (error instanceof GoogleAuthError) {
+        return res.status(error.status).json({ message: error.message });
+      }
+      console.error("Google login error:", error?.message || error);
+      res.status(500).json({ message: "Google login failed" });
     }
   });
 

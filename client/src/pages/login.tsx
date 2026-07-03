@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Music, Loader2 } from "lucide-react";
 import { useAuth, type SubscriptionStatus } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const SUBSCRIPTION_QUERY_KEY = ["/api/subscription-status"] as const;
 
@@ -31,6 +32,39 @@ export default function Login() {
     email: "",
     password: "",
   });
+
+  // Shared by password AND Google login: store the token, seed the auth
+  // cache so a slow subscription refresh can't fail a successful login,
+  // then head to the dashboard.
+  const completeLogin = (data: any) => {
+    if (data.token) {
+      localStorage.setItem('authToken', data.token);
+    }
+    if (data.userId) {
+      localStorage.setItem('authUserId', data.userId);
+    }
+
+    queryClient.setQueryData<SubscriptionStatus>(SUBSCRIPTION_QUERY_KEY, {
+      hasActiveSubscription:
+        data.user?.subscriptionTier === "pro" || data.user?.subscriptionStatus === "active",
+      tier: data.user?.subscriptionTier || "free",
+      monthlyUploads: data.user?.monthlyUploads || 0,
+      monthlyGenerations: data.user?.monthlyGenerations || 0,
+      lastUsageReset: data.user?.lastUsageReset,
+      isAuthenticated: true,
+    });
+
+    void refresh().catch((refreshError) => {
+      console.warn("Post-login auth refresh failed:", refreshError);
+    });
+
+    toast({
+      title: "Welcome back!",
+      description: "You've successfully logged in.",
+    });
+
+    setLocation("/dashboard");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,38 +91,7 @@ export default function Login() {
         throw new Error(data.message || `Login failed (${response.status})`);
       }
 
-      // Store auth token for subsequent requests
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
-      }
-      if (data.userId) {
-        localStorage.setItem('authUserId', data.userId);
-      }
-
-      // Login succeeded. Seed auth immediately so a slow subscription refresh
-      // cannot turn a successful login into a "Login Failed" toast.
-      queryClient.setQueryData<SubscriptionStatus>(SUBSCRIPTION_QUERY_KEY, {
-        hasActiveSubscription:
-          data.user?.subscriptionTier === "pro" || data.user?.subscriptionStatus === "active",
-        tier: data.user?.subscriptionTier || "free",
-        monthlyUploads: data.user?.monthlyUploads || 0,
-        monthlyGenerations: data.user?.monthlyGenerations || 0,
-        lastUsageReset: data.user?.lastUsageReset,
-        isAuthenticated: true,
-      });
-
-      // Re-fetch exact subscription usage in the background. This must not
-      // decide whether the login itself succeeded.
-      void refresh().catch((refreshError) => {
-        console.warn("Post-login auth refresh failed:", refreshError);
-      });
-
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in.",
-      });
-
-      setLocation("/dashboard");
+      completeLogin(data);
     } catch (error: any) {
       toast({
         title: "Login Failed",
@@ -162,6 +165,12 @@ export default function Login() {
                 "Sign In"
               )}
             </Button>
+            <GoogleSignInButton
+              onSuccess={completeLogin}
+              onError={(message) =>
+                toast({ title: "Login Failed", description: message, variant: "destructive" })
+              }
+            />
             <div className="text-center text-sm text-gray-400">
               Don't have an account?{" "}
               <a href="/signup" className="text-blue-400 hover:text-blue-300 underline">
