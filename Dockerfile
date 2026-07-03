@@ -14,7 +14,12 @@ COPY package*.json npm-shrinkwrap.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build
+
+# Vite bakes VITE_* values into the browser bundle during this build step.
+# Railway Dockerfile builds require ARG declarations before build-time variables
+# are visible here.
+ARG VITE_GOOGLE_CLIENT_ID
+RUN VITE_GOOGLE_CLIENT_ID="$VITE_GOOGLE_CLIENT_ID" npm run build
 
 EXPOSE 5000
 
