@@ -61,3 +61,22 @@ describe('QuickStartPresets — Real Beat presets', () => {
     }
   })
 })
+
+// ── Explicit band members — a preset named after an instrument must ask for it ──
+import { INSTRUMENT_PERFORMERS_BY_ID } from '../../../organism/performers/InstrumentRegistry'
+
+describe('preset performers', () => {
+  it('every explicit performer id exists in the registry (typos fall back to piano silently)', () => {
+    for (const preset of QUICK_START_PRESETS) {
+      for (const [role, id] of Object.entries(preset.performers ?? {})) {
+        expect(INSTRUMENT_PERFORMERS_BY_ID.has(id), `${preset.id} ${role}: '${id}' not in registry`).toBe(true)
+      }
+    }
+  })
+
+  it('Violin Trap explicitly asks for a violin lead (the "no violin in Violin Trap" bug)', () => {
+    const preset = getQuickStartPreset('ref-violin-trap-130')
+    expect(preset?.performers?.lead).toBe('violin')
+    expect(preset?.emotionalIntent).toBe('sad')
+  })
+})

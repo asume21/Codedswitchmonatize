@@ -16,6 +16,7 @@
 import { OrganismMode } from '../../organism/physics/types'
 import type { PhysicsState } from '../../organism/physics/types'
 import type { HipHopSubGenre } from '../../organism/state/MusicalState'
+import type { InstrumentPerformerId } from '../../organism/performers'
 
 export interface QuickStartPreset {
   id:          string
@@ -30,6 +31,20 @@ export interface QuickStartPreset {
   icon:        string
   physics:     PhysicsState
   loopPackId?: string    // ID of the LoopPack to load when Loops Mode is ON
+  /** Explicit band members. A preset NAMED after an instrument must audibly
+   *  produce that instrument — before this field, "Violin Trap" only set
+   *  mode=Glow, where violin was one of four router candidates re-rolled every
+   *  start (heard maybe half the time). Roles left undefined keep the router's
+   *  per-start variety AND are cleared on preset start so a previous preset's
+   *  pick can't stick. */
+  performers?: {
+    lead?:  InstrumentPerformerId
+    chord?: InstrumentPerformerId
+    bass?:  InstrumentPerformerId
+  }
+  /** Melody mood shaping (MelodyGenerator.setEmotionalIntent) — 'sad' narrows
+   *  dynamics into the soft range; cleared when the preset doesn't set it. */
+  emotionalIntent?: 'sad' | 'beautiful'
 }
 
 function makePhysics(overrides: Partial<PhysicsState> & { mode: OrganismMode; pulse: number }): PhysicsState {
@@ -57,6 +72,8 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     loopPackId: 'cymatics-vintage-80',
     label:    'Lucid',
     genre:    'Reference / Melodic Emo Trap',
+    performers: { lead: 'guitar-nylon' },
+    emotionalIntent: 'sad',
     bpm:      80,
     mode:     OrganismMode.Glow,
     subGenre: 'chill',
@@ -105,6 +122,8 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     allowedTemplateIds: ['storytelling', 'slow-burn', 'classic', 'bridge-heavy'],
     energy:   'medium',
     icon:     '🎻',
+    performers: { lead: 'violin', chord: 'strings' },
+    emotionalIntent: 'sad',
     physics: makePhysics({
       mode:     OrganismMode.Glow,
       pulse:    130,
@@ -289,6 +308,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     loopPackId: 'cymatics-vintage-76',
     label:  'Chill',
     genre:  'Chill / Melodic',
+    performers: { lead: 'flute' },
     bpm:    75,
     mode:   OrganismMode.Glow,
     subGenre: 'chill',
@@ -310,6 +330,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     id:     'funk-100',
     label:  'Funk',
     genre:  'Funk / Groove',
+    performers: { lead: 'guitar-clean' },
     bpm:    100,
     mode:   OrganismMode.Smoke,
     subGenre: 'west-coast',
@@ -368,6 +389,7 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     loopPackId: 'cymatics-vintage-81',
     label:  'Story',
     genre:  'Storytelling / Narrative',
+    performers: { lead: 'piano' },
     bpm:    80,
     mode:   OrganismMode.Smoke,
     subGenre: 'chill',
