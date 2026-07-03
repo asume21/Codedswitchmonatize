@@ -236,3 +236,62 @@ for all of this: `fc2ed540`.
 - **Doubles trap** — improvisers must be called FROM the existing rebuild paths.
   If an implementation finds itself creating a new Part-scheduling pipeline or a
   second swing table, STOP: that's the anti-pattern this repo fights.
+
+---
+
+## 9. Producer-quality caps (2026-07-03) — continues this spec
+
+Full-pipeline audit after freeplay landed ("why isn't it producer level?").
+The note-writing layer was sound; the caps were downstream. All fixed on
+`claude/organism-producer-beats-r7o9a7`:
+
+**Delivery-chain bugs (the big ones):**
+1. **Open hats never fired in freeplay** — `resolveVoice` splits open/closed at
+   velocity 0.55; freeplay hats maxed at 0.48. Fixed two ways: the improviser
+   now writes deliberate open-hat accents (vel 0.68 on chosen off-beat 8ths),
+   and the kit resolves the voice from the PRE-duck pattern velocity so a
+   kick-duck can't flip an open hat closed (`trigger(..., voiceVelocity)`).
+2. **Double hat attenuation** — `rebuildPart` multiplied pattern velocities by
+   `hatCyclicPattern` [1.0, 0.4, …] on top of the improviser's own shaping
+   (0.22 × 0.4 → inaudible). Removed; pattern sources own velocity.
+3. **Linear velocity→gain** buried the feel layer. `velocityToGain()` in
+   SampledDrumKit: floor 0.12 + power curve 1.35 — ghosts audible, accents keep
+   contrast.
+4. **"Parallel compression" was serial** — drums+bass ran THROUGH the 4:1 bus
+   comp (no dry path): four compressors in series, no thwack, pumping 808.
+   MixEngine now wires true NY parallel: dry `drumBus → bandMaster` plus a
+   crushed copy (-24/6:1/3ms) blended at 0.45 underneath.
+5. **Blanket 18ms Haas** on melody+chords+texture comb-filtered everything in
+   mono. Haas now applies to texture only; melody/chords place via panners.
+6. **Sample truncation** — VOICE_DURATION cut kick tails at 0.65s / open hat at
+   0.5s. Lengthened (kick 1.1s, open hat 0.85s); closed hat stays 0.08s.
+7. **Level ceiling** — Flow capped drums at 0.78 with no makeup gain anywhere;
+   raised to 0.88 (master -9 dB + -0.3 dBFS WaveShaper ceiling absorb it).
+
+**Musical upgrades:**
+8. **2-bar kick cycle** — SKELETONS gained `kicksB`; bar B answers bar A
+   (identity genres — jersey club, reggaeton dembow, chill — keep A = B). The
+   1-bar kick loop ×4 was the strongest remaining "it's looped" signal.
+9. **Fill rotation** — snare-run / kick-stutter / cut (silence) / perc-run,
+   drawn per phrase, instead of the same ascending snare run forever.
+10. **Motif-driven 16th hat infill** — committed off-16th slots per section
+    (was a per-slot coin flip = noise, contradicting §4.2).
+11. **Groove template** — DrumGenerator's lazy-snare/hat-shuffle jitter was
+    `Math.random()` per event; now seeded per-slot offsets stable across bars
+    and rebuilds (MPC-style pocket), seeded per physics mode.
+12. **Snare+clap layering** — backbeat snares (vel ≥ 0.75) stack the clap at
+    0.55× under the snare; claps are layer-only, no more random round-robin
+    snare/clap alternation.
+13. **Key tuning** — new pure `pitchDetect.ts` (autocorrelation, 25–200 Hz,
+    tail-weighted, octave-error guard). Kicks retune onto the Conductor's key
+    root via playbackRate (≤ ±3 st, cached off-thread); Real808BassSampler
+    measures its sample's true fundamental and keys the sampler on the DETECTED
+    root instead of trusting `rootNote || 'C1'` metadata.
+
+**Deferred:** arrangement "moments" (pre-drop silence, risers, filter moves) —
+that's arrangement writing, a separate design; kick layering (sub+punch+top
+stacks) — needs curated layer-compatible sample sets.
+
+**Verification:** vitest green (freeplay + pitchDetect suites, 598 total),
+`npm run check` clean. WebEar capture + by-ear gate still required before this
+merges — same §6 rule as every phase.

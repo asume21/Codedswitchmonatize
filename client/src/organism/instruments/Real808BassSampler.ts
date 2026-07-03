@@ -1,5 +1,7 @@
 import * as Tone from 'tone'
 import type { OrganismKitSample } from './OrganismKitCache'
+import { detectFundamentalHz, hzToMidi } from './pitchDetect'
+import { midiToNote } from '../generators/freeplay/utils'
 export { findBass808Sample } from './OrganismKitCache'
 
 export type Real808BassSample = OrganismKitSample
@@ -42,26 +44,48 @@ export class Real808BassSampler {
     if (this.loadPromise) return this.loadPromise
     this.state = 'loading'
 
-    const rootNote = sample.rootNote || this.rootNote
-
+    // The metadata rootNote is a guess ('C1' fallback) — and a wrong root makes
+    // every melodic 808 line consistently sharp/flat against the chords. Load
+    // the buffer first, MEASURE the sample's true fundamental, and key the
+    // sampler on the detected root instead. Metadata is kept as the fallback
+    // when the detector finds no confident pitch.
     this.loadPromise = new Promise((resolve) => {
-      this.sampler = new Tone.Sampler({
-        urls: { [rootNote]: sample.url },
-        attack: 0.001,
-        release: 2.5,
-        volume: this.volume,
-        onload: () => {
+      const buffer = new Tone.ToneAudioBuffer(
+        sample.url,
+        () => {
+          let rootNote = sample.rootNote || this.rootNote
+          try {
+            const audio = buffer.get()
+            if (audio) {
+              const f0 = detectFundamentalHz(audio.getChannelData(0), audio.sampleRate)
+              if (f0) {
+                const detected = midiToNote(Math.round(hzToMidi(f0)))
+                if (detected !== rootNote) {
+                  console.info('[Real808BassSampler] tuned 808 root by ear', {
+                    metadataRoot: sample.rootNote ?? null, detectedRoot: detected, f0: Math.round(f0 * 10) / 10,
+                  })
+                }
+                rootNote = detected
+              }
+            }
+          } catch { /* detection is an enhancement — metadata root still works */ }
+
+          this.sampler = new Tone.Sampler({
+            urls: { [rootNote]: buffer },
+            attack: 0.001,
+            release: 2.5,
+            volume: this.volume,
+          })
+          this.sampler.connect(this.output)
           this.state = 'loaded'
           resolve()
         },
-        onerror: (err) => {
+        (err) => {
           console.warn('[Real808BassSampler] failed to load 808 sample', { sampleUrl: sample.url, err })
           this.state = 'error'
           resolve()
         },
-      })
-      this.sampler.connect(this.output)
-
+      )
     })
 
     return this.loadPromise
