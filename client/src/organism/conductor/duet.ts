@@ -51,3 +51,48 @@ export function planAnswer(performer: PerformerState, ctx: DuetContext): DuetCue
   const velocity = Math.max(0.3, Math.min(0.95, 0.4 + energy * 0.5))
   return { answer, velocity }
 }
+
+// ── Instrumental Duet — the band answers ITSELF ─────────────────────────────
+//
+// The vocal Duet above only fires on an MC's breath gaps: in pure listening
+// mode nothing converses. Here the MELODY plays the MC's role — its committed
+// rests between motifs ARE the call gaps — and the chords answer with a stab
+// in the pocket the melody left. Same DuetCue, same executeDuetCue path in the
+// orchestrator (quantized to the next 8th); this is a third CUE SOURCE into
+// the existing engine, not a rival system.
+
+export interface InstrumentalDuetContext {
+  /** Seconds since the melody's last note ended (transport running). */
+  melodyRestSec: number
+  /** Seconds per beat at the current tempo. */
+  beatSec: number
+  /** Quiet-state from the PREVIOUS frame — answers fire on the rising edge of
+   *  the rest, the moment the melody's phrase lands, not on every silent frame. */
+  wasQuiet: boolean
+  /** ms since the last instrumental answer — throttle. */
+  msSinceLastAnswer: number
+  /** An MC is actively performing — the vocal Duet owns the conversation. */
+  voiceActive: boolean
+  /** Minimum spacing between answers (ms). Default 2500. */
+  minGapMs?: number
+}
+
+/** The melody counts as resting after a beat-and-a-quarter of silence — long
+ *  enough to be a deliberate phrase-end, not the space between two 8th notes. */
+export function melodyIsQuiet(restSec: number, beatSec: number): boolean {
+  return restSec > beatSec * 1.25
+}
+
+/**
+ * Decide the chords' answer to a melody rest, or null if now is not the moment.
+ * Pure: same inputs → same cue. The orchestrator owns edge/throttle state.
+ */
+export function planInstrumentalAnswer(ctx: InstrumentalDuetContext): DuetCue | null {
+  if (ctx.voiceActive) return null
+  const quiet = melodyIsQuiet(ctx.melodyRestSec, ctx.beatSec)
+  if (!quiet || ctx.wasQuiet) return null   // rising edge only
+  if (ctx.msSinceLastAnswer < (ctx.minGapMs ?? 2500)) return null
+  // The melody is the one resting — answering with a lead lick would fill its
+  // own silence. The chords punctuate instead: a soft comp stab in the pocket.
+  return { answer: 'stab', velocity: 0.55 }
+}

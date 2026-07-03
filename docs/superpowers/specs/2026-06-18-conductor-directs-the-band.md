@@ -224,6 +224,14 @@ Conductor API already in place to build on: `currentChord()`/`nextChord()`
       HARMONIC/MELODIC REPLY — the band's own idea, played AFTER the phrase, in the gap.
       Different layer, different moment; they don't collide. Drum fills as a Duet answer are
       intentionally deferred so the Duet never competes with WOW for the drum layer.
+- [x] **D3 — Instrumental Duet.** ✅ 2026-07-03. The vocal Duet only fires on MC breath
+      gaps — pure listening mode had no conversation. Third cue source into the SAME
+      engine: the MELODY plays the MC's role. `planInstrumentalAnswer` (pure, duet.ts)
+      fires on the rising edge of a melody rest (> 1.25 beats since the melody's last
+      note ended — `MelodyGenerator.getLastNoteEndSec()`, updated per Part callback) and
+      cues a chord stab through the existing `executeDuetCue` (next-8th quantized).
+      Throttled 2.5s; gated off while `voiceActive` (the vocal Duet keeps the floor);
+      edge/throttle state reset on stop. TDD'd (6 cases in duet.test.ts).
 
 ### Still captured for later (after the duet is heard)
 - The deeper source of "taste" (orchestration/voicing it wasn't explicitly told) is
