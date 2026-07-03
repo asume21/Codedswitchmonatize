@@ -12,7 +12,7 @@ import {
 }                              from './patterns/DrumPatternLibrary'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
-import { mulberry32, hashString } from './freeplay/utils'
+import { mulberry32, hashString, SESSION_SALT } from './freeplay/utils'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -232,7 +232,7 @@ export class DrumGenerator extends GeneratorBase {
   private grooveSnareLagMs:  number[] = []   // lazy-snare lag per beat (0..3)
 
   private buildGrooveTemplate(): void {
-    const rng = mulberry32(hashString(`groove:${this.currentPhysicsMode}`))
+    const rng = mulberry32(hashString(`groove:${this.currentPhysicsMode}`) + SESSION_SALT)
     this.grooveHatShiftPct = Array.from({ length: 16 }, (_, slot) =>
       slot % 2 === 1
         ? this.hatShuffleMinPct + rng() * (this.hatShuffleMaxPct - this.hatShuffleMinPct)

@@ -6,7 +6,7 @@
 
 import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
-import { hashString, mulberry32 } from './freeplay/utils'
+import { hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -574,7 +574,12 @@ export class ChordGenerator extends GeneratorBase {
       const seed = hashString(`chord:${this.currentSectionName}`)
       const plan = buildFreeplayCompPlan({
         rootMidi: 60, chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
-        bars: 1,
+        // 2 bars: bar 1 states the comp motif, bar 2 develops it (variation +
+        // mid-bar push). The old 1-bar loop hit the SAME three slots every bar
+        // of the whole section — the "still repetitive" chord layer. Notes stay
+        // the current voicing throughout, so the 2-bar plan is chord-safe: a
+        // chord change rebuilds the part at the boundary exactly as before.
+        bars: 2,
         swing: this.currentSwing,
         subGenre: 'none',
         energy,
@@ -582,7 +587,7 @@ export class ChordGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + this.freeplayCallCounter++),
+        rng: mulberry32(seed + SESSION_SALT + this.freeplayCallCounter++),
       })
       for (const ev of plan) {
         const notes = ev.useNextVoicing
@@ -621,7 +626,9 @@ export class ChordGenerator extends GeneratorBase {
       }
     }
 
-    const loopBars = 1
+    // Freeplay comps a 2-bar statement/development cycle; authored behaviors
+    // keep their original 1-bar loop.
+    const loopBars = this.freeplayEnabled ? 2 : 1
 
     const quantizedEvents = events.map(event => ({
       ...event,

@@ -1,5 +1,15 @@
 // Pure helpers for the freeplay improvisers. NO tone imports (testability).
 
+/**
+ * Per-app-load salt mixed into every freeplay seed at the CALL SITES (never
+ * inside the pure improvisers — tests pass explicit rngs and stay exact).
+ * Without it, seeds like hashString('drums:verse:boom-bap') + a counter
+ * starting at 0 made every fresh session improvise the IDENTICAL beat for a
+ * given preset — "improvised" in name, hardcoded in effect. Within a session
+ * the salt is constant, so section-motif stability is untouched.
+ */
+export const SESSION_SALT: number = Math.floor(Math.random() * 0x7fffffff)
+
 /** Deterministic PRNG — same seed, same stream. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0
