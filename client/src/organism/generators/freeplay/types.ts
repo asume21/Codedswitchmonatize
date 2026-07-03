@@ -11,5 +11,6 @@ export interface FreeplayContext {
   sectionName: string         // motif memory key component
   motifSeed: number           // hash(section + subGenre) — motif family
   kickTimes16ths: number[]    // absolute kick slots 0..(bars*16-1), for bass glue
+  leadBusy16ths?: number[]    // per-bar slots 0..15 the melody occupies — comp dodges the lead (empty/absent = deaf)
   rng: () => number           // seeded — improvisers are deterministic per seed
 }

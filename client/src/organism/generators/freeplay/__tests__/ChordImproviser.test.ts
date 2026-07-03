@@ -108,6 +108,34 @@ describe('ChordImproviser', () => {
     }
   })
 
+  it('dodges the slots the LEAD occupies — comps around the melody, downbeat exempt', () => {
+    // Melody sitting on the common comp pockets (per-bar slots)
+    const leadBusy = [2, 3, 6, 7, 10, 14]
+    for (let seed = 0; seed < 12; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, leadBusy16ths: leadBusy, rng: mulberry32(seed) }))
+      expect(plan.length).toBeGreaterThanOrEqual(1)
+      for (const ev of plan) {
+        const slot = slotOf(ev.time)
+        if (slot === 0) continue  // downbeat harmony statement is always allowed
+        expect(leadBusy, `comp landed on lead slot ${slot} (seed ${seed})`).not.toContain(slot)
+      }
+    }
+  })
+
+  it('lead-dodging is a PREFERENCE — a wall-to-wall melody never silences the comp', () => {
+    const everySlot = Array.from({ length: 16 }, (_, i) => i)
+    for (let seed = 0; seed < 6; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, leadBusy16ths: everySlot, rng: mulberry32(seed) }))
+      expect(plan.length).toBeGreaterThanOrEqual(1)   // falls back to kick-filtered slots
+      // The push stab respects the lead strictly, so only motif slots remain
+      for (const ev of plan) {
+        expect(ev.vel).toBeLessThanOrEqual(0.7)
+      }
+    }
+  })
+
   it('never returns an empty plan even when kicks cover the whole motif', () => {
     const everySlot = Array.from({ length: 16 }, (_, i) => i)
     const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, kickTimes16ths: everySlot }))

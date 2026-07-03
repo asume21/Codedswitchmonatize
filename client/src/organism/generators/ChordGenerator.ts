@@ -103,6 +103,15 @@ export class ChordGenerator extends GeneratorBase {
     this.kickAnchors = [...slots]
   }
 
+  // Per-bar slots (0..15) the melody occupies, pushed by the orchestrator
+  // before every chord rebuild — the comp dodges the lead like it dodges
+  // the kick (preference, not rule: see ChordImproviser).
+  private leadBusySlots: number[] = []
+
+  setLeadBusySlots(slots: number[]): void {
+    this.leadBusySlots = [...slots]
+  }
+
   // Tracks whether the technique was explicitly set by a warm-up phrase or
   // external caller. When false, mode changes auto-update the technique to
   // the new mode's default (e.g. heat → guitar-muted-stab). When true, the
@@ -599,6 +608,7 @@ export class ChordGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
+        leadBusy16ths: this.leadBusySlots,
         rng: mulberry32(seed + getSessionSalt() + this.freeplayCallCounter++),
       })
       for (const ev of plan) {

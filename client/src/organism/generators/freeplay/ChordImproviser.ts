@@ -64,12 +64,19 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const kickSet = new Set(ctx.kickTimes16ths.map(s => ((Math.floor(s) % 16) + 16) % 16))
   const collides = (slot: number) => slot !== 0 && kickSet.has(slot)
 
+  // Lead awareness: slots the melody occupies. Dodging the kick is a RULE
+  // (doubling it is mud); dodging the lead is a PREFERENCE — if the melody is
+  // everywhere, comp anyway rather than vanish. Downbeat exempt as ever.
+  const leadBusy = new Set((ctx.leadBusy16ths ?? []).map(s => ((Math.floor(s) % 16) + 16) % 16))
+  const leadRoom = (slot: number) => slot === 0 || !leadBusy.has(slot)
+
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
     const isDevBar = bars > 1 ? bar === bars - 1 : count % 3 === 0
     const mask: RhythmMotif = isDevBar ? varyMotif(motif, ctx.rng) : motif
-    const slots = mask.slots
-      .filter(s => !BACKBEAT.has(s) && !collides(s))
+    const kickFree = mask.slots.filter(s => !BACKBEAT.has(s) && !collides(s))
+    const roomy = kickFree.filter(leadRoom)
+    const slots = (roomy.length > 0 ? roomy : kickFree)
       .slice(0, ctx.energy > 0.7 ? 4 : 3)
 
     slots.forEach((slot, i) => {
@@ -84,7 +91,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     // The push also dodges the kick: try the and-of-2 first, then neighbours.
     if (isDevBar && bars > 1 && ctx.rng() < 0.8) {
       const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
-        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s))
+        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(s))
       if (pushSlot !== undefined) {
         events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: 0.52 })
       }

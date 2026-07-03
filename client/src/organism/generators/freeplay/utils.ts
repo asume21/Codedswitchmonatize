@@ -91,6 +91,40 @@ export function jitterVel(base: number, rng: () => number, spread = 0.08): numbe
   return Math.min(1, Math.max(0.1, base + (rng() - 0.5) * spread * 2))
 }
 
+/** Tone duration notation → 16th-slot count ('8n' → 2, '1m' → 16, dotted ×1.5).
+ *  Unknown shapes count as one slot — better to under-claim than block a bar. */
+export function durationToSixteenths(duration: string): number {
+  const value = String(duration).trim()
+  const dotted = value.endsWith('.')
+  const base = dotted ? value.slice(0, -1) : value
+  let slots = 1
+  if (base.endsWith('m')) {
+    slots = (parseFloat(base) || 1) * 16
+  } else if (base.endsWith('n')) {
+    const denom = parseFloat(base.slice(0, -1)) || 16
+    slots = 16 / denom
+  }
+  if (dotted) slots *= 1.5
+  return Math.max(1, Math.round(slots))
+}
+
+/** Per-bar 16th slots (0..15) a melodic line OCCUPIES — onset plus held
+ *  duration, folded across bars. The comp reads this to dodge the lead the
+ *  same way it dodges the kick. */
+export function extractBusySlots16ths(
+  events: Array<{ time: string; dur: string }>,
+): number[] {
+  const busy = new Set<number>()
+  for (const ev of events) {
+    const [bar, beat, sub] = ev.time.split(':').map(parseFloat)
+    if ([bar, beat, sub].some(Number.isNaN)) continue
+    const start = bar * 16 + beat * 4 + Math.floor(sub)
+    const len = durationToSixteenths(ev.dur)
+    for (let i = 0; i < len; i++) busy.add(((start + i) % 16 + 16) % 16)
+  }
+  return [...busy].sort((a, b) => a - b)
+}
+
 /** Kick onset slots (absolute 16ths) from a DrumHit[] — used for bass glue.
  *  Times are "bar:beat:sub" strings; swing fractions floor to the slot. */
 export function extractKickSlots(

@@ -374,7 +374,12 @@ export class GeneratorOrchestrator {
       // Stagger bass/melody/chord so Part rebuilds don't collide on the audio thread
       setTimeout(() => this.bass.onStateTransition(event.to, snap), 50)
       setTimeout(() => this.melody.onStateTransition(event.to, snap), 120)
-      setTimeout(() => this.chord.onStateTransition(event.to, snap), 180)
+      setTimeout(() => {
+        // Chords rebuild LAST in the stagger, so the melody's fresh loop is
+        // already committed — sync its busy slots before the comp plan builds.
+        this.syncLeadBusyToChords()
+        this.chord.onStateTransition(event.to, snap)
+      }, 180)
     })
   }
 
@@ -617,7 +622,10 @@ export class GeneratorOrchestrator {
       globalThis.setTimeout(() => this.bass.onStateTransition(state, physics), 80)
       globalThis.setTimeout(() => this.melody.onStateTransition(state, physics), 160)
       globalThis.setTimeout(() => this.texture.onStateTransition(state, physics), 220)
-      globalThis.setTimeout(() => this.chord.onStateTransition(state, physics), 280)
+      globalThis.setTimeout(() => {
+        this.syncLeadBusyToChords()
+        this.chord.onStateTransition(state, physics)
+      }, 280)
       return
     }
 
@@ -625,7 +633,15 @@ export class GeneratorOrchestrator {
     this.bass.onStateTransition(state, physics)
     this.melody.onStateTransition(state, physics)
     this.texture.onStateTransition(state, physics)
+    this.syncLeadBusyToChords()
     this.chord.onStateTransition(state, physics)
+  }
+
+  /** Band-awareness relay: the melody's occupied slots → the chords, so the
+   *  comp dodges the LEAD the same way it dodges the kick. Same push channel
+   *  as setKickAnchors; melody off means nothing to dodge. */
+  private syncLeadBusyToChords(): void {
+    this.chord.setLeadBusySlots(this.melodyEnabled ? this.melody.getBusySlots16ths() : [])
   }
 
   /** Prime one audible frame after a forced startup transition. */
@@ -1334,7 +1350,10 @@ export class GeneratorOrchestrator {
     if (this.bassEnabled)   this.bass.processFrame(physics, organism)
     if (this.melodyEnabled) this.melody.processFrame(physics, organism)
     this.texture.processFrame(physics, organism)
-    if (this.chordEnabled)  this.chord.processFrame(physics, organism)
+    if (this.chordEnabled) {
+      this.syncLeadBusyToChords()
+      this.chord.processFrame(physics, organism)
+    }
 
     // Instrumental Duet: in listening mode (no MC on the mic) the chords
     // answer the melody's phrase-end rests with a comp stab.

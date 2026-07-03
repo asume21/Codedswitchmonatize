@@ -42,6 +42,7 @@ import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import { applyVoiceLeading } from './melody/voiceLeading'
 import { selectMotifBankKey } from './melody/motifSelection'
+import { extractBusySlots16ths } from './freeplay/utils'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -120,6 +121,10 @@ export class MelodyGenerator extends GeneratorBase {
   // back to a fixed home register — it picks up near where it left off.
   // Cleared on section change so each section is a fresh musical thought.
   private lastPhraseFinalMidi: number | null = null
+  // Per-bar 16th slots (0..15) the CURRENT melody loop occupies. The
+  // orchestrator pulls this and pushes it to the chords before every chord
+  // rebuild — same band-awareness channel as the drum's kick anchors.
+  private busySlots16ths: number[] = []
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
   // by default: timbre variety only pays off once the LINE is good, and we don't
   // want to debug a jumping voice while the note logic is still settling.
@@ -861,7 +866,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     if (this.currentBehavior === MelodyBehavior.Rest) {
       this.stopPart()
-      return true    // intentional stop — dirty flags can be cleared
+      return true    // intentional stop — dirty flags can be cleared (stopPart clears busy slots)
     }
 
     const lengths = PHRASE_LENGTHS[this.currentBehavior]
@@ -911,7 +916,10 @@ export class MelodyGenerator extends GeneratorBase {
     // Computed AFTER dynamics so accent velocities drive the bend choice.
     const guitarArtIds = this.isGuitar() ? planGuitarArticulations(notes) : null
 
-    if (notes.length === 0) return true
+    if (notes.length === 0) {
+      this.busySlots16ths = []
+      return true
+    }
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -947,6 +955,7 @@ export class MelodyGenerator extends GeneratorBase {
       vel: n.velocity,
       art: guitarArtIds ? guitarArtIds[i] : undefined,
     }))
+    this.busySlots16ths = extractBusySlots16ths(events)
     this.emitNoteEvents(events)
 
     this.part = new Tone.Part((time, event) => {
@@ -1453,7 +1462,14 @@ export class MelodyGenerator extends GeneratorBase {
 
   /** Public so the orchestrator can hard-cut the part on a live preset swap
    *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
+  /** Per-bar slots the current melody loop occupies — the orchestrator relays
+   *  this to the chords (see GeneratorOrchestrator.syncLeadBusyToChords). */
+  getBusySlots16ths(): number[] {
+    return this.busySlots16ths
+  }
+
   stopPart(): void {
+    this.busySlots16ths = []
     if (this.part) {
       this.part.stop()
       this.part.dispose()
