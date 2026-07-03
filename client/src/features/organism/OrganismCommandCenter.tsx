@@ -21,6 +21,7 @@ import { OState } from '../../organism/state/types'
 import { useStudioStore } from '../../stores/useStudioStore'
 import { INSTRUMENT_PERFORMERS } from '../../organism/performers'
 import type { InstrumentPerformerId, PerformerRole } from '../../organism/performers'
+import { getSessionSalt, setFreeplaySeed, isSeedPinned } from '../../organism/generators/freeplay/utils'
 
 // ── Web Speech API local typings ───────────────────────────────────────────
 // The browser's SpeechRecognition is experimental — TS lib doesn't always
@@ -552,6 +553,38 @@ export function OrganismCommandCenter() {
     setDrumFreeplayLocal(next)
     orchestrator?.setDrumFreeplay(next)
   }, [drumFreeplay, orchestrator])
+
+  // ── Beat seed — every start improvises a new beat unless pinned ─────────
+  const [beatSeed,   setBeatSeed]   = useState<number>(() => getSessionSalt())
+  const [seedPinned, setSeedPinned] = useState<boolean>(() => isSeedPinned())
+  const [seedInput,  setSeedInput]  = useState('')
+
+  useEffect(() => {
+    // Orchestrator dispatches the active seed on every organism start.
+    const onSeed = (e: Event) => setBeatSeed((e as CustomEvent<{ seed: number }>).detail.seed)
+    window.addEventListener('organism:freeplay-seed', onSeed)
+    return () => window.removeEventListener('organism:freeplay-seed', onSeed)
+  }, [])
+
+  const toggleSeedPin = useCallback(() => {
+    if (seedPinned) {
+      setFreeplaySeed(null)
+      setSeedPinned(false)
+    } else {
+      // Pin the beat that's playing right now — next start replays it.
+      setFreeplaySeed(beatSeed)
+      setSeedPinned(true)
+    }
+  }, [seedPinned, beatSeed])
+
+  const applySeedInput = useCallback(() => {
+    const n = parseInt(seedInput.trim(), 10)
+    if (!Number.isFinite(n)) return
+    const applied = setFreeplaySeed(n)
+    setBeatSeed(applied)
+    setSeedPinned(true)
+    setSeedInput('')
+  }, [seedInput])
 
   const resetChordTech = useCallback(() => {
     orchestrator?.resetChordTechniqueOverride()
@@ -1888,6 +1921,72 @@ export function OrganismCommandCenter() {
               <SliderRow label="Hat density"  value={hatDensity}   onChange={setHatDensity}   color={C.purple} />
               <SliderRow label="Kick vel."    value={kickVelocity} onChange={setKickVelocity} color='#f472b6' />
               <SliderRow label="Drums vol."   value={drumsVolume}  onChange={setDrumsVolume}  color='#fb923c' />
+            </div>
+          </div>
+
+          {/* Beat seed — every start improvises a new beat unless pinned */}
+          <div style={{
+            padding: '10px 14px 8px',
+            borderBottom: `0.5px solid ${C.border}`,
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ ...label11, flex: 1 }}>🎲 Beat seed</span>
+              <span
+                style={{
+                  fontFamily: 'ui-monospace, monospace', fontSize: 10,
+                  color: seedPinned ? C.amber : C.text2,
+                }}
+                title="The seed behind the current beat — pin it to replay this beat on every start"
+              >
+                {beatSeed}
+              </span>
+              <button
+                onClick={toggleSeedPin}
+                style={{
+                  padding: '2px 8px', borderRadius: 999, fontSize: 9, fontWeight: 600,
+                  cursor: 'pointer', letterSpacing: '0.05em',
+                  border: seedPinned ? `1px solid ${C.amber}55` : `1px solid rgba(100,116,139,0.2)`,
+                  background: seedPinned ? `${C.amber}18` : 'transparent',
+                  color: seedPinned ? C.amber : C.text3,
+                }}
+                title={seedPinned
+                  ? 'Pinned: every start replays this exact beat — click for a new beat each start'
+                  : 'Random: every start improvises a new beat — click to keep this one'}
+              >
+                {seedPinned ? '🔒 PINNED' : '🔓 RANDOM'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+              <input
+                value={seedInput}
+                onChange={(e) => setSeedInput(e.target.value.replace(/[^0-9]/g, ''))}
+                onKeyDown={(e) => { if (e.key === 'Enter') applySeedInput() }}
+                placeholder="enter a seed to replay a beat…"
+                inputMode="numeric"
+                style={{
+                  flex: 1, minWidth: 0, padding: '3px 8px', borderRadius: 6,
+                  fontSize: 10, fontFamily: 'ui-monospace, monospace',
+                  border: `1px solid ${C.border2}`, background: 'transparent',
+                  color: C.text, outline: 'none',
+                }}
+              />
+              <button
+                onClick={applySeedInput}
+                disabled={!seedInput.trim()}
+                style={{
+                  padding: '3px 10px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+                  border: `1px solid ${seedInput.trim() ? C.cyan + '55' : C.border2}`,
+                  background: seedInput.trim() ? `${C.cyan}18` : 'transparent',
+                  color: seedInput.trim() ? C.cyan : C.text3,
+                  cursor: seedInput.trim() ? 'pointer' : 'default',
+                }}
+              >SET</button>
+            </div>
+            <div style={{ fontSize: 9, color: C.text3, marginTop: 5, lineHeight: 1.4 }}>
+              {seedPinned
+                ? 'Pinned — restart the preset to replay this exact beat. Unpin for a fresh one every start.'
+                : 'New beat on every start. Like this one? Pin it (applies from the next start).'}
             </div>
           </div>
 

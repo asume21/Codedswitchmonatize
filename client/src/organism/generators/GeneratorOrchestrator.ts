@@ -456,6 +456,10 @@ export class GeneratorOrchestrator {
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
     )
+    // Let the Command Center's Beat Seed display track the active seed.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('organism:freeplay-seed', { detail: { seed: freeplaySeed } }))
+    }
 
     // Load the initial drum pattern explicitly. With Song Mode (arrangement)
     // off there are no section entries to load it, and onSubGenreChange only
