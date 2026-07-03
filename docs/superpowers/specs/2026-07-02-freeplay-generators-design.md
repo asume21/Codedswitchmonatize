@@ -295,3 +295,29 @@ stacks) — needs curated layer-compatible sample sets.
 **Verification:** vitest green (freeplay + pitchDetect suites, 598 total),
 `npm run check` clean. WebEar capture + by-ear gate still required before this
 merges — same §6 rule as every phase.
+
+---
+
+## 10. Melodic-side pass + session variety (2026-07-03, same day)
+
+By-ear verdict on §9 in production: "almost but not there" — mix/loudness feel
++ still repetitive, **melodic side worst**. Second pass:
+
+1. **Chord comping was a 1-bar loop** hitting the same 3 slots every bar of a
+   section. `buildFreeplayCompPlan` now plans multi-bar: bar 1 states the
+   section motif, last bar develops it (bounded variation + mid-bar push on the
+   and-of-2, slot 6 — same-voicing, chord-boundary-safe unlike the removed
+   next-voicing anticipation). ChordGenerator freeplay loops 2 bars.
+2. **Width restored properly** — §9 removed the melody-bus Haas outright,
+   leaving keys/lead a dry mono blob in the centre. A slow mostly-dry stereo
+   chorus (0.5 Hz / 3.5 ms / depth 0.35 / wet 0.25, spread 180) now sits on the
+   melody+chord bus: modulated width, no static mono comb.
+3. **SESSION_SALT** (`freeplay/utils.ts`) — every freeplay seed was a
+   deterministic string hash + a counter starting at 0, so each fresh app load
+   improvised the IDENTICAL beat per preset. A random per-load salt is mixed in
+   at every call site (drums/bass/chords/groove template). Purity preserved:
+   the salt never enters the improvisers, tests pass explicit rngs.
+
+Still open if the melodic side needs more: chord instrument choice per
+sub-genre (GM soundfont defaults read dated), melody/chord call-and-response,
+arrangement moments (§9 deferred list).

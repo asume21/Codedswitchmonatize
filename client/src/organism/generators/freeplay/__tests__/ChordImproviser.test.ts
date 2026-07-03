@@ -20,6 +20,8 @@ const slotOf = (t: string) => {
   return beat * 4 + Math.floor(sub)
 }
 
+const barOf = (t: string) => parseInt(t.split(':')[0], 10)
+
 describe('ChordImproviser', () => {
   beforeEach(() => { clearMotifs(); clearCompCounters() })
 
@@ -63,5 +65,39 @@ describe('ChordImproviser', () => {
       expect(ev.vel).toBeLessThanOrEqual(0.7)
       expect(ev.vel).toBeGreaterThanOrEqual(0.3)
     }
+  })
+
+  it('2-bar plan: bar 1 states the motif, bar 2 develops it (not an identical copy)', () => {
+    let developed = 0
+    for (let seed = 0; seed < 12; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, rng: mulberry32(seed) }))
+      const barSlots = (bar: number) =>
+        plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
+      expect(barSlots(0).length).toBeGreaterThanOrEqual(1)
+      expect(barSlots(1).length).toBeGreaterThanOrEqual(1)
+      if (JSON.stringify(barSlots(0)) !== JSON.stringify(barSlots(1))) developed++
+    }
+    // development is probabilistic per seed but must be the norm
+    expect(developed).toBeGreaterThan(6)
+  })
+
+  it('2-bar plan still avoids the backbeat and never anticipates the next voicing', () => {
+    for (let seed = 0; seed < 10; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, rng: mulberry32(seed) }))
+      for (const ev of plan) {
+        expect([4, 12]).not.toContain(slotOf(ev.time))
+        expect(ev.useNextVoicing).toBeUndefined()
+      }
+    }
+  })
+
+  it('low-energy 2-bar plan pads both bars (softer re-attack, no dead second bar)', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.2 }))
+    expect(plan).toHaveLength(2)
+    expect(barOf(plan[0].time)).toBe(0)
+    expect(barOf(plan[1].time)).toBe(1)
+    expect(plan[1].vel).toBeLessThan(plan[0].vel)
   })
 })

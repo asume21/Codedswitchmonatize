@@ -16,7 +16,7 @@ import {
   getBassSwing,
 }                              from './patterns/BassPatternLibrary'
 import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
-import { hashString, mulberry32 } from './freeplay/utils'
+import { hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
@@ -773,7 +773,7 @@ export class BassGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
-        rng: mulberry32(seed + this.freeplayPhraseCounter++),
+        rng: mulberry32(seed + SESSION_SALT + this.freeplayPhraseCounter++),
       })
     }
 

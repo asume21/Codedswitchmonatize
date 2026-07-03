@@ -29,6 +29,7 @@ export class MixEngine {
   readonly drumCompressor:  Tone.Compressor
   readonly drumParallelWet: Tone.Gain
   readonly melodyBus:       Tone.Gain
+  readonly melodyChorus:    Tone.Chorus
   readonly textureSplit:    Tone.Split
   readonly textureMerge:    Tone.Merge
   readonly haasDelay:       Tone.Delay
@@ -76,14 +77,24 @@ export class MixEngine {
     this.drumCompressor.connect(this.drumParallelWet)
     this.drumParallelWet.connect(this.bandMaster)
 
-    // 3. Melody Bus (Keys, Chords) — DIRECT to the band master. The blanket
-    // 18ms Haas delay that used to sit on this whole bus comb-filtered every
-    // melodic element in mono and smeared the top end; placement now comes
-    // from the per-channel panners (melody +0.15, chord -0.10).
+    // 3. Melody Bus (Keys, Chords) → subtle stereo chorus → band master.
+    // History: an 18ms static Haas delay sat here (mono comb-filter, smeared
+    // top); removing it outright left keys/lead a dry mono blob in the centre —
+    // "the melodic side sticks out" (by-ear, 2026-07-03). A slow, mostly-dry
+    // chorus is the producer-keys width move: modulated so mono sums shimmer
+    // instead of combing, wet kept low so the dry attack still leads.
     this.melodyBus = new Tone.Gain(1)
+    this.melodyChorus = new Tone.Chorus({
+      frequency: 0.5,   // slow drift, not vibrato
+      delayTime: 3.5,   // ms — width territory, not slapback
+      depth: 0.35,
+      spread: 180,      // full L/R spread of the modulated copies
+      wet: 0.25,
+    }).start()
     this.melodyChannel.output.connect(this.melodyBus)
     this.chordChannel.output.connect(this.melodyBus)
-    this.melodyBus.connect(this.bandMaster)
+    this.melodyBus.connect(this.melodyChorus)
+    this.melodyChorus.connect(this.bandMaster)
 
     // 4. Texture keeps the Haas widening — pads/atmosphere are exactly where
     // wide-and-diffuse is wanted, and the channel is quiet (-14 dB) so the
@@ -239,6 +250,7 @@ export class MixEngine {
     try { this.drumCompressor.disconnect() } catch { /* */ }
     try { this.drumParallelWet.disconnect() } catch { /* */ }
     try { this.melodyBus.disconnect() } catch { /* */ }
+    try { this.melodyChorus.disconnect() } catch { /* */ }
     try { this.textureSplit.disconnect() } catch { /* */ }
     try { this.haasDelay.disconnect() } catch { /* */ }
     try { this.textureMerge.disconnect() } catch { /* */ }
@@ -254,6 +266,7 @@ export class MixEngine {
     this.drumCompressor.dispose()
     this.drumParallelWet.dispose()
     this.melodyBus.dispose()
+    this.melodyChorus.dispose()
     this.textureSplit.dispose()
     this.textureMerge.dispose()
     this.haasDelay.dispose()

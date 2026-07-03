@@ -31,7 +31,7 @@ import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
 import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
-import { extractKickSlots, hashString, mulberry32 } from './freeplay/utils'
+import { extractKickSlots, hashString, mulberry32, SESSION_SALT } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
 import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
 import { clearCompCounters } from './freeplay/ChordImproviser'
@@ -1398,7 +1398,7 @@ export class GeneratorOrchestrator {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + this.freeplayDrumCounter++),
+        rng: mulberry32(seed + SESSION_SALT + this.freeplayDrumCounter++),
       })
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
