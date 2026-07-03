@@ -20,7 +20,7 @@ import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler 
 import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
-import { getLivePartStart, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import {
   conformChordToInstrument,
   selectInstrumentPerformer,
@@ -93,6 +93,15 @@ export class ChordGenerator extends GeneratorBase {
 
   /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
   resetFreeplayCounter(): void { this.freeplayCallCounter = 0 }
+
+  // Kick onset slots from the current drum pattern (absolute 16ths), pushed by
+  // the orchestrator after every drum rebuild — same channel the bass uses.
+  // Freeplay comping reads these to sit in the pockets BETWEEN the kicks.
+  private kickAnchors: number[] = []
+
+  setKickAnchors(slots: number[]): void {
+    this.kickAnchors = [...slots]
+  }
 
   // Tracks whether the technique was explicitly set by a warm-up phrase or
   // external caller. When false, mode changes auto-update the technique to
@@ -589,7 +598,7 @@ export class ChordGenerator extends GeneratorBase {
         density: energy,
         sectionName: this.currentSectionName,
         motifSeed: seed,
-        kickTimes16ths: [],
+        kickTimes16ths: this.kickAnchors,
         rng: mulberry32(seed + getSessionSalt() + this.freeplayCallCounter++),
       })
       for (const ev of plan) {
@@ -737,7 +746,11 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    this.part.start(startAt)
+    // Phase-aligned like drums/bass: the 2-bar statement/development cycle
+    // stays locked to the band's bar count, so the development bar (with its
+    // push) consistently answers the drums' bar-B kicks instead of drifting
+    // to whichever bar the rebuild happened on.
+    this.part.start(startAt, livePartStartOffset(startAt, loopBars))
     this.hasStartedPlayback = true
     return true
   }

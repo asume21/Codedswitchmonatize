@@ -27,6 +27,11 @@ export function setFreeplaySeed(seed: number | null): number {
   return sessionSalt
 }
 
+/** Whether a seed is currently pinned (same beat on every start). */
+export function isSeedPinned(): boolean {
+  return pinnedSeed !== null
+}
+
 /** Called once per organism start: fresh salt, unless a seed is pinned. */
 export function rerollSessionSalt(): number {
   if (pinnedSeed === null) sessionSalt = randomSalt()

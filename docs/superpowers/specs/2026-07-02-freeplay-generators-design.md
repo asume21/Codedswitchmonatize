@@ -326,3 +326,37 @@ By-ear verdict on §9 in production: "almost but not there" — mix/loudness fee
 Still open if the melodic side needs more: chord instrument choice per
 sub-genre (GM soundfont defaults read dated), melody/chord call-and-response,
 arrangement moments (§9 deferred list).
+
+---
+
+## 11. Band awareness — "make sure they all are aware of each other" (2026-07-03)
+
+User's direction after §10. Awareness map at that point:
+
+| Channel | Existed? |
+|---|---|
+| One swing source for all players | ✅ (June) |
+| One voicing source (Conductor) for bass/chords/melody | ✅ (June) |
+| Bass hears the kick (`setKickAnchors`, ≥60% onsets locked) | ✅ (§4.3) |
+| Chords avoid the SNARE backbeat | ✅ (§4.5) |
+| Chords hear the KICK | ❌ — `kickTimes16ths: []`, chords were deaf |
+| Chord cycle phase-locked to the band's bars | ❌ — part started unaligned |
+
+Fixed:
+1. Orchestrator pushes the same kick anchors to `chord.setKickAnchors()` it
+   already pushes to bass (both `buildDrumHits` and the mutate path).
+2. `buildFreeplayCompPlan` drops any comp slot that lands ON a kick (downbeat
+   exempt — chord+kick on beat 1 is the head-nod). The dev-bar push dodges
+   kicks via neighbours. Empty-plan guard: at minimum the downbeat anchor
+   survives, so harmony never vanishes on kick-heavy patterns.
+3. Chord part starts with `livePartStartOffset(startAt, loopBars)` — the
+   statement/development cycle stays phase-locked to the band's bar count like
+   drums (4) and bass (4) already were.
+
+Plus the §10 seed contract got its UI: 🎲 Beat Seed panel in the Command
+Center (current seed display, PINNED/RANDOM toggle, seed input).
+
+Deeper awareness still on the table (own design pass): melody↔chords
+call-and-response, fill-aware comping (all followers thin out under the bar-4
+drum fill), shared micro-timing pocket (bass/chords riding the drums' groove
+template offsets).

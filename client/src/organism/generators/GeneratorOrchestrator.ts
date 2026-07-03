@@ -456,6 +456,10 @@ export class GeneratorOrchestrator {
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
     )
+    // Let the Command Center's Beat Seed display track the active seed.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('organism:freeplay-seed', { detail: { seed: freeplaySeed } }))
+    }
 
     // Load the initial drum pattern explicitly. With Song Mode (arrangement)
     // off there are no section entries to load it, and onSubGenreChange only
@@ -1389,7 +1393,9 @@ export class GeneratorOrchestrator {
       velocitySpread: 0.04,
     })
     this.drum.loadGeneratedPattern(mutated)
-    this.bass.setKickAnchors(extractKickSlots(mutated))
+    const anchors = extractKickSlots(mutated)
+    this.bass.setKickAnchors(anchors)
+    this.chord.setKickAnchors(anchors)
   }
 
   /** ONE drum-pattern source: freeplay improviser (default) or the authored
@@ -1414,7 +1420,11 @@ export class GeneratorOrchestrator {
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
     }
-    this.bass.setKickAnchors(extractKickSlots(hits))
+    // Rhythm-section glue: BOTH followers hear the same kick. Bass locks its
+    // onsets to it; chords comp in the pockets BETWEEN the kicks.
+    const anchors = extractKickSlots(hits)
+    this.bass.setKickAnchors(anchors)
+    this.chord.setKickAnchors(anchors)
     return hits
   }
 
