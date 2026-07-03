@@ -1,14 +1,43 @@
 // Pure helpers for the freeplay improvisers. NO tone imports (testability).
 
 /**
- * Per-app-load salt mixed into every freeplay seed at the CALL SITES (never
+ * Freeplay seed/salt — mixed into every freeplay seed at the CALL SITES (never
  * inside the pure improvisers — tests pass explicit rngs and stay exact).
- * Without it, seeds like hashString('drums:verse:boom-bap') + a counter
- * starting at 0 made every fresh session improvise the IDENTICAL beat for a
- * given preset — "improvised" in name, hardcoded in effect. Within a session
- * the salt is constant, so section-motif stability is untouched.
+ *
+ * Contract (the user's rule): every organism start improvises a DIFFERENT beat
+ * for the same preset, UNLESS a seed is pinned — then the beat reproduces
+ * exactly. Without this, seeds like hashString('drums:verse:boom-bap') + a
+ * counter starting at 0 made every start play the identical "improvised" beat.
+ * Within one run the salt is constant, so section-motif stability is untouched.
  */
-export const SESSION_SALT: number = Math.floor(Math.random() * 0x7fffffff)
+const randomSalt = () => Math.floor(Math.random() * 0x7fffffff)
+
+let pinnedSeed: number | null = null
+let sessionSalt: number = randomSalt()
+
+export function getSessionSalt(): number {
+  return sessionSalt
+}
+
+/** Pin the freeplay seed so the same preset replays the same beat; pass null
+ *  to unpin and return to a-new-beat-every-start. Returns the active salt. */
+export function setFreeplaySeed(seed: number | null): number {
+  pinnedSeed = seed
+  sessionSalt = seed === null ? randomSalt() : Math.floor(Math.abs(seed)) % 0x7fffffff
+  return sessionSalt
+}
+
+/** Called once per organism start: fresh salt, unless a seed is pinned. */
+export function rerollSessionSalt(): number {
+  if (pinnedSeed === null) sessionSalt = randomSalt()
+  return sessionSalt
+}
+
+// Console access for reproducing a beat you like: the orchestrator logs the
+// active seed on every start; `setFreeplaySeed(<that number>)` pins it.
+if (typeof window !== 'undefined') {
+  ;(window as unknown as Record<string, unknown>).setFreeplaySeed = setFreeplaySeed
+}
 
 /** Deterministic PRNG — same seed, same stream. */
 export function mulberry32(seed: number): () => number {
