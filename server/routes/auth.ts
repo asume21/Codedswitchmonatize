@@ -8,6 +8,7 @@ import {
   createGoogleVerifier,
   findOrCreateGoogleUser,
   GoogleAuthError,
+  isGoogleManagedPassword,
   type GoogleTokenVerifier,
 } from "../lib/googleAuth";
 
@@ -100,6 +101,10 @@ export function createAuthRoutes(storage: IStorage) {
       // Find user
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      if (isGoogleManagedPassword(user.password)) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 

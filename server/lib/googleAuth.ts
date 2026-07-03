@@ -39,6 +39,17 @@ export class GoogleAuthError extends Error {
   }
 }
 
+const GOOGLE_MANAGED_PASSWORD_PREFIX = "google-oauth2:";
+
+export function isGoogleManagedPassword(password: string): boolean {
+  return password.startsWith(GOOGLE_MANAGED_PASSWORD_PREFIX);
+}
+
+async function createUnusableGooglePassword(): Promise<string> {
+  const hash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+  return `${GOOGLE_MANAGED_PASSWORD_PREFIX}${hash}`;
+}
+
 /** Derive a username from the Google display name, falling back to the email
  *  local part — same fallback `/register` uses. */
 export function usernameFromProfile(profile: GoogleProfile): string {
@@ -50,8 +61,10 @@ export function usernameFromProfile(profile: GoogleProfile): string {
 }
 
 /**
- * Log in (existing email — safe auto-link, Google verified ownership) or
- * create the account (random unusable password; schema unchanged).
+ * Log in only Google-created accounts or create a new Google-managed account.
+ * Existing password accounts are deliberately not auto-linked because local
+ * registration does not prove email ownership; linking them would enable
+ * pre-hijacking/account takeover.
  * Returns the user and whether it was just created (caller grants credits).
  */
 export async function findOrCreateGoogleUser(storage: IStorage, profile: GoogleProfile) {
@@ -60,12 +73,21 @@ export async function findOrCreateGoogleUser(storage: IStorage, profile: GoogleP
   }
 
   const existing = await storage.getUserByEmail(profile.email);
-  if (existing) return { user: existing, created: false };
+  if (existing) {
+    if (isGoogleManagedPassword(existing.password)) {
+      return { user: existing, created: false };
+    }
+
+    throw new GoogleAuthError(
+      "An account with this email already exists. Sign in with your password.",
+      409,
+    );
+  }
 
   // Google users authenticate via Google — the password only exists because
-  // the column is NOT NULL. Random 32 bytes, bcrypt-hashed: unguessable and
-  // unusable until a future password-reset flow sets a real one.
-  const unusablePassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+  // the column is NOT NULL. The marker lets future Google logins distinguish
+  // these rows from unverified password-created accounts.
+  const unusablePassword = await createUnusableGooglePassword();
   const base = usernameFromProfile(profile);
 
   // username is UNIQUE — two Google users can share a display name, so retry

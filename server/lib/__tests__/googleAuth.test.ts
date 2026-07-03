@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import bcrypt from 'bcryptjs'
-import { findOrCreateGoogleUser, usernameFromProfile, GoogleAuthError } from '../googleAuth'
+import { findOrCreateGoogleUser, isGoogleManagedPassword, usernameFromProfile, GoogleAuthError } from '../googleAuth'
 import type { IStorage } from '../../storage'
 
 /** Minimal in-memory stand-in for the two IStorage methods the logic uses. */
-function storageStub(existing: Array<{ email: string; username: string }> = []) {
-  const users: any[] = existing.map((u, i) => ({ id: `u${i}`, password: 'x', ...u }))
+function storageStub(existing: Array<{ email: string; username: string; password?: string }> = []) {
+  const users: any[] = existing.map((u, i) => ({ id: `u${i}`, password: 'local-password-hash', ...u }))
   const stub = {
     getUserByEmail: async (email: string) => users.find(u => u.email === email),
     createUser: async (insert: any) => {
@@ -47,8 +47,19 @@ describe('findOrCreateGoogleUser', () => {
       .rejects.toMatchObject({ status: 403 })
   })
 
-  it('logs in an existing user by email without creating a duplicate', async () => {
+  it('rejects an existing password account instead of auto-linking by email', async () => {
     const { storage, users } = storageStub([{ email: 'mc@example.com', username: 'taken' }])
+    await expect(findOrCreateGoogleUser(storage, profile()))
+      .rejects.toMatchObject({ status: 409 })
+    expect(users).toHaveLength(1)
+  })
+
+  it('logs in an existing Google-managed user without creating a duplicate', async () => {
+    const { storage, users } = storageStub([{
+      email: 'mc@example.com',
+      username: 'taken',
+      password: 'google-oauth2:$2a$10$placeholder',
+    }])
     const result = await findOrCreateGoogleUser(storage, profile())
     expect(result.created).toBe(false)
     expect(result.user.username).toBe('taken')
@@ -60,9 +71,10 @@ describe('findOrCreateGoogleUser', () => {
     const result = await findOrCreateGoogleUser(storage, profile())
     expect(result.created).toBe(true)
     expect(result.user.username).toBe('mc-flow')
-    // bcrypt hash, and no plausible password compares against it
-    expect(result.user.password).toMatch(/^\$2[aby]\$/)
-    expect(await bcrypt.compare('', result.user.password)).toBe(false)
+    // Marked Google-only password, backed by a bcrypt hash for entropy.
+    expect(isGoogleManagedPassword(result.user.password)).toBe(true)
+    expect(result.user.password).toMatch(/^google-oauth2:\$2[aby]\$/)
+    expect(await bcrypt.compare('', result.user.password.replace(/^google-oauth2:/, ''))).toBe(false)
   })
 
   it('retries with a suffixed username when the display name is taken', async () => {
