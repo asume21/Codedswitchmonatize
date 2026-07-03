@@ -93,6 +93,28 @@ describe('ChordImproviser', () => {
     }
   })
 
+  it('comps in the pockets BETWEEN the kicks — never doubles a syncopated kick slot', () => {
+    // Boom-bap-ish kick pattern across 4 bars: slots 0, 6, 10 per bar
+    const kicks = [0, 6, 10, 16, 22, 26, 32, 38, 42, 48, 54, 58]
+    for (let seed = 0; seed < 12; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, kickTimes16ths: kicks, rng: mulberry32(seed) }))
+      expect(plan.length).toBeGreaterThanOrEqual(1)   // never comps itself into silence
+      for (const ev of plan) {
+        const slot = slotOf(ev.time)
+        if (slot === 0) continue  // downbeat chord+kick together is the head-nod, allowed
+        expect([6, 10], `comp doubled kick slot ${slot} (seed ${seed})`).not.toContain(slot)
+      }
+    }
+  })
+
+  it('never returns an empty plan even when kicks cover the whole motif', () => {
+    const everySlot = Array.from({ length: 16 }, (_, i) => i)
+    const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, kickTimes16ths: everySlot }))
+    expect(plan.length).toBeGreaterThanOrEqual(1)
+    expect(slotOf(plan[0].time)).toBe(0)
+  })
+
   it('low-energy 2-bar plan pads both bars (softer re-attack, no dead second bar)', () => {
     const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.2 }))
     expect(plan).toHaveLength(2)

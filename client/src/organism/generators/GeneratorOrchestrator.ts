@@ -1393,7 +1393,9 @@ export class GeneratorOrchestrator {
       velocitySpread: 0.04,
     })
     this.drum.loadGeneratedPattern(mutated)
-    this.bass.setKickAnchors(extractKickSlots(mutated))
+    const anchors = extractKickSlots(mutated)
+    this.bass.setKickAnchors(anchors)
+    this.chord.setKickAnchors(anchors)
   }
 
   /** ONE drum-pattern source: freeplay improviser (default) or the authored
@@ -1418,7 +1420,11 @@ export class GeneratorOrchestrator {
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
     }
-    this.bass.setKickAnchors(extractKickSlots(hits))
+    // Rhythm-section glue: BOTH followers hear the same kick. Bass locks its
+    // onsets to it; chords comp in the pockets BETWEEN the kicks.
+    const anchors = extractKickSlots(hits)
+    this.bass.setKickAnchors(anchors)
+    this.chord.setKickAnchors(anchors)
     return hits
   }
 

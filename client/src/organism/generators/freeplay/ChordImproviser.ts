@@ -56,11 +56,21 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
 
   const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), [0])
 
+  // Band awareness: the drum pattern's kick slots (pushed by the orchestrator,
+  // same channel the bass uses). A keys player comps in the pockets BETWEEN
+  // the kicks — doubling a syncopated kick just thickens it into mud. The
+  // downbeat is exempt: chord + kick arriving together on beat 1 is the
+  // head-nod, not a collision.
+  const kickSet = new Set(ctx.kickTimes16ths.map(s => ((Math.floor(s) % 16) + 16) % 16))
+  const collides = (slot: number) => slot !== 0 && kickSet.has(slot)
+
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
     const isDevBar = bars > 1 ? bar === bars - 1 : count % 3 === 0
     const mask: RhythmMotif = isDevBar ? varyMotif(motif, ctx.rng) : motif
-    const slots = mask.slots.filter(s => !BACKBEAT.has(s)).slice(0, ctx.energy > 0.7 ? 4 : 3)
+    const slots = mask.slots
+      .filter(s => !BACKBEAT.has(s) && !collides(s))
+      .slice(0, ctx.energy > 0.7 ? 4 : 3)
 
     slots.forEach((slot, i) => {
       events.push({
@@ -71,9 +81,20 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     })
 
     // Development bar usually adds the mid-bar push (same voicing — safe).
-    if (isDevBar && bars > 1 && !slots.includes(PUSH_SLOT) && ctx.rng() < 0.8) {
-      events.push({ time: swungTime(bar, PUSH_SLOT, ctx.swing), dur: '8n', vel: 0.52 })
+    // The push also dodges the kick: try the and-of-2 first, then neighbours.
+    if (isDevBar && bars > 1 && ctx.rng() < 0.8) {
+      const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
+        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s))
+      if (pushSlot !== undefined) {
+        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: 0.52 })
+      }
     }
+  }
+
+  // Kick-heavy patterns can filter a sparse motif to nothing — always leave at
+  // least the downbeat anchor so the harmony never vanishes for a whole cycle.
+  if (events.length === 0) {
+    events.push({ time: swungTime(0, 0, ctx.swing), dur: '2n', vel: 0.55 })
   }
 
   return events
