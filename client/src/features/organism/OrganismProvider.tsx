@@ -150,18 +150,23 @@ async function pickInstrumentNotes(family: string): Promise<Record<string, strin
  * Apply a preset's explicit band members + mood. A preset NAMED after an
  * instrument ("Violin Trap" 🎻) must audibly produce that instrument — before
  * this, presets only set mode/sub-genre and the performer router re-rolled the
- * lead every start, so the violin appeared maybe half the time. Roles the
- * preset doesn't pin are CLEARED (null → router keeps its per-start variety)
- * so a previous preset's explicit pick can't stick across preset changes.
+ * lead every start, so the violin appeared maybe half the time.
+ *
+ * Precedence per role: USER pick (dropdown / vibe text) > preset > router.
+ * The user's choice survives preset starts — violin can totally be in
+ * boom-bap if the user says so. Roles with neither a user pick nor a preset
+ * pin are CLEARED (null → router keeps its per-start variety) so a previous
+ * preset's default can't stick across preset changes.
  * Runs on both cold quickStart and hot swapPreset, BEFORE orchestr.start().
  */
 function applyPresetBand(
   orchestr: NonNullable<React.MutableRefObject<GeneratorOrchestrator | null>['current']>,
   preset: QuickStartPreset,
+  userPicks: OrganismInstrumentAssignments,
 ): void {
-  orchestr.setInstrumentPerformer('lead',  preset.performers?.lead  ?? null)
-  orchestr.setInstrumentPerformer('chord', preset.performers?.chord ?? null)
-  orchestr.setInstrumentPerformer('bass',  preset.performers?.bass  ?? null)
+  orchestr.setInstrumentPerformer('lead',  userPicks.lead  ?? preset.performers?.lead  ?? null)
+  orchestr.setInstrumentPerformer('chord', userPicks.chord ?? preset.performers?.chord ?? null)
+  orchestr.setInstrumentPerformer('bass',  userPicks.bass  ?? preset.performers?.bass  ?? null)
   orchestr.setMelodyEmotionalIntent(preset.emotionalIntent ?? null)
 }
 
@@ -397,6 +402,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     bass: null,
     chord: null,
   })
+  // Ref mirror so preset start/swap closures read the LIVE user picks —
+  // a user-chosen instrument (dropdown or vibe text) outranks the preset's
+  // default band: violin can totally be in boom-bap if the user says so.
+  const instrumentAssignmentsRef = useRef(instrumentAssignments)
+  instrumentAssignmentsRef.current = instrumentAssignments
   const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
   // ACE Hybrid Stems Mode state
@@ -1532,7 +1542,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (preset.subGenre) {
         orchestr.swapSubGenre(preset.subGenre, preset.bpm)
       }
-      applyPresetBand(orchestr, preset)
+      applyPresetBand(orchestr, preset, instrumentAssignmentsRef.current)
       await waitForStartupParts()
 
       // Start v1 generators — real hip-hop drum samples + patterns from DrumPatternLibrary
@@ -1707,7 +1717,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       if (preset.subGenre) {
         orchestr.swapSubGenre(preset.subGenre, preset.bpm)
       }
-      applyPresetBand(orchestr, preset)
+      applyPresetBand(orchestr, preset, instrumentAssignmentsRef.current)
       await waitForStartupParts()
       if (swapPresetTokenRef.current !== swapToken) return
       await orchestr.start(preset.bpm, true)
