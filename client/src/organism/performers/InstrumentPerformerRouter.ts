@@ -32,9 +32,12 @@ const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, I
     chord: ['piano', 'strings', 'rhodes'],        // piano block chords or string pads
   },
   gravel: {
-    lead: ['piano', 'sax', 'trumpet'],            // boom-bap: keys, horns
+    // boom-bap: keys, horns — and violin/strings, the classic sampled-loop
+    // flavour (RZA/Nas-era string leads). Violin was absent from this pool
+    // entirely, making it unreachable in boom-bap except by explicit pick.
+    lead: ['piano', 'sax', 'trumpet', 'violin'],
     bass: ['bass-synth', 'bass-electric'],
-    chord: ['piano', 'rhodes', 'guitar-nylon'],   // nylon guitar kept as optional flavor
+    chord: ['piano', 'rhodes', 'guitar-nylon', 'strings'],
   },
   smoke: {
     lead: ['sax', 'clarinet', 'violin', 'guitar-nylon'],
