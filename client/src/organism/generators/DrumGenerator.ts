@@ -12,6 +12,7 @@ import {
 }                              from './patterns/DrumPatternLibrary'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
+import { mulberry32, hashString } from './freeplay/utils'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -188,6 +189,8 @@ export class DrumGenerator extends GeneratorBase {
     // arriving together on the new chord. The accent is additive (one-shot on top
     // of the looping pattern) so it doesn't require a Part rebuild.
     this.unsubConductor = getConductor().onChordChange(() => {
+      // Keep the kick tuned to the song key (cheap — no-ops when unchanged).
+      this.sampledKit.setKeyRoot(getConductor().getKeyPitchClass())
       const transport = Tone.getTransport()
       if (transport.state !== 'started') return
       // Chord fires 1 bar early (barNumber % 4 === 3); landing is next bar.
@@ -216,9 +219,29 @@ export class DrumGenerator extends GeneratorBase {
   // Tunable micro-timing and groove settings
   private lazySnareMinMs: number = 5
   private lazySnareMaxMs: number = 15
-  private hatCyclicPattern: number[] = [1.0, 0.4, 0.75, 0.5]
   private hatShuffleMinPct: number = 1.5
   private hatShuffleMaxPct: number = 3.0
+
+  // ── Groove template (the pocket) ──────────────────────────────────
+  // Per-16th-slot micro-timing offsets that are STABLE across bars and
+  // rebuilds — like an MPC groove template. The previous per-event
+  // Math.random() jitter re-rolled every hit on every rebuild: uncorrelated
+  // noise reads as a sloppy drummer, while the SAME slot always landing the
+  // same few ms late reads as a human pocket.
+  private grooveHatShiftPct: number[] = []   // shuffle push per 16th slot (off-16ths only)
+  private grooveSnareLagMs:  number[] = []   // lazy-snare lag per beat (0..3)
+
+  private buildGrooveTemplate(): void {
+    const rng = mulberry32(hashString(`groove:${this.currentPhysicsMode}`))
+    this.grooveHatShiftPct = Array.from({ length: 16 }, (_, slot) =>
+      slot % 2 === 1
+        ? this.hatShuffleMinPct + rng() * (this.hatShuffleMaxPct - this.hatShuffleMinPct)
+        : 0,
+    )
+    this.grooveSnareLagMs = Array.from({ length: 4 }, () =>
+      this.lazySnareMinMs + rng() * (this.lazySnareMaxMs - this.lazySnareMinMs),
+    )
+  }
 
   private enabled: boolean = true
 
@@ -236,17 +259,13 @@ export class DrumGenerator extends GeneratorBase {
   setLazySnareRange(minMs: number, maxMs: number): void {
     this.lazySnareMinMs = Math.max(0, minMs)
     this.lazySnareMaxMs = Math.max(minMs, maxMs)
-  }
-
-  setHatCyclicPattern(pattern: number[]): void {
-    if (pattern.length > 0) {
-      this.hatCyclicPattern = [...pattern]
-    }
+    this.buildGrooveTemplate()
   }
 
   setHatShuffleRange(minPct: number, maxPct: number): void {
     this.hatShuffleMinPct = Math.max(0, minPct)
     this.hatShuffleMaxPct = Math.max(minPct, maxPct)
+    this.buildGrooveTemplate()
   }
 
   setSectionDensity(density: number): void {
@@ -352,7 +371,12 @@ export class DrumGenerator extends GeneratorBase {
       case OState.Dormant:   return 0
       case OState.Awakening: return 0.25 * organism.awakeningProgress
       case OState.Breathing: return 0.56 * organism.breathingWarmth
-      case OState.Flow:      return 0.78
+      // 0.88 (was 0.78): the drums NEVER reached full level even in Flow, and
+      // after the serial compressor stack there was no makeup gain anywhere —
+      // the beat sat quiet against any reference, which reads as amateur before
+      // the notes are even judged. Master headroom (-9 dB) + the -0.3 dBFS
+      // WaveShaper ceiling absorb the increase safely.
+      case OState.Flow:      return 0.88
     }
   }
 
@@ -453,6 +477,7 @@ export class DrumGenerator extends GeneratorBase {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
     this.sampledKit.setMode(this.currentPhysicsMode)
+    this.buildGrooveTemplate()  // pocket is seeded per mode — stable until mode changes
     this.currentKickNote          = preset.kickNote
     this.kickSub.pitchDecay       = preset.kickPitchDecay
     this.kickSub.volume.rampTo(preset.kickVol, 0.3)
@@ -488,38 +513,33 @@ export class DrumGenerator extends GeneratorBase {
     this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
     this.emitDrumEvents(quantizedHits)
 
+    // Groove template — stable per-slot offsets, NOT per-event randomness.
+    // NOTE: velocities pass through untouched. The pattern sources (freeplay
+    // improviser / authored library) already shape hat velocities; the old
+    // hatCyclicPattern multiply here was a SECOND attenuation that crushed
+    // 16th-infill hats to near-zero (0.22 pattern vel × 0.4 cycle = inaudible).
+    if (this.grooveHatShiftPct.length === 0) this.buildGrooveTemplate()
+
     const events = quantizedHits.map(h => {
       const parts = h.time.split(':')
       const beat = parseInt(parts[1] ?? '0', 10)
       const sub = parseFloat(parts[2] ?? '0')
-      
-      let microShift = 0
-      let velocity = h.velocity
 
-      // 1. Lazy Snare: On beats 2 and 4 (beat index 1 and 3), delay snare
+      let microShift = 0
+
+      // 1. Lazy Snare: backbeats (2 and 4) land late by the template's lag
       if (h.instrument === DrumInstrument.Snare && (beat === 1 || beat === 3) && sub === 0) {
-        const minSec = this.lazySnareMinMs / 1000
-        const maxSec = this.lazySnareMaxMs / 1000
-        microShift = minSec + Math.random() * (maxSec - minSec)
+        microShift = (this.grooveSnareLagMs[beat] ?? 0) / 1000
       }
 
-      // 2. Closed Hi-Hat adjustments
+      // 2. Hat shuffle: off-beat 16ths pushed late by the template's per-slot
+      //    percentage of a 16th — the same slot always lands the same amount late.
       if (h.instrument === DrumInstrument.Hat) {
         const sixteenthPos = Math.floor(beat * 4 + sub) % 16
-        
-        // Cyclic velocity pattern
-        const patternIndex = sixteenthPos % this.hatCyclicPattern.length
-        const patternVel = this.hatCyclicPattern[patternIndex] ?? 1.0
-        velocity = h.velocity * patternVel
-
-        // Hat Shuffle: Shift off-beat 16th notes late by shuffle bounds percentage of a 16th duration
-        const isOffBeat = sixteenthPos % 2 !== 0
-        if (isOffBeat) {
+        const shiftPct = (this.grooveHatShiftPct[sixteenthPos] ?? 0) / 100
+        if (shiftPct > 0) {
           const bpm = Tone.getTransport().bpm.value || 120
           const sixteenthDurationSec = 60 / (bpm * 4)
-          const minPct = this.hatShuffleMinPct / 100
-          const maxPct = this.hatShuffleMaxPct / 100
-          const shiftPct = minPct + Math.random() * (maxPct - minPct)
           microShift = shiftPct * sixteenthDurationSec
         }
       }
@@ -527,7 +547,7 @@ export class DrumGenerator extends GeneratorBase {
       return {
         time:       h.time,
         instrument: h.instrument,
-        velocity,
+        velocity:   h.velocity,
         microShift,
       }
     })
@@ -561,7 +581,9 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part = new Tone.Part((time, event) => {
       const vel = this.applyDynamics(event.instrument, event.velocity)
-      this.triggerDrum(event.instrument, time + (event.microShift ?? 0), vel)
+      // Pattern velocity picks the voice (open vs closed hat); dynamics-adjusted
+      // velocity sets loudness — so a kick-duck can't flip an open hat closed.
+      this.triggerDrum(event.instrument, time + (event.microShift ?? 0), vel, event.velocity)
     }, events)
 
     this.part.loop    = true
@@ -703,12 +725,12 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
-  private triggerDrum(instrument: DrumInstrument, time: number, velocity: number): void {
+  private triggerDrum(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity = velocity): void {
     const t = Math.max(0, time)
 
-    const sampledVoice = instrument === DrumInstrument.Hat && velocity > 0.55 ? 'sampleHatOpen' : `sample${instrument}`
+    const sampledVoice = instrument === DrumInstrument.Hat && voiceVelocity > 0.55 ? 'sampleHatOpen' : `sample${instrument}`
     const sampledTime = this.clampTime(sampledVoice, t)
-    if (this.sampledKit.trigger(instrument, sampledTime, velocity)) {
+    if (this.sampledKit.trigger(instrument, sampledTime, velocity, voiceVelocity)) {
       if (instrument === DrumInstrument.Kick) {
         this.lastKickTime = sampledTime
         if (this.onKickTrigger) this.onKickTrigger(sampledTime)

@@ -27,9 +27,10 @@ export class MixEngine {
   readonly bandMaster:      Tone.Gain
   readonly drumBus:         Tone.Gain
   readonly drumCompressor:  Tone.Compressor
+  readonly drumParallelWet: Tone.Gain
   readonly melodyBus:       Tone.Gain
-  readonly melodySplit:     Tone.Split
-  readonly melodyMerge:     Tone.Merge
+  readonly textureSplit:    Tone.Split
+  readonly textureMerge:    Tone.Merge
   readonly haasDelay:       Tone.Delay
 
   private meterCallbacks: Set<MeterCallback> = new Set()
@@ -53,42 +54,54 @@ export class MixEngine {
     // 1. Initialize band master gain node (for silencing the generative engine)
     this.bandMaster = new Tone.Gain(1)
 
-    // 2. Drum Bus (Kick, Snare, Percussion, Bass/808) with parallel compression
+    // 2. Drum Bus (Kick, Snare, Percussion, Bass/808) with TRUE parallel (NY)
+    // compression. The previous wiring inserted this compressor SERIALLY —
+    // there was no dry path, so drums+bass were squashed 4:1 on top of the
+    // per-channel comps and the master glue comp (four compressors in series =
+    // no kick thwack, pumping 808). Now the dry bus carries the transients and
+    // a hard-crushed copy is blended UNDER it for density: punch AND weight.
     this.drumBus = new Tone.Gain(1)
     this.drumCompressor = new Tone.Compressor({
-      threshold: -12,
-      ratio: 4,
-      attack: 0.04,  // 40ms attack lets transients pop
-      release: 0.1,  // 100ms release induces pumping
+      threshold: -24,
+      ratio: 6,
+      attack: 0.003,  // fast — the wet path is meant to be crushed
+      release: 0.15,
     })
+    this.drumParallelWet = new Tone.Gain(0.45)
 
     this.drumChannel.output.connect(this.drumBus)
     this.bassChannel.output.connect(this.drumBus)
-    this.drumBus.connect(this.drumCompressor)
-    this.drumCompressor.connect(this.bandMaster)
+    this.drumBus.connect(this.bandMaster)              // dry — transients intact
+    this.drumBus.connect(this.drumCompressor)          // wet — crushed for density
+    this.drumCompressor.connect(this.drumParallelWet)
+    this.drumParallelWet.connect(this.bandMaster)
 
-    // 3. Melody Bus (Keys, Chords, Textures) with Haas stereo widening
+    // 3. Melody Bus (Keys, Chords) — DIRECT to the band master. The blanket
+    // 18ms Haas delay that used to sit on this whole bus comb-filtered every
+    // melodic element in mono and smeared the top end; placement now comes
+    // from the per-channel panners (melody +0.15, chord -0.10).
     this.melodyBus = new Tone.Gain(1)
-    this.melodySplit = new Tone.Split(2)
-    this.melodyMerge = new Tone.Merge()
+    this.melodyChannel.output.connect(this.melodyBus)
+    this.chordChannel.output.connect(this.melodyBus)
+    this.melodyBus.connect(this.bandMaster)
+
+    // 4. Texture keeps the Haas widening — pads/atmosphere are exactly where
+    // wide-and-diffuse is wanted, and the channel is quiet (-14 dB) so the
+    // mono comb-filter cost is negligible there.
+    this.textureSplit = new Tone.Split(2)
+    this.textureMerge = new Tone.Merge()
     this.haasDelay = new Tone.Delay({
       delayTime: 0.018, // 18ms delay on the Right channel
       maxDelay: 0.1,
     })
 
-    this.melodyChannel.output.connect(this.melodyBus)
-    this.chordChannel.output.connect(this.melodyBus)
-    this.textureChannel.output.connect(this.melodyBus)
+    this.textureChannel.output.connect(this.textureSplit)
+    this.textureSplit.connect(this.textureMerge, 0, 0) // Left -> Left
+    this.textureSplit.connect(this.haasDelay, 1, 0)    // Right -> Delay
+    this.haasDelay.connect(this.textureMerge, 0, 1)    // Delay -> Right
+    this.textureMerge.connect(this.bandMaster)
 
-    // Haas Effect routing: Left directly to Merge; Right through Delay to Merge
-    this.melodyBus.connect(this.melodySplit)
-    this.melodySplit.connect(this.melodyMerge, 0, 0) // Left -> Left
-    this.melodySplit.connect(this.haasDelay, 1, 0)  // Right -> Delay
-    this.haasDelay.connect(this.melodyMerge, 0, 1)  // Delay -> Right
-
-    this.melodyMerge.connect(this.bandMaster)
-
-    // 4. Connect the summed bandMaster output to the master bus input
+    // 5. Connect the summed bandMaster output to the master bus input
     this.bandMaster.connect(this.master.input)
   }
 
@@ -224,10 +237,11 @@ export class MixEngine {
     
     try { this.drumBus.disconnect() } catch { /* */ }
     try { this.drumCompressor.disconnect() } catch { /* */ }
+    try { this.drumParallelWet.disconnect() } catch { /* */ }
     try { this.melodyBus.disconnect() } catch { /* */ }
-    try { this.melodySplit.disconnect() } catch { /* */ }
+    try { this.textureSplit.disconnect() } catch { /* */ }
     try { this.haasDelay.disconnect() } catch { /* */ }
-    try { this.melodyMerge.disconnect() } catch { /* */ }
+    try { this.textureMerge.disconnect() } catch { /* */ }
     try { this.bandMaster.disconnect() } catch { /* */ }
 
     this.drumChannel.dispose()
@@ -238,9 +252,10 @@ export class MixEngine {
 
     this.drumBus.dispose()
     this.drumCompressor.dispose()
+    this.drumParallelWet.dispose()
     this.melodyBus.dispose()
-    this.melodySplit.dispose()
-    this.melodyMerge.dispose()
+    this.textureSplit.dispose()
+    this.textureMerge.dispose()
     this.haasDelay.dispose()
     this.bandMaster.dispose()
 

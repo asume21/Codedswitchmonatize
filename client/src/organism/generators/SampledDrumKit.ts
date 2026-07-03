@@ -10,6 +10,7 @@ import {
   type SampleProfile,
   type GenreTarget,
 } from '../instruments/sampleProfileCache'
+import { detectFundamentalHz, tuneShiftSemitones } from '../instruments/pitchDetect'
 
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
@@ -17,6 +18,20 @@ type SampleKitDefinition = Record<SampleVoice, string[]>
 type SampleVoiceSlot = {
   gain: Tone.Gain
   player: Tone.Player
+  url: string
+}
+
+/**
+ * Sampler-style velocity law with an audibility floor. The previous linear
+ * velocity→gain mapping put a 0.2-velocity ghost hat at −14 dB before the
+ * −14 dB voice trim even applied — the entire "feel" layer the improvisers
+ * write (ghost snares, 16th infill, velocity arcs) was effectively inaudible.
+ * The floor keeps quiet hits present; the power curve preserves accent contrast.
+ */
+export function velocityToGain(velocity: number): number {
+  const v = Math.max(0, Math.min(1, velocity))
+  if (v <= 0) return 0
+  return 0.12 + 0.88 * Math.pow(v, 1.35)
 }
 
 const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>> = {
@@ -166,12 +181,16 @@ const VOICE_TRIM_DB: Record<SampleVoice, number> = {
   perc: -10,
 }
 
+// Playback windows — generous, not surgical. The old values (kick 0.65s,
+// hatOpen 0.5s) hard-truncated the one-shots' natural tails, which is exactly
+// the part that makes a produced kit sound expensive. Closed hat stays tight
+// by design (that IS the sample's character).
 const VOICE_DURATION: Record<SampleVoice, Tone.Unit.Time> = {
-  kick: 0.65,
-  snare: 0.45,
+  kick: 1.1,
+  snare: 0.7,
   hatClosed: 0.08,
-  hatOpen: 0.5,
-  perc: 0.22,
+  hatOpen: 0.85,
+  perc: 0.3,
 }
 
 const VOICE_POOL_SIZE: Record<SampleVoice, number> = {
@@ -265,6 +284,13 @@ export class SampledDrumKit {
   private profiles: Map<string, SampleProfile> = new Map()
   private genreTarget: GenreTarget = getGenreTarget('hip-hop')
 
+  // Key tuning — kicks are retuned onto the song's key root (≤ ±3 st) via
+  // playbackRate. Rates are detected off-thread (setTimeout) and cached per
+  // URL; until a rate is cached the kick plays untuned (rate 1) — never a
+  // blocking pitch analysis inside the trigger path.
+  private keyRootPc: number | null = null
+  private kickTuneRates = new Map<string, { pc: number; rate: number }>()
+
   constructor(output: Tone.Gain) {
     this.output = output
     // Seed the merged Cymatics kit (primary + fallback URLs) as the initial
@@ -342,7 +368,7 @@ export class SampledDrumKit {
         })
         player.volume.value = VOICE_TRIM_DB[voice]
         player.connect(gain)
-        voiceSlots.push({ gain, player })
+        voiceSlots.push({ gain, player, url: filename })
       }
 
       this.slots.set(voice, voiceSlots)
@@ -350,13 +376,26 @@ export class SampledDrumKit {
     }
   }
 
-  trigger(instrument: DrumInstrument, time: number, velocity: number): boolean {
-    const voice = this.resolveVoice(instrument, velocity)
+  /**
+   * @param velocity   post-dynamics velocity (kick-duck, multipliers) — sets loudness
+   * @param voiceVelocity pre-dynamics pattern velocity — selects the voice. Without
+   *   this split, an open-hat accent ducked by a nearby kick would mutate into a
+   *   CLOSED hat (timbre flapping), and freeplay could never reach the open hat.
+   */
+  trigger(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity = velocity): boolean {
+    const voice = this.resolveVoice(instrument, voiceVelocity)
     const voiceSlots = this.slots.get(voice)
     if (!voiceSlots || voiceSlots.length === 0) return false
 
     const startCursor = this.slotCursor.get(voice) ?? 0
-    const shapedVelocity = Math.max(0, Math.min(1, velocity))
+    const shapedVelocity = velocityToGain(velocity)
+
+    // Backbeat snares layer the clap ON TOP of the snare (the producer move)
+    // instead of the round-robin cursor randomly alternating snare/clap hits.
+    // Clap slots are excluded from the primary scan when a non-clap snare exists.
+    const isClapSlot = (slot: SampleVoiceSlot) => /clap/i.test(slot.url)
+    const snareHasBoth = voice === 'snare'
+      && voiceSlots.some(isClapSlot) && voiceSlots.some(s => !isClapSlot(s))
 
     // Scan forward from cursor for the first usable slot.
     // Skips permanently-errored slots (404/network) so fallback URLs are used
@@ -369,6 +408,8 @@ export class SampledDrumKit {
       if (this.slotErrored.has(slotKey)) continue
 
       const slot = voiceSlots[slotIndex]
+      if (snareHasBoth && isClapSlot(slot)) continue  // claps are layer-only now
+
       // Advance cursor past this slot for the next trigger call
       this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
 
@@ -378,9 +419,13 @@ export class SampledDrumKit {
       if (!slot.player.loaded) return true
 
       try {
+        if (voice === 'kick') this.applyKickTuning(slot)
         slot.gain.gain.cancelScheduledValues(time)
         slot.gain.gain.setValueAtTime(shapedVelocity, time)
         slot.player.start(time, 0, VOICE_DURATION[voice])
+        if (snareHasBoth && voiceVelocity >= 0.75) {
+          this.layerClap(voiceSlots, time, shapedVelocity)
+        }
         return true
       } catch (error) {
         // Scheduling error — mark as permanently failed and try the next slot
@@ -403,6 +448,55 @@ export class SampledDrumKit {
       console.warn('[Organism] all Cymatics drum slots exhausted for voice; going silent (no synth)', { voice })
     }
     return false
+  }
+
+  /** Set the song's key root (pitch class 0-11, null = no tuning). Kicks are
+   *  retuned onto it so the drum's sub sits in key with the 808 and chords. */
+  setKeyRoot(pc: number | null): void {
+    if (pc === this.keyRootPc) return
+    this.keyRootPc = pc
+    this.scheduleKickTuning()
+  }
+
+  /** Pre-compute tuning rates off the trigger path. Idempotent per (url, pc). */
+  private scheduleKickTuning(): void {
+    if (this.keyRootPc === null || typeof window === 'undefined') return
+    const pc = this.keyRootPc
+    window.setTimeout(() => {
+      if (this.keyRootPc !== pc) return
+      for (const slot of this.slots.get('kick') ?? []) {
+        if (this.kickTuneRates.get(slot.url)?.pc === pc) continue
+        const audio = slot.player.buffer?.loaded ? slot.player.buffer.get() : undefined
+        if (!audio) continue
+        const f0 = detectFundamentalHz(audio.getChannelData(0), audio.sampleRate)
+        const rate = f0 ? Math.pow(2, tuneShiftSemitones(f0, pc) / 12) : 1
+        this.kickTuneRates.set(slot.url, { pc, rate })
+      }
+    }, 0)
+  }
+
+  private applyKickTuning(slot: SampleVoiceSlot): void {
+    const cached = this.kickTuneRates.get(slot.url)
+    const rate = cached && cached.pc === this.keyRootPc ? cached.rate : 1
+    if (slot.player.playbackRate !== rate) slot.player.playbackRate = rate
+    // Not yet analyzed for this key — kick this URL's analysis off-thread.
+    if (!cached && this.keyRootPc !== null) this.scheduleKickTuning()
+  }
+
+  /** Stack the first loaded clap under a backbeat snare at reduced level. */
+  private layerClap(voiceSlots: SampleVoiceSlot[], time: number, snareGain: number): void {
+    for (let i = 0; i < voiceSlots.length; i++) {
+      const slot = voiceSlots[i]
+      if (!/clap/i.test(slot.url)) continue
+      if (this.slotErrored.has(`snare:${i}`)) continue
+      if (!slot.player.loaded) continue
+      try {
+        slot.gain.gain.cancelScheduledValues(time)
+        slot.gain.gain.setValueAtTime(snareGain * 0.55, time)
+        slot.player.start(time, 0, VOICE_DURATION.snare)
+      } catch { /* layer is decorative — never fail the primary hit over it */ }
+      return
+    }
   }
 
   dispose(): void {
