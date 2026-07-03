@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:4001';
+const API_BASE = process.env.API_BASE_URL || 'http://127.0.0.1:4001';
 
 /**
  * Credit System Tests

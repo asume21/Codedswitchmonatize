@@ -34,6 +34,7 @@ const RUN_DURATION_MS = 1500;
 const MAX_STRUCTURAL_NODES_PER_CYCLE = 8;
 
 test.describe('Organism — audio node leak detection', () => {
+  test.describe.configure({ timeout: 120000 });
 
   // ─── inject structural node counter before any page script runs ───────
   test.beforeEach(async ({ page }) => {

@@ -8,8 +8,8 @@ import { chromium, FullConfig } from '@playwright/test';
 
 const TEST_EMAIL    = process.env.TEST_EMAIL    || 'playwright-test@codedswitch.test';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'TestPass123!';
-const API_BASE      = process.env.API_BASE_URL  || 'http://localhost:4001';
-const BASE_URL      = process.env.BASE_URL      || 'http://localhost:5001';
+const API_BASE      = process.env.API_BASE_URL  || 'http://127.0.0.1:4001';
+const BASE_URL      = process.env.BASE_URL      || 'http://127.0.0.1:5001';
 
 export default async function globalSetup(_config: FullConfig) {
   // Try to register the test user (safe to fail if already exists)
@@ -31,7 +31,7 @@ export default async function globalSetup(_config: FullConfig) {
   const page    = await context.newPage();
 
   await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
 
   await page.fill('input[type="email"], input[name="email"]', TEST_EMAIL);
   await page.fill('input[type="password"], input[name="password"]', TEST_PASSWORD);

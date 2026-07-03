@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { listOrganismKits, pickBestOrganismKit } from '../organismKitLibrary'
+import path from 'path'
 
 describe('organismKitLibrary', () => {
+  beforeAll(() => {
+    // Isolate tests from local premium downloads in the private/ folder
+    const committedPath = path.resolve(process.cwd(), "server", "Assets", "organism-kits")
+    process.env.ORGANISM_KIT_ROOT = committedPath
+  })
+
+  afterAll(() => {
+    delete process.env.ORGANISM_KIT_ROOT
+  })
   it('includes the infinity-real-beat premium kit', () => {
     const kits = listOrganismKits()
     const ids = kits.map((k) => k.id)

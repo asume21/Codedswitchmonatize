@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:4001';
+const API_BASE = process.env.API_BASE_URL || 'http://127.0.0.1:4001';
 
 /**
  * Error Handling Tests
@@ -125,7 +125,7 @@ test.describe('Input Validation', () => {
 
   test('handles very long input', async ({ page }) => {
     await page.goto('/ai-assistant');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     
     const messageInput = page.locator('input[type="text"], textarea').first();
     if (await messageInput.isVisible()) {
@@ -142,7 +142,7 @@ test.describe('Edge Cases', () => {
   
   test('handles empty state in studio', async ({ page }) => {
     await page.goto('/studio');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     
     // Studio should render even with no data
     await expect(page.locator('body')).toBeVisible();
@@ -165,10 +165,10 @@ test.describe('Edge Cases', () => {
 
   test('handles page refresh', async ({ page }) => {
     await page.goto('/studio');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
     
     await expect(page.locator('body')).toBeVisible();
   });

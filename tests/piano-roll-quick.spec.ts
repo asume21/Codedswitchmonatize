@@ -14,12 +14,12 @@ test('piano roll visual + error audit', async ({ page }) => {
   page.on('pageerror', err => errors.push('[CRASH] ' + err.message));
 
   // 1. Land on homepage
-  await page.goto('http://localhost:4001/', { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await page.goto('http://127.0.0.1:4001/', { waitUntil: 'domcontentloaded', timeout: 15000 });
   await page.waitForTimeout(2000);
   await page.screenshot({ path: 'tests/screenshots/step1-home.png' });
 
   // 2. Try to get to studio - check if we're redirected to login
-  await page.goto('http://localhost:4001/studio', { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await page.goto('http://127.0.0.1:4001/studio', { waitUntil: 'domcontentloaded', timeout: 15000 });
   await page.waitForTimeout(3000);
   await page.screenshot({ path: 'tests/screenshots/step2-studio-or-login.png' });
 
@@ -36,7 +36,7 @@ test('piano roll visual + error audit', async ({ page }) => {
       await passInput.fill('TestPass123!');
       await page.locator('button[type="submit"]').click();
       await page.waitForURL(url => !url.pathname.includes('login'), { timeout: 10000 }).catch(() => {});
-      await page.goto('http://localhost:4001/studio', { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.goto('http://127.0.0.1:4001/studio', { waitUntil: 'domcontentloaded', timeout: 15000 });
       await page.waitForTimeout(3000);
     }
   }
