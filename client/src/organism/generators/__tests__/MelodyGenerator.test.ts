@@ -9,9 +9,15 @@ import * as Tone from 'tone'
 
 vi.mock('tone', () => createToneMock())
 
+vi.mock('../melody/motifSelection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../melody/motifSelection')>()
+  return { ...actual, selectMotifBankKey: vi.fn(actual.selectMotifBankKey) }
+})
+
 import { MelodyGenerator, snapNoteToScale } from '../MelodyGenerator'
 import { getMelodyBehavior } from '../patterns/MelodyPatternLibrary'
 import { getConductor } from '../../conductor/Conductor'
+import { selectMotifBankKey } from '../melody/motifSelection'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -153,6 +159,32 @@ describe('MelodyGenerator', () => {
       const events = partMock.mock.calls.at(-1)?.[1] ?? []
       const distinctVels = new Set(events.map(e => Math.round(e.vel * 100)))
       expect(distinctVels.size).toBeGreaterThan(1)
+    })
+  })
+
+  describe('motif bank routing — singing families get the lyrical bank', () => {
+    it('routes a bowed-string lead (violin) to the lyrical bank, not arps/fills', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('violin')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const spy = selectMotifBankKey as unknown as { mock: { calls: Array<[{ family: string | undefined }]> } }
+      const lastCall = spy.mock.calls.at(-1)
+      expect(lastCall?.[0].family).toBe('bowed')
+      expect(spy.mock.results.at(-1)?.value).toBe('lyrical')
+    })
+
+    it('routes a keyboard lead (piano) to the lyrical bank too, not the tiny arps/fills loop', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('piano')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const spy = selectMotifBankKey as unknown as { mock: { calls: Array<[{ family: string | undefined }]>, results: Array<{ value: string }> } }
+      const lastCall = spy.mock.calls.at(-1)
+      expect(lastCall?.[0].family).toBe('keyboard')
+      expect(spy.mock.results.at(-1)?.value).toBe('lyrical')
     })
   })
 

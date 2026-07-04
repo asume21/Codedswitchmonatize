@@ -38,6 +38,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
+import { selectMotifBankKey } from './melody/motifSelection'
 import { planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import { extractBusySlots16ths } from './freeplay/utils'
 import {
@@ -1095,13 +1096,18 @@ export class MelodyGenerator extends GeneratorBase {
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
-    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
-    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
-      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
-      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
-    } else if (!this.voiceActive) {
-      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
-    }
+    // Singing families (bowed/wind/brass) route to the 'lyrical' bank instead
+    // of the arp/fill banks, which read as "finger exercises" on an instrument
+    // that's supposed to sustain and swell like a voice (user feedback,
+    // 2026-06-23 — see motifSelection.ts). preferredBankKey (chorus/hook
+    // contrast) still overrides everything.
+    const motifBankKey = selectMotifBankKey({
+      family: this.currentPerformer?.family,
+      voiceActive: this.voiceActive,
+      preferredBankKey: this.preferredMotifBankKey,
+      chordSeed,
+    })
+    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[motifBankKey] ?? HIP_HOP_MOTIFS.ostinatos
     
     // Performance 19: Cache chord tones mapping
     const chordDegs = this.cachedChordDegs
