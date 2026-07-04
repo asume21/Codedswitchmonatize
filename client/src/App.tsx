@@ -75,6 +75,8 @@ const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() 
 const DawLayoutLanding = React.lazy(() => import("@/pages/daw-layout").catch(() => ({ default: () => <NotFound /> })));
 const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").catch(() => ({ default: () => <NotFound /> })));
 const DemoPage = React.lazy(() => import("@/pages/DemoPage").catch(() => ({ default: () => <NotFound /> })));
+const PrivacyPage = React.lazy(() => import("@/pages/privacy").catch(() => ({ default: () => <NotFound /> })));
+const TermsPage = React.lazy(() => import("@/pages/terms").catch(() => ({ default: () => <NotFound /> })));
 
 
 // Loading fallback component
@@ -239,6 +241,8 @@ function App() {
                   ============================================ */}
               <Route path="/" component={Landing} />
               <Route path="/demo" component={DemoPage} />
+              <Route path="/privacy" component={PrivacyPage} />
+              <Route path="/terms" component={TermsPage} />
               
               {/* ============================================
                   LIGHTWEIGHT ROUTES - No audio providers
