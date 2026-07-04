@@ -170,7 +170,13 @@ describe('MelodyGenerator', () => {
       expect(events.length).toBeGreaterThan(0)
     })
 
-    it('a guitar lead phrase has non-uniform velocities (the downbeat picking accent survives end-to-end)', () => {
+    it('a guitar lead phrase produces a shaped (non-flat) velocity profile end-to-end', () => {
+      // This is a wiring smoke test only — it confirms the shared dynamics arc
+      // reaches a 'plucked'-family lead through the real pipeline. The actual
+      // downbeatAccent regression guard lives in performerExpression.test.ts's
+      // "accents downbeats when downbeatAccent is set" test, since the arc's
+      // own position-based velocity variation would keep this test green even
+      // if downbeatAccent were reverted to 0.
       const physics = makePhysics({ voiceActive: false })
 
       gen.setInstrumentPerformer('guitar-nylon')
