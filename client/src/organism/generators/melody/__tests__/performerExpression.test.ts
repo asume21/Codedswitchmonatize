@@ -165,3 +165,49 @@ describe('applyBreathAndRests', () => {
     expect(out.length).toBeGreaterThanOrEqual(2)
   })
 })
+
+import { phraseCharacterOf, developPhraseCharacter } from '../performerExpression'
+import * as Tone from 'tone'
+
+describe('phraseCharacterOf', () => {
+  it('cycles 0 (statement) -> 1 (answer) -> 2 (variation) -> 3 (climb) -> 0 ...', () => {
+    expect(phraseCharacterOf(0)).toBe(0)
+    expect(phraseCharacterOf(1)).toBe(1)
+    expect(phraseCharacterOf(2)).toBe(2)
+    expect(phraseCharacterOf(3)).toBe(3)
+    expect(phraseCharacterOf(4)).toBe(0)
+    expect(phraseCharacterOf(9)).toBe(1)
+  })
+})
+
+describe('developPhraseCharacter', () => {
+  const notes = (): ScheduledNote[] => [
+    { pitch: 'C4', duration: '8n', velocity: 0.7, time: '0:0:0' },
+    { pitch: 'E4', duration: '8n', velocity: 0.7, time: '0:1:0' },
+  ]
+
+  it('character 0 (statement) leaves pitches unchanged', () => {
+    const out = developPhraseCharacter(notes(), 0, true)
+    expect(out.map(n => n.pitch)).toEqual(['C4', 'E4'])
+  })
+
+  it('character 1 (answer) transposes up an octave when recast is enabled', () => {
+    const out = developPhraseCharacter(notes(), 1, true)
+    expect(out.map(n => n.pitch)).toEqual(['C5', 'E5'])
+  })
+
+  it('character 2 (variation) transposes down an octave when recast is enabled', () => {
+    const out = developPhraseCharacter(notes(), 2, true)
+    expect(out.map(n => n.pitch)).toEqual(['C3', 'E3'])
+  })
+
+  it('character 3 (climb) leaves pitches unchanged (denser/driving is a rest-density concern, not register)', () => {
+    const out = developPhraseCharacter(notes(), 3, true)
+    expect(out.map(n => n.pitch)).toEqual(['C4', 'E4'])
+  })
+
+  it('never recasts register when octaveRecastEnabled is false (e.g. keyboard)', () => {
+    const out = developPhraseCharacter(notes(), 1, false)
+    expect(out.map(n => n.pitch)).toEqual(['C4', 'E4'])
+  })
+})

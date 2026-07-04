@@ -11,6 +11,8 @@
  * shared expression. See docs/superpowers/specs/2026-06-06-pro-instruments-design.md.
  */
 
+import * as Tone from 'tone'
+
 export type PerformerFamily = 'bowed' | 'wind' | 'brass' | 'keyboard' | 'plucked' | 'synth'
 
 export interface PerformerExpressionConfig {
@@ -119,4 +121,38 @@ export function applyBreathAndRests(notes: ScheduledNote[], options: BreathOptio
     if (!restHere) kept.push(notes[i])
   }
   return (kept.length >= 2 && kept.length < n) ? kept : notes
+}
+
+export type PhraseCharacter = 0 | 1 | 2 | 3
+
+/**
+ * DEVELOPMENT — a real soloist states an idea, then answers it / varies it /
+ * builds on it; they don't replay it. Each phrase commits to a different
+ * character so a recurring motif is genuinely re-cast, not looped:
+ *   0 statement — as written
+ *   1 answer    — leaps an octave up (a question answered)
+ *   2 variation — drops an octave (darker restatement)
+ *   3 climb     — as written register; density/drive comes from BreathOptions.dropMod
+ */
+export function phraseCharacterOf(phraseCounter: number): PhraseCharacter {
+  return (phraseCounter % 4) as PhraseCharacter
+}
+
+/** Recasts a phrase's register per `character`. No-ops when `octaveRecastEnabled` is false. */
+export function developPhraseCharacter(
+  notes: ScheduledNote[],
+  character: PhraseCharacter,
+  octaveRecastEnabled: boolean,
+): ScheduledNote[] {
+  if (!octaveRecastEnabled) return notes
+  const octaveShift = character === 1 ? 12 : character === 2 ? -12 : 0
+  if (octaveShift === 0) return notes
+
+  return notes.map((note) => {
+    try {
+      return { ...note, pitch: Tone.Frequency(note.pitch).transpose(octaveShift).toNote() }
+    } catch {
+      return note // leave the pitch as-is if it can't be parsed
+    }
+  })
 }
