@@ -22,6 +22,7 @@ import { createUserRoutes } from "./routes/user";
 import { createSocialRoutes } from "./routes/social";
 import { createVulnerabilityRoutes } from "./routes/vulnerability";
 import { createVoiceConvertRoutes } from "./routes/voiceConvert";
+import { createLyricVideoRoutes } from "./routes/lyricVideo";
 import { createStemGenerationRoutes } from "./routes/stemGeneration";
 import { createSampleLibraryRoutes } from "./routes/sampleLibrary";
 import { createBlogRouter } from "./routes/blog";
@@ -389,6 +390,9 @@ ${urls
 
   // Mount Voice Conversion pipeline routes (jobs, BYO keys, cost check)
   app.use("/api/voice-convert", createVoiceConvertRoutes(storage));
+
+  // Mount Lyric Video Maker transcode route (WebM → MP4 for social sharing)
+  app.use("/api/lyric-video", createLyricVideoRoutes());
 
   // Mount AI Stem Generation routes
   app.use("/api/stem-generation", createStemGenerationRoutes());

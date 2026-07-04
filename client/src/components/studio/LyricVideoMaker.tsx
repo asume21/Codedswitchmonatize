@@ -429,7 +429,7 @@ export default function LyricVideoMaker() {
     drawFrame(0);
   };
 
-  const exportWebm = async () => {
+  const exportVideo = async () => {
     const canvas = canvasRef.current;
     const audio = audioRef.current;
     if (!canvas || !audio || !uploadedAudio) return;
@@ -496,19 +496,33 @@ export default function LyricVideoMaker() {
       audio.addEventListener('ended', stopRecording, { once: true });
       window.setTimeout(stopRecording, Math.ceil((audio.duration || duration || 0) * 1000) + 750);
 
-      const blob = await complete;
+      const webmBlob = await complete;
       audio.removeEventListener('ended', stopRecording);
 
-      const url = URL.createObjectURL(blob);
+      // Browsers can only record WebM; transcode server-side to a shareable MP4.
+      // No fallback: on failure the catch below surfaces a hard error toast.
+      const form = new FormData();
+      form.append('video', webmBlob, 'lyric-video.webm');
+      const response = await fetch('/api/lyric-video/transcode', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`MP4 export failed (${response.status})`);
+      }
+      const mp4Blob = await response.blob();
+
+      const url = URL.createObjectURL(mp4Blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${sanitizeDownloadName(uploadedAudio.name)}-lyrics-video.webm`;
+      link.download = `${sanitizeDownloadName(uploadedAudio.name)}-lyrics-video.mp4`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       toast({
         title: 'Video exported',
-        description: audioStream?.getAudioTracks().length ? 'WebM includes audio.' : 'WebM exported without audio capture.',
+        description: audioStream?.getAudioTracks().length ? 'MP4 ready to share.' : 'MP4 exported (no audio captured).',
       });
     } catch (error) {
       toast({
@@ -610,7 +624,7 @@ export default function LyricVideoMaker() {
               type="button"
               size="sm"
               className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500"
-              onClick={exportWebm}
+              onClick={exportVideo}
               disabled={!canPreview || !lines.length || isExporting}
             >
               <Download className="h-4 w-4" />
