@@ -57,3 +57,36 @@ export function sixteenthPosOf(time: string): number {
   const sub = parseFloat(parts[2] ?? '0')
   return Math.floor(beat * 4 + sub) % 16
 }
+
+import type { ScheduledNote } from '../types'
+
+export interface DynamicsOptions {
+  /** 0..1 — phrase position of the dynamic peak. */
+  peakPosition: number
+  /** 0..1 — velocity multiplier floor at the phrase edges, relative to the peak. Default 0.78. */
+  edgeFloor?: number
+  /** Velocity boost added to notes landing on a 16th-grid downbeat. Default 0 (no accent). */
+  downbeatAccent?: number
+}
+
+/**
+ * Shapes a flat phrase into an arc: rises toward `peakPosition`, eases back
+ * toward the cadence. Non-destructive — same notes, pitches, timing, only
+ * velocity changes. Optional `downbeatAccent` adds a picking-style accent on
+ * 16th-grid downbeats (used by plucked families; 0 for bowed/wind/brass/keys).
+ */
+export function shapePerformanceDynamics(notes: ScheduledNote[], options: DynamicsOptions): ScheduledNote[] {
+  const { peakPosition: peak, edgeFloor = 0.78, downbeatAccent = 0 } = options
+  const n = notes.length
+  if (n === 0) return notes
+
+  return notes.map((note, i) => {
+    const pos = n <= 1 ? peak : i / (n - 1)
+    const g = pos <= peak
+      ? edgeFloor + (1 - edgeFloor) * (pos / Math.max(1e-6, peak))
+      : 1.0 - (1 - edgeFloor) * ((pos - peak) / Math.max(1e-6, 1 - peak))
+    const isDownbeat = sixteenthPosOf(note.time) % 4 === 0
+    const accent = downbeatAccent > 0 && isDownbeat ? downbeatAccent : 0
+    return { ...note, velocity: Math.max(0, Math.min(1, note.velocity * g + accent)) }
+  })
+}
