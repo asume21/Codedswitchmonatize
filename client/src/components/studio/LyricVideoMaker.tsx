@@ -166,6 +166,8 @@ function renderLyricFrame({
   bpm,
   snapToBeat,
   fontSize,
+  revealMode,
+  showNextLine,
 }: {
   canvas: HTMLCanvasElement;
   lines: LyricVideoLine[];
@@ -174,6 +176,8 @@ function renderLyricFrame({
   bpm: number;
   snapToBeat: boolean;
   fontSize: number;
+  revealMode: 'line' | 'build' | 'word';
+  showNextLine: boolean;
 }) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -198,15 +202,33 @@ function renderLyricFrame({
 
   const resolved = activeLine ?? resolveLyricLineTiming(displayLine, timingOptions);
   const wordShift = offsetSec + resolved.timingShift;
-  const words = buildCanvasWords(displayLine, currentTime, wordShift);
-
   ctx.textBaseline = 'middle';
+
+  // One-word flash: only the current word, large & centered. Ignores line layout.
+  if (revealMode === 'word' && displayLine.words.length > 0) {
+    let current: { text: string; start: number } | null = null;
+    for (const word of displayLine.words) {
+      const start = word.start + wordShift;
+      if (currentTime >= start) current = { text: word.text, start };
+      else break;
+    }
+    if (current) drawFlashWord(ctx, current.text, currentTime - current.start, fontSize);
+    drawBeatPulse(ctx, currentTime, bpm);
+    return;
+  }
+
+  let words = buildCanvasWords(displayLine, currentTime, wordShift);
+  // Build-up: reveal words one at a time as they're sung (nothing to read ahead).
+  if (revealMode === 'build') {
+    words = words.filter((word) => word.started);
+  }
+
   ctx.shadowColor = 'rgba(34, 211, 238, 0.28)';
   ctx.shadowBlur = activeLine ? 20 : 0;
   drawWrappedWords(ctx, words, CANVAS_HEIGHT / 2, fontSize);
   ctx.shadowBlur = 0;
 
-  if (activeLine && nextLine && nextLine.id !== activeLine.id) {
+  if (showNextLine && activeLine && nextLine && nextLine.id !== activeLine.id) {
     ctx.globalAlpha = 0.42;
     ctx.font = `700 ${Math.max(26, Math.round(fontSize * 0.42))}px Inter, ui-sans-serif, system-ui, sans-serif`;
     ctx.fillStyle = '#94a3b8';
@@ -221,7 +243,8 @@ function renderLyricFrame({
 
 function buildCanvasWords(line: ResolvedLyricVideoLine, currentTime: number, wordShift: number) {
   if (line.words.length === 0) {
-    return line.text.split(/\s+/).filter(Boolean).map((text) => ({ text, active: false }));
+    // No per-word timing: show the whole line, nothing to reveal progressively.
+    return line.text.split(/\s+/).filter(Boolean).map((text) => ({ text, active: false, started: true }));
   }
 
   return line.words.map((word) => {
@@ -230,8 +253,30 @@ function buildCanvasWords(line: ResolvedLyricVideoLine, currentTime: number, wor
     return {
       text: word.text,
       active: currentTime >= start && currentTime < end,
+      started: currentTime >= start,
     };
   });
+}
+
+// One-word flash mode: a single large word, popping in over ~90ms.
+function drawFlashWord(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  timeSinceStart: number,
+  baseFontSize: number,
+) {
+  const pop = Math.min(1, Math.max(0, timeSinceStart / 0.09));
+  const size = Math.min(170, baseFontSize * 1.7) * (0.82 + 0.18 * pop);
+  ctx.save();
+  ctx.globalAlpha = 0.35 + 0.65 * pop;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
+  ctx.fillStyle = '#22d3ee';
+  ctx.shadowColor = 'rgba(34, 211, 238, 0.55)';
+  ctx.shadowBlur = 34;
+  ctx.fillText(text.toUpperCase(), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+  ctx.restore();
 }
 
 function drawBeatPulse(ctx: CanvasRenderingContext2D, currentTime: number, bpm: number) {
@@ -265,9 +310,13 @@ export default function LyricVideoMaker() {
   const [isSharing, setIsSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [offsetMs, setOffsetMs] = useState(0);
-  const [snapToBeat, setSnapToBeat] = useState(true);
+  // Snap defaults OFF: beat-snapping rounds each line's start to the grid, which
+  // shifts every word's highlight later and makes lyrics lag the vocal.
+  const [snapToBeat, setSnapToBeat] = useState(false);
   const [wordsPerLine, setWordsPerLine] = useState(6);
   const [fontSize, setFontSize] = useState(82);
+  const [showNextLine, setShowNextLine] = useState(false);
+  const [revealMode, setRevealMode] = useState<'line' | 'build' | 'word'>('line');
 
   const lines = useMemo(
     () => buildLyricVideoLines({
@@ -291,8 +340,10 @@ export default function LyricVideoMaker() {
       bpm: tempo,
       snapToBeat,
       fontSize,
+      revealMode,
+      showNextLine,
     });
-  }, [fontSize, lines, offsetMs, snapToBeat, tempo]);
+  }, [fontSize, lines, offsetMs, snapToBeat, tempo, revealMode, showNextLine]);
 
   const stopDrawLoop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -717,7 +768,7 @@ export default function LyricVideoMaker() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="lyric-offset" className="text-xs text-muted-foreground">
-                    Offset
+                    Sync
                   </Label>
                   <Input
                     id="lyric-offset"
@@ -734,6 +785,9 @@ export default function LyricVideoMaker() {
                   step={25}
                   onValueChange={(value) => setOffsetMs(value[0] ?? 0)}
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  − earlier · + later — drag negative if lyrics lag your vocal
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -766,6 +820,39 @@ export default function LyricVideoMaker() {
                   />
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Reveal</Label>
+                <div className="grid grid-cols-3 gap-1">
+                  {([
+                    ['line', 'Line'],
+                    ['build', 'Build'],
+                    ['word', 'One word'],
+                  ] as const).map(([mode, label]) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRevealMode(mode)}
+                      className={cn(
+                        'h-8 px-1 text-[11px]',
+                        revealMode === mode && 'border-cyan-500 bg-cyan-600 text-white hover:bg-cyan-500',
+                      )}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={showNextLine}
+                  onCheckedChange={(checked) => setShowNextLine(checked === true)}
+                />
+                Show next line
+              </label>
 
               <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground">
                 <Checkbox
