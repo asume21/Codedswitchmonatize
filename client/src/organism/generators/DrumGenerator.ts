@@ -362,7 +362,17 @@ export class DrumGenerator extends GeneratorBase {
     const now = performance.now()
     if (!force && now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
+    this.rawHits = hits
     this.rebuildPart(hits)
+  }
+
+  setSectionDensity(density: number): void {
+    const prev = this.sectionDensity
+    this.sectionDensity = Math.max(0, Math.min(1.5, density))
+    const tierOf = (d: number) => d >= 0.75 ? 2 : d >= 0.45 ? 1 : 0
+    if (tierOf(prev) !== tierOf(this.sectionDensity) && this.rawHits.length > 0 && !this.patternLocked) {
+      this.rebuildPart(this.rawHits)
+    }
   }
 
   /** Immediate audition hit for voice/WOW interactions. Disabled when the user
@@ -436,6 +446,7 @@ export class DrumGenerator extends GeneratorBase {
 
   private currentPhysicsMode: OrganismMode = OrganismMode.Glow
   private sectionDensity: number = 1.0
+  private rawHits: DrumHit[] = []
   private grooveSnareLagMs: number[] = Array(16).fill(0)
   private grooveHatShiftPct: number[] = []
 
@@ -483,7 +494,28 @@ export class DrumGenerator extends GeneratorBase {
     // Groove template — stable per-slot offsets, NOT per-event randomness.
     if (this.grooveHatShiftPct.length === 0) this.buildGrooveTemplate()
 
-    const events = quantizedHits.map(h => {
+    let finalHits = [...quantizedHits]
+    if (this.isSoloMode) {
+      const soloSnareGhosts: DrumHit[] = []
+      for (const h of quantizedHits) {
+        if (h.instrument === DrumInstrument.Snare) {
+          const parts = h.time.split(':')
+          const bar = parts[0]
+          const beat = parseInt(parts[1] ?? '0', 10)
+          if (beat >= 1) {
+            soloSnareGhosts.push({ instrument: DrumInstrument.Snare, time: `${bar}:${beat - 1}:2.00`, velocity: 0.28 })
+          }
+          if (beat <= 2) {
+            soloSnareGhosts.push({ instrument: DrumInstrument.Snare, time: `${bar}:${beat}:2.00`, velocity: 0.22 })
+          }
+        }
+      }
+      finalHits = [...quantizedHits, ...soloSnareGhosts]
+    }
+
+    this.emitDrumEvents(finalHits)
+
+    const events = finalHits.map(h => {
       const parts = h.time.split(':')
       const beat = parseInt(parts[1] ?? '0', 10)
       const sub = parseFloat(parts[2] ?? '0')
@@ -619,6 +651,14 @@ export class DrumGenerator extends GeneratorBase {
       vel *= kickDuck * this.hatDensityMult
     }
 
+    if (this.isSoloMode) {
+      // Accent solo hits and add subtle natural humanized random variance
+      if (instrument === DrumInstrument.Snare || instrument === DrumInstrument.Kick) {
+        vel = vel * 1.15
+      }
+      vel += (Math.random() - 0.5) * 0.08
+    }
+
     return Math.min(1, Math.max(0, vel))
   }
 
@@ -691,7 +731,7 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
-  private stopPart(): void {
+  stopPart(): void {
     this.clearBarEndBreakFill()
     this.clearMicroFill()
     if (this.part) {

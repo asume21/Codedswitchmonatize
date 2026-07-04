@@ -241,7 +241,7 @@ export class SampledDrumKit {
     }
   }
 
-  setKeyRoot(keyRoot: string): void {
+  setKeyRoot(keyRoot: string | number): void {
     // No-op stub to keep kick tuned to song key without throwing
   }
 

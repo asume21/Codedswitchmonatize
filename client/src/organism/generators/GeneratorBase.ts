@@ -31,6 +31,11 @@ export abstract class GeneratorBase {
   /** Composer-assigned role for the current section. Default 'support' so a
    *  generator with no plan loaded behaves like today (jam mode). */
   protected role: InstrumentRole = 'support'
+  public isSoloMode: boolean = false
+
+  setSoloMode(solo: boolean): void {
+    this.isSoloMode = solo
+  }
 
   /** Per-loop gain node, created lazily by a subclass's loadLoop() and wired
    *  between the loop Player and `output`. Null until a loop is loaded. The

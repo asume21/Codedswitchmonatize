@@ -965,6 +965,7 @@ export class GeneratorOrchestrator {
     this.drumEnabled = enabled
     this.drum.setEnabled(enabled)
     if (enabled) this.replayStateToGenerator(this.drum)
+    this.updateSoloStates()
   }
 
   setBassEnabled(enabled: boolean): void {
@@ -972,6 +973,7 @@ export class GeneratorOrchestrator {
     this.bassEnabled = enabled
     this.bass.setEnabled(enabled)
     if (enabled) setTimeout(() => this.replayStateToGenerator(this.bass), 50)
+    this.updateSoloStates()
   }
 
   setMelodyEnabled(enabled: boolean): void {
@@ -979,6 +981,7 @@ export class GeneratorOrchestrator {
     this.melodyEnabled = enabled
     this.melody.setEnabled(enabled)
     if (enabled) setTimeout(() => this.replayStateToGenerator(this.melody), 120)
+    this.updateSoloStates()
   }
 
   setChordEnabled(enabled: boolean): void {
@@ -986,6 +989,25 @@ export class GeneratorOrchestrator {
     this.chordEnabled = enabled
     this.chord.setEnabled(enabled)
     if (enabled) setTimeout(() => this.replayStateToGenerator(this.chord), 180)
+    this.updateSoloStates()
+  }
+
+  private updateSoloStates(): void {
+    const activeCount = 
+      (this.drumEnabled ? 1 : 0) +
+      (this.bassEnabled ? 1 : 0) +
+      (this.melodyEnabled ? 1 : 0) +
+      (this.chordEnabled ? 1 : 0)
+    
+    const leadSolo = (activeCount === 1 && this.melodyEnabled) || this.melodyOnlyMode
+    const bassSolo = (activeCount === 1 && this.bassEnabled)
+    const drumSolo = (activeCount === 1 && this.drumEnabled)
+    const chordSolo = (activeCount === 1 && this.chordEnabled)
+
+    this.melody.setSoloMode(leadSolo)
+    this.bass.setSoloMode(bassSolo)
+    this.drum.setSoloMode(drumSolo)
+    this.chord.setSoloMode(chordSolo)
   }
 
   /** Enable or disable the texture generator entirely. */
@@ -1047,6 +1069,7 @@ export class GeneratorOrchestrator {
     // converge to the current section.
     this.lastArrangementBar = -1
     this.lastPlanSectionLoadBar = -1
+    this.updateSoloStates()
   }
 
   isMelodyOnly(): boolean { return this.melodyOnlyMode }
@@ -1915,8 +1938,12 @@ export class GeneratorOrchestrator {
     // types rotate so bar 4, 8, 12 each have a different character.
     // Skip bars that already have the full pre-drop break scheduled.
     const isPreDropBar = sectionBar === section.bars - 1 && this.lastScheduledBreakBar === barNumber
-    if (cycleBar % 4 === 3 && !isPreDropBar) {
-      const fillIndex = Math.floor(cycleBar / 4)
+    const wantsMicroFill = this.drum.isSoloMode
+      ? (cycleBar % 2 === 1)
+      : (cycleBar % 4 === 3)
+
+    if (wantsMicroFill && !isPreDropBar) {
+      const fillIndex = Math.floor(cycleBar / (this.drum.isSoloMode ? 2 : 4))
       transport.scheduleOnce((time) => {
         this.drum.triggerMicroFill(time, fillIndex)
       }, `${barNumber}:2:0`)

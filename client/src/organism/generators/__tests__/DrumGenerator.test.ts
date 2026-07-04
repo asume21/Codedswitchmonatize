@@ -169,25 +169,30 @@ describe('DrumGenerator', () => {
   })
 
   it('keeps default runtime pocket tight instead of dragging the kit late', () => {
-    gen.loadGeneratedPattern([
-      { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
-      { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
-      { instrument: DrumInstrument.Hat, time: '0:0:1', velocity: 0.5 },
-    ], true)
+    const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    try {
+      gen.loadGeneratedPattern([
+        { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
+        { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
+        { instrument: DrumInstrument.Hat, time: '0:0:1', velocity: 0.5 },
+      ], true)
 
-    const partMock = Tone.Part as unknown as {
-      mock: {
-        calls: Array<[unknown, Array<{ instrument: DrumInstrument; microShift: number }>]>
+      const partMock = Tone.Part as unknown as {
+        mock: {
+          calls: Array<[unknown, Array<{ instrument: DrumInstrument; microShift: number }>]>
+        }
       }
-    }
-    const events = partMock.mock.calls.at(-1)?.[1] ?? []
-    const snare = events.find(event => event.instrument === DrumInstrument.Snare)
-    const hat = events.find(event => event.instrument === DrumInstrument.Hat)
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      const snare = events.find(event => event.instrument === DrumInstrument.Snare)
+      const hat = events.find(event => event.instrument === DrumInstrument.Hat)
 
-    expect(snare?.microShift).toBeGreaterThanOrEqual(0.002)
-    expect(snare?.microShift).toBeLessThanOrEqual(0.007)
-    expect(hat?.microShift).toBeGreaterThanOrEqual(0)
-    expect(hat?.microShift).toBeLessThanOrEqual(0.003)
+      expect(snare?.microShift).toBeGreaterThanOrEqual(0.002)
+      expect(snare?.microShift).toBeLessThanOrEqual(0.007)
+      expect(hat?.microShift).toBeGreaterThanOrEqual(0)
+      expect(hat?.microShift).toBeLessThanOrEqual(0.003)
+    } finally {
+      mockRandom.mockRestore()
+    }
   })
 
   it('reset() zeros activity level', () => {
@@ -336,7 +341,7 @@ describe('DrumGenerator', () => {
     gen.setKickTriggerCallback(callback)
     
     vi.spyOn(gen['sampledKit']!, 'trigger').mockReturnValue(true)
-    gen['triggerDrum'](DrumInstrument.Kick, 1.5, 0.8)
+    gen['triggerDrum'](DrumInstrument.Kick, 1.5, 0.8, 0.8)
     expect(callback).toHaveBeenCalledWith(expect.any(Number))
   })
 
