@@ -186,8 +186,16 @@ describe('DrumGenerator', () => {
       const snare = events.find(event => event.instrument === DrumInstrument.Snare)
       const hat = events.find(event => event.instrument === DrumInstrument.Hat)
 
-      expect(snare?.microShift).toBeGreaterThanOrEqual(0.002)
-      expect(snare?.microShift).toBeLessThanOrEqual(0.007)
+      // grooveSnareLagMs/grooveHatShiftPct are now seeded off the freeplay
+      // session salt (mulberry32), not Math.random() — the Math.random mock
+      // above no longer influences them, only whatever other jitter this
+      // code path might touch. True range for snare is [0, 0.008)s; the old
+      // [0.002, 0.007] window was narrower than that, so ~37.5% of draws
+      // legitimately fell outside it (a flaky test, not a flaky
+      // implementation) — asserting the actual mathematically-guaranteed
+      // bounds instead.
+      expect(snare?.microShift).toBeGreaterThanOrEqual(0)
+      expect(snare?.microShift).toBeLessThan(0.008)
       expect(hat?.microShift).toBeGreaterThanOrEqual(0)
       expect(hat?.microShift).toBeLessThanOrEqual(0.003)
     } finally {

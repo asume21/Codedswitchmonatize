@@ -127,6 +127,70 @@ describe('MelodyGenerator', () => {
     expect(Math.max(...events.map(event => event.vel))).toBeGreaterThan(0.5)
   })
 
+  describe('performer expression rollout — wind family', () => {
+    it('a wind lead (flute) builds a scheduled phrase without throwing', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('flute')
+      expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      expect(events.length).toBeGreaterThan(0)
+    })
+
+    it('a wind lead phrase has non-uniform velocities (the shared dynamics arc is applied)', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('flute')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      const distinctVels = new Set(events.map(e => Math.round(e.vel * 100)))
+      expect(distinctVels.size).toBeGreaterThan(1)
+    })
+  })
+
+  describe('performer expression rollout — guitar (plucked) family', () => {
+    it('a guitar lead builds a scheduled phrase without throwing', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('guitar-nylon')
+      expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      expect(events.length).toBeGreaterThan(0)
+    })
+
+    it('a guitar lead phrase produces a shaped (non-flat) velocity profile end-to-end', () => {
+      // This is a wiring smoke test only — it confirms the shared dynamics arc
+      // reaches a 'plucked'-family lead through the real pipeline. The actual
+      // downbeatAccent regression guard lives in performerExpression.test.ts's
+      // "accents downbeats when downbeatAccent is set" test, since the arc's
+      // own position-based velocity variation would keep this test green even
+      // if downbeatAccent were reverted to 0.
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('guitar-nylon')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      const distinctVels = new Set(events.map(e => Math.round(e.vel * 100)))
+      expect(distinctVels.size).toBeGreaterThan(1)
+    })
+  })
+
   it('snaps wind ornament pitches back into the active scale', () => {
     const majorScale = [0, 2, 4, 5, 7, 9, 11]
 
@@ -214,9 +278,12 @@ describe('MelodyGenerator', () => {
     const partMock = Tone.Part as any
     const events = partMock.mock.calls.at(-1)?.[1] ?? []
     
-    // Sad intent clamps velocities between 0.4 and 0.6
+    // Sad intent clamps base velocities between 0.4 and 0.6; the shared
+    // performer-expression velocity ARC (applied to every family, including
+    // piano, since Task 5) then multiplies by an edge taper down to 0.78x at
+    // the phrase's start/end, so the observed floor is a bit lower.
     for (const event of events) {
-      expect(event.vel).toBeGreaterThanOrEqual(0.4)
+      expect(event.vel).toBeGreaterThanOrEqual(0.4 * 0.78)
       expect(event.vel).toBeLessThanOrEqual(0.6)
     }
 
@@ -227,9 +294,10 @@ describe('MelodyGenerator', () => {
     gen.processFrame(physics, makeOrganism())
     const eventsBeautiful = partMock.mock.calls.at(-1)?.[1] ?? []
     
-    // Beautiful intent clamps velocities between 0.45 and 0.7
+    // Beautiful intent clamps base velocities between 0.45 and 0.7; same edge
+    // taper as above lowers the observed floor.
     for (const event of eventsBeautiful) {
-      expect(event.vel).toBeGreaterThanOrEqual(0.45)
+      expect(event.vel).toBeGreaterThanOrEqual(0.45 * 0.78)
       expect(event.vel).toBeLessThanOrEqual(0.7)
     }
   })

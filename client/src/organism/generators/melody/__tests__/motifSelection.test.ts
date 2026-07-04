@@ -19,12 +19,12 @@ describe('selectMotifBankKey', () => {
   })
 
   it('preserves the existing arps/fills split for non-lyrical leads in auto mode', () => {
-    expect(selectMotifBankKey({ family: 'keys', voiceActive: false, preferredBankKey: null, chordSeed: 7 })).toBe('arps')
-    expect(selectMotifBankKey({ family: 'keys', voiceActive: false, preferredBankKey: null, chordSeed: 3 })).toBe('fills')
+    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: false, preferredBankKey: null, chordSeed: 7 })).toBe('arps')
+    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: false, preferredBankKey: null, chordSeed: 3 })).toBe('fills')
   })
 
   it('defaults to ostinatos for a non-lyrical lead with a live vocalist', () => {
-    expect(selectMotifBankKey({ family: 'pluck', voiceActive: true, preferredBankKey: null, chordSeed: 4 })).toBe('ostinatos')
+    expect(selectMotifBankKey({ family: 'plucked', voiceActive: true, preferredBankKey: null, chordSeed: 4 })).toBe('ostinatos')
   })
 
   it('every key it can return resolves to a non-empty motif bank', () => {
