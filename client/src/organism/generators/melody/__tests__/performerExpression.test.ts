@@ -4,22 +4,22 @@ import { getPerformerExpressionConfig, isSustainedPitch, sixteenthPosOf } from '
 describe('getPerformerExpressionConfig', () => {
   it('returns the tuned config for each known family', () => {
     expect(getPerformerExpressionConfig('bowed')).toEqual({
-      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: 0.35,
+      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: 0.35, downbeatAccent: 0,
     })
     expect(getPerformerExpressionConfig('wind')).toEqual({
-      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: 0.35,
+      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: 0.35, downbeatAccent: 0,
     })
     expect(getPerformerExpressionConfig('brass')).toEqual({
-      peakPosition: 0.72, restDensityMultiplier: 0.6, octaveRecastEnabled: true, vibratoDepthCap: 0.22,
+      peakPosition: 0.72, restDensityMultiplier: 0.6, octaveRecastEnabled: true, vibratoDepthCap: 0.22, downbeatAccent: 0,
     })
     expect(getPerformerExpressionConfig('keyboard')).toEqual({
-      peakPosition: 0.60, restDensityMultiplier: 1.4, octaveRecastEnabled: false, vibratoDepthCap: null,
+      peakPosition: 0.60, restDensityMultiplier: 1.4, octaveRecastEnabled: false, vibratoDepthCap: null, downbeatAccent: 0,
     })
     expect(getPerformerExpressionConfig('plucked')).toEqual({
-      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: null,
+      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: null, downbeatAccent: 0.12,
     })
     expect(getPerformerExpressionConfig('synth')).toEqual({
-      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: null,
+      peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true, vibratoDepthCap: null, downbeatAccent: 0,
     })
   })
 
@@ -167,7 +167,6 @@ describe('applyBreathAndRests', () => {
 })
 
 import { phraseCharacterOf, developPhraseCharacter } from '../performerExpression'
-import * as Tone from 'tone'
 
 describe('phraseCharacterOf', () => {
   it('cycles 0 (statement) -> 1 (answer) -> 2 (variation) -> 3 (climb) -> 0 ...', () => {

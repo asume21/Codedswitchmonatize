@@ -834,11 +834,6 @@ export class MelodyGenerator extends GeneratorBase {
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
       ? Math.max(32, selectedLength)
       : selectedLength
-    // Strings: force ≥2-bar phrases so the phrase length lines up with the
-    // PHRASE_REFRESH_BARS=2 refresh. A 1-bar phrase would loop (replay identical)
-    // once before refreshing — the "looping" the violin lead was criticised for.
-    // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
-    if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
     let notes          = this.generatePhrase(phraseLength, physics)
 
     // Pro-instruments Slice 4: EVERY lead family gets the shared breathe/arc/
@@ -1044,7 +1039,7 @@ export class MelodyGenerator extends GeneratorBase {
     // Velocity ARC — crescendo toward a drifting peak, ease at the cadence. The peak
     // drifts slightly per phrase (same "not identical every time" feel as before).
     const peak = Math.min(0.85, config.peakPosition + 0.12 * ((this.phraseCounter % 3) / 2) - 0.08)
-    shaped = shapePerformanceDynamics(shaped, { peakPosition: peak })
+    shaped = shapePerformanceDynamics(shaped, { peakPosition: peak, downbeatAccent: config.downbeatAccent })
 
     // BREATH — rest weak interior notes (never first/last). Density varies by
     // character (answer is airy, climb is driving) and by family (config.restDensityMultiplier).

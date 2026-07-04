@@ -24,15 +24,17 @@ export interface PerformerExpressionConfig {
   octaveRecastEnabled: boolean
   /** Max vibrato depth (0..1), or null if this family doesn't vibrato. */
   vibratoDepthCap: number | null
+  /** Velocity boost added to notes landing on a 16th-grid downbeat (picking-style accent). 0 = no accent. */
+  downbeatAccent: number
 }
 
 const PERFORMER_EXPRESSION_CONFIG: Record<PerformerFamily, PerformerExpressionConfig> = {
-  bowed:    { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: 0.35 },
-  wind:     { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: 0.35 },
-  brass:    { peakPosition: 0.72, restDensityMultiplier: 0.6, octaveRecastEnabled: true,  vibratoDepthCap: 0.22 },
-  keyboard: { peakPosition: 0.60, restDensityMultiplier: 1.4, octaveRecastEnabled: false, vibratoDepthCap: null },
-  plucked:  { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: null },
-  synth:    { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: null },
+  bowed:    { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: 0.35, downbeatAccent: 0 },
+  wind:     { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: 0.35, downbeatAccent: 0 },
+  brass:    { peakPosition: 0.72, restDensityMultiplier: 0.6, octaveRecastEnabled: true,  vibratoDepthCap: 0.22, downbeatAccent: 0 },
+  keyboard: { peakPosition: 0.60, restDensityMultiplier: 1.4, octaveRecastEnabled: false, vibratoDepthCap: null, downbeatAccent: 0 },
+  plucked:  { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: null, downbeatAccent: 0.12 },
+  synth:    { peakPosition: 0.66, restDensityMultiplier: 1.0, octaveRecastEnabled: true,  vibratoDepthCap: null, downbeatAccent: 0 },
 }
 
 const SUSTAINED_FAMILIES = new Set<PerformerFamily>(['bowed', 'wind', 'brass'])

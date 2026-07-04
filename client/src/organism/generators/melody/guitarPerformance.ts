@@ -1,4 +1,5 @@
 import type { ScheduledNote } from '../types'
+import { sixteenthPosOf } from './performerExpression'
 
 const SEMITONE: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 
@@ -75,12 +76,4 @@ export function developGuitarPhrase(
     weakSeen++
     return weakSeen % keepEvery !== 0 // drop every keepEvery-th weak-beat note
   })
-}
-
-/** sixteenth-grid position (0..15) from a "bar:beat:sub" Tone time string. */
-function sixteenthPosOf(time: string): number {
-  const parts = String(time).split(':')
-  const beat = parseFloat(parts[1] ?? '0')
-  const sub = parseFloat(parts[2] ?? '0')
-  return Math.floor(beat * 4 + sub) % 16
 }

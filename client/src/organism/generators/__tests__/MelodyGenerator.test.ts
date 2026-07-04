@@ -156,6 +156,35 @@ describe('MelodyGenerator', () => {
     })
   })
 
+  describe('performer expression rollout — guitar (plucked) family', () => {
+    it('a guitar lead builds a scheduled phrase without throwing', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('guitar-nylon')
+      expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      expect(events.length).toBeGreaterThan(0)
+    })
+
+    it('a guitar lead phrase has non-uniform velocities (the downbeat picking accent survives end-to-end)', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('guitar-nylon')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      const distinctVels = new Set(events.map(e => Math.round(e.vel * 100)))
+      expect(distinctVels.size).toBeGreaterThan(1)
+    })
+  })
+
   it('snaps wind ornament pitches back into the active scale', () => {
     const majorScale = [0, 2, 4, 5, 7, 9, 11]
 
