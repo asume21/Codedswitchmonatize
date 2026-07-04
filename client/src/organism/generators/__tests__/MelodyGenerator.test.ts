@@ -127,6 +127,35 @@ describe('MelodyGenerator', () => {
     expect(Math.max(...events.map(event => event.vel))).toBeGreaterThan(0.5)
   })
 
+  describe('performer expression rollout — wind family', () => {
+    it('a wind lead (flute) builds a scheduled phrase without throwing', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('flute')
+      expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      expect(events.length).toBeGreaterThan(0)
+    })
+
+    it('a wind lead phrase has non-uniform velocities (the shared dynamics arc is applied)', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('flute')
+      gen.onStateTransition(OState.Flow, physics)
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ vel: number }>]> }
+      }
+      const events = partMock.mock.calls.at(-1)?.[1] ?? []
+      const distinctVels = new Set(events.map(e => Math.round(e.vel * 100)))
+      expect(distinctVels.size).toBeGreaterThan(1)
+    })
+  })
+
   it('snaps wind ornament pitches back into the active scale', () => {
     const majorScale = [0, 2, 4, 5, 7, 9, 11]
 
