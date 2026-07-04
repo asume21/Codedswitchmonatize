@@ -141,19 +141,75 @@ the seam below, no rebuild of the hands.
       the idea, odd phrases answer it sparser (thin weak-beat notes, keep downbeats) so
       consecutive phrases contrast instead of looping. Per-guitar phrase counter; runs on the
       LINE before dynamics. Committed c29cda0f.
-- [ ] **Slice 4 — Roll out.** Other plucked leads (clean-electric/distortion), then generalize
-      the breath/arc/development helpers shared with strings; chords/bass later. Also: optional
-      continuous-bend audio spike (see slice 2 note). Do AFTER the user by-ears guitar slices 1-3.
+- [ ] **Slice 4 — Roll out to ALL remaining lead families.** (added 2026-07-04, decided:
+      generalize now rather than plucked-leads-first) The breath/arc/development logic
+      currently lives TWICE — `applyStringPerformance()` in `MelodyGenerator.ts` and
+      `shapeGuitarDynamics()`/`developGuitarPhrase()` in `guitarPerformance.ts`. Per the
+      Organism's #1 known problem (duplicate/competing systems), this is a consolidation,
+      not a third copy.
+
+      **New module**: `client/src/organism/generators/melody/performerExpression.ts` — three
+      pure functions, each driven by a small per-family config object instead of being
+      hardcoded to one instrument:
+      - `shapePerformanceDynamics()` — velocity arc (generalizes `shapeGuitarDynamics`)
+      - `applyBreathAndRests()` — weighted rest-dropping, denser toward phrase end
+        (generalizes the BREATH block in `applyStringPerformance`)
+      - `developPhraseCharacter()` — 4-way statement/answer/variation/climb cycling +
+        octave recast (generalizes the CHARACTER block in `applyStringPerformance`)
+
+      `applyStringPerformance()` and the guitar dynamics/development functions become thin
+      callers into this module with their existing tuned numbers as the config — behavior
+      is unchanged for strings/guitar, just de-duplicated. Guitar's per-note ornament picker
+      (`planGuitarArticulations()` — bends/hammer-ons) stays guitar-specific on top; it is
+      genuinely idiomatic to guitar technique, not shared expression.
+
+      **Family detection**: switches from regex-on-voice-name (`isBowedString()`,
+      `isGuitar()`) to the structured `currentPerformer.family` field, which already exists
+      and is used elsewhere (`MelodyGenerator.ts:1079`). This also fixes a latent naming
+      drift: `motifSelection.ts`'s `LYRICAL_FAMILIES` set and its tests reference `'keys'`/
+      `'pluck'`, but `InstrumentRegistry.ts` actually emits `'keyboard'`/`'plucked'` — those
+      branches were dead in real usage. Fixed as part of switching to structured family keys.
+
+      **Per-family config**:
+
+      | Family | Peak pos | Breath density | Octave recast | Vibrato |
+      |---|---|---|---|---|
+      | `bowed` | 0.66 (existing) | existing (dropMod 3/4/6) | yes | yes (existing, depth cap 0.35) |
+      | `wind` | 0.66 | same as bowed | yes | yes (new), depth cap 0.35 |
+      | `brass` | 0.72 (punches later/harder) | lighter (sustains longer lines) | yes | yes (new), narrower depth cap ~0.22 (embouchure vibrato is subtler than a bow arm) |
+      | `keyboard` | 0.60 (leans earlier) | denser (piano rests naturally between phrases) | no (register jumps read as doubling, not "recast," on piano) | no |
+      | `plucked` (non-guitar: harp/pizzicato) | 0.66 | existing guitar-like values | yes | no |
+      | `synth` | 0.66 | existing guitar-like default | yes | no |
+
+      `shapeVibrato()`'s gate generalizes from `isBowedString()` to `isSustainedPitch()`
+      (`family === 'bowed' | 'wind' | 'brass'`), with a per-family depth cap.
+
+      **Integration**: both `generatePhrase()` (today's `if (isBowedString())` /
+      `if (isGuitar())` branches) and the `Tone.Part` callback (`shapeVibrato` call site)
+      switch to one family-keyed dispatch table, so a 7th family later is a config row, not
+      a new `if` branch.
+
+      **Testing**: unit tests for the 3 pure functions in `performerExpression.ts`
+      (arc shape, rest-drop probability by phrase position, character-cycle octave/dynamics
+      per index), independent of Tone.js, mirroring the existing `guitarPerformance.test.ts`
+      pattern. Integration coverage in `MelodyGenerator.test.ts` for at least one new family
+      (wind) end-to-end.
+
+      Also: optional continuous-bend audio spike (see slice 2 note) — still deferred, not
+      part of this slice.
 
 ### Verification gate
 Solo guitar on `/organism`, audio-debug capture + by-ear: the soloed line must read as a real
 guitarist (idiomatic, develops, breathes), not the generic melody algorithm with a guitar
-sample. Only then roll to slice 4 / other instruments.
+sample. Slice 4 repeats this same by-ear + audio-debug gate per newly-covered family
+(wind/brass/keyboard/plucked/synth) before calling the rollout done.
 
 ### Phase-1 non-goals
-The agent/AI brain itself (north star, later); a full Line-Source abstraction layer; lead
-instruments other than guitar (slice 4+); composed "solo sections" in the arrangement
-(separate, later — the existing Solo button is the Phase-1 trigger).
+The agent/AI brain itself (north star, later); a full Line-Source abstraction layer;
+per-family note-level ornamentation beyond guitar's existing bends/hammer-ons (not
+generalized — guitar keeps its own idiom layer); chords/bass performance realism (deferred,
+per original scope); composed "solo sections" in the arrangement (separate, later — the
+existing Solo button is the Phase-1 trigger); per-instrument reverb/EQ space (M3, separate).
 
 ## Non-goals / notes
 - A sampler playing generated notes won't always beat a hand-played loop on raw "wow"; it

@@ -1,7 +1,6 @@
 // Section 04 — Melody Generator
 
 import * as Tone from 'tone'
-import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, MelodyBehavior } from './types'
 import type { ScheduledNote } from './types'
@@ -37,18 +36,9 @@ import {
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
-import {
-  isStrongBeat,
-  resolveDegreeComplementing,
-  contourOffset,
-  cadenceStep,
-  phraseNeedsContourFallback,
-} from './melody/melodyPhrase'
+import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
-import { applyVoiceLeading } from './melody/voiceLeading'
-import { selectMotifBankKey } from './melody/motifSelection'
-import { extractBusySlots16ths } from './freeplay/utils'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -58,6 +48,7 @@ export function snapNoteToScale(
   rootPitchClass: number,
   scaleIntervals: number[],
   pitchOffsetSemitones = 0,
+  preferredDirection?: 'up' | 'down' | 'ascending' | 'descending',
 ): string | number {
   const midi = noteToMidi(note)
   if (midi == null || scaleIntervals.length === 0) return note
@@ -68,12 +59,26 @@ export function snapNoteToScale(
 
   for (let delta = 1; delta <= 6; delta++) {
     const lower = midi - delta
-    if (allowed.has(normalizePitchClass(lower))) {
+    const upper = midi + delta
+    const lowerAllowed = allowed.has(normalizePitchClass(lower))
+    const upperAllowed = allowed.has(normalizePitchClass(upper))
+
+    if (lowerAllowed && upperAllowed) {
+      if (preferredDirection === 'up' || preferredDirection === 'ascending') {
+        return typeof note === 'number' ? upper : midiToNote(upper)
+      } else if (preferredDirection === 'down' || preferredDirection === 'descending') {
+        return typeof note === 'number' ? lower : midiToNote(lower)
+      }
+      const preferUpper = (midi % 2 === 0)
+      const selected = preferUpper ? upper : lower
+      return typeof note === 'number' ? selected : midiToNote(selected)
+    }
+
+    if (lowerAllowed) {
       return typeof note === 'number' ? lower : midiToNote(lower)
     }
 
-    const upper = midi + delta
-    if (allowed.has(normalizePitchClass(upper))) {
+    if (upperAllowed) {
       return typeof note === 'number' ? upper : midiToNote(upper)
     }
   }
@@ -122,15 +127,6 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSectionMotif: MelodyMotif | null = null
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
-  // Cross-phrase continuity: the MIDI pitch of the final note in the last phrase.
-  // Used to pick the starting octave of the next phrase so the lead doesn't jump
-  // back to a fixed home register — it picks up near where it left off.
-  // Cleared on section change so each section is a fresh musical thought.
-  private lastPhraseFinalMidi: number | null = null
-  // Per-bar 16th slots (0..15) the CURRENT melody loop occupies. The
-  // orchestrator pulls this and pushes it to the chords before every chord
-  // rebuild — same band-awareness channel as the drum's kick anchors.
-  private busySlots16ths: number[] = []
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
   // by default: timbre variety only pays off once the LINE is good, and we don't
   // want to debug a jumping voice while the note logic is still settling.
@@ -145,9 +141,10 @@ export class MelodyGenerator extends GeneratorBase {
   // so the lead doesn't mud-double the colour the chords are already stating.
   private currentGuideTones: number[] = []
   private unsubscribeConductor: (() => void) | null = null
-  // Tracks the last conductor progression version we rebuilt for. Progression
-  // replacement means key/scale/harmony changed; ordinary chord advances still
-  // rebuild the next phrase, but they do not reset the section motif.
+  // Tracks the last conductor progression version we rebuilt for. Used to
+  // distinguish a chord ADVANCE (same key, same progression) from a key/scale
+  // CHANGE (sub-genre swap, key change, new progression). Chord advances do not
+  // warrant a phrase rebuild — the running loop keeps playing through them.
   private lastProgressionVersion: number = -1
 
   // Physics cache
@@ -197,6 +194,56 @@ export class MelodyGenerator extends GeneratorBase {
   private articulationOverridden: boolean = false
   private lastModeForArticulation: string = ''
 
+  // Caching mapped chord degrees (Performance 19)
+  private cachedChordDegs: number[] = []
+  private cachedPreferredDegs: number[] = []
+
+  // PRNG state (Quality 35)
+  private rngState: number = 12345
+
+  private seedRng(seed: number): void {
+    this.rngState = seed === 0 ? 12345 : seed
+  }
+
+  private nextRandom(): number {
+    this.rngState = (1664525 * this.rngState + 1013904223) % 4294967296
+    return this.rngState / 4294967296
+  }
+
+  private updateChordDegreesCache(): void {
+    const chordDegs: number[] = []
+    if (this.currentChordTones.length > 0) {
+      for (let d = 0; d < this.currentScale.length; d++) {
+        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
+        if (this.currentChordTones.includes(pc)) {
+          chordDegs.push(d)
+        }
+      }
+    }
+    // Fallback if no chord info: use 0, 2, 4 (root, 3rd, 5th of scale)
+    if (chordDegs.length === 0) {
+      chordDegs.push(0, 2, 4)
+    }
+
+    // 'beautiful' intent: bias chord-tone selection toward 7ths (degree 6)
+    // and 9ths (degree 8 — i.e. the 2nd up an octave).
+    if (this.emotionalIntent === 'beautiful') {
+      chordDegs.push(6, 8)
+    }
+
+    const guideDegs: number[] = []
+    if (this.emotionalIntent !== 'beautiful' && this.currentGuideTones.length > 0) {
+      for (let d = 0; d < this.currentScale.length; d++) {
+        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
+        if (this.currentGuideTones.includes(pc)) guideDegs.push(d)
+      }
+    }
+    const preferredDegs = chordDegs.filter((d) => !guideDegs.includes(d))
+
+    this.cachedChordDegs = chordDegs
+    this.cachedPreferredDegs = preferredDegs
+  }
+
   // ── Emotional Intent ─────────────────────────────────────────────
   // Layered on top of scale/mode selection. `null` is neutral (no overrides).
   // 'sad' / 'melancholy': natural-minor bias, velocity clamped 0.4-0.6, legato.
@@ -213,7 +260,7 @@ export class MelodyGenerator extends GeneratorBase {
     if (intent === 'sad') {
       // Force natural minor against the current root so phrases inherit the
       // melancholy tonality on the next rebuild.
-      this.currentScale = MelodyGenerator.NATURAL_MINOR
+      this.currentScale = [...MelodyGenerator.NATURAL_MINOR]
     }
     this.scaleDirty = true                       // rebuild on next processFrame
     this.lastRebuildTime = -Infinity             // clear 600ms throttle — user
@@ -221,6 +268,7 @@ export class MelodyGenerator extends GeneratorBase {
                                                  // effect immediately, not get
                                                  // silently consumed by a recent
                                                  // chord-change-triggered rebuild
+    this.updateChordDegreesCache()
   }
 
   getEmotionalIntent(): 'sad' | 'beautiful' | null {
@@ -245,109 +293,6 @@ export class MelodyGenerator extends GeneratorBase {
     return this.currentArticulationId
   }
 
-  // ─── Dynamic Global Voices ──────────────────────────────────
-  private static readonly GLOBAL_VOICES: Array<{
-    name: string; type: 'FM' | 'Synth' | 'Mono' | 'Sampler'; options: any; presetId?: string
-    volume: number; chorusWet: number; reverbDecay: number; delayFeedback: number
-    tags: string[]
-  }> = [
-    // Aggressive Trap/Drill
-    { name: 'Trap Lead', type: 'FM', options: {
-      harmonicity: 3, modulationIndex: 6, oscillator: { type: 'sine' }, modulation: { type: 'square' },
-      envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.3 },
-      modulationEnvelope: { attack: 0.01, decay: 0.15, sustain: 0.2, release: 0.3 },
-    }, volume: -8, chorusWet: 0.15, reverbDecay: 0.5, delayFeedback: 0.08, tags: ['aggressive', 'electronic'] },
-    { name: 'Eerie Bell', type: 'FM', options: {
-      harmonicity: 5.07, modulationIndex: 12, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-      envelope: { attack: 0.001, decay: 0.8, sustain: 0.1, release: 1.5 },
-      modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 1.0 },
-    }, volume: -10, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.15, tags: ['dark', 'electronic'] },
-    
-    // Boom Bap / Soulful
-    { name: 'Acoustic Piano', type: 'Sampler', presetId: 'acoustic_grand_piano', options: {
-      envelope: { attack: 0.005, release: 0.8 }
-    }, volume: -5, chorusWet: 0.1, reverbDecay: 1.0, delayFeedback: 0.05, tags: ['acoustic', 'warm', 'soulful'] },
-    { name: 'Saxophone', type: 'Sampler', presetId: 'alto_sax', options: {
-      envelope: { attack: 0.04, release: 0.25 }
-    }, volume: -6, chorusWet: 0.25, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'dark'] },
-    
-    // Lo-Fi / Cloud Rap
-    { name: 'Music Box', type: 'Sampler', presetId: 'marimba', options: {
-      envelope: { attack: 0.001, release: 0.8 }
-    }, volume: -3, chorusWet: 0.4, reverbDecay: 2.0, delayFeedback: 0.2, tags: ['ethereal', 'chill'] },
-    { name: 'Glass Pad', type: 'Synth', options: {
-      oscillator: { type: 'fatsawtooth', spread: 30 },
-      envelope: { attack: 1.5, decay: 1.0, sustain: 0.85, release: 3.0 },
-    }, volume: -12, chorusWet: 0.6, reverbDecay: 3.0, delayFeedback: 0.2, tags: ['ethereal', 'dark', 'electronic'] },
-
-    // R&B / Pop Rap
-    { name: 'Nylon Guitar', type: 'Sampler', presetId: 'acoustic_guitar_nylon', options: {
-      envelope: { attack: 0.005, release: 0.5 }
-    }, volume: -4, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.15, tags: ['acoustic', 'chill', 'soulful'] },
-    { name: 'Clean Air', type: 'FM', options: {
-      harmonicity: 1, modulationIndex: 0.2, oscillator: { type: 'sine' }, modulation: { type: 'sine' },
-      envelope: { attack: 1.0, decay: 1.0, sustain: 1.0, release: 3.0 },
-    }, volume: -15, chorusWet: 0.4, reverbDecay: 5.0, delayFeedback: 0.3, tags: ['chill', 'ethereal'] },
-
-    // Bowed strings — solo violin (Drake/Alchemist soul), expressive cello.
-    // Pro-violin envelope: longer bow-on-string attack (~200ms) + sustained
-    // 1.5s release tail = legato phrasing instead of staccato note-stabs.
-    // Higher chorusWet (~0.45) adds the lush ensemble shimmer real solo
-    // violins get in studio production via stereo doubling.
-    { name: 'Solo Violin', type: 'Sampler', presetId: 'violin', options: {
-      envelope: { attack: 0.20, release: 1.5 }
-    }, volume: 1, chorusWet: 0.45, reverbDecay: 2.5, delayFeedback: 0.12, tags: ['acoustic', 'soulful', 'warm'] },
-    { name: 'Cello Lead', type: 'Sampler', presetId: 'cello', options: {
-      envelope: { attack: 0.22, release: 1.8 }
-    }, volume: 0, chorusWet: 0.40, reverbDecay: 2.8, delayFeedback: 0.10, tags: ['acoustic', 'dark', 'soulful'] },
-
-    // Winds — Future Hendrix flute, jazz-rap clarinet, cinematic oboe
-    { name: 'Flute', type: 'Sampler', presetId: 'flute', options: {
-      envelope: { attack: 0.04, release: 0.3 }
-    }, volume: -5, chorusWet: 0.3, reverbDecay: 1.5, delayFeedback: 0.15, tags: ['acoustic', 'ethereal', 'chill'] },
-    { name: 'Clarinet', type: 'Sampler', presetId: 'clarinet', options: {
-      envelope: { attack: 0.05, release: 0.35 }
-    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'dark'] },
-    { name: 'Oboe', type: 'Sampler', presetId: 'oboe', options: {
-      envelope: { attack: 0.06, release: 0.4 }
-    }, volume: -8, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'dark', 'soulful'] },
-
-    // Brass leads — solo trumpet, trombone, french horn
-    { name: 'Trumpet Lead', type: 'Sampler', presetId: 'trumpet', options: {
-      envelope: { attack: 0.03, release: 0.25 }
-    }, volume: -7, chorusWet: 0.2, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['acoustic', 'aggressive', 'soulful'] },
-    { name: 'Trombone Lead', type: 'Sampler', presetId: 'trombone', options: {
-      envelope: { attack: 0.06, release: 0.3 }
-    }, volume: -8, chorusWet: 0.15, reverbDecay: 1.0, delayFeedback: 0.08, tags: ['acoustic', 'warm', 'dark'] },
-    { name: 'French Horn Lead', type: 'Sampler', presetId: 'french_horn', options: {
-      envelope: { attack: 0.1, release: 0.6 }
-    }, volume: -8, chorusWet: 0.2, reverbDecay: 1.5, delayFeedback: 0.1, tags: ['acoustic', 'warm', 'soulful'] },
-
-    // Guitar leads — clean and distorted single-note lines
-    { name: 'Clean Guitar Lead', type: 'Sampler', presetId: 'electric_guitar_clean', options: {
-      envelope: { attack: 0.005, release: 0.3 }
-    }, volume: -8, chorusWet: 0.25, reverbDecay: 1.0, delayFeedback: 0.12, tags: ['acoustic', 'warm', 'chill'] },
-    { name: 'Dist Guitar Lead', type: 'Sampler', presetId: 'distortion_guitar', options: {
-      envelope: { attack: 0.005, release: 0.25 }
-    }, volume: -12, chorusWet: 0.1, reverbDecay: 0.8, delayFeedback: 0.1, tags: ['aggressive', 'electronic'] },
-
-    // Mallet & keys leads
-    { name: 'Vibes Lead', type: 'Sampler', presetId: 'vibraphone', options: {
-      envelope: { attack: 0.005, release: 1.2 }
-    }, volume: -5, chorusWet: 0.3, reverbDecay: 1.8, delayFeedback: 0.15, tags: ['ethereal', 'chill', 'soulful'] },
-    { name: 'Rhodes Lead', type: 'Sampler', presetId: 'electric_piano_1', options: {
-      envelope: { attack: 0.005, release: 0.6 }
-    }, volume: -6, chorusWet: 0.4, reverbDecay: 1.2, delayFeedback: 0.1, tags: ['warm', 'soulful', 'chill'] },
-
-    // Cascading & exotic
-    { name: 'Harp Lead', type: 'Sampler', presetId: 'orchestral_harp', options: {
-      envelope: { attack: 0.005, release: 1.2 }
-    }, volume: -5, chorusWet: 0.45, reverbDecay: 2.5, delayFeedback: 0.2, tags: ['ethereal', 'chill'] },
-    { name: 'Sitar Lead', type: 'Sampler', presetId: 'sitar', options: {
-      envelope: { attack: 0.005, release: 0.8 }
-    }, volume: -7, chorusWet: 0.4, reverbDecay: 1.5, delayFeedback: 0.18, tags: ['ethereal', 'dark'] },
-  ]
-
   private reverb:          Tone.Reverb
   private delay:           Tone.FeedbackDelay
   private chorus:          Tone.Chorus
@@ -359,6 +304,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   constructor() {
     super(GeneratorName.Melody)
+    this.seedRng(this.sessionSeed)
 
     this.output = new Tone.Gain(1)
 
@@ -425,7 +371,7 @@ export class MelodyGenerator extends GeneratorBase {
     const conductor = getConductor()
     this.rootPitchClass = conductor.getKeyPitchClass()
     if (this.emotionalIntent !== 'sad') {
-      this.currentScale = conductor.scaleIntervals()
+      this.currentScale = [...conductor.scaleIntervals()]
     }
     // Conductor returns chord tones as MIDI notes (e.g. [60, 63, 67, 70] for
     // Cm7). Melody matches in pitch classes (0-11), octave-invariant.
@@ -444,34 +390,33 @@ export class MelodyGenerator extends GeneratorBase {
       if (!guidePcs.includes(pc)) guidePcs.push(pc)
     }
     this.currentGuideTones = guidePcs
-    // Progression replacements need a full scale-aware rebuild. Ordinary chord
-    // advances also need a phrase refresh: the phrase is four bars, and the
-    // Conductor advances one bar before the next harmony lands, so the rebuild
-    // schedules cleanly onto that next downbeat without hard-resetting mid-line.
+
+    this.updateChordDegreesCache()
+
+    // Only rebuild when the KEY or SCALE changes (sub-genre swap, explicit key
+    // change, new progression). A plain chord advance (advanceChord) increments
+    // the chord index but does NOT bump progressionVersion — the running phrase
+    // keeps playing through it so the melody builds continuously over the beat
+    // rather than hard-resetting every 2 bars.
     const progressionVersion = conductor.getProgressionVersion()
     const progressionChanged = progressionVersion !== this.lastProgressionVersion
     if (triggerRebuild && progressionChanged) {
       this.lastProgressionVersion = progressionVersion
       this.scaleDirty = true
-    } else if (triggerRebuild) {
-      this.phraseDirty = true
     }
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
     // 6 voices dropped notes when ornaments (trill/grace) overlapped a sustained
     // legato phrase. 12 covers the realistic worst case without bloating CPU.
-    // Warm flute/cello-like fallback. harmonicity:1 (unison FM) + low modulationIndex
-    // eliminates the metallic OPL2 sidebands. High sustain keeps notes singing
-    // instead of ping-decay chiptune. Only plays while the real sampler is loading.
     return new Tone.PolySynth(Tone.FMSynth, {
       maxPolyphony: 12,
-      harmonicity: 1,
-      modulationIndex: 0.25,
+      harmonicity: 2,
+      modulationIndex: 1.5,
       oscillator:    { type: 'sine' },
-      modulation:    { type: 'sine' },
-      envelope:      { attack: 0.15, decay: 0.5, sustain: 0.80, release: 2.5 },
-      modulationEnvelope: { attack: 0.2, decay: 0.8, sustain: 0.4, release: 1.5 },
+      modulation:    { type: 'triangle' },
+      envelope:      { attack: 0.08, decay: 0.3, sustain: 0.35, release: 1.2 },
+      modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.8 },
     } as any)
   }
 
@@ -514,6 +459,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   reseed(): void {
     this.sessionSeed = Math.floor(Math.random() * 97)
+    this.seedRng(this.sessionSeed)
   }
 
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
@@ -555,10 +501,6 @@ export class MelodyGenerator extends GeneratorBase {
     // contrasting bank (fills = bigger, more active) so the song has shape
     // section-to-section; everything else uses the smoother ostinato/arp banks.
     this.currentSectionMotif = null
-    // Clear cross-phrase continuity so the new section opens with a deliberate
-    // register choice (octave selected by mode hash) rather than continuing from
-    // wherever the previous section's phrase happened to land.
-    this.lastPhraseFinalMidi = null
     const isHook = /chorus|hook|drop/i.test(_sectionName)
     this.preferredMotifBankKey = isHook ? 'fills' : null  // null = existing default choice
 
@@ -682,7 +624,6 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
-    if (this._loopMode) return
     this.currentPresence = physics.presence
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth
@@ -767,7 +708,8 @@ export class MelodyGenerator extends GeneratorBase {
       return
     }
     if (to === OState.Breathing || to === OState.Flow) {
-      this.syncFromConductor(false)
+      this.currentScale = [...(MODE_SCALES[physics.mode] ?? MODE_SCALES.glow)]
+      this.updateChordDegreesCache()
       
       // Only re-apply voice if the mode has changed to prevent glitchy 
       // audio dropouts during rapid state transitions.
@@ -798,20 +740,13 @@ export class MelodyGenerator extends GeneratorBase {
     this.stopPart()
     this.activityLevel   = 0
     this.currentBehavior = MelodyBehavior.Rest
-    this.currentScale    = MODE_SCALES.glow
+    this.currentScale    = [...MODE_SCALES.glow]
     this.hasStartedPlayback = false
     this.lastRebuildTime = -Infinity
     this.sectionBehavior = null
-    this.lastNoteEndSec  = 0
     this.setOutputLevel(0)
+    this.updateChordDegreesCache()
   }
-
-  // ── Instrumental Duet signal ─────────────────────────────────────────
-  // Audio-clock time (seconds) when the melody's most recent note ends.
-  // 0 = the melody hasn't played yet this run (orchestrator ignores it).
-  private lastNoteEndSec = 0
-
-  getLastNoteEndSec(): number { return this.lastNoteEndSec }
 
   applyPitchOffset(semitones: number): void {
     this.pitchOffsetSemitones = Math.round(semitones)
@@ -823,8 +758,9 @@ export class MelodyGenerator extends GeneratorBase {
                   || JSON.stringify(intervals) !== JSON.stringify(this.currentScale)
     if (!changed) return
     this.rootPitchClass = newRoot
-    this.currentScale   = intervals
+    this.currentScale   = [...intervals]
     this.scaleDirty     = true
+    this.updateChordDegreesCache()
   }
 
   // setCurrentChord(chord, rootPC) was removed in Phase 4 — Conductor is the
@@ -863,7 +799,6 @@ export class MelodyGenerator extends GeneratorBase {
    * running buffer.
    */
   private rebuildPhrase(physics: PhysicsState, _organism: OrganismState): boolean {
-    if (this._loopMode) return false
     const now = performance.now()
     if (now - this.lastRebuildTime < MelodyGenerator.MIN_REBUILD_INTERVAL_MS) {
       return false   // throttled — caller should preserve any pending dirty flags
@@ -872,38 +807,35 @@ export class MelodyGenerator extends GeneratorBase {
 
     if (this.currentBehavior === MelodyBehavior.Rest) {
       this.stopPart()
-      return true    // intentional stop — dirty flags can be cleared (stopPart clears busy slots)
+      return true    // intentional stop — dirty flags can be cleared
     }
 
     const lengths = PHRASE_LENGTHS[this.currentBehavior]
     if (!lengths || lengths.length === 0) return true
 
-    const selectedLength = lengths[Math.floor(Math.random() * lengths.length)]
-    // Leads play ≥4-bar phrases (64 sixteenths). The chord cycle is 4 bars
-    // (advanceChord fires at barNumber % 4 === 3 → lands on bar 4). Aligning
-    // phrases to the chord cycle means the melody starts a new idea exactly
-    // when the harmony changes — the fundamental unit of musical coherence.
-    // A 2-bar phrase would start mid-cycle 50% of the time, making the melody
-    // feel disconnected from the harmony even though both are in the same key.
+    const currentBar = getConductor().getScoreFrame().bar
+    const seedVal = this.sessionSeed + this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar
+    const lengthHash = Math.sin(seedVal * 12.34) * 1000
+    const lengthRand = lengthHash - Math.floor(lengthHash)
+    const selectedLength = lengths[Math.floor(lengthRand * lengths.length)]
+    // Leads play ≥2-bar phrases (32 sixteenths). A 1-bar phrase replays identical
+    // once before the PHRASE_REFRESH_BARS=2 refresh — the "short loop" feel. Two
+    // bars fills with a developing statement→answer idea (the motif-chaining below)
+    // that lines up with the 2-bar chord cycle. Same fix the bowed strings already
+    // had; now applied to guitar and every other lead.
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
-      ? Math.max(64, selectedLength)
+      ? Math.max(32, selectedLength)
       : selectedLength
-    // Bowed strings: same 4-bar minimum so violin/cello phrases align with
-    // chord cycles and breathe at the same time as the harmony shifts.
-    if (this.isBowedString()) phraseLength = Math.max(64, phraseLength)
+    // Strings: force ≥2-bar phrases so the phrase length lines up with the
+    // PHRASE_REFRESH_BARS=2 refresh. A 1-bar phrase would loop (replay identical)
+    // once before refreshing — the "looping" the violin lead was criticised for.
+    // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
+    if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
     let notes          = this.generatePhrase(phraseLength, physics)
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
-    if (this.isBowedString()) {
-      // §4 Voice-leading FIRST (what to play): keep the line mostly stepwise and
-      // in a sane register so it sings instead of zig-zagging high↔low across
-      // octaves. Pitch classes (harmony) are preserved — only octaves move.
-      // ~MIDI 55 (G3) floor, ~MIDI 81 (A5, ≈880Hz) ceiling = a singing violin
-      // register with no shrieking highs. THEN shape dynamics on the smoothed line.
-      notes = applyVoiceLeading(notes, { maxLeapSemitones: 5, floorMidi: 55, ceilingMidi: 81 })
-      this.applyStringPerformance(notes)
-    }
+    if (this.isBowedString()) this.applyStringPerformance(notes)
 
     // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
     // leads are untouched. Order matters: develop the LINE first (what to play),
@@ -922,10 +854,7 @@ export class MelodyGenerator extends GeneratorBase {
     // Computed AFTER dynamics so accent velocities drive the bend choice.
     const guitarArtIds = this.isGuitar() ? planGuitarArticulations(notes) : null
 
-    if (notes.length === 0) {
-      this.busySlots16ths = []
-      return true
-    }
+    if (notes.length === 0) return true
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
@@ -954,24 +883,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     const loopBars = Math.max(1, Math.ceil(phraseLength / 16))
 
-    const events = notes.map((n, i) => ({
-      time: quantizeGridTime(n.time, loopBars),
-      note: n.pitch,
-      dur: n.duration,
-      vel: n.velocity,
-      art: guitarArtIds ? guitarArtIds[i] : undefined,
-    }))
-    this.busySlots16ths = extractBusySlots16ths(events)
-    this.emitNoteEvents(events)
-
     this.part = new Tone.Part((time, event) => {
-      // Instrumental Duet signal: when this note ENDS, the melody may be
-      // resting — the orchestrator watches this to cue chord answers into the
-      // rests between motifs (see conductor/duet.ts planInstrumentalAnswer).
-      try {
-        this.lastNoteEndSec = Math.max(this.lastNoteEndSec, time + Tone.Time(event.dur).toSeconds())
-      } catch { /* malformed duration — skip the signal, never the note */ }
-
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
       const finalVel = event.vel * presenceDuck
@@ -1022,7 +934,7 @@ export class MelodyGenerator extends GeneratorBase {
         const t = Math.max(0, time + n.timeOffset)
         voice.triggerAttackRelease(note, n.duration, t, n.velocity)
       }
-    }, events)
+    }, notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined })))
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
@@ -1135,12 +1047,18 @@ export class MelodyGenerator extends GeneratorBase {
 
     // BREATH — rest weak interior notes (never the first/last). Density varies by
     // character: the answer is airy, the climb is driving.
+    // Quality 30: Weight rests higher at phrase ends, lower at phrase starts.
     const dropMod = character === 1 ? 3 : character === 3 ? 6 : 4  // smaller = more rests
     const kept: ScheduledNote[] = []
+    this.seedRng(this.sessionSeed + this.phraseCounter)
     for (let i = 0; i < n; i++) {
       const interior = i > 0 && i < n - 1
       const weak = notes[i].velocity < 0.55
-      const restHere = interior && weak && ((i + this.phraseCounter) % dropMod === 0)
+      const pos = i / (n - 1)
+      const baseProb = 1 / dropMod
+      const scaledProb = baseProb * (0.2 + 1.6 * pos)
+      const rand = this.nextRandom()
+      const restHere = interior && weak && (rand < scaledProb)
       if (!restHere) kept.push(notes[i])
     }
     if (kept.length >= 2 && kept.length < n) {
@@ -1162,24 +1080,10 @@ export class MelodyGenerator extends GeneratorBase {
   private generatePhrase(length16ths: number, physics: PhysicsState): ScheduledNote[] {
     const notes: ScheduledNote[] = []
     const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
-
-    // Cross-phrase continuity: pick the octave that puts the root nearest to where
-    // the previous phrase ended. Without this every phrase restarts from the same
-    // home register regardless of where the melody had climbed or descended —
-    // the "gets something going then starts over" feeling the user heard.
-    // Falls back to the deterministic mode hash if no previous phrase exists yet.
-    let octave: number
-    if (this.lastPhraseFinalMidi !== null) {
-      const refMidi = this.lastPhraseFinalMidi
-      octave = octaves.reduce((best, oct) => {
-        const bestDist = Math.abs(12 * best + this.rootPitchClass - refMidi)
-        const thisDist = Math.abs(12 * oct  + this.rootPitchClass - refMidi)
-        return thisDist < bestDist ? oct : best
-      }, octaves[0])
-    } else {
-      const modeHash = physics.mode.toString().length
-      octave = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
-    }
+    
+    // Deterministic octave based on mode hash
+    const modeHash = physics.mode.toString().length
+    const octave  = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
     
     const isHint  = this.currentBehavior === MelodyBehavior.Hint
     const velocityEnergy = this.voiceActive
@@ -1192,56 +1096,17 @@ export class MelodyGenerator extends GeneratorBase {
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
-    // Singing leads (violin/cello/wind/brass) draw from the lyrical bank — in
-    // auto AND live — instead of bell arps. Non-lyrical leads keep the existing
-    // arps/fills/ostinatos behavior. (preferredMotifBankKey = chorus/hook override.)
-    const bankKey = selectMotifBankKey({
-      family: this.currentPerformer?.family,
-      voiceActive: this.voiceActive,
-      preferredBankKey:
-        this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]
-          ? this.preferredMotifBankKey
-          : null,
-      chordSeed,
-    })
-    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[bankKey] ?? HIP_HOP_MOTIFS.ostinatos
+    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
+    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
+      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
+      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
+    } else if (!this.voiceActive) {
+      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
+    }
     
-    // Map `this.currentChordTones` (0-11 pitch classes) to scale indices dynamically
-    const chordDegs: number[] = []
-    if (this.currentChordTones.length > 0) {
-      for (let d = 0; d < this.currentScale.length; d++) {
-        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
-        if (this.currentChordTones.includes(pc)) {
-          chordDegs.push(d)
-        }
-      }
-    }
-    // Fallback if no chord info: use 0, 2, 4 (root, 3rd, 5th of scale)
-    if (chordDegs.length === 0) {
-      chordDegs.push(0, 2, 4)
-    }
-
-    // 'beautiful' intent: bias chord-tone selection toward 7ths (degree 6)
-    // and 9ths (degree 8 — i.e. the 2nd up an octave). These tensions are
-    // what give Maj7 / min9 voicings their lush character. We append rather
-    // than replace so the existing chord-tone framework is preserved.
-    if (this.emotionalIntent === 'beautiful') {
-      chordDegs.push(6, 8)
-    }
-
-    // Conductor Part 3 V3 — the comp's guide tones (3rd/7th) as scale degrees, so
-    // the melody can prefer their COMPLEMENT (root/5th/extensions) on strong beats
-    // and stop mud-doubling the colour the chords already state. 'beautiful' intent
-    // is the deliberate exception — it leans INTO the lush 7th/9th, so leave its
-    // preferred set wide open (no complement filtering).
-    const guideDegs: number[] = []
-    if (this.emotionalIntent !== 'beautiful' && this.currentGuideTones.length > 0) {
-      for (let d = 0; d < this.currentScale.length; d++) {
-        const pc = (this.rootPitchClass + this.currentScale[d]) % 12
-        if (this.currentGuideTones.includes(pc)) guideDegs.push(d)
-      }
-    }
-    const preferredDegs = chordDegs.filter((d) => !guideDegs.includes(d))
+    // Performance 19: Cache chord tones mapping
+    const chordDegs = this.cachedChordDegs
+    const preferredDegs = this.cachedPreferredDegs
 
     const performer = this.currentPerformer
     const isBowedLead = performer?.family === 'bowed'
@@ -1250,12 +1115,17 @@ export class MelodyGenerator extends GeneratorBase {
       : octave
 
     const degreeToPitch = (degIndex: number, transposeOct: number = 0): string => {
+      if (this.currentScale.length === 0) return 'C4'
       const normDeg = ((degIndex % this.currentScale.length) + this.currentScale.length) % this.currentScale.length
       const octMidiOffset = Math.floor(degIndex / this.currentScale.length) * 12
       const semitone = this.currentScale[normDeg]
       const midi = ((melodicOctave + transposeOct) * 12) + 12 + semitone + octMidiOffset + this.rootPitchClass + this.pitchOffsetSemitones
       return Tone.Frequency(midi, 'midi').toNote()
     }
+
+    // Quality 29: Leap recovery states
+    let lastMidi: number | null = null
+    let leapDirection: 'up' | 'down' | null = null
 
     const renderMotif = (m: MelodyMotif, cursorStart: number, transposeOct: number, forceResolve = false) => {
       const out: ScheduledNote[] = []
@@ -1287,7 +1157,28 @@ export class MelodyGenerator extends GeneratorBase {
         // tones so the lead and the chords spell the harmony together.
         degIndex = resolveDegreeComplementing(degIndex, chordDegs, preferredDegs, this.currentScale.length, forceResolve || isStrongBeat(c))
 
+        // Leap recovery bias application
+        if (leapDirection === 'up') {
+          degIndex -= 1
+        } else if (leapDirection === 'down') {
+          degIndex += 1
+        }
+
         const pitch = degreeToPitch(degIndex, transposeOct)
+        const midi = noteToMidi(pitch)
+
+        leapDirection = null
+        if (midi !== null && lastMidi !== null) {
+          const interval = midi - lastMidi
+          if (interval > 4) {
+            leapDirection = 'up'
+          } else if (interval < -4) {
+            leapDirection = 'down'
+          }
+        }
+        if (midi !== null) {
+          lastMidi = midi
+        }
         
         // Rhythmic-density contrast ("fast bottom, slow top"): drums carry the
         // 8th/16th momentum; the melody carries emotion and SPACE. When nobody
@@ -1361,12 +1252,10 @@ export class MelodyGenerator extends GeneratorBase {
 
     let cursor = 0
     let phraseIndex = 0
-    // Space between motifs IS the musical statement — but a beat-and-a-half
-    // gap after every short motif left the lead breathing more than playing.
-    // Trimmed so the line stays present and continuous: Lead gets ~3/4 beat of
-    // air, Respond a beat, Hint stays sparser (1.5 beats) since it's meant to
-    // be a background suggestion, not a lead.
-    const restLen = isHint ? 6 : this.currentBehavior === MelodyBehavior.Respond ? 4 : 3
+    // Space between motifs IS the musical statement — a lead that never
+    // breathes reads as noise against a busy drum pattern. Lead phrases get a
+    // beat and a half of air; Respond gets a beat and a half; Hint two beats.
+    const restLen = isHint ? 8 : this.currentBehavior === MelodyBehavior.Respond ? 6 : 6
     const maxIterations = Math.max(4, Math.ceil(length16ths / 2))
 
     // Commit to ONE motif for this section (picked once), then DEVELOP it across
@@ -1411,39 +1300,29 @@ export class MelodyGenerator extends GeneratorBase {
       notes.push(...cadResult.out)
     }
 
-    // Safety net: if the generated phrase collapsed into one dominant pitch
-    // (motif step.index aligned with chordDegs[0], or strong-beat resolution
-    // pulled too much material home), fall back to a deterministic contour.
-    // The contour uses the ACTIVE scale, not hard-coded minor, so major/R&B
-    // and Dorian boom-bap lines stay inside the Conductor's harmony.
-    if (phraseNeedsContourFallback(notes.map(n => n.pitch))) {
-      return this.defaultScaleContour(length16ths, melodicOctave)
-    }
-
-    // Record where this phrase lands so the NEXT phrase can start near here
-    // instead of jumping back to the fixed home register.
-    const lastNote = notes[notes.length - 1]
-    if (lastNote) {
-      try {
-        this.lastPhraseFinalMidi = Tone.Frequency(lastNote.pitch).toMidi()
-      } catch { /* non-critical */ }
+    // Safety net: if the generated phrase collapsed to a single pitch (motif
+    // step.index aligned with chordDegs[0] for every step, or chord-tone
+    // mapping returned only the root), fall back to a deterministic 4-bar
+    // minor contour. Without this guard the listener can hear the engine
+    // stuck on a single repeating note while the rest of the mix keeps moving.
+    const uniquePitches = new Set(notes.map(n => n.pitch))
+    if (uniquePitches.size <= 1) {
+      return this.defaultMinorContour(length16ths, melodicOctave)
     }
 
     return notes
   }
 
   /**
-   * Deterministic 4-bar (or shorter) scale contour:
-   *   root - 3rd - 5th - 7th-ish peak - 5th - 3rd - root
+   * Deterministic 4-bar (or shorter) minor contour:
+   *   root – ♭3 – 5 – ♭7 – 5 – ♭3 – root
    * Used when the motif renderer collapses to a single repeated pitch.
-   * Uses the Conductor's active scale so the fallback never injects a minor
-   * third into a major/R&B or chill progression.
+   * Always plays in natural minor relative to the current rootPitchClass so
+   * the contour fits with whatever harmony the chord generator is on.
    */
-  private defaultScaleContour(length16ths: number, octave: number): ScheduledNote[] {
-    const scale = this.currentScale.length > 0 ? this.currentScale : MelodyGenerator.NATURAL_MINOR
-    const degreePattern = scale.length >= 7
-      ? [0, 2, 4, 6, 4, 2, 0]
-      : [0, 1, 2, 3, 2, 1, 0]
+  private defaultMinorContour(length16ths: number, octave: number): ScheduledNote[] {
+    const minor = MelodyGenerator.NATURAL_MINOR    // [0, 2, 3, 5, 7, 8, 10]
+    const degreePattern = [0, 2, 4, 6, 4, 2, 0]    // 1-♭3-5-♭7-5-♭3-1
     const notes: ScheduledNote[] = []
     const stepSpacing = Math.max(4, Math.floor(length16ths / degreePattern.length))
 
@@ -1451,33 +1330,25 @@ export class MelodyGenerator extends GeneratorBase {
       const c = i * stepSpacing
       if (c >= length16ths) break
       const deg = degreePattern[i]
-      const normDeg = ((deg % scale.length) + scale.length) % scale.length
-      const semitone = scale[normDeg] + Math.floor(deg / scale.length) * 12
+      const normDeg = ((deg % minor.length) + minor.length) % minor.length
+      const semitone = minor[normDeg] + Math.floor(deg / minor.length) * 12
       const midi = (octave * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
       const pitch = Tone.Frequency(midi, 'midi').toNote()
       const bar  = Math.floor(c / 16)
       const beat = Math.floor((c % 16) / 4)
       const sub  = c % 4
+      const swungSub = (sub === 1 || sub === 3) ? sub + this.currentSwing : sub
       notes.push({
         pitch,
         duration: '4n',
         velocity: this.emotionalIntent === 'sad' ? 0.5 : 0.6,
-        time: `${bar}:${beat}:${sub}`,
+        time: `${bar}:${beat}:${swungSub.toFixed(2)}`,
       })
     }
     return notes
   }
 
-  /** Public so the orchestrator can hard-cut the part on a live preset swap
-   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
-  /** Per-bar slots the current melody loop occupies — the orchestrator relays
-   *  this to the chords (see GeneratorOrchestrator.syncLeadBusyToChords). */
-  getBusySlots16ths(): number[] {
-    return this.busySlots16ths
-  }
-
-  stopPart(): void {
-    this.busySlots16ths = []
+  private stopPart(): void {
     if (this.part) {
       this.part.stop()
       this.part.dispose()
@@ -1496,8 +1367,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier * Math.min(2, this.volumeMultiplier)
-    const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    const linear = shaped <= 0.0001 ? 0 : shaped
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
     this.output.gain.cancelScheduledValues(Tone.now())
@@ -1510,12 +1380,7 @@ export class MelodyGenerator extends GeneratorBase {
     return (this.synth as LoadableSampler).isLoaded === true
   }
 
-  // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
-  // is centralized in GeneratorBase.
-
-
   dispose(): void {
-    this.disposeLoopPlayback()
     this.stopPart()
     if (this.unsubscribeConductor) {
       this.unsubscribeConductor()
@@ -1523,22 +1388,25 @@ export class MelodyGenerator extends GeneratorBase {
     }
     // Dispose every cached sampler (includes the currently-active this.synth
     // when it's a cached voice), then clear the cache.
-    for (const s of this.samplerCache.values()) {
+    const cachedSamplers = new Set(this.samplerCache.values())
+    for (const s of cachedSamplers) {
       try { s.dispose() } catch { /* */ }
     }
     this.samplerCache.clear()
     this.currentVoiceKey = null
-    this.vibrato.dispose()
-    try { this.synth.dispose() } catch { /* already disposed via cache */ }
-    this.fallbackSynth.dispose()
-    this.chorus.dispose()
-    this.dryBus.dispose()
-    this.delaySend.dispose()
-    this.reverbSend.dispose()
-    this.delayReturnHP.dispose()
-    this.reverbReturnHP.dispose()
-    this.delay.dispose()
-    this.reverb.dispose()
-    this.output.dispose()
+    try { this.vibrato.dispose() } catch { /* */ }
+    if (!cachedSamplers.has(this.synth as any)) {
+      try { this.synth.dispose() } catch { /* */ }
+    }
+    try { this.fallbackSynth.dispose() } catch { /* */ }
+    try { this.chorus.dispose() } catch { /* */ }
+    try { this.dryBus.dispose() } catch { /* */ }
+    try { this.delaySend.dispose() } catch { /* */ }
+    try { this.reverbSend.dispose() } catch { /* */ }
+    try { this.delayReturnHP.dispose() } catch { /* */ }
+    try { this.reverbReturnHP.dispose() } catch { /* */ }
+    try { this.delay.dispose() } catch { /* */ }
+    try { this.reverb.dispose() } catch { /* */ }
+    try { this.output.dispose() } catch { /* */ }
   }
 }

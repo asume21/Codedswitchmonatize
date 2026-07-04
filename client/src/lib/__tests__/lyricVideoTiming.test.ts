@@ -3,6 +3,7 @@ import {
   alignTimedWordsToTranscript,
   buildLyricVideoLines,
   findActiveLyricLine,
+  findNextLyricLine,
   normalizeTimedWords,
   resolveLyricLineTiming,
   snapTimeToBeat,
@@ -17,10 +18,11 @@ describe('lyricVideoTiming', () => {
     expect(resolved.displayEnd).toBeCloseTo(12 * 1.05 - 0.5, 5); // 12.1
   });
 
-  it('defaults speed to 1 (no scaling) when unset or invalid', () => {
+  it('clamps speed to a minimum of 0.1 when unset, 0, negative, or invalid', () => {
     const line = { id: 'l', text: 'a', start: 8, end: 9, words: [] };
     expect(resolveLyricLineTiming(line, {}).displayStart).toBeCloseTo(8, 5);
-    expect(resolveLyricLineTiming(line, { speed: 0 }).displayStart).toBeCloseTo(8, 5);
+    expect(resolveLyricLineTiming(line, { speed: 0 }).displayStart).toBeCloseTo(0.8, 5);
+    expect(resolveLyricLineTiming(line, { speed: -2.5 }).displayStart).toBeCloseTo(0.8, 5);
   });
 
   it('keeps every transcript word even when Whisper dropped some (missing-words bug)', () => {
@@ -52,6 +54,20 @@ describe('lyricVideoTiming', () => {
     const timed = [{ text: 'a', start: 0, end: 0.3 }];
     expect(alignTimedWordsToTranscript('', timed)).toEqual(timed);
     expect(alignTimedWordsToTranscript('some words here', [])).toEqual([]);
+  });
+
+  it('handles all-unstamped words in normalizeTimedWords', () => {
+    expect(normalizeTimedWords([
+      { word: 'hello' }, // missing start/end
+      { text: 'world' }, // missing start/end
+    ])).toEqual([]);
+  });
+
+  it('handles single word alignments', () => {
+    const aligned = alignTimedWordsToTranscript('hello', [
+      { text: 'hello', start: 1.5, end: 1.8 }
+    ]);
+    expect(aligned).toEqual([{ text: 'hello', start: 1.5, end: 1.8 }]);
   });
 
   it('normalizes OpenAI word timestamp shapes', () => {
@@ -124,5 +140,24 @@ describe('lyricVideoTiming', () => {
 
     expect(findActiveLyricLine(lines, 1.0, { offsetSec: 0, bpm: 120, snapToBeat: true })?.text).toBe('late line');
     expect(findActiveLyricLine(lines, 0.4, { offsetSec: 0, bpm: 120, snapToBeat: true })).toBeNull();
+  });
+
+  it('findActiveLyricLine and findNextLyricLine find correct lines with binary search', () => {
+    const lines = [
+      { id: '1', text: 'first line', start: 1, end: 5, words: [] },
+      { id: '2', text: 'second line', start: 5, end: 10, words: [] },
+      { id: '3', text: 'third line', start: 10, end: 15, words: [] },
+    ];
+    // Active line checks
+    expect(findActiveLyricLine(lines, 3)?.id).toBe('1');
+    expect(findActiveLyricLine(lines, 5)?.id).toBe('2');
+    expect(findActiveLyricLine(lines, 0.5)).toBeNull();
+    expect(findActiveLyricLine(lines, 20)).toBeNull();
+
+    // Next line checks
+    expect(findNextLyricLine(lines, 0)?.id).toBe('1');
+    expect(findNextLyricLine(lines, 3)?.id).toBe('2');
+    expect(findNextLyricLine(lines, 5)?.id).toBe('3');
+    expect(findNextLyricLine(lines, 12)).toBeNull();
   });
 });

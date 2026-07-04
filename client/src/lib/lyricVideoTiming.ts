@@ -13,7 +13,7 @@ export interface LyricVideoLine {
 }
 
 export interface LyricVideoLineOptions {
-  words?: unknown;
+  words?: TimedLyricWord[] | unknown[];
   transcript?: string;
   wordsPerLine?: number;
   bpm?: number;
@@ -35,7 +35,7 @@ export interface ResolvedLyricVideoLine extends LyricVideoLine {
 
 const DEFAULT_WORDS_PER_LINE = 6;
 const DEFAULT_BPM = 120;
-const FALLBACK_LINE_BEATS = 4;
+const UNTIMED_LINE_BEATS = 4;
 
 function clampInt(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min;
@@ -47,7 +47,8 @@ function safeBpm(bpm?: number) {
 }
 
 function safeSpeed(speed?: number) {
-  return Number.isFinite(speed) && speed! > 0 ? speed! : 1;
+  const s = Number.isFinite(speed) ? speed! : 1;
+  return Math.max(0.1, s);
 }
 
 function chunkWords(words: string[], wordsPerLine: number) {
@@ -58,6 +59,13 @@ function chunkWords(words: string[], wordsPerLine: number) {
   return chunks;
 }
 
+/**
+ * Normalizes an untyped list of timed words, filtering out invalid items
+ * and sorting them by start time.
+ *
+ * @param input - The raw, untrusted input array of timed words.
+ * @returns A validated and sorted array of TimedLyricWord objects.
+ */
 export function normalizeTimedWords(input: unknown): TimedLyricWord[] {
   if (!Array.isArray(input)) return [];
 
@@ -80,14 +88,16 @@ export function normalizeTimedWords(input: unknown): TimedLyricWord[] {
     .sort((a, b) => a.start - b.start);
 }
 
-const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/gi, '');
+const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 /**
- * Make the (complete, user-editable) transcript the authoritative word list and
- * attach Whisper timings to it. Every transcript word survives; words Whisper
- * matched keep their real time; words it dropped get a time interpolated from
- * their timed neighbours. Fixes on-screen words going missing when Whisper's
- * per-word array omits words the transcript still has.
+ * Aligns Whisper timed words to the transcript tokens using a dynamic programming-based
+ * alignment (Needleman-Wunsch with token matching). Every transcript word survives;
+ * matched words keep their real time; unmatched words get an interpolated time.
+ *
+ * @param transcript - The authoritative full text transcript.
+ * @param timedWords - The timed words from the transcription source.
+ * @returns A list of timed words aligned to the transcript.
  */
 export function alignTimedWordsToTranscript(
   transcript: string,
@@ -99,14 +109,79 @@ export function alignTimedWordsToTranscript(
 
   const slots: Array<{ text: string; start?: number; end?: number }> = tokens.map((text) => ({ text }));
 
-  // Greedy in-order match: assign each timed word to the next transcript token
-  // whose normalized text equals it. Unmatched transcript tokens stay untimed.
-  let j = 0;
-  for (let i = 0; i < slots.length && j < timedWords.length; i += 1) {
-    if (normalizeToken(slots[i].text) === normalizeToken(timedWords[j].text)) {
-      slots[i].start = timedWords[j].start;
-      slots[i].end = timedWords[j].end;
-      j += 1;
+  const N = tokens.length;
+  const M = timedWords.length;
+
+  // Create DP table
+  const dp: number[][] = Array.from({ length: N + 1 }, () => new Array(M + 1).fill(0));
+
+  const GAP_TOKEN = -1;
+  const GAP_TIMED = -1;
+  const MATCH_SCORE = 2;
+  const MISMATCH_SCORE = -2;
+
+  // Initialize borders
+  for (let i = 1; i <= N; i++) {
+    dp[i][0] = i * GAP_TOKEN;
+  }
+  for (let j = 1; j <= M; j++) {
+    dp[0][j] = j * GAP_TIMED;
+  }
+
+  // Fill DP table
+  for (let i = 1; i <= N; i++) {
+    const token = normalizeToken(tokens[i - 1]);
+    for (let j = 1; j <= M; j++) {
+      const timed = normalizeToken(timedWords[j - 1].text);
+      const matchScore = token === timed ? MATCH_SCORE : MISMATCH_SCORE;
+      
+      dp[i][j] = Math.max(
+        dp[i - 1][j - 1] + matchScore,
+        dp[i - 1][j] + GAP_TOKEN,
+        dp[i][j - 1] + GAP_TIMED
+      );
+    }
+  }
+
+  // Backtrack to find alignment
+  let i = N;
+  let j = M;
+  const matchedSlots: { [key: number]: number } = {};
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0) {
+      const token = normalizeToken(tokens[i - 1]);
+      const timed = normalizeToken(timedWords[j - 1].text);
+      const matchScore = token === timed ? MATCH_SCORE : MISMATCH_SCORE;
+      
+      const scoreDiag = dp[i - 1][j - 1] + matchScore;
+      const scoreUp = dp[i - 1][j] + GAP_TOKEN;
+      const currentScore = dp[i][j];
+      
+      if (currentScore === scoreDiag) {
+        if (token === timed) {
+          matchedSlots[i - 1] = j - 1;
+        }
+        i--;
+        j--;
+      } else if (currentScore === scoreUp) {
+        i--;
+      } else {
+        j--;
+      }
+    } else if (i > 0) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+
+  // Assign matched timings
+  for (let idx = 0; idx < tokens.length; idx++) {
+    if (matchedSlots[idx] !== undefined) {
+      const matchedWord = timedWords[matchedSlots[idx]];
+      slots[idx].start = matchedWord.start;
+      slots[idx].end = matchedWord.end;
     }
   }
 
@@ -114,8 +189,8 @@ export function alignTimedWordsToTranscript(
   if (!slots.some((slot) => slot.start !== undefined)) {
     const n = slots.length;
     const m = timedWords.length;
-    slots.forEach((slot, i) => {
-      const k = n === 1 ? 0 : Math.round((i * (m - 1)) / (n - 1));
+    slots.forEach((slot, idx) => {
+      const k = n === 1 ? 0 : Math.round((idx * (m - 1)) / (n - 1));
       slot.start = timedWords[k].start;
       slot.end = timedWords[k].end;
     });
@@ -125,26 +200,26 @@ export function alignTimedWordsToTranscript(
   const lastEnd = [...slots].reverse().find((slot) => slot.end !== undefined)?.end ?? firstStart + 0.35;
 
   // Interpolate untimed runs between the surrounding timed anchors.
-  let i = 0;
-  while (i < slots.length) {
-    if (slots[i].start !== undefined) {
-      i += 1;
+  let idx = 0;
+  while (idx < slots.length) {
+    if (slots[idx].start !== undefined) {
+      idx += 1;
       continue;
     }
-    let k = i;
+    let k = idx;
     while (k < slots.length && slots[k].start === undefined) k += 1;
-    const before = i > 0 ? slots[i - 1] : undefined;
+    const before = idx > 0 ? slots[idx - 1] : undefined;
     const after = k < slots.length ? slots[k] : undefined;
     const startAnchor = before?.end ?? before?.start ?? firstStart;
     const endAnchor = after?.start ?? lastEnd;
-    const count = k - i;
+    const count = k - idx;
     for (let g = 0; g < count; g += 1) {
       const frac = (g + 1) / (count + 1);
       const start = Math.max(0, startAnchor + (endAnchor - startAnchor) * frac);
-      slots[i + g].start = start;
-      slots[i + g].end = start + Math.max(0.12, (endAnchor - startAnchor) / (count + 1));
+      slots[idx + g].start = start;
+      slots[idx + g].end = start + Math.max(0.12, (endAnchor - startAnchor) / (count + 1));
     }
-    i = k;
+    idx = k;
   }
 
   return slots.map((slot) => ({
@@ -154,6 +229,12 @@ export function alignTimedWordsToTranscript(
   }));
 }
 
+/**
+ * Chunks a list of timed words or plain transcript text into lyric lines.
+ *
+ * @param options - Config options including words, transcript, wordsPerLine, and bpm.
+ * @returns An array of LyricVideoLine objects.
+ */
 export function buildLyricVideoLines({
   words,
   transcript = '',
@@ -187,7 +268,7 @@ export function buildLyricVideoLines({
   const plainWords = transcript.trim().split(/\s+/).filter(Boolean);
   if (plainWords.length === 0) return [];
 
-  const secondsPerLine = Math.max(1.6, (60 / safeBpm(bpm)) * FALLBACK_LINE_BEATS);
+  const secondsPerLine = Math.max(1.6, (60 / safeBpm(bpm)) * UNTIMED_LINE_BEATS);
 
   return chunkWords(plainWords, groupSize).map((chunk, index) => ({
     id: `manual-${index}`,
@@ -198,11 +279,25 @@ export function buildLyricVideoLines({
   }));
 }
 
+/**
+ * Snaps a time in seconds to the nearest beat based on BPM.
+ *
+ * @param seconds - The time in seconds to snap.
+ * @param bpm - The BPM used to calculate beat length.
+ * @returns The snapped time in seconds.
+ */
 export function snapTimeToBeat(seconds: number, bpm = DEFAULT_BPM) {
   const beatLength = 60 / safeBpm(bpm);
   return Math.max(0, Math.round(Math.max(0, seconds) / beatLength) * beatLength);
 }
 
+/**
+ * Resolves the display start and end times for a lyric line, applying speed, offset, and snapping.
+ *
+ * @param line - The lyric line to resolve.
+ * @param options - Timing options including offsetSec, bpm, snapToBeat, and speed.
+ * @returns The resolved lyric line timing.
+ */
 export function resolveLyricLineTiming(
   line: LyricVideoLine,
   { offsetSec = 0, bpm = DEFAULT_BPM, snapToBeat = false, speed = 1 }: LyricTimingOptions = {},
@@ -222,28 +317,66 @@ export function resolveLyricLineTiming(
   };
 }
 
+/**
+ * Finds the currently active lyric line for a given time using binary search.
+ *
+ * @param lines - The list of lyric lines, sorted by start time.
+ * @param currentTime - The current playback time in seconds.
+ * @param options - Timing options to resolve line times.
+ * @returns The active resolved lyric line, or null if none is active.
+ */
 export function findActiveLyricLine(
   lines: LyricVideoLine[],
   currentTime: number,
   options?: LyricTimingOptions,
 ): ResolvedLyricVideoLine | null {
-  for (const line of lines) {
-    const resolved = resolveLyricLineTiming(line, options);
-    if (currentTime >= resolved.displayStart && currentTime < resolved.displayEnd) {
+  let low = 0;
+  let high = lines.length - 1;
+  let candidateIdx = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const resolved = resolveLyricLineTiming(lines[mid], options);
+    if (resolved.displayStart <= currentTime) {
+      candidateIdx = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  if (candidateIdx !== -1) {
+    const resolved = resolveLyricLineTiming(lines[candidateIdx], options);
+    if (currentTime < resolved.displayEnd) {
       return resolved;
     }
   }
   return null;
 }
 
+/**
+ * Finds the next lyric line that starts after the given time using binary search.
+ *
+ * @param lines - The list of lyric lines, sorted by start time.
+ * @param currentTime - The current playback time in seconds.
+ * @param options - Timing options to resolve line times.
+ * @returns The next resolved lyric line, or null if none exists.
+ */
 export function findNextLyricLine(
   lines: LyricVideoLine[],
   currentTime: number,
   options?: LyricTimingOptions,
 ): ResolvedLyricVideoLine | null {
-  for (const line of lines) {
-    const resolved = resolveLyricLineTiming(line, options);
-    if (resolved.displayStart > currentTime) return resolved;
+  let low = 0;
+  let high = lines.length - 1;
+  let resultIdx = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const resolved = resolveLyricLineTiming(lines[mid], options);
+    if (resolved.displayStart > currentTime) {
+      resultIdx = mid;
+      high = mid - 1;
+    } else {
+      low = mid + 1;
+    }
   }
-  return null;
+  return resultIdx !== -1 ? resolveLyricLineTiming(lines[resultIdx], options) : null;
 }

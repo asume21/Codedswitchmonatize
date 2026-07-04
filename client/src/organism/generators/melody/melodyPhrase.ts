@@ -1,28 +1,44 @@
 import type { MotifStep } from '../patterns/MelodyPatternLibrary'
+export type { MotifStep } from '../patterns/MelodyPatternLibrary'
 
 /** A 16th-grid cursor lands on a downbeat (beat 1 or 3, on the beat). */
-export function isStrongBeat(cursor16: number): boolean {
-  const inBar = ((cursor16 % 16) + 16) % 16
+export function isStrongBeat(cursor16: number, beatsPerBar = 4): boolean {
+  const stepsPerBar = beatsPerBar * 4
+  const inBar = ((cursor16 % stepsPerBar) + stepsPerBar) % stepsPerBar
   const beat = Math.floor(inBar / 4)
   const sub = inBar % 4
   return sub === 0 && (beat === 0 || beat === 2)
 }
 
-/** Nearest chord-tone scale-degree to `deg`, preserving deg's octave region. */
+/** Nearest chord-tone scale-degree to `deg`, preserving deg's octave region. Supports wrap-around. */
 export function nearestChordDegree(deg: number, chordDegs: number[], scaleLen: number): number {
   if (chordDegs.length === 0) return deg
   const oct = Math.floor(deg / scaleLen)
   const within = ((deg % scaleLen) + scaleLen) % scaleLen
   let best = chordDegs[0]
   let bestDist = Infinity
+  let bestTarget = chordDegs[0]
   for (const c of chordDegs) {
-    const d = Math.abs(c - within)
-    if (d < bestDist) { bestDist = d; best = c }
+    const diff = c - within
+    let dist = Math.abs(diff)
+    let target = c
+    if (dist > scaleLen / 2) {
+      dist = scaleLen - dist
+      target = c - Math.sign(diff) * scaleLen
+    }
+    if (dist < bestDist) {
+      bestDist = dist
+      best = c
+      bestTarget = target
+    }
   }
-  return oct * scaleLen + best
+  return oct * scaleLen + bestTarget
 }
 
-/** Strong beats MUST be chord tones (stable); weak beats may be passing tones. */
+/**
+ * @internal
+ * Strong beats MUST be chord tones (stable); weak beats may be passing tones.
+ */
 export function resolveDegreeForBeat(deg: number, chordDegs: number[], scaleLen: number, strong: boolean): number {
   return strong ? nearestChordDegree(deg, chordDegs, scaleLen) : deg
 }
@@ -58,20 +74,26 @@ export function resolveDegreeComplementing(
   const preferred = new Set(preferredDegs)
   let best = chordDegs[0]
   let bestScore = Infinity
+  let bestTarget = chordDegs[0]
   for (const c of chordDegs) {
-    const dist = Math.abs(c - within)
+    const diff = c - within
+    let dist = Math.abs(diff)
+    let target = c
+    if (dist > scaleLen / 2) {
+      dist = scaleLen - dist
+      target = c - Math.sign(diff) * scaleLen
+    }
     const score = preferred.has(c) ? dist : dist + penalty
-    // Strictly-less wins; on a tie prefer the complement tone (deterministic, and
-    // it keeps the bias toward root/5th when a guide tone is no closer).
     const better =
       score < bestScore - 1e-9 ||
       (Math.abs(score - bestScore) < 1e-9 && preferred.has(c) && !preferred.has(best))
     if (better) {
       bestScore = score
       best = c
+      bestTarget = target
     }
   }
-  return oct * scaleLen + best
+  return oct * scaleLen + bestTarget
 }
 
 /** Arch curve: rises to a single climax ~2/3 through, falls back to ~0 at the end. */
@@ -125,4 +147,119 @@ export function phraseNeedsContourFallback(
   return counts.size <= 1
     || longestRun >= maxRepeatRun
     || (counts.size <= 2 && dominantRatio >= maxDominantRatio)
+}
+
+/** Constrains phrase length (in 16ths) to be a multiple of the bar size in 16ths. */
+export function constrainPhraseLength(length16ths: number, beatsPerBar = 4): number {
+  const stepsPerBar = beatsPerBar * 4
+  if (length16ths % stepsPerBar === 0) return length16ths
+  const bars = Math.max(1, Math.round(length16ths / stepsPerBar))
+  return bars * stepsPerBar
+}
+
+export interface PhraseStructure {
+  id: string;
+  degrees: number[];
+  steps: MotifStep[];
+}
+
+export class PhraseMemory {
+  private memory: PhraseStructure[] = [];
+  private maxMemory = 4;
+
+  public remember(phrase: PhraseStructure): void {
+    this.memory.push(phrase);
+    if (this.memory.length > this.maxMemory) {
+      this.memory.shift();
+    }
+  }
+
+  public getLast(): PhraseStructure | null {
+    return this.memory.length > 0 ? this.memory[this.memory.length - 1] : null;
+  }
+
+  public getAll(): PhraseStructure[] {
+    return [...this.memory];
+  }
+
+  public clear(): void {
+    this.memory = [];
+  }
+
+  public getVariation(index: number, pattern = 'ABA'): PhraseStructure | null {
+    if (this.memory.length === 0) return null;
+    const char = pattern[index % pattern.length];
+    const charCodeOffset = char.charCodeAt(0) - 65; // 'A' -> 0, 'B' -> 1, etc.
+    if (charCodeOffset >= 0 && charCodeOffset < this.maxMemory) {
+      return this.memory[charCodeOffset] || null;
+    }
+    return null;
+  }
+}
+
+/**
+ * Generates or retrieves a phrase structure using memory and time signature constraints.
+ */
+export function generatePhraseSteps(
+  length16ths: number,
+  beatsPerBar = 4,
+  memory?: PhraseMemory,
+  pattern = 'ABA',
+  baseSteps?: MotifStep[],
+): PhraseStructure {
+  const alignedLength = constrainPhraseLength(length16ths, beatsPerBar);
+
+  if (memory && memory.getAll().length > 0) {
+    const memoryCount = memory.getAll().length;
+    const nextIdx = memoryCount;
+    const recalled = memory.getVariation(nextIdx, pattern);
+    if (recalled) {
+      const shouldVary = pattern[nextIdx % pattern.length] === pattern[(nextIdx - 1) % pattern.length];
+      if (shouldVary) {
+        const variedSteps = recalled.steps.map((step) => ({
+          ...step,
+          index: step.index + (Math.random() > 0.5 ? 1 : -1),
+        }));
+        const variedDegrees = recalled.degrees.map((deg) => deg + (Math.random() > 0.5 ? 1 : -1));
+        return {
+          id: `${recalled.id}-var-${nextIdx}`,
+          steps: variedSteps,
+          degrees: variedDegrees,
+        };
+      }
+      return recalled;
+    }
+  }
+
+  const steps: MotifStep[] = baseSteps || [
+    { index: 0, isChordTone: true, dur16ths: 4 },
+    { index: 1, isChordTone: false, dur16ths: 4 },
+    { index: 2, isChordTone: true, dur16ths: 4 },
+    cadenceStep(4),
+  ];
+
+  const alignedSteps: MotifStep[] = [];
+  let currentLen = 0;
+  let stepIdx = 0;
+  while (currentLen < alignedLength && steps.length > 0) {
+    const step = steps[stepIdx % steps.length];
+    const remaining = alignedLength - currentLen;
+    const dur = Math.min(step.dur16ths, remaining);
+    alignedSteps.push({ ...step, dur16ths: dur });
+    currentLen += dur;
+    stepIdx++;
+  }
+
+  const degrees = alignedSteps.map((s) => s.index);
+  const newPhrase = {
+    id: `phrase-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    steps: alignedSteps,
+    degrees,
+  };
+
+  if (memory) {
+    memory.remember(newPhrase);
+  }
+
+  return newPhrase;
 }

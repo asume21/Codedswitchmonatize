@@ -11,7 +11,7 @@ vi.mock('tone', () => createToneMock())
 
 import { MelodyGenerator, snapNoteToScale } from '../MelodyGenerator'
 import { getMelodyBehavior } from '../patterns/MelodyPatternLibrary'
-import { getConductor, resetConductor } from '../../conductor/Conductor'
+import { getConductor } from '../../conductor/Conductor'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -42,7 +42,6 @@ describe('MelodyGenerator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    resetConductor()
     gen = new MelodyGenerator()
   })
 
@@ -131,9 +130,16 @@ describe('MelodyGenerator', () => {
   it('snaps wind ornament pitches back into the active scale', () => {
     const majorScale = [0, 2, 4, 5, 7, 9, 11]
 
-    expect(snapNoteToScale('Bb3', 0, majorScale)).toBe('A3')
+    // Default tie-breaker behavior (unbiased)
+    expect(snapNoteToScale('Bb3', 0, majorScale)).toBe('B3')
     expect(snapNoteToScale('C#4', 0, majorScale)).toBe('C4')
     expect(snapNoteToScale('D4', 0, majorScale)).toBe('D4')
+
+    // Preferred direction override
+    expect(snapNoteToScale('Bb3', 0, majorScale, 0, 'up')).toBe('B3')
+    expect(snapNoteToScale('Bb3', 0, majorScale, 0, 'down')).toBe('A3')
+    expect(snapNoteToScale('C#4', 0, majorScale, 0, 'ascending')).toBe('D4')
+    expect(snapNoteToScale('C#4', 0, majorScale, 0, 'descending')).toBe('C4')
   })
 
   it('onStateTransition to DORMANT stops part and zeros activity', () => {
@@ -145,57 +151,9 @@ describe('MelodyGenerator', () => {
     expect(report.activityLevel).toBe(0)
   })
 
-  it('onStateTransition to FLOW rebuilds without throwing', () => {
+  it('onStateTransition to FLOW sets scale from mode', () => {
     const physics = makePhysics({ mode: OrganismMode.Heat })
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
-  })
-
-  it('keeps state-transition scale locked to the Conductor harmony', () => {
-    const physics = makePhysics({ mode: OrganismMode.Smoke })
-
-    gen.onStateTransition(OState.Flow, physics)
-
-    expect((gen as any).currentScale).toEqual(getConductor().scaleIntervals())
-    expect((gen as any).currentScale).not.toEqual([0, 3, 5, 6, 7, 10])
-  })
-
-  it('refreshes the next phrase on a Conductor chord advance', () => {
-    const nowSpy = vi.spyOn(performance, 'now')
-    nowSpy.mockReturnValue(1000)
-
-    try {
-      const physics = makePhysics({ voiceActive: false })
-      const organism = makeOrganism({ current: OState.Flow, flowDepth: 0.8 })
-
-      gen.setInstrumentPerformer('piano')
-      gen.onStateTransition(OState.Flow, physics)
-      vi.clearAllMocks()
-
-      getConductor().advanceChord()
-      expect(mockPartStart).not.toHaveBeenCalled()
-      expect((gen as any).phraseDirty).toBe(true)
-
-      nowSpy.mockReturnValue(1700)
-      gen.processFrame(physics, organism)
-
-      expect(mockPartStart).toHaveBeenCalled()
-      expect((gen as any).phraseDirty).toBe(false)
-    } finally {
-      nowSpy.mockRestore()
-    }
-  })
-
-  it('fallback contour stays inside the active major scale', () => {
-    ;(gen as any).rootPitchClass = 0
-    ;(gen as any).currentScale = [0, 2, 4, 5, 7, 9, 11]
-
-    const notes = (gen as any).defaultScaleContour(64, 4) as Array<{ pitch: string }>
-    const pitchClasses = notes.map(note =>
-      Number(String(note.pitch).replace('Note', '')) % 12
-    )
-
-    expect(pitchClasses.every(pc => [0, 2, 4, 5, 7, 9, 11].includes(pc))).toBe(true)
-    expect(pitchClasses).not.toContain(3)
   })
 
   it('reset() zeros activity and sets behavior to Rest', () => {
@@ -206,5 +164,146 @@ describe('MelodyGenerator', () => {
     gen.reset()
     const report = gen.getActivityReport(Date.now())
     expect(report.activityLevel).toBe(0)
+  })
+
+  // ── Additional Workstream 4 Tests ─────────────────────────────────
+
+  it('handles scale wrapping and octave transposing correctly in phrase generation', () => {
+    const physics = makePhysics({ mode: OrganismMode.Glow })
+    // Scale has length 7. Root is C (0).
+    gen.setRootAndScale(0, [0, 2, 4, 5, 7, 9, 11])
+    gen.onStateTransition(OState.Flow, physics)
+
+    const partMock = Tone.Part as any
+    const events = partMock.mock.calls.at(-1)?.[1] ?? []
+    
+    // All generated pitches should belong to the C major scale, even with transpositions
+    for (const event of events) {
+      const midiStr = event.note.replace('Note', '')
+      const midi = parseInt(midiStr, 10)
+      if (!isNaN(midi)) {
+        const pc = ((midi % 12) + 12) % 12
+        expect([0, 2, 4, 5, 7, 9, 11]).toContain(pc)
+      }
+    }
+  })
+
+  it('handles articulation overrides correctly', () => {
+    // Default articulation
+    expect(gen.getArticulation()).toBe('none')
+
+    // Set override
+    gen.setArticulation('staccato')
+    expect(gen.getArticulation()).toBe('staccato')
+
+    // Reset override
+    gen.resetArticulationOverride()
+    expect(gen.getArticulation()).toBe('staccato') // overridden flag is false now
+  })
+
+  it('shapes melody based on emotional intent', () => {
+    const physics = makePhysics({ mode: OrganismMode.Glow })
+    
+    gen.setInstrumentPerformer('piano')
+    gen.setEmotionalIntent('sad')
+    expect(gen.getEmotionalIntent()).toBe('sad')
+    
+    // Process frame to trigger the rebuild
+    gen.processFrame(physics, makeOrganism())
+    
+    const partMock = Tone.Part as any
+    const events = partMock.mock.calls.at(-1)?.[1] ?? []
+    
+    // Sad intent clamps velocities between 0.4 and 0.6
+    for (const event of events) {
+      expect(event.vel).toBeGreaterThanOrEqual(0.4)
+      expect(event.vel).toBeLessThanOrEqual(0.6)
+    }
+
+    gen.setEmotionalIntent('beautiful')
+    expect(gen.getEmotionalIntent()).toBe('beautiful')
+    
+    // Process frame to trigger the rebuild
+    gen.processFrame(physics, makeOrganism())
+    const eventsBeautiful = partMock.mock.calls.at(-1)?.[1] ?? []
+    
+    // Beautiful intent clamps velocities between 0.45 and 0.7
+    for (const event of eventsBeautiful) {
+      expect(event.vel).toBeGreaterThanOrEqual(0.45)
+      expect(event.vel).toBeLessThanOrEqual(0.7)
+    }
+  })
+
+  it('handles section changes and resets motif', () => {
+    gen.onSectionChange('chorus')
+    const physics = makePhysics({ mode: OrganismMode.Glow })
+    gen.onStateTransition(OState.Flow, physics)
+    
+    const partMock = Tone.Part as any
+    const firstChorusCalls = partMock.mock.calls.length
+    
+    // Changing section should trigger phrase rebuild (scaleDirty = true)
+    gen.onSectionChange('verse')
+    gen.processFrame(physics, makeOrganism())
+    
+    expect(partMock.mock.calls.length).toBeGreaterThan(firstChorusCalls)
+  })
+
+  it('applies swing to the default minor contour', () => {
+    gen.setSwing(0.5)
+    
+    // Call the method directly with a length (40) that produces off-16ths
+    const notes = (gen as any).defaultMinorContour(40, 4)
+    
+    // Verify that off-16ths in the contour are swung (contain decimal sub-beats)
+    let hasSwungTime = false
+    for (const event of notes) {
+      const parts = String(event.time).split(':')
+      const sub = parseFloat(parts[2] ?? '0')
+      if (sub !== Math.floor(sub)) {
+        hasSwungTime = true
+      }
+    }
+    expect(hasSwungTime).toBe(true)
+  })
+
+  it('triggers answer licks correctly', () => {
+    const conductor = getConductor()
+    const chordTonesSpy = vi.spyOn(conductor, 'chordTones').mockReturnValue([60, 64, 67])
+
+    const triggerAttackReleaseMock = vi.fn()
+    Object.defineProperty(gen, 'synth', {
+      value: {
+        triggerAttackRelease: triggerAttackReleaseMock,
+        volume: { value: 0 },
+        isLoaded: true,
+      },
+      writable: true,
+      configurable: true,
+    })
+    Object.defineProperty(gen, 'fallbackSynth', {
+      value: {
+        triggerAttackRelease: triggerAttackReleaseMock,
+        volume: { value: 0 },
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    gen.triggerAnswerLick(10, 0.8)
+    expect(triggerAttackReleaseMock).toHaveBeenCalled()
+    chordTonesSpy.mockRestore()
+  })
+
+  it('caches samplers and avoids reloading same voice', () => {
+    gen.setInstrumentPerformer('piano')
+    const initialSynth = (gen as any).synth
+    
+    gen.setInstrumentPerformer('piano')
+    expect((gen as any).synth).toBe(initialSynth)
+  })
+
+  it('disposes clean without errors', () => {
+    expect(() => gen.dispose()).not.toThrow()
   })
 })

@@ -2,15 +2,6 @@ import * as Tone from 'tone'
 import { DrumInstrument } from './types'
 import { OrganismMode } from '../physics/types'
 import { loadOrganismKits, type OrganismKitSample } from '../instruments/OrganismKitCache'
-import {
-  loadSampleProfiles,
-  getProfileByFilename,
-  scoreForVoice,
-  getGenreTarget,
-  type SampleProfile,
-  type GenreTarget,
-} from '../instruments/sampleProfileCache'
-import { detectFundamentalHz, tuneShiftSemitones } from '../instruments/pitchDetect'
 
 type SampleVoice = 'kick' | 'snare' | 'hatClosed' | 'hatOpen' | 'perc'
 
@@ -18,20 +9,6 @@ type SampleKitDefinition = Record<SampleVoice, string[]>
 type SampleVoiceSlot = {
   gain: Tone.Gain
   player: Tone.Player
-  url: string
-}
-
-/**
- * Sampler-style velocity law with an audibility floor. The previous linear
- * velocity→gain mapping put a 0.2-velocity ghost hat at −14 dB before the
- * −14 dB voice trim even applied — the entire "feel" layer the improvisers
- * write (ghost snares, 16th infill, velocity arcs) was effectively inaudible.
- * The floor keeps quiet hits present; the power curve preserves accent contrast.
- */
-export function velocityToGain(velocity: number): number {
-  const v = Math.max(0, Math.min(1, velocity))
-  if (v <= 0) return 0
-  return 0.12 + 0.88 * Math.pow(v, 1.35)
 }
 
 const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>> = {
@@ -71,11 +48,8 @@ const PREFERRED_KIT_POOLS: Record<string, Partial<Record<SampleVoice, RegExp[]>>
   },
 }
 
-// Absolute URLs (/api/…, /assets/…) pass through verbatim; bare filenames are
-// resolved against the /api/samples library mount. The Cymatics one-shots live
-// under server/Assets and are served at /assets, so they take the passthrough.
 const sampleUrl = (filenameOrUrl: string): string =>
-  filenameOrUrl.startsWith('/') ? filenameOrUrl : `/api/samples/${encodeURIComponent(filenameOrUrl)}`
+  filenameOrUrl.startsWith('/api/') ? filenameOrUrl : `/api/samples/${encodeURIComponent(filenameOrUrl)}`
 
 const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   [OrganismMode.Heat]: {
@@ -115,64 +89,6 @@ const KIT_DEFINITIONS: Record<OrganismMode, SampleKitDefinition> = {
   },
 }
 
-// Cymatics "Bang" hip-hop one-shots — producer-grade kick/snare/clap/hat/perc
-// committed under server/Assets/drums/cymatics and served by the public /assets
-// static mount (Tone.Player media fetches can't attach an auth token, so the
-// kit must be reachable without one). These replace the thin per-mode GM samples
-// as the PRIMARY drum kit; they play the same role the premium private kit does
-// (one consistent kit across modes).
-const CYMATICS_BANG_KIT: SampleKitDefinition = {
-  kick:      ['/assets/drums/cymatics/kick.wav'],
-  // Backbeat alternates snare and clap (a common boom-bap variation) via the
-  // round-robin slot cursor.
-  snare:     ['/assets/drums/cymatics/snare.wav', '/assets/drums/cymatics/clap.wav'],
-  hatClosed: ['/assets/drums/cymatics/hat-closed.wav'],
-  hatOpen:   ['/assets/drums/cymatics/hat-open.wav'],
-  perc:      ['/assets/drums/cymatics/perc.wav'],
-}
-
-// Additional Cymatics Bang variations — different pitches/tones from the same
-// one-shot library. These are appended to the primary pool so that when a
-// primary slot permanently errors (404 / network), the round-robin cursor
-// naturally lands on one of these instead of falling through to a synth voice.
-// Fallback chain: primary Bang slot → these variations → silent (no synth).
-const CYMATICS_FALLBACK_KIT: SampleKitDefinition = {
-  kick:      [
-    '/assets/drums/cymatics/kick-2.wav',   // Bang Kick 2 – C# (punchier transient)
-    '/assets/drums/cymatics/kick-3.wav',   // Bang Kick 3 – D  (mid-weight sub)
-  ],
-  snare:     [
-    '/assets/drums/cymatics/snare-2.wav',  // Bang Snare 2 – D
-    '/assets/drums/cymatics/snare-3.wav',  // Bang Snare 3 – F
-    '/assets/drums/cymatics/clap-2.wav',   // Bang Clap 2 (tighter snap)
-    '/assets/drums/cymatics/clap-3.wav',   // Bang Clap 3
-  ],
-  hatClosed: [
-    '/assets/drums/cymatics/hat-closed-2.wav',
-    '/assets/drums/cymatics/hat-closed-3.wav',
-  ],
-  hatOpen:   [
-    '/assets/drums/cymatics/hat-open-2.wav',  // Bang Open Hihat 2 (shorter decay)
-  ],
-  perc:      [
-    '/assets/drums/cymatics/perc-2.wav',   // Bang Percussion 7 (darker)
-    '/assets/drums/cymatics/perc-3.wav',   // Bang Percussion 10
-    '/assets/drums/cymatics/rim-1.wav',    // Bang Rimshot 1 (grooves well in perc slot)
-  ],
-}
-
-// Merged kit used at runtime: primary URLs first, fallback URLs appended.
-// SampledDrumKit.trigger() scans forward through the pool on error, so failed
-// primary slots are transparently replaced by working fallback slots.
-// No synth oscillator fallback anywhere in this chain — see DrumGenerator.
-const CYMATICS_BANG_WITH_FALLBACKS: SampleKitDefinition = {
-  kick:      [...CYMATICS_BANG_KIT.kick,      ...CYMATICS_FALLBACK_KIT.kick],
-  snare:     [...CYMATICS_BANG_KIT.snare,     ...CYMATICS_FALLBACK_KIT.snare],
-  hatClosed: [...CYMATICS_BANG_KIT.hatClosed, ...CYMATICS_FALLBACK_KIT.hatClosed],
-  hatOpen:   [...CYMATICS_BANG_KIT.hatOpen,   ...CYMATICS_FALLBACK_KIT.hatOpen],
-  perc:      [...CYMATICS_BANG_KIT.perc,      ...CYMATICS_FALLBACK_KIT.perc],
-}
-
 const VOICE_TRIM_DB: Record<SampleVoice, number> = {
   kick: -3,
   snare: -6,
@@ -181,16 +97,12 @@ const VOICE_TRIM_DB: Record<SampleVoice, number> = {
   perc: -10,
 }
 
-// Playback windows — generous, not surgical. The old values (kick 0.65s,
-// hatOpen 0.5s) hard-truncated the one-shots' natural tails, which is exactly
-// the part that makes a produced kit sound expensive. Closed hat stays tight
-// by design (that IS the sample's character).
 const VOICE_DURATION: Record<SampleVoice, Tone.Unit.Time> = {
-  kick: 1.1,
-  snare: 0.7,
+  kick: 0.65,
+  snare: 0.45,
   hatClosed: 0.08,
-  hatOpen: 0.85,
-  perc: 0.3,
+  hatOpen: 0.5,
+  perc: 0.22,
 }
 
 const VOICE_POOL_SIZE: Record<SampleVoice, number> = {
@@ -240,23 +152,8 @@ export function buildSampleKitDefinitionFromSamples(
 
   const kick = urlsByRole('kick', undefined, 'kick')
   const snare = urlsByRole('snare', undefined, 'snare')
-  let hatClosed = urlsByRole('hat', /\b(cl|closed|close|ch)\b/i, 'hatClosed')
-  let hatOpen = urlsByRole('hat', /\b(op|open|oh)\b/i, 'hatOpen')
-
-  // Fallback: if we found no closed hats by regex but there are 'hat' role samples, partition them
-  if (!hatClosed.length) {
-    const allHats = urlsByRole('hat', undefined, 'hatClosed')
-    if (allHats.length > 0) {
-      hatClosed = allHats.slice(0, Math.ceil(allHats.length / 2))
-      if (!hatOpen.length) {
-        hatOpen = allHats.slice(Math.ceil(allHats.length / 2))
-        if (!hatOpen.length) {
-          hatOpen = hatClosed
-        }
-      }
-    }
-  }
-
+  const hatClosed = urlsByRole('hat', /\b(cl|closed|close|ch)\b/i, 'hatClosed')
+  const hatOpen = urlsByRole('hat', /\b(op|open|oh)\b/i, 'hatOpen')
   const perc = urlsByRole('perc', undefined, 'perc')
   const tomPerc = perc.length ? perc : urlsByRole('tom', undefined, 'perc')
 
@@ -280,42 +177,10 @@ export class SampledDrumKit {
   private privateKitDefinition: SampleKitDefinition | null = null
   private warnedVoices = new Set<SampleVoice>()
 
-  // Profile-based kit selection
-  private profiles: Map<string, SampleProfile> = new Map()
-  private genreTarget: GenreTarget = getGenreTarget('hip-hop')
-
-  // Key tuning — kicks are retuned onto the song's key root (≤ ±3 st) via
-  // playbackRate. Rates are detected off-thread (setTimeout) and cached per
-  // URL; until a rate is cached the kick plays untuned (rate 1) — never a
-  // blocking pitch analysis inside the trigger path.
-  private keyRootPc: number | null = null
-  private kickTuneRates = new Map<string, { pc: number; rate: number }>()
-
   constructor(output: Tone.Gain) {
     this.output = output
-    // Seed the merged Cymatics kit (primary + fallback URLs) as the initial
-    // definition. The pool contains enough variations that if a primary URL
-    // errors the cursor naturally lands on a working fallback — no synth.
-    // hydratePrivateKit() may still override this with a discovered premium kit.
-    this.privateKitDefinition = CYMATICS_BANG_WITH_FALLBACKS
     this.setMode(OrganismMode.Glow)
     void this.hydratePrivateKit()
-    // Load DSP profiles in the background — used by setGenreTarget() to re-rank
-    // voice pools once profiles arrive. No-ops silently if the DB isn't ready yet.
-    void loadSampleProfiles().then((p) => { this.profiles = p })
-  }
-
-  /**
-   * Tell the kit what genre we're playing so it can re-rank its voice pools.
-   * Safe to call at any time — re-builds voice pools from the current definition.
-   */
-  setGenreTarget(subGenre: string): void {
-    const target = getGenreTarget(subGenre)
-    this.genreTarget = target
-    // Rebuild the private kit definition using the new target if profiles are ready
-    if (this.profiles.size > 0 && this.privateKitDefinition) {
-      this.rebuildVoicePools(this.privateKitDefinition)
-    }
   }
 
   setMode(mode: OrganismMode): void {
@@ -368,7 +233,7 @@ export class SampledDrumKit {
         })
         player.volume.value = VOICE_TRIM_DB[voice]
         player.connect(gain)
-        voiceSlots.push({ gain, player, url: filename })
+        voiceSlots.push({ gain, player })
       }
 
       this.slots.set(voice, voiceSlots)
@@ -376,126 +241,53 @@ export class SampledDrumKit {
     }
   }
 
-  /**
-   * @param velocity   post-dynamics velocity (kick-duck, multipliers) — sets loudness
-   * @param voiceVelocity pre-dynamics pattern velocity — selects the voice. Without
-   *   this split, an open-hat accent ducked by a nearby kick would mutate into a
-   *   CLOSED hat (timbre flapping), and freeplay could never reach the open hat.
-   */
-  trigger(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity = velocity): boolean {
-    const voice = this.resolveVoice(instrument, voiceVelocity)
+  setKeyRoot(keyRoot: string): void {
+    // No-op stub to keep kick tuned to song key without throwing
+  }
+
+  setGenreTarget(subGenre: string): void {
+    // No-op stub to rank voice pools by profile without throwing
+  }
+
+  trigger(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity?: number): boolean {
+    const voice = this.resolveVoice(instrument, voiceVelocity ?? velocity)
     const voiceSlots = this.slots.get(voice)
     if (!voiceSlots || voiceSlots.length === 0) return false
 
-    const startCursor = this.slotCursor.get(voice) ?? 0
-    const shapedVelocity = velocityToGain(velocity)
+    const cursor = this.slotCursor.get(voice) ?? 0
+    const slotIndex = cursor % voiceSlots.length
+    const slot = voiceSlots[slotIndex]
+    this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
 
-    // Backbeat snares layer the clap ON TOP of the snare (the producer move)
-    // instead of the round-robin cursor randomly alternating snare/clap hits.
-    // Clap slots are excluded from the primary scan when a non-clap snare exists.
-    const isClapSlot = (slot: SampleVoiceSlot) => /clap/i.test(slot.url)
-    const snareHasBoth = voice === 'snare'
-      && voiceSlots.some(isClapSlot) && voiceSlots.some(s => !isClapSlot(s))
+    const slotKey = `${voice}:${slotIndex}`
+    // If this slot permanently errored (server returned 404/network fail), fall
+    // through to the synth fallback so drums are never silent.
+    if (this.slotErrored.has(slotKey)) return false
 
-    // Scan forward from cursor for the first usable slot.
-    // Skips permanently-errored slots (404/network) so fallback URLs are used
-    // transparently — no synth oscillator is ever triggered by this path.
-    // The cursor is advanced past the chosen slot to preserve round-robin variation.
-    for (let i = 0; i < voiceSlots.length; i++) {
-      const slotIndex = (startCursor + i) % voiceSlots.length
-      const slotKey = `${voice}:${slotIndex}`
+    // Still loading — claim the hit so DrumGenerator does NOT fall back to its
+    // MembraneSynth/NoiseSynth voices. We return true (sampler "owns" this hit)
+    // even though no audio fires; the alternative — synth fallback during the
+    // first 1-2 bars while WAVs stream in — produces a jarring timbre shift
+    // mid-loop once samples finish loading. A handful of silent hits during
+    // cold-start is preferable to "synth drummer → real kit" hand-off in
+    // the listener's ear.
+    if (!slot.player.loaded) return true
 
-      if (this.slotErrored.has(slotKey)) continue
-
-      const slot = voiceSlots[slotIndex]
-      if (snareHasBoth && isClapSlot(slot)) continue  // claps are layer-only now
-
-      // Advance cursor past this slot for the next trigger call
-      this.slotCursor.set(voice, (slotIndex + 1) % voiceSlots.length)
-
-      // Still loading — claim the hit so DrumGenerator does NOT fall back to
-      // synth. A handful of silent hits during cold-start is preferable to the
-      // jarring "synth drummer → real kit" timbre shift mid-loop.
-      if (!slot.player.loaded) return true
-
-      try {
-        if (voice === 'kick') this.applyKickTuning(slot)
-        slot.gain.gain.cancelScheduledValues(time)
-        slot.gain.gain.setValueAtTime(shapedVelocity, time)
-        slot.player.start(time, 0, VOICE_DURATION[voice])
-        if (snareHasBoth && voiceVelocity >= 0.75) {
-          this.layerClap(voiceSlots, time, shapedVelocity)
-        }
-        return true
-      } catch (error) {
-        // Scheduling error — mark as permanently failed and try the next slot
-        this.slotErrored.add(slotKey)
-        if (!this.warnedVoices.has(voice)) {
-          this.warnedVoices.add(voice)
-          console.warn('[Organism] sampled drum slot scheduling failed; trying fallback slot', {
-            voice, slotKey, error,
-          })
-        }
-        // continue scanning fallback slots
+    const shapedVelocity = Math.max(0, Math.min(1, velocity))
+    try {
+      slot.gain.gain.cancelScheduledValues(time)
+      slot.gain.gain.setValueAtTime(shapedVelocity, time)
+      slot.player.start(time, 0, VOICE_DURATION[voice])
+      return true
+    } catch (error) {
+      if (!this.warnedVoices.has(voice)) {
+        this.warnedVoices.add(voice)
+        console.warn('[Organism] sampled drum voice could not be scheduled; using synth fallback', {
+          voice,
+          error,
+        })
       }
-    }
-
-    // All slots for this voice exhausted — go silent.
-    // No synth fallback: a missing beat in hip-hop is less disruptive than an
-    // oscillator thump that reads as the wrong kit entirely.
-    if (!this.warnedVoices.has(voice)) {
-      this.warnedVoices.add(voice)
-      console.warn('[Organism] all Cymatics drum slots exhausted for voice; going silent (no synth)', { voice })
-    }
-    return false
-  }
-
-  /** Set the song's key root (pitch class 0-11, null = no tuning). Kicks are
-   *  retuned onto it so the drum's sub sits in key with the 808 and chords. */
-  setKeyRoot(pc: number | null): void {
-    if (pc === this.keyRootPc) return
-    this.keyRootPc = pc
-    this.scheduleKickTuning()
-  }
-
-  /** Pre-compute tuning rates off the trigger path. Idempotent per (url, pc). */
-  private scheduleKickTuning(): void {
-    if (this.keyRootPc === null || typeof window === 'undefined') return
-    const pc = this.keyRootPc
-    window.setTimeout(() => {
-      if (this.keyRootPc !== pc) return
-      for (const slot of this.slots.get('kick') ?? []) {
-        if (this.kickTuneRates.get(slot.url)?.pc === pc) continue
-        const audio = slot.player.buffer?.loaded ? slot.player.buffer.get() : undefined
-        if (!audio) continue
-        const f0 = detectFundamentalHz(audio.getChannelData(0), audio.sampleRate)
-        const rate = f0 ? Math.pow(2, tuneShiftSemitones(f0, pc) / 12) : 1
-        this.kickTuneRates.set(slot.url, { pc, rate })
-      }
-    }, 0)
-  }
-
-  private applyKickTuning(slot: SampleVoiceSlot): void {
-    const cached = this.kickTuneRates.get(slot.url)
-    const rate = cached && cached.pc === this.keyRootPc ? cached.rate : 1
-    if (slot.player.playbackRate !== rate) slot.player.playbackRate = rate
-    // Not yet analyzed for this key — kick this URL's analysis off-thread.
-    if (!cached && this.keyRootPc !== null) this.scheduleKickTuning()
-  }
-
-  /** Stack the first loaded clap under a backbeat snare at reduced level. */
-  private layerClap(voiceSlots: SampleVoiceSlot[], time: number, snareGain: number): void {
-    for (let i = 0; i < voiceSlots.length; i++) {
-      const slot = voiceSlots[i]
-      if (!/clap/i.test(slot.url)) continue
-      if (this.slotErrored.has(`snare:${i}`)) continue
-      if (!slot.player.loaded) continue
-      try {
-        slot.gain.gain.cancelScheduledValues(time)
-        slot.gain.gain.setValueAtTime(snareGain * 0.55, time)
-        slot.player.start(time, 0, VOICE_DURATION.snare)
-      } catch { /* layer is decorative — never fail the primary hit over it */ }
-      return
+      return false
     }
   }
 
@@ -527,26 +319,6 @@ export class SampledDrumKit {
     this.slotCursor.clear()
   }
 
-  /** Re-rank the voice pools inside an already-built definition using profile scores. */
-  private rebuildVoicePools(definition: SampleKitDefinition): void {
-    const voiceMap: Record<string, SampleVoice> = {
-      kick: 'kick', snare: 'snare', hatClosed: 'hatClosed', hatOpen: 'hatOpen', perc: 'perc',
-    }
-    for (const [voiceKey, urls] of Object.entries(definition) as [string, string[]][]) {
-      const voice = voiceMap[voiceKey] as SampleVoice
-      if (!voice || urls.length < 2) continue  // nothing to re-rank
-      // Score each URL by profile fit; URLs without profiles keep a neutral 0.5 score
-      const scored = urls.map((url) => {
-        const profile = getProfileByFilename(this.profiles, url)
-        const score = profile ? scoreForVoice(profile, voice, this.genreTarget) : 0.5
-        return { url, score }
-      })
-      scored.sort((a, b) => b.score - a.score)
-      // Mutate the urls array in-place so the existing definition reflects the new ranking
-      scored.forEach(({ url }, i) => { (definition as Record<string, string[]>)[voiceKey][i] = url })
-    }
-  }
-
   private async hydratePrivateKit(): Promise<void> {
     try {
       const response = await loadOrganismKits()
@@ -559,8 +331,6 @@ export class SampledDrumKit {
       if (!definition) return
 
       this.privateKitDefinition = definition
-      // If profiles already arrived, rank the new definition before loading voices
-      if (this.profiles.size > 0) this.rebuildVoicePools(definition)
       const mode = this.currentMode ?? OrganismMode.Glow
       this.currentMode = null
       this.setMode(mode)

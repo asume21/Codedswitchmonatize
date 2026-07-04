@@ -1,7 +1,6 @@
 // Section 04 — Drum Generator
 
 import * as Tone from 'tone'
-import type { LoopClip } from '@shared/loopPack'
 import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
@@ -12,49 +11,59 @@ import {
 }                              from './patterns/DrumPatternLibrary'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
-import { mulberry32, hashString, getSessionSalt } from './freeplay/utils'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
 
+const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
+  'latin': (v: number) => v < 0.6 ? v * 0.7 : v,
+  'jazz': (v: number) => v < 0.6 ? v * 0.7 : v,
+  'lo-fi': (v: number) => v < 0.6 ? v * 0.75 : v,
+  'chill': (v: number) => v < 0.6 ? v * 0.75 : v,
+  'west-coast': (v: number) => v < 0.6 ? v * 0.8 : v,
+  'rock': (v: number) => v * 0.3 + 0.7,
+  'edm': (v: number) => v * 0.2 + 0.8,
+  'trap': (v: number) => v * 0.25 + 0.75,
+  'drill': (v: number) => v * 0.2 + 0.8,
+  'phonk': (v: number) => v * 0.15 + 0.85,
+  'default': (v: number) => v,
+}
+
 export class DrumGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
   // Kick: sub layer + click transient
-  private kickSub:   Tone.MembraneSynth
-  private kickClick: Tone.NoiseSynth
-  private kickBus:   Tone.Gain
-  private kickDist:  Tone.Distortion
+  private kickSub:   Tone.MembraneSynth | null = null
+  private kickClick: Tone.NoiseSynth | null = null
+  private kickBus:   Tone.Gain | null = null
+  private kickDist:  Tone.Distortion | null = null
 
   // Snare: noise body + tonal ring
-  private snareBody: Tone.NoiseSynth
-  private snareTone: Tone.MembraneSynth
-  private snareBus:  Tone.Gain
+  private snareBody: Tone.NoiseSynth | null = null
+  private snareTone: Tone.MembraneSynth | null = null
+  private snareBus:  Tone.Gain | null = null
 
   // Hat: closed (short decay) + open (long decay) — NoiseSynth + highpass sounds
   // far more like real hi-hats than MetalSynth's FM screech which reads as techno.
-  private hat:        Tone.NoiseSynth
-  private hatOpen:    Tone.NoiseSynth
-  private hatFilter:  Tone.Filter
+  private hat:        Tone.NoiseSynth | null = null
+  private hatOpen:    Tone.NoiseSynth | null = null
+  private hatFilter:  Tone.Filter | null = null
 
   // Perc: bandpass noise
-  private perc:       Tone.NoiseSynth
-  private percFilter: Tone.Filter
+  private perc:       Tone.NoiseSynth | null = null
+  private percFilter: Tone.Filter | null = null
 
   // Master drum bus
-  private compressor: Tone.Compressor
-  private sampleBus: Tone.Gain
-  private sampledKit: SampledDrumKit
+  private compressor: Tone.Compressor | null = null
+  private sampleBus: Tone.Gain | null = null
+  private sampledKit: SampledDrumKit | null = null
 
   private part: Tone.Part | null = null
   private breakFillPart: Tone.Part | null = null
   private microFillPart: Tone.Part | null = null
   private hasStartedPlayback: boolean = false
-
-  // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
-  // is centralized in GeneratorBase.
 
   // Physics cache
   private currentBounce:   number = 0
@@ -68,27 +77,19 @@ export class DrumGenerator extends GeneratorBase {
   private hatDensityMult:      number = 1.0
   private kickVelocityMult:    number = 1.0
 
-  // Section density — drives hit thinning so an intro actually sounds sparse
-  // rather than playing the full drop pattern at low volume. Set by the
-  // orchestrator from the ProducerArrangement drums multiplier.
-  private sectionDensity: number = 1.0
-
   // Sidechain callback — fired on every kick hit so the bass channel can duck
   private onKickTrigger: ((time: number) => void) | null = null
 
   // Track last kick time for hat-on-kick ducking
   private lastKickTime: number = 0
   private lastOutputGain: number = 0
+  private currentSubGenre: string = ''
+  swingAmount: number = 0
 
   // Per-voice last-trigger time. Monophonic Tone synths (MembraneSynth, NoiseSynth,
   // MetalSynth) require every new trigger time to be ≥ the previous one on that voice.
   // Humanization jitter can go negative, so we clamp each voice's next time here.
   private lastTriggerByVoice: Map<string, number> = new Map()
-
-  // Subscribe to conductor chord changes so we can accent beat 1 of each
-  // new harmonic cycle — the musical "arrival" moment that makes the kit
-  // feel like it's playing WITH the harmony, not beside it.
-  private unsubConductor: (() => void) | null = null
 
   constructor() {
     super(GeneratorName.Drum)
@@ -182,30 +183,9 @@ export class DrumGenerator extends GeneratorBase {
     this.perc.connect(this.percFilter)
 
     this.setOutputLevel(0)
-
-    // Chord-change kick accent: on every advanceChord() call (fires one bar before
-    // the chord lands at barNumber % 4 === 3), schedule a strong kick on the
-    // downbeat of the landing bar. This is the head-nod moment — kick + bass root
-    // arriving together on the new chord. The accent is additive (one-shot on top
-    // of the looping pattern) so it doesn't require a Part rebuild.
-    this.unsubConductor = getConductor().onChordChange(() => {
-      // Keep the kick tuned to the song key (cheap — no-ops when unchanged).
-      this.sampledKit.setKeyRoot(getConductor().getKeyPitchClass())
-      const transport = Tone.getTransport()
-      if (transport.state !== 'started') return
-      // Chord fires 1 bar early (barNumber % 4 === 3); landing is next bar.
-      // Use the transport position to compute the exact next-bar downbeat.
-      const pos = String(transport.position)
-      const bar = parseInt(pos.split(':')[0], 10) || 0
-      const landingBar = `${bar + 1}:0:0`
-      transport.scheduleOnce((audioTime) => {
-        this.triggerDrum(DrumInstrument.Kick, audioTime, 0.95)
-      }, landingBar)
-    })
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
-    if (this._loopMode) return
     this.currentBounce   = physics.bounce
     this.currentPresence = physics.presence
     this.currentPocket   = physics.pocket
@@ -217,30 +197,29 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   // Tunable micro-timing and groove settings
-  private lazySnareMinMs: number = 2
-  private lazySnareMaxMs: number = 7
-  private hatShuffleMinPct: number = 0.6
-  private hatShuffleMaxPct: number = 1.6
+  private lazySnareMinMs: number = 5
+  private lazySnareMaxMs: number = 15
+  private hatCyclicPattern: number[] = [1.0, 0.4, 0.75, 0.5]
+  private hatShuffleMinPct: number = 1.5
+  private hatShuffleMaxPct: number = 3.0
 
-  // ── Groove template (the pocket) ──────────────────────────────────
-  // Per-16th-slot micro-timing offsets that are STABLE across bars and
-  // rebuilds — like an MPC groove template. The previous per-event
-  // Math.random() jitter re-rolled every hit on every rebuild: uncorrelated
-  // noise reads as a sloppy drummer, while the SAME slot always landing the
-  // same few ms late reads as a human pocket.
-  private grooveHatShiftPct: number[] = []   // shuffle push per 16th slot (off-16ths only)
-  private grooveSnareLagMs:  number[] = []   // lazy-snare lag per beat (0..3)
+  /** Forward genre target to the sampled kit so it can re-rank voice pools by profile. */
+  setGenreTarget(subGenre: string): void {
+    this.currentSubGenre = subGenre
+    this.sampledKit!.setGenreTarget(subGenre)
 
-  private buildGrooveTemplate(): void {
-    const rng = mulberry32(hashString(`groove:${this.currentPhysicsMode}`) + getSessionSalt())
-    this.grooveHatShiftPct = Array.from({ length: 16 }, (_, slot) =>
-      slot % 2 === 1
-        ? this.hatShuffleMinPct + rng() * (this.hatShuffleMaxPct - this.hatShuffleMinPct)
-        : 0,
-    )
-    this.grooveSnareLagMs = Array.from({ length: 4 }, () =>
-      this.lazySnareMinMs + rng() * (this.lazySnareMaxMs - this.lazySnareMinMs),
-    )
+    const sg = subGenre.toLowerCase()
+    if (sg.includes('jazz') || sg.includes('latin') || sg.includes('funk')) {
+      this.swingAmount = 0.08
+    } else if (sg.includes('edm') || sg.includes('rock')) {
+      this.swingAmount = 0
+    } else if (sg.includes('boom-bap')) {
+      this.swingAmount = 0.05
+    } else if (sg.includes('lo-fi') || sg.includes('chill')) {
+      this.swingAmount = 0.04
+    } else {
+      this.swingAmount = 0.02
+    }
   }
 
   private enabled: boolean = true
@@ -259,29 +238,20 @@ export class DrumGenerator extends GeneratorBase {
   setLazySnareRange(minMs: number, maxMs: number): void {
     this.lazySnareMinMs = Math.max(0, minMs)
     this.lazySnareMaxMs = Math.max(minMs, maxMs)
-    this.buildGrooveTemplate()
+  }
+
+  setHatCyclicPattern(pattern: number[]): void {
+    if (pattern.length > 0) {
+      this.hatCyclicPattern = [...pattern]
+    }
   }
 
   setHatShuffleRange(minPct: number, maxPct: number): void {
     this.hatShuffleMinPct = Math.max(0, minPct)
     this.hatShuffleMaxPct = Math.max(minPct, maxPct)
-    this.buildGrooveTemplate()
-  }
-
-  setSectionDensity(density: number): void {
-    const prev = this.sectionDensity
-    this.sectionDensity = Math.max(0, Math.min(1.5, density))
-    // If the density tier changed (skeleton ↔ verse ↔ full) and we have a
-    // previously-built pattern, re-apply the filter immediately rather than
-    // waiting for the next physics-state transition to trigger rebuildPart.
-    const tierOf = (d: number) => d >= 0.75 ? 2 : d >= 0.45 ? 1 : 0
-    if (tierOf(prev) !== tierOf(this.sectionDensity) && this.rawHits.length > 0 && !this.patternLocked) {
-      this.rebuildPart(this.rawHits)
-    }
   }
 
   onStateTransition(to: OState, physics: PhysicsState): void {
-    if (this._loopMode) return
     if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()
@@ -334,9 +304,6 @@ export class DrumGenerator extends GeneratorBase {
   private patternLocked = false
   private lockedHits: DrumHit[] = []
   private currentHits: DrumHit[] = []   // snapshot updated by rebuildPart
-  // Unfiltered hits from the last pattern build — kept so setSectionDensity()
-  // can re-filter and re-schedule without needing a full physics-state rebuild.
-  private rawHits: DrumHit[] = []
 
   lockPattern(): DrumHit[] {
     this.patternLocked = true
@@ -377,6 +344,7 @@ export class DrumGenerator extends GeneratorBase {
       // the notes are even judged. Master headroom (-9 dB) + the -0.3 dBFS
       // WaveShaper ceiling absorb the increase safely.
       case OState.Flow:      return 0.88
+      default:               return 0
     }
   }
 
@@ -402,7 +370,7 @@ export class DrumGenerator extends GeneratorBase {
   triggerImmediateHit(instrument: DrumInstrument, velocity = 0.75): void {
     if (!this.enabled) return
     const time = Tone.now() + 0.018
-    this.triggerDrum(instrument, time, Math.max(0.2, Math.min(1, velocity)))
+    this.triggerDrum(instrument, time, Math.max(0.2, Math.min(1, velocity)), velocity)
   }
 
   /**
@@ -424,13 +392,13 @@ export class DrumGenerator extends GeneratorBase {
     // its decay. We re-use kickSub rather than allocating a new voice so the
     // hit goes through the existing kick → kickBus → compressor signal chain.
     const subTime = this.clampTime('kickSub', at)
-    this.kickSub.triggerAttackRelease('G0', '2n', subTime, vel)
+    this.kickSub!.triggerAttackRelease('G0', '2n', subTime, vel)
     // Click layer for transient definition on small speakers.
-    this.triggerNoise('kickClick', this.kickClick, '16n', at, vel * 0.55)
+    this.triggerNoise('kickClick', this.kickClick!, '16n', at, vel * 0.55)
     // Hi-frequency splash — re-use the open-hat NoiseSynth via a longer release.
     // It already routes through the high-pass filter so it reads as cymbal-like.
     const hatTime = this.clampTime('hatOpen', at + 0.002)
-    this.hatOpen.triggerAttackRelease('4n', hatTime, vel * 0.7)
+    this.hatOpen!.triggerAttackRelease('4n', hatTime, vel * 0.7)
 
     this.lastKickTime = subTime
     if (this.onKickTrigger) this.onKickTrigger(subTime)
@@ -467,43 +435,42 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private currentPhysicsMode: OrganismMode = OrganismMode.Glow
+  private sectionDensity: number = 1.0
+  private grooveSnareLagMs: number[] = Array(16).fill(0)
+  private grooveHatShiftPct: number[] = []
 
-  /** Forward genre target to the sampled kit so it can re-rank voice pools by profile. */
-  setGenreTarget(subGenre: string): void {
-    this.sampledKit.setGenreTarget(subGenre)
+  private buildGrooveTemplate(): void {
+    // Generate static humanization offsets per 16th-slot
+    this.grooveHatShiftPct = Array.from({ length: 16 }, () => (Math.random() - 0.5) * 1.5)
+    this.grooveSnareLagMs  = Array.from({ length: 16 }, () => Math.random() * 8)
   }
 
   private applyKitPreset(): void {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
-    this.sampledKit.setMode(this.currentPhysicsMode)
-    this.buildGrooveTemplate()  // pocket is seeded per mode — stable until mode changes
+    this.sampledKit!.setKeyRoot(getConductor().getKeyPitchClass())
+    this.sampledKit!.setMode(this.currentPhysicsMode)
     this.currentKickNote          = preset.kickNote
-    this.kickSub.pitchDecay       = preset.kickPitchDecay
-    this.kickSub.volume.rampTo(preset.kickVol, 0.3)
-    this.snareBody.envelope.decay = preset.snareDecay
-    this.snareBody.volume.rampTo(preset.snareVol, 0.3)
-    this.hat.envelope.decay       = preset.hatDecay
-    this.hat.volume.rampTo(preset.hatVol, 0.3)
-    this.perc.envelope.decay      = preset.percDecay
-    this.perc.volume.rampTo(preset.percVol, 0.3)
+    this.kickSub!.pitchDecay       = preset.kickPitchDecay
+    this.kickSub!.volume.rampTo(preset.kickVol, 0.3)
+    this.snareBody!.envelope.decay = preset.snareDecay
+    this.snareBody!.volume.rampTo(preset.snareVol, 0.3)
+    this.hat!.envelope.decay       = preset.hatDecay
+    this.hat!.volume.rampTo(preset.hatVol, 0.3)
+    this.perc!.envelope.decay      = preset.percDecay
+    this.perc!.volume.rampTo(preset.percVol, 0.3)
   }
 
   private rebuildPart(hits: DrumHit[]): void {
-    if (this._loopMode) return
     this.applyKitPreset()
-
-    // Preserve unfiltered hits so setSectionDensity() can re-filter on section
-    // changes without waiting for a full physics-state pattern rebuild.
-    this.rawHits = [...hits]
-
+    
     // Section density thinning: sparse sections (intro, breakdown) keep the
-    // essential kick/snare/hat backbeat and only drop percussive fills. Removing
-    // snares made intros sound like a broken metronome instead of a beat.
+    // essential kick/snare backbeat and filter out hats and perc entirely.
     const thinned = hits.filter(h => {
       if (this.sectionDensity >= 0.75) return true                 // drop/build: full pattern
       if (this.sectionDensity >= 0.45) return h.instrument !== DrumInstrument.Perc  // verse: no fills
-      return h.instrument !== DrumInstrument.Perc                  // intro/breakdown: no fills, keep backbeat
+      // intro/breakdown (< 0.45): keep only Kick and Snare for the sparse backbeat
+      return h.instrument === DrumInstrument.Kick || h.instrument === DrumInstrument.Snare
     })
 
     const quantizedHits = thinned.map(h => ({
@@ -511,13 +478,9 @@ export class DrumGenerator extends GeneratorBase {
       time: quantizeGridTime(h.time),
     }))
     this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
-    this.emitDrumEvents(quantizedHits)
+    this.broadcastToBeatMaker(quantizedHits)
 
     // Groove template — stable per-slot offsets, NOT per-event randomness.
-    // NOTE: velocities pass through untouched. The pattern sources (freeplay
-    // improviser / authored library) already shape hat velocities; the old
-    // hatCyclicPattern multiply here was a SECOND attenuation that crushed
-    // 16th-infill hats to near-zero (0.22 pattern vel × 0.4 cycle = inaudible).
     if (this.grooveHatShiftPct.length === 0) this.buildGrooveTemplate()
 
     const events = quantizedHits.map(h => {
@@ -542,37 +505,30 @@ export class DrumGenerator extends GeneratorBase {
           const sixteenthDurationSec = 60 / (bpm * 4)
           microShift = shiftPct * sixteenthDurationSec
         }
+        if (sixteenthPos % 2 === 1) {
+          microShift += this.swingAmount
+        }
       }
 
       return {
         time:       h.time,
         instrument: h.instrument,
-        velocity:   h.velocity,
+        velocity: h.velocity,
         microShift,
       }
     })
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
-    // Seamless handoff: schedule the old Part to stop exactly when the new one
-    // starts, so there is no silence gap between section changes. If the
-    // transport is not running (or this is the very first build), stop
-    // immediately as there is nothing audible to preserve.
     const transport = Tone.getTransport()
     const oldPart = this.part
     if (oldPart) {
       if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
         oldPart.stop(startAt)
-        // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
-        // Dispose only AFTER the boundary, generously padded — disposing early
-        // destroys the incoming part's handoff window; disposing late is free.
         const msUntilStart = msUntilTransportTime(startAt)
         window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
       } else {
-        // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
-        // Tone rejects negative times with an uncaught RangeError that aborts the
-        // whole preset-swap chain. dispose() below still unschedules everything.
-        try { oldPart.stop() } catch { /* negative-time rounding — dispose handles it */ }
+        try { oldPart.stop() } catch { }
         oldPart.dispose()
       }
       this.lastTriggerByVoice.clear()
@@ -580,7 +536,7 @@ export class DrumGenerator extends GeneratorBase {
     this.part = null
 
     this.part = new Tone.Part((time, event) => {
-      const vel = this.applyDynamics(event.instrument, event.velocity)
+      const vel = this.applyDynamics(event.instrument, event.velocity, time)
       // Pattern velocity picks the voice (open vs closed hat); dynamics-adjusted
       // velocity sets loudness — so a kick-duck can't flip an open hat closed.
       this.triggerDrum(event.instrument, time + (event.microShift ?? 0), vel, event.velocity)
@@ -588,35 +544,15 @@ export class DrumGenerator extends GeneratorBase {
 
     this.part.loop    = true
     this.part.loopEnd = '4m'
-    // Phase-aligned: continue the 4-bar pattern from the current musical bar
-    // instead of restarting at bar 0 on every rebuild.
     this.part.start(startAt, livePartStartOffset(startAt, 4))
     this.hasStartedPlayback = true
-    orgLog('drum:part-started', {
-      hits: events.length,
-      startGrid: '1m',
-      startAt: typeof startAt === 'number' ? Number(startAt.toFixed(3)) : startAt,
-      transportState: Tone.getTransport().state,
-      transportPos:   Tone.getTransport().position,
-      ctxState:       Tone.getContext().state,
-    })
-
-    // Gap 3 — mirror current pattern into ProBeatMaker for visual display
-    this.broadcastToBeatMaker(quantizedHits)
   }
 
-  // Broadcast dedup — avoids spamming React with identical beat-grid events.
-  // Rebuilds can fire on physics changes that produce the exact same hits.
   private lastBroadcastSig: string = ''
   private lastBroadcastTime: number = 0
   private static readonly MIN_BROADCAST_INTERVAL_MS = 500
 
-  /**
-   * Converts organism drum hits to the ProBeatMaker step format and dispatches
-   * 'ai:loadBeatPattern' so the Beat Maker tab shows what the Organism is playing.
-   */
   private broadcastToBeatMaker(hits: DrumHit[]): void {
-    // Cheap pattern fingerprint — if identical to last broadcast, skip.
     const sig = hits.map(h => `${h.instrument}@${h.time}:${h.velocity.toFixed(2)}`).join('|')
     const now = performance.now()
     if (sig === this.lastBroadcastSig) return
@@ -624,8 +560,7 @@ export class DrumGenerator extends GeneratorBase {
     this.lastBroadcastSig  = sig
     this.lastBroadcastTime = now
 
-    const STEPS = 64 // 4 bars × 16 steps per bar
-    // DrumInstrument 'hat' → ProBeatMaker track id 'hihat'
+    const STEPS = 64 
     const instToId: Record<string, string> = {
       [DrumInstrument.Kick]:  'kick',
       [DrumInstrument.Snare]: 'snare',
@@ -643,7 +578,6 @@ export class DrumGenerator extends GeneratorBase {
     for (const h of hits) {
       const id = instToId[h.instrument]
       if (!id || !trackMap[id]) continue
-      // Parse "bar:beat:sub" — sub may have swing decimal e.g. "0:1:1.35"
       const parts = h.time.split(':')
       const bar  = parseInt(parts[0] ?? '0', 10)
       const beat = parseInt(parts[1] ?? '0', 10)
@@ -669,29 +603,25 @@ export class DrumGenerator extends GeneratorBase {
     }))
   }
 
-  private applyDynamics(instrument: DrumInstrument, baseVelocity: number): number {
+  private applyDynamics(instrument: DrumInstrument, baseVelocity: number, time: number): number {
     let vel = baseVelocity
 
-    // Bounce → boost kick + reactive multiplier
+    const profile = GENRE_VELOCITY_PROFILES[this.currentSubGenre.toLowerCase()] || GENRE_VELOCITY_PROFILES['default']
+    vel = profile(vel)
+
     if (instrument === DrumInstrument.Kick) {
       vel *= (1 + this.currentBounce * 0.5) * this.kickVelocityMult
     }
 
-    // Duck hats when kick fires (sidechain-style groove breathing)
-    // Uses time-based proximity to last kick hit rather than voice presence
     if (instrument === DrumInstrument.Hat) {
-      const now = Tone.now()
-      const msSinceKick = (now - this.lastKickTime) * 1000
-      // Fast duck near kick, recover over ~80ms
-      const kickDuck = msSinceKick < 80 ? Math.max(0.35, msSinceKick / 80) : 1.0
+      const msSinceKick = (time - this.lastKickTime) * 1000
+      const kickDuck = (msSinceKick >= 0 && msSinceKick < 80) ? Math.max(0.35, msSinceKick / 80) : 1.0
       vel *= kickDuck * this.hatDensityMult
     }
 
     return Math.min(1, Math.max(0, vel))
   }
 
-  // Enforce monotonic scheduling per voice. Monophonic Tone synths throw when
-  // a new event lands before the previous one on the same voice's timeline.
   private clampTime(voice: string, t: number): number {
     const now = Tone.now()
     const last = this.lastTriggerByVoice.get(voice) ?? 0
@@ -712,25 +642,17 @@ export class DrumGenerator extends GeneratorBase {
     try {
       synth.triggerAttackRelease(duration, t, velocity)
     } catch (err) {
-      if (err instanceof Error && err.message.includes('Start time must be strictly greater')) {
-        console.warn('[Organism] dropped drum noise hit with invalid schedule time', {
-          voice,
-          requestedTime: time,
-          clampedTime: t,
-          now: Tone.now(),
-        })
-        return
-      }
+      if (err instanceof Error && err.message.includes('Start time must be strictly greater')) return
       throw err
     }
   }
 
-  private triggerDrum(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity = velocity): void {
+  private triggerDrum(instrument: DrumInstrument, time: number, velocity: number, voiceVelocity: number): void {
     const t = Math.max(0, time)
 
     const sampledVoice = instrument === DrumInstrument.Hat && voiceVelocity > 0.55 ? 'sampleHatOpen' : `sample${instrument}`
     const sampledTime = this.clampTime(sampledVoice, t)
-    if (this.sampledKit.trigger(instrument, sampledTime, velocity, voiceVelocity)) {
+    if (this.sampledKit!.trigger(instrument, sampledTime, velocity, voiceVelocity)) {
       if (instrument === DrumInstrument.Kick) {
         this.lastKickTime = sampledTime
         if (this.onKickTrigger) this.onKickTrigger(sampledTime)
@@ -738,34 +660,38 @@ export class DrumGenerator extends GeneratorBase {
       return
     }
 
-    // All Cymatics sample slots exhausted for this voice — go silent.
-    // Synth oscillator fallback intentionally removed: a missing hit in a
-    // hip-hop track is far less disruptive than a MembraneSynth/NoiseSynth thump
-    // that reads as the wrong kit entirely. The merged primary+fallback pool in
-    // SampledDrumKit means this path is only reached when every committed WAV
-    // for this voice has permanently 404'd (server misconfiguration), which
-    // should never happen in normal operation.
-    //
-    // Sidechain state still updates on silent kicks so bass-ducking stays
-    // phase-consistent — prevents a "pop" from the bass un-ducking unexpectedly.
-    //
-    // NOTE: kickSub, kickClick, snareBody, snareTone, hat, hatOpen, perc synth
-    // voices are retained — they are used exclusively by triggerImpact() for
-    // the section-drop "cinematic thump" effect, NOT as drum-kit fallbacks.
-    if (instrument === DrumInstrument.Kick) {
-      this.lastKickTime = t
-      if (this.onKickTrigger) this.onKickTrigger(t)
+    switch (instrument) {
+      case DrumInstrument.Kick: {
+        const tSub = this.clampTime('kickSub', t)
+        this.kickSub!.triggerAttackRelease(this.currentKickNote, '8n', tSub, velocity)
+        this.triggerNoise('kickClick', this.kickClick!, '32n', t, velocity * 0.6)
+        this.lastKickTime = tSub
+        if (this.onKickTrigger) this.onKickTrigger(tSub)
+        break
+      }
+      case DrumInstrument.Snare: {
+        const tTone = this.clampTime('snareTone', t)
+        this.triggerNoise('snareBody', this.snareBody!, '8n', t, velocity)
+        this.snareTone!.triggerAttackRelease('E3', '16n', tTone, velocity * 0.7)
+        break
+      }
+      case DrumInstrument.Hat:
+        if (voiceVelocity > 0.55) {
+          const tOpen = this.clampTime('hatOpen', t)
+          this.hatOpen!.triggerAttackRelease('32n', tOpen, velocity * 0.85)
+        } else {
+          const tHat = this.clampTime('hat', t)
+          this.hat!.triggerAttackRelease('32n', tHat, velocity)
+        }
+        break
+      case DrumInstrument.Perc: {
+        this.triggerNoise('perc', this.perc!, '16n', t, velocity)
+        break
+      }
     }
   }
 
-  private startSubKickRise(): void {
-    // Very soft kick pulse during awakening
-    this.kickSub.volume.rampTo(-24, 2)
-  }
-
-  /** Public so the orchestrator can hard-cut the part on a live preset swap
-   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
-  stopPart(): void {
+  private stopPart(): void {
     this.clearBarEndBreakFill()
     this.clearMicroFill()
     if (this.part) {
@@ -776,44 +702,8 @@ export class DrumGenerator extends GeneratorBase {
     this.lastTriggerByVoice.clear()
   }
 
-  triggerBarEndBreakFill(time: number): void {
-    this.clearBarEndBreakFill()
+  private _microFillEventIds: number[] = []
 
-    const bpm = Tone.getTransport().bpm.value || 120
-    const beatDurationSec = 60 / bpm
-    const step32ndSec = beatDurationSec / 8
-
-    // Generate 16 steps of 32nd notes (for 2 beats total break duration)
-    const events = Array.from({ length: 16 }, (_, i) => ({
-      time: i * step32ndSec,
-      velocity: i % 2 === 0 ? 0.75 : 0.4 // bouncy hi-hat pattern
-    }))
-
-    this.breakFillPart = new Tone.Part((hitTime, event) => {
-      // Trigger a closed hi-hat hit on the grid
-      this.triggerDrum(DrumInstrument.Hat, time + hitTime, event.velocity)
-    }, events)
-
-    this.breakFillPart.start(time)
-  }
-
-  clearBarEndBreakFill(): void {
-    if (this.breakFillPart) {
-      try { this.breakFillPart.stop() } catch { /* */ }
-      try { this.breakFillPart.dispose() } catch { /* */ }
-      this.breakFillPart = null
-    }
-  }
-
-  /**
-   * Trigger a 1-beat micro-fill at `time` (audio-clock seconds).
-   * Fires on beat 3 of every 4th bar to break up the loop feeling without
-   * a full section break. Three types rotate so consecutive 4-bar marks
-   * each have a different character:
-   *   0 — hat stutter  (4× 32nd closed hats: "tss tss tss tss")
-   *   1 — ghost snare  (quiet ghost on the "and" of beat 2 → normal snare on beat 3)
-   *   2 — kick echo    (extra kick on the "and" of beat 4 — trap stuttered kick)
-   */
   triggerMicroFill(time: number, fillIndex: number): void {
     this.clearMicroFill()
     const transport = Tone.getTransport()
@@ -822,25 +712,26 @@ export class DrumGenerator extends GeneratorBase {
     const s16  = beat / 4
     const s32  = beat / 8
 
-    // Schedule individual hits via scheduleOnce — avoids Tone.Part generic typing.
-    // IDs are stored so clearMicroFill can cancel them if the fill fires early.
     const ids: number[] = []
     const sched = (dt: number, instr: DrumInstrument, vel: number) => {
-      ids.push(transport.scheduleOnce(t => this.triggerDrum(instr, t, vel), time + dt))
+      ids.push(transport.scheduleOnce(t => this.triggerDrum(instr, t, vel, vel), time + dt))
     }
 
     switch (fillIndex % 3) {
-      case 0: // hat stutter — 4 rapid 32nd hats, crescendo into beat 4
+      case 0: 
         sched(0,       DrumInstrument.Hat,   0.55)
         sched(s32,     DrumInstrument.Hat,   0.63)
         sched(s32 * 2, DrumInstrument.Hat,   0.71)
         sched(s32 * 3, DrumInstrument.Hat,   0.80)
         break
-      case 1: // ghost snare — whisper on "and" of beat 2, accent on beat 3
-        sched(-s16, DrumInstrument.Snare, 0.22)
-        sched(0,    DrumInstrument.Snare, 0.75)
+      case 1:
+        {
+          const ghostSnareTime = Math.max(Tone.now() + 0.005, time - s16)
+          ids.push(transport.scheduleOnce(t => this.triggerDrum(DrumInstrument.Snare, t, 0.22, 0.22), ghostSnareTime))
+          sched(0,    DrumInstrument.Snare, 0.75)
+        }
         break
-      case 2: // kick echo — double kick on beat 4 + a 16th later (trap stutter)
+      case 2:
         sched(beat,       DrumInstrument.Kick, 0.80)
         sched(beat + s16, DrumInstrument.Kick, 0.55)
         break
@@ -849,31 +740,45 @@ export class DrumGenerator extends GeneratorBase {
     this._microFillEventIds = ids
   }
 
-  private _microFillEventIds: number[] = []
-
   clearMicroFill(): void {
-    const transport = Tone.getTransport()
-    for (const id of this._microFillEventIds) {
-      try { transport.clear(id) } catch { /* */ }
-    }
+    this._microFillEventIds.forEach(id => Tone.getTransport().clear(id))
     this._microFillEventIds = []
-    if (this.microFillPart) {
-      try { this.microFillPart.stop() } catch { /* */ }
-      try { this.microFillPart.dispose() } catch { /* */ }
-      this.microFillPart = null
+  }
+
+  triggerBarEndBreakFill(time: number): void {
+    this.clearBarEndBreakFill()
+
+    const bpm = Tone.getTransport().bpm.value || 120
+    const beatDurationSec = 60 / bpm
+    const step32ndSec = beatDurationSec / 8
+
+    const events = Array.from({ length: 16 }, (_, i) => ({
+      time: i * step32ndSec,
+      velocity: i % 2 === 0 ? 0.75 : 0.4
+    }))
+
+    this.breakFillPart = new Tone.Part((hitTime, event) => {
+      this.triggerDrum(DrumInstrument.Hat, time + hitTime, event.velocity, event.velocity)
+    }, events)
+
+    this.breakFillPart.start(time)
+  }
+
+  clearBarEndBreakFill(): void {
+    if (this.breakFillPart) {
+      try { this.breakFillPart.stop() } catch { }
+      try { this.breakFillPart.dispose() } catch { }
+      this.breakFillPart = null
     }
   }
 
-  /** Register a callback fired on every kick hit — used for sidechain ducking. */
   setKickTriggerCallback(cb: ((time: number) => void) | null): void {
     this.onKickTrigger = cb
   }
 
-
   private setOutputLevel(level: number): void {
     const shaped = level * this.arrangementMultiplier
-    const db = shaped <= 0 ? -Infinity : 20 * Math.log10(Math.max(0.0001, shaped))
-    const linear = db === -Infinity ? 0 : Math.pow(10, db / 20)
+    const linear = shaped <= 0.0001 ? 0 : shaped
     if (Math.abs(linear - this.lastOutputGain) < 0.008) return
     this.lastOutputGain = linear
     this.output.gain.cancelScheduledValues(Tone.now())
@@ -881,24 +786,38 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   dispose(): void {
-    this.unsubConductor?.()
-    this.disposeLoopPlayback()
     this.stopPart()
-    this.kickSub.dispose()
-    this.kickClick.dispose()
-    this.kickBus.dispose()
-    this.kickDist.dispose()
-    this.snareBody.dispose()
-    this.snareTone.dispose()
-    this.snareBus.dispose()
-    this.hat.dispose()
-    this.hatOpen.dispose()
-    this.hatFilter.dispose()
-    this.perc.dispose()
-    this.percFilter.dispose()
-    this.sampledKit.dispose()
-    this.sampleBus.dispose()
-    this.compressor.dispose()
+    this.kickSub?.dispose()
+    this.kickClick?.dispose()
+    this.kickBus?.dispose()
+    this.kickDist?.dispose()
+    this.snareBody?.dispose()
+    this.snareTone?.dispose()
+    this.snareBus?.dispose()
+    this.hat?.dispose()
+    this.hatOpen?.dispose()
+    this.hatFilter?.dispose()
+    this.perc?.dispose()
+    this.percFilter?.dispose()
+    this.sampledKit?.dispose()
+    this.sampleBus?.dispose()
+    this.compressor?.dispose()
     this.output.dispose()
+
+    this.kickSub = null
+    this.kickClick = null
+    this.kickBus = null
+    this.kickDist = null
+    this.snareBody = null
+    this.snareTone = null
+    this.snareBus = null
+    this.hat = null
+    this.hatOpen = null
+    this.hatFilter = null
+    this.perc = null
+    this.percFilter = null
+    this.sampledKit = null
+    this.sampleBus = null
+    this.compressor = null
   }
 }

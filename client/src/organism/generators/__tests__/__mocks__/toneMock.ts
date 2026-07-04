@@ -178,12 +178,14 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
       })
     }),
     Distortion: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         wet: audioParam(0),
       })
     }),
@@ -191,6 +193,7 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         wet: audioParam(0),
         feedback: audioParam(0),
       })
@@ -199,6 +202,7 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         start: vi.fn(),
         wet: audioParam(0),
       })
@@ -217,6 +221,7 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         frequency: audioParam(400, mockFilterFreqRampTo),
       })
     }),
@@ -224,12 +229,14 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         wet: audioParam(0.5, mockReverbWetRampTo),
       })
     }),
     Noise: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
       return Object.assign(this, {
         connect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
         start: mockNoiseStart,
       })
     }),
