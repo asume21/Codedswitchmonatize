@@ -16,6 +16,7 @@ import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
+import { mulberry32, getSessionSalt, hashString } from './freeplay/utils'
 
 const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
   'latin': (v: number) => v < 0.6 ? v * 0.7 : v,
@@ -440,9 +441,13 @@ export class DrumGenerator extends GeneratorBase {
   private grooveHatShiftPct: number[] = []
 
   private buildGrooveTemplate(): void {
-    // Generate static humanization offsets per 16th-slot
-    this.grooveHatShiftPct = Array.from({ length: 16 }, () => (Math.random() - 0.5) * 1.5)
-    this.grooveSnareLagMs  = Array.from({ length: 16 }, () => Math.random() * 8)
+    // Generate static humanization offsets per 16th-slot. Seeded off the
+    // freeplay session salt (same convention as Bass/Chord/GeneratorOrchestrator's
+    // freeplay RNGs) so setFreeplaySeed(...) + restart reproduces the exact
+    // groove micro-timing feel, not just the pattern/note choices.
+    const rng = mulberry32(hashString('groove-template') + getSessionSalt())
+    this.grooveHatShiftPct = Array.from({ length: 16 }, () => (rng() - 0.5) * 1.5)
+    this.grooveSnareLagMs  = Array.from({ length: 16 }, () => rng() * 8)
   }
 
   private applyKitPreset(): void {
