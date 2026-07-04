@@ -23,6 +23,8 @@ export interface LyricTimingOptions {
   offsetSec?: number;
   bpm?: number;
   snapToBeat?: boolean;
+  /** Scales all timestamps to correct drift (start syncs via offset, end via speed). */
+  speed?: number;
 }
 
 export interface ResolvedLyricVideoLine extends LyricVideoLine {
@@ -42,6 +44,10 @@ function clampInt(value: number, min: number, max: number) {
 
 function safeBpm(bpm?: number) {
   return Number.isFinite(bpm) && bpm! > 0 ? bpm! : DEFAULT_BPM;
+}
+
+function safeSpeed(speed?: number) {
+  return Number.isFinite(speed) && speed! > 0 ? speed! : 1;
 }
 
 function chunkWords(words: string[], wordsPerLine: number) {
@@ -121,13 +127,14 @@ export function snapTimeToBeat(seconds: number, bpm = DEFAULT_BPM) {
 
 export function resolveLyricLineTiming(
   line: LyricVideoLine,
-  { offsetSec = 0, bpm = DEFAULT_BPM, snapToBeat = false }: LyricTimingOptions = {},
+  { offsetSec = 0, bpm = DEFAULT_BPM, snapToBeat = false, speed = 1 }: LyricTimingOptions = {},
 ): ResolvedLyricVideoLine {
-  const rawStart = line.start + offsetSec;
+  const s = safeSpeed(speed);
+  const rawStart = line.start * s + offsetSec;
   const clampedStart = Math.max(0, rawStart);
   const displayStart = snapToBeat ? snapTimeToBeat(clampedStart, bpm) : clampedStart;
   const timingShift = displayStart - rawStart;
-  const displayEnd = Math.max(displayStart + 0.35, line.end + offsetSec + timingShift);
+  const displayEnd = Math.max(displayStart + 0.35, line.end * s + offsetSec + timingShift);
 
   return {
     ...line,

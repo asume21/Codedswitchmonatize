@@ -8,6 +8,20 @@ import {
 } from '../lyricVideoTiming';
 
 describe('lyricVideoTiming', () => {
+  it('applies speed to correct drift, then offset', () => {
+    const line = { id: 'l', text: 'a', start: 10, end: 12, words: [] };
+    // speed 1.05 stretches the timeline; offset -0.5 shifts earlier.
+    const resolved = resolveLyricLineTiming(line, { offsetSec: -0.5, speed: 1.05 });
+    expect(resolved.displayStart).toBeCloseTo(10 * 1.05 - 0.5, 5); // 10.0
+    expect(resolved.displayEnd).toBeCloseTo(12 * 1.05 - 0.5, 5); // 12.1
+  });
+
+  it('defaults speed to 1 (no scaling) when unset or invalid', () => {
+    const line = { id: 'l', text: 'a', start: 8, end: 9, words: [] };
+    expect(resolveLyricLineTiming(line, {}).displayStart).toBeCloseTo(8, 5);
+    expect(resolveLyricLineTiming(line, { speed: 0 }).displayStart).toBeCloseTo(8, 5);
+  });
+
   it('normalizes OpenAI word timestamp shapes', () => {
     expect(normalizeTimedWords([
       { word: ' hello ', start: 0.2, end: 0.6 },

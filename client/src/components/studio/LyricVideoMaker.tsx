@@ -90,14 +90,56 @@ function getMediaElementCaptureStream(audio: HTMLAudioElement): MediaStream | nu
   return captureStream ? captureStream.call(audio) : null;
 }
 
+type FontKey = 'Inter' | 'Impact' | 'Serif' | 'Mono';
+
+// Reliable system-available families (no async font loading needed for canvas).
+const FONT_FAMILIES: Record<FontKey, string> = {
+  Inter: 'Inter, ui-sans-serif, system-ui, sans-serif',
+  Impact: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif',
+  Serif: 'Georgia, "Times New Roman", serif',
+  Mono: '"Courier New", ui-monospace, monospace',
+};
+
+type AnimStyle = 'none' | 'fade' | 'pop' | 'slide';
+
+// Runs `draw` inside a transform that eases the active line/word in as it appears.
+// `enter` is 0→1 progress; at >= 1 it's a no-op so past content stays static.
+function withEntrance(
+  ctx: CanvasRenderingContext2D,
+  style: AnimStyle,
+  enter: number,
+  cx: number,
+  cy: number,
+  draw: () => void,
+) {
+  if (style === 'none' || enter >= 1) {
+    draw();
+    return;
+  }
+  const e = Math.max(0, Math.min(1, enter));
+  ctx.save();
+  ctx.globalAlpha = e;
+  if (style === 'pop') {
+    const scale = 0.7 + 0.3 * e;
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+  } else if (style === 'slide') {
+    ctx.translate(0, (1 - e) * 40);
+  }
+  draw();
+  ctx.restore();
+}
+
 function drawWordRow(
   ctx: CanvasRenderingContext2D,
   tokens: Array<{ text: string; active: boolean }>,
   y: number,
   fontSize: number,
   maxWidth: number,
+  fontFamily: string,
 ) {
-  ctx.font = `800 ${fontSize}px Inter, ui-sans-serif, system-ui, sans-serif`;
+  ctx.font = `800 ${fontSize}px ${fontFamily}`;
   const spaceWidth = ctx.measureText(' ').width;
   const tokenWidths = tokens.map((token) => ctx.measureText(token.text).width);
   const totalWidth = tokenWidths.reduce((sum, width) => sum + width, 0) + spaceWidth * Math.max(0, tokens.length - 1);
@@ -115,13 +157,14 @@ function drawWrappedWords(
   words: Array<{ text: string; active: boolean }>,
   centerY: number,
   requestedFontSize: number,
+  fontFamily: string,
 ) {
   const maxWidth = CANVAS_WIDTH * 0.84;
   let fontSize = requestedFontSize;
   let rows: Array<Array<{ text: string; active: boolean }>> = [];
 
   while (fontSize >= 34) {
-    ctx.font = `800 ${fontSize}px Inter, ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `800 ${fontSize}px ${fontFamily}`;
     rows = [];
     let currentRow: Array<{ text: string; active: boolean }> = [];
     let currentWidth = 0;
@@ -154,7 +197,7 @@ function drawWrappedWords(
   const lineHeight = fontSize * 1.24;
   const firstY = centerY - ((rows.length - 1) * lineHeight) / 2;
   rows.forEach((row, index) => {
-    drawWordRow(ctx, row, firstY + index * lineHeight, fontSize, maxWidth);
+    drawWordRow(ctx, row, firstY + index * lineHeight, fontSize, maxWidth, fontFamily);
   });
 }
 
@@ -168,6 +211,9 @@ function renderLyricFrame({
   fontSize,
   revealMode,
   showNextLine,
+  speed,
+  fontFamily,
+  animStyle,
 }: {
   canvas: HTMLCanvasElement;
   lines: LyricVideoLine[];
@@ -178,6 +224,9 @@ function renderLyricFrame({
   fontSize: number;
   revealMode: 'line' | 'build' | 'word';
   showNextLine: boolean;
+  speed: number;
+  fontFamily: string;
+  animStyle: AnimStyle;
 }) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -186,14 +235,14 @@ function renderLyricFrame({
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  const timingOptions = { offsetSec, bpm, snapToBeat };
+  const timingOptions = { offsetSec, bpm, snapToBeat, speed };
   const activeLine = findActiveLyricLine(lines, currentTime, timingOptions);
   const nextLine = findNextLyricLine(lines, currentTime, timingOptions);
   const displayLine = activeLine ?? nextLine;
 
   if (!displayLine) {
     ctx.fillStyle = '#64748b';
-    ctx.font = '700 54px Inter, ui-sans-serif, system-ui, sans-serif';
+    ctx.font = `700 54px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.fillText('LYRICS READY', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
     ctx.textAlign = 'left';
@@ -204,20 +253,25 @@ function renderLyricFrame({
   const wordShift = offsetSec + resolved.timingShift;
   ctx.textBaseline = 'middle';
 
+  // Ease the active line in as it appears; other lines render fully (no anim).
+  const enter = activeLine
+    ? Math.min(1, Math.max(0, (currentTime - resolved.displayStart) / 0.22))
+    : 1;
+
   // One-word flash: only the current word, large & centered. Ignores line layout.
   if (revealMode === 'word' && displayLine.words.length > 0) {
     let current: { text: string; start: number } | null = null;
     for (const word of displayLine.words) {
-      const start = word.start + wordShift;
+      const start = word.start * speed + wordShift;
       if (currentTime >= start) current = { text: word.text, start };
       else break;
     }
-    if (current) drawFlashWord(ctx, current.text, currentTime - current.start, fontSize);
+    if (current) drawFlashWord(ctx, current.text, currentTime - current.start, fontSize, fontFamily);
     drawBeatPulse(ctx, currentTime, bpm);
     return;
   }
 
-  let words = buildCanvasWords(displayLine, currentTime, wordShift);
+  let words = buildCanvasWords(displayLine, currentTime, wordShift, speed);
   // Build-up: reveal words one at a time as they're sung (nothing to read ahead).
   if (revealMode === 'build') {
     words = words.filter((word) => word.started);
@@ -225,12 +279,14 @@ function renderLyricFrame({
 
   ctx.shadowColor = 'rgba(34, 211, 238, 0.28)';
   ctx.shadowBlur = activeLine ? 20 : 0;
-  drawWrappedWords(ctx, words, CANVAS_HEIGHT / 2, fontSize);
+  withEntrance(ctx, animStyle, enter, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, () => {
+    drawWrappedWords(ctx, words, CANVAS_HEIGHT / 2, fontSize, fontFamily);
+  });
   ctx.shadowBlur = 0;
 
   if (showNextLine && activeLine && nextLine && nextLine.id !== activeLine.id) {
     ctx.globalAlpha = 0.42;
-    ctx.font = `700 ${Math.max(26, Math.round(fontSize * 0.42))}px Inter, ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `700 ${Math.max(26, Math.round(fontSize * 0.42))}px ${fontFamily}`;
     ctx.fillStyle = '#94a3b8';
     ctx.textAlign = 'center';
     ctx.fillText(nextLine.text, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + fontSize * 1.45);
@@ -241,15 +297,20 @@ function renderLyricFrame({
   drawBeatPulse(ctx, currentTime, bpm);
 }
 
-function buildCanvasWords(line: ResolvedLyricVideoLine, currentTime: number, wordShift: number) {
+function buildCanvasWords(
+  line: ResolvedLyricVideoLine,
+  currentTime: number,
+  wordShift: number,
+  speed: number,
+) {
   if (line.words.length === 0) {
     // No per-word timing: show the whole line, nothing to reveal progressively.
     return line.text.split(/\s+/).filter(Boolean).map((text) => ({ text, active: false, started: true }));
   }
 
   return line.words.map((word) => {
-    const start = word.start + wordShift;
-    const end = word.end + wordShift;
+    const start = word.start * speed + wordShift;
+    const end = word.end * speed + wordShift;
     return {
       text: word.text,
       active: currentTime >= start && currentTime < end,
@@ -264,6 +325,7 @@ function drawFlashWord(
   text: string,
   timeSinceStart: number,
   baseFontSize: number,
+  fontFamily: string,
 ) {
   const pop = Math.min(1, Math.max(0, timeSinceStart / 0.09));
   const size = Math.min(170, baseFontSize * 1.7) * (0.82 + 0.18 * pop);
@@ -271,7 +333,7 @@ function drawFlashWord(
   ctx.globalAlpha = 0.35 + 0.65 * pop;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `900 ${size}px Inter, ui-sans-serif, system-ui, sans-serif`;
+  ctx.font = `900 ${size}px ${fontFamily}`;
   ctx.fillStyle = '#22d3ee';
   ctx.shadowColor = 'rgba(34, 211, 238, 0.55)';
   ctx.shadowBlur = 34;
@@ -317,6 +379,9 @@ export default function LyricVideoMaker() {
   const [fontSize, setFontSize] = useState(82);
   const [showNextLine, setShowNextLine] = useState(false);
   const [revealMode, setRevealMode] = useState<'line' | 'build' | 'word'>('line');
+  const [speedPct, setSpeedPct] = useState(100); // 100 = 1.0x; scales word times to fix drift
+  const [fontKey, setFontKey] = useState<FontKey>('Inter');
+  const [animStyle, setAnimStyle] = useState<'none' | 'fade' | 'pop' | 'slide'>('fade');
 
   const lines = useMemo(
     () => buildLyricVideoLines({
@@ -342,8 +407,11 @@ export default function LyricVideoMaker() {
       fontSize,
       revealMode,
       showNextLine,
+      speed: speedPct / 100,
+      fontFamily: FONT_FAMILIES[fontKey],
+      animStyle,
     });
-  }, [fontSize, lines, offsetMs, snapToBeat, tempo, revealMode, showNextLine]);
+  }, [fontSize, lines, offsetMs, snapToBeat, tempo, revealMode, showNextLine, speedPct, fontKey, animStyle]);
 
   const stopDrawLoop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -790,6 +858,31 @@ export default function LyricVideoMaker() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="lyric-speed" className="text-xs text-muted-foreground">
+                    Speed
+                  </Label>
+                  <Input
+                    id="lyric-speed"
+                    type="number"
+                    value={speedPct}
+                    onChange={(event) => setSpeedPct(Math.max(80, Math.min(120, Number(event.target.value) || 100)))}
+                    className="h-8 w-24 bg-background text-right font-mono text-xs"
+                  />
+                </div>
+                <Slider
+                  value={[speedPct]}
+                  min={80}
+                  max={120}
+                  step={1}
+                  onValueChange={(value) => setSpeedPct(value[0] ?? 100)}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  stretch/compress so the END lines up too (fixes drift over the song)
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label htmlFor="words-per-line" className="text-xs text-muted-foreground">
@@ -838,6 +931,53 @@ export default function LyricVideoMaker() {
                       className={cn(
                         'h-8 px-1 text-[11px]',
                         revealMode === mode && 'border-cyan-500 bg-cyan-600 text-white hover:bg-cyan-500',
+                      )}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Font</Label>
+                <div className="grid grid-cols-4 gap-1">
+                  {(['Inter', 'Impact', 'Serif', 'Mono'] as const).map((key) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setFontKey(key)}
+                      className={cn(
+                        'h-8 px-1 text-[11px]',
+                        fontKey === key && 'border-cyan-500 bg-cyan-600 text-white hover:bg-cyan-500',
+                      )}
+                    >
+                      {key}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Animation</Label>
+                <div className="grid grid-cols-4 gap-1">
+                  {([
+                    ['none', 'None'],
+                    ['fade', 'Fade'],
+                    ['pop', 'Pop'],
+                    ['slide', 'Slide'],
+                  ] as const).map(([mode, label]) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAnimStyle(mode)}
+                      className={cn(
+                        'h-8 px-1 text-[11px]',
+                        animStyle === mode && 'border-cyan-500 bg-cyan-600 text-white hover:bg-cyan-500',
                       )}
                     >
                       {label}
