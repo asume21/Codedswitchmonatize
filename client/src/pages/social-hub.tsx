@@ -65,6 +65,9 @@ function OrganismSessionCard({ post, isAuthenticated }: { post: any; isAuthentic
     caption = post.content || '';
   }
 
+  const isVideoPost =
+    post.type === 'lyric-video' || /\.(mp4|webm)(\?|$)/i.test(post.mediaUrl || '');
+
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -108,27 +111,36 @@ function OrganismSessionCard({ post, isAuthenticated }: { post: any; isAuthentic
         )}
       </div>
 
-      {/* Audio player */}
+      {/* Media */}
       {post.mediaUrl ? (
-        <div className="flex items-center gap-3 mb-3 bg-black/30 rounded-lg p-2.5">
-          <button
-            onClick={togglePlay}
-            className="w-8 h-8 rounded-full bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center text-white shrink-0 transition-colors"
-          >
-            {isPlaying ? '⏸' : '▶'}
-          </button>
-          <audio
-            ref={audioRef}
+        isVideoPost ? (
+          <video
             src={post.mediaUrl}
-            onEnded={() => setIsPlaying(false)}
-            className="flex-1 h-6"
             controls
-            style={{ height: 24, opacity: 0.7 }}
+            playsInline
+            className="w-full max-h-[420px] rounded-lg mb-3 bg-black"
           />
-        </div>
+        ) : (
+          <div className="flex items-center gap-3 mb-3 bg-black/30 rounded-lg p-2.5">
+            <button
+              onClick={togglePlay}
+              className="w-8 h-8 rounded-full bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center text-white shrink-0 transition-colors"
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+            <audio
+              ref={audioRef}
+              src={post.mediaUrl}
+              onEnded={() => setIsPlaying(false)}
+              className="flex-1 h-6"
+              controls
+              style={{ height: 24, opacity: 0.7 }}
+            />
+          </div>
+        )
       ) : (
         <div className="mb-3 bg-black/20 rounded-lg p-2.5 text-center text-xs text-cyan-500/40">
-          No audio recorded
+          No media
         </div>
       )}
 

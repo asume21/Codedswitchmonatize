@@ -5,6 +5,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Share2,
   SlidersHorizontal,
   Subtitles,
   Upload,
@@ -261,6 +262,7 @@ export default function LyricVideoMaker() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [offsetMs, setOffsetMs] = useState(0);
   const [snapToBeat, setSnapToBeat] = useState(true);
@@ -429,78 +431,91 @@ export default function LyricVideoMaker() {
     drawFrame(0);
   };
 
-  const exportVideo = async () => {
+  // Record the canvas + audio to a WebM blob. Browsers can only record WebM
+  // reliably; the server transcodes it to MP4. Shared by export and share.
+  const recordToWebm = async (): Promise<Blob> => {
     const canvas = canvasRef.current;
     const audio = audioRef.current;
-    if (!canvas || !audio || !uploadedAudio) return;
-
-    if (!lines.length) {
-      toast({
-        title: 'No lyrics to export',
-        description: 'Transcribe or paste lyrics first.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!canvas || !audio) throw new Error('Player not ready');
 
     const mimeType = getBestVideoMimeType();
-    if (!mimeType) {
-      toast({
-        title: 'Export unavailable',
-        description: 'This browser cannot record WebM video.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!mimeType) throw new Error('This browser cannot record video.');
 
-    setIsExporting(true);
     pausePreview();
     audio.currentTime = 0;
     drawFrame(0);
 
-    try {
-      const videoStream = canvas.captureStream(EXPORT_FPS);
-      const audioStream = getMediaElementCaptureStream(audio);
-      const stream = new MediaStream([
-        ...videoStream.getVideoTracks(),
-        ...(audioStream?.getAudioTracks() ?? []),
-      ]);
-      const recorder = new MediaRecorder(stream, { mimeType });
-      const chunks: Blob[] = [];
+    const videoStream = canvas.captureStream(EXPORT_FPS);
+    const audioStream = getMediaElementCaptureStream(audio);
+    const stream = new MediaStream([
+      ...videoStream.getVideoTracks(),
+      ...(audioStream?.getAudioTracks() ?? []),
+    ]);
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data);
+    const complete = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        resolve(new Blob(chunks, { type: mimeType }));
       };
+    });
 
-      const complete = new Promise<Blob>((resolve) => {
-        recorder.onstop = () => {
-          stream.getTracks().forEach((track) => track.stop());
-          resolve(new Blob(chunks, { type: mimeType }));
-        };
+    const loop = () => {
+      drawFrame(audio.currentTime);
+      if (recorder.state === 'recording' && !audio.ended) {
+        rafRef.current = requestAnimationFrame(loop);
+      }
+    };
+
+    recorder.start(250);
+    await audio.play();
+    loop();
+
+    const stopRecording = () => {
+      if (recorder.state === 'recording') recorder.stop();
+    };
+    audio.addEventListener('ended', stopRecording, { once: true });
+    window.setTimeout(stopRecording, Math.ceil((audio.duration || duration || 0) * 1000) + 750);
+
+    const blob = await complete;
+    audio.removeEventListener('ended', stopRecording);
+    return blob;
+  };
+
+  const resetPlayback = () => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setIsPreviewing(false);
+    stopDrawLoop();
+    drawFrame(0);
+  };
+
+  // Shared precheck: need audio + lyrics before recording anything.
+  const ensureReady = (): boolean => {
+    if (!uploadedAudio) return false;
+    if (!lines.length) {
+      toast({
+        title: 'No lyrics yet',
+        description: 'Transcribe or paste lyrics first.',
+        variant: 'destructive',
       });
+      return false;
+    }
+    return true;
+  };
 
-      const exportLoop = () => {
-        drawFrame(audio.currentTime);
-        if (recorder.state === 'recording' && !audio.ended) {
-          rafRef.current = requestAnimationFrame(exportLoop);
-        }
-      };
-
-      recorder.start(250);
-      await audio.play();
-      exportLoop();
-
-      const stopRecording = () => {
-        if (recorder.state === 'recording') recorder.stop();
-      };
-      audio.addEventListener('ended', stopRecording, { once: true });
-      window.setTimeout(stopRecording, Math.ceil((audio.duration || duration || 0) * 1000) + 750);
-
-      const webmBlob = await complete;
-      audio.removeEventListener('ended', stopRecording);
-
-      // Browsers can only record WebM; transcode server-side to a shareable MP4.
-      // No fallback: on failure the catch below surfaces a hard error toast.
+  const exportVideo = async () => {
+    if (!ensureReady()) return;
+    setIsExporting(true);
+    try {
+      const webmBlob = await recordToWebm();
       const form = new FormData();
       form.append('video', webmBlob, 'lyric-video.webm');
       const response = await fetch('/api/lyric-video/transcode', {
@@ -508,22 +523,17 @@ export default function LyricVideoMaker() {
         body: form,
         credentials: 'include',
       });
-      if (!response.ok) {
-        throw new Error(`MP4 export failed (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`MP4 export failed (${response.status})`);
       const mp4Blob = await response.blob();
 
       const url = URL.createObjectURL(mp4Blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${sanitizeDownloadName(uploadedAudio.name)}-lyrics-video.mp4`;
+      link.download = `${sanitizeDownloadName(uploadedAudio?.name ?? 'lyric')}-lyrics-video.mp4`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-      toast({
-        title: 'Video exported',
-        description: audioStream?.getAudioTracks().length ? 'MP4 ready to share.' : 'MP4 exported (no audio captured).',
-      });
+      toast({ title: 'Video exported', description: 'MP4 ready to share.' });
     } catch (error) {
       toast({
         title: 'Export failed',
@@ -531,12 +541,35 @@ export default function LyricVideoMaker() {
         variant: 'destructive',
       });
     } finally {
-      audio.pause();
-      audio.currentTime = 0;
-      setIsPreviewing(false);
       setIsExporting(false);
-      stopDrawLoop();
-      drawFrame(0);
+      resetPlayback();
+    }
+  };
+
+  const shareToFeed = async () => {
+    if (!ensureReady()) return;
+    setIsSharing(true);
+    try {
+      const webmBlob = await recordToWebm();
+      const form = new FormData();
+      form.append('video', webmBlob, 'lyric-video.webm');
+      form.append('caption', lyricsText.split('\n')[0]?.slice(0, 120) ?? '');
+      const response = await fetch('/api/lyric-video/share', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error(`Share failed (${response.status})`);
+      toast({ title: 'Shared to feed', description: 'Your lyric video is live in the Social Hub.' });
+    } catch (error) {
+      toast({
+        title: 'Share failed',
+        description: error instanceof Error ? error.message : 'Could not share the video.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSharing(false);
+      resetPlayback();
     }
   };
 
@@ -625,10 +658,21 @@ export default function LyricVideoMaker() {
               size="sm"
               className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500"
               onClick={exportVideo}
-              disabled={!canPreview || !lines.length || isExporting}
+              disabled={!canPreview || !lines.length || isExporting || isSharing}
             >
               <Download className="h-4 w-4" />
               {isExporting ? 'Exporting' : 'Export'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="gap-2 bg-purple-600 text-white hover:bg-purple-500"
+              onClick={shareToFeed}
+              disabled={!canPreview || !lines.length || isExporting || isSharing}
+              title="Post this lyric video to the Social Hub feed"
+            >
+              <Share2 className="h-4 w-4" />
+              {isSharing ? 'Sharing' : 'Share to Feed'}
             </Button>
             <span className="ml-auto font-mono text-xs text-muted-foreground">
               {formatTime(audioRef.current?.currentTime || 0)} / {formatTime(duration)}
