@@ -26,13 +26,15 @@ import { useToast } from '@/hooks/use-toast';
 import { ApiError, apiRequest } from '@/lib/queryClient';
 import {
   buildLyricVideoLines,
-  findActiveLyricLine,
-  findNextLyricLine,
   resolveLyricLineTiming,
-  type LyricVideoLine,
-  type ResolvedLyricVideoLine,
   type TimedLyricWord,
 } from '@/lib/lyricVideoTiming';
+import {
+  renderLyricFrame,
+  FONT_FAMILIES,
+  type FontKey,
+  type AnimStyle,
+} from '@/lib/lyricVideoCanvas';
 import { useStudioStore } from '@/stores/useStudioStore';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +60,13 @@ interface TranscriptResponse {
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 const EXPORT_FPS = 30;
+const MIN_OFFSET_MS = -5000;
+const MAX_OFFSET_MS = 5000;
+const MIN_SPEED_PCT = 50;
+const MAX_SPEED_PCT = 150;
+const MAX_WORDS_PER_LINE = 12;
+const MIN_FONT_SIZE = 32;
+const MAX_FONT_SIZE = 140;
 
 function getBestVideoMimeType() {
   const options = [
@@ -115,271 +124,6 @@ async function readApiErrorMessage(response: Response, fallback: string): Promis
   return text ? text.slice(0, 200) : fallback;
 }
 
-type FontKey = 'Inter' | 'Impact' | 'Serif' | 'Mono';
-
-// Reliable system-available families (no async font loading needed for canvas).
-const FONT_FAMILIES: Record<FontKey, string> = {
-  Inter: 'Inter, ui-sans-serif, system-ui, sans-serif',
-  Impact: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif',
-  Serif: 'Georgia, "Times New Roman", serif',
-  Mono: '"Courier New", ui-monospace, monospace',
-};
-
-type AnimStyle = 'none' | 'fade' | 'pop' | 'slide';
-
-// Runs `draw` inside a transform that eases the active line/word in as it appears.
-// `enter` is 0→1 progress; at >= 1 it's a no-op so past content stays static.
-function withEntrance(
-  ctx: CanvasRenderingContext2D,
-  style: AnimStyle,
-  enter: number,
-  cx: number,
-  cy: number,
-  draw: () => void,
-) {
-  if (style === 'none' || enter >= 1) {
-    draw();
-    return;
-  }
-  const e = Math.max(0, Math.min(1, enter));
-  ctx.save();
-  ctx.globalAlpha = e;
-  if (style === 'pop') {
-    const scale = 0.7 + 0.3 * e;
-    ctx.translate(cx, cy);
-    ctx.scale(scale, scale);
-    ctx.translate(-cx, -cy);
-  } else if (style === 'slide') {
-    ctx.translate(0, (1 - e) * 40);
-  }
-  draw();
-  ctx.restore();
-}
-
-function drawWordRow(
-  ctx: CanvasRenderingContext2D,
-  tokens: Array<{ text: string; active: boolean }>,
-  y: number,
-  fontSize: number,
-  maxWidth: number,
-  fontFamily: string,
-) {
-  ctx.font = `800 ${fontSize}px ${fontFamily}`;
-  const spaceWidth = ctx.measureText(' ').width;
-  const tokenWidths = tokens.map((token) => ctx.measureText(token.text).width);
-  const totalWidth = tokenWidths.reduce((sum, width) => sum + width, 0) + spaceWidth * Math.max(0, tokens.length - 1);
-  let x = (CANVAS_WIDTH - Math.min(totalWidth, maxWidth)) / 2;
-
-  tokens.forEach((token, index) => {
-    ctx.fillStyle = token.active ? '#22d3ee' : '#f8fafc';
-    ctx.fillText(token.text, x, y);
-    x += tokenWidths[index] + spaceWidth;
-  });
-}
-
-function drawWrappedWords(
-  ctx: CanvasRenderingContext2D,
-  words: Array<{ text: string; active: boolean }>,
-  centerY: number,
-  requestedFontSize: number,
-  fontFamily: string,
-) {
-  const maxWidth = CANVAS_WIDTH * 0.84;
-  let fontSize = requestedFontSize;
-  let rows: Array<Array<{ text: string; active: boolean }>> = [];
-
-  while (fontSize >= 34) {
-    ctx.font = `800 ${fontSize}px ${fontFamily}`;
-    rows = [];
-    let currentRow: Array<{ text: string; active: boolean }> = [];
-    let currentWidth = 0;
-    const spaceWidth = ctx.measureText(' ').width;
-
-    words.forEach((word) => {
-      const wordWidth = ctx.measureText(word.text).width;
-      const nextWidth = currentRow.length === 0 ? wordWidth : currentWidth + spaceWidth + wordWidth;
-      if (currentRow.length > 0 && nextWidth > maxWidth) {
-        rows.push(currentRow);
-        currentRow = [word];
-        currentWidth = wordWidth;
-      } else {
-        currentRow.push(word);
-        currentWidth = nextWidth;
-      }
-    });
-
-    if (currentRow.length > 0) rows.push(currentRow);
-    const widestRow = rows.reduce((widest, row) => {
-      const rowWidth = row.reduce((sum, word, index) => {
-        return sum + ctx.measureText(word.text).width + (index === 0 ? 0 : spaceWidth);
-      }, 0);
-      return Math.max(widest, rowWidth);
-    }, 0);
-    if (rows.length <= 2 && widestRow <= maxWidth) break;
-    fontSize -= 4;
-  }
-
-  const lineHeight = fontSize * 1.24;
-  const firstY = centerY - ((rows.length - 1) * lineHeight) / 2;
-  rows.forEach((row, index) => {
-    drawWordRow(ctx, row, firstY + index * lineHeight, fontSize, maxWidth, fontFamily);
-  });
-}
-
-function renderLyricFrame({
-  canvas,
-  lines,
-  currentTime,
-  offsetSec,
-  bpm,
-  snapToBeat,
-  fontSize,
-  revealMode,
-  showNextLine,
-  speed,
-  fontFamily,
-  animStyle,
-}: {
-  canvas: HTMLCanvasElement;
-  lines: LyricVideoLine[];
-  currentTime: number;
-  offsetSec: number;
-  bpm: number;
-  snapToBeat: boolean;
-  fontSize: number;
-  revealMode: 'line' | 'build' | 'word';
-  showNextLine: boolean;
-  speed: number;
-  fontFamily: string;
-  animStyle: AnimStyle;
-}) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-  const timingOptions = { offsetSec, bpm, snapToBeat, speed };
-  const activeLine = findActiveLyricLine(lines, currentTime, timingOptions);
-  const nextLine = findNextLyricLine(lines, currentTime, timingOptions);
-  const displayLine = activeLine ?? nextLine;
-
-  if (!displayLine) {
-    ctx.fillStyle = '#64748b';
-    ctx.font = `700 54px ${fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.fillText('LYRICS READY', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    ctx.textAlign = 'left';
-    return;
-  }
-
-  const resolved = activeLine ?? resolveLyricLineTiming(displayLine, timingOptions);
-  const wordShift = offsetSec + resolved.timingShift;
-  ctx.textBaseline = 'middle';
-
-  // Ease the active line in as it appears; other lines render fully (no anim).
-  const enter = activeLine
-    ? Math.min(1, Math.max(0, (currentTime - resolved.displayStart) / 0.22))
-    : 1;
-
-  // One-word flash: only the current word, large & centered. Ignores line layout.
-  if (revealMode === 'word' && displayLine.words.length > 0) {
-    let current: { text: string; start: number } | null = null;
-    for (const word of displayLine.words) {
-      const start = word.start * speed + wordShift;
-      if (currentTime >= start) current = { text: word.text, start };
-      else break;
-    }
-    if (current) drawFlashWord(ctx, current.text, currentTime - current.start, fontSize, fontFamily);
-    drawBeatPulse(ctx, currentTime, bpm);
-    return;
-  }
-
-  let words = buildCanvasWords(displayLine, currentTime, wordShift, speed);
-  // Build-up: reveal words one at a time as they're sung (nothing to read ahead).
-  if (revealMode === 'build') {
-    words = words.filter((word) => word.started);
-  }
-
-  ctx.shadowColor = 'rgba(34, 211, 238, 0.28)';
-  ctx.shadowBlur = activeLine ? 20 : 0;
-  withEntrance(ctx, animStyle, enter, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, () => {
-    drawWrappedWords(ctx, words, CANVAS_HEIGHT / 2, fontSize, fontFamily);
-  });
-  ctx.shadowBlur = 0;
-
-  if (showNextLine && activeLine && nextLine && nextLine.id !== activeLine.id) {
-    ctx.globalAlpha = 0.42;
-    ctx.font = `700 ${Math.max(26, Math.round(fontSize * 0.42))}px ${fontFamily}`;
-    ctx.fillStyle = '#94a3b8';
-    ctx.textAlign = 'center';
-    ctx.fillText(nextLine.text, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + fontSize * 1.45);
-    ctx.textAlign = 'left';
-    ctx.globalAlpha = 1;
-  }
-
-  drawBeatPulse(ctx, currentTime, bpm);
-}
-
-function buildCanvasWords(
-  line: ResolvedLyricVideoLine,
-  currentTime: number,
-  wordShift: number,
-  speed: number,
-) {
-  if (line.words.length === 0) {
-    // No per-word timing: show the whole line, nothing to reveal progressively.
-    return line.text.split(/\s+/).filter(Boolean).map((text) => ({ text, active: false, started: true }));
-  }
-
-  return line.words.map((word) => {
-    const start = word.start * speed + wordShift;
-    const end = word.end * speed + wordShift;
-    return {
-      text: word.text,
-      active: currentTime >= start && currentTime < end,
-      started: currentTime >= start,
-    };
-  });
-}
-
-// One-word flash mode: a single large word, popping in over ~90ms.
-function drawFlashWord(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  timeSinceStart: number,
-  baseFontSize: number,
-  fontFamily: string,
-) {
-  const pop = Math.min(1, Math.max(0, timeSinceStart / 0.09));
-  const size = Math.min(170, baseFontSize * 1.7) * (0.82 + 0.18 * pop);
-  ctx.save();
-  ctx.globalAlpha = 0.35 + 0.65 * pop;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `900 ${size}px ${fontFamily}`;
-  ctx.fillStyle = '#22d3ee';
-  ctx.shadowColor = 'rgba(34, 211, 238, 0.55)';
-  ctx.shadowBlur = 34;
-  ctx.fillText(text.toUpperCase(), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-  ctx.restore();
-}
-
-function drawBeatPulse(ctx: CanvasRenderingContext2D, currentTime: number, bpm: number) {
-  const beatLength = 60 / Math.max(1, bpm);
-  const beatNumber = Math.floor(currentTime / beatLength) % 4;
-  const x = CANVAS_WIDTH / 2 - 54;
-  const y = CANVAS_HEIGHT - 82;
-
-  for (let i = 0; i < 4; i += 1) {
-    ctx.beginPath();
-    ctx.fillStyle = i === beatNumber ? '#22d3ee' : '#1e293b';
-    ctx.arc(x + i * 36, y, i === beatNumber ? 7 : 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
 export default function LyricVideoMaker() {
   const { tempo } = useTransport();
   const { toast } = useToast();
@@ -388,6 +132,9 @@ export default function LyricVideoMaker() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
+  const exportRafRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
   const [uploadedAudio, setUploadedAudio] = useState<UploadedAudio | null>(null);
   const [lyricsText, setLyricsText] = useState('');
   const [timedWords, setTimedWords] = useState<TimedLyricWord[]>([]);
@@ -398,9 +145,8 @@ export default function LyricVideoMaker() {
   const [renderStatus, setRenderStatus] = useState('');
   const [lastExport, setLastExport] = useState<DownloadLink | null>(null);
   const [duration, setDuration] = useState(0);
+  const [playbackTime, setPlaybackTime] = useState(0);
   const [offsetMs, setOffsetMs] = useState(0);
-  // Snap defaults OFF: beat-snapping rounds each line's start to the grid, which
-  // shifts every word's highlight later and makes lyrics lag the vocal.
   const [snapToBeat, setSnapToBeat] = useState(false);
   const [wordsPerLine, setWordsPerLine] = useState(6);
   const [fontSize, setFontSize] = useState(82);
@@ -408,7 +154,8 @@ export default function LyricVideoMaker() {
   const [revealMode, setRevealMode] = useState<'line' | 'build' | 'word'>('line');
   const [speedPct, setSpeedPct] = useState(100); // 100 = 1.0x; scales word times to fix drift
   const [fontKey, setFontKey] = useState<FontKey>('Inter');
-  const [animStyle, setAnimStyle] = useState<'none' | 'fade' | 'pop' | 'slide'>('fade');
+  const [animStyle, setAnimStyle] = useState<AnimStyle>('fade');
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   const lines = useMemo(
     () => buildLyricVideoLines({
@@ -420,25 +167,74 @@ export default function LyricVideoMaker() {
     [lyricsText, tempo, timedWords, wordsPerLine],
   );
 
-  const drawFrame = useCallback((currentTime?: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const renderConfigRef = useRef({
+    lines,
+    offsetMs,
+    tempo,
+    snapToBeat,
+    fontSize,
+    revealMode,
+    showNextLine,
+    speedPct,
+    fontKey,
+    animStyle,
+  });
 
-    renderLyricFrame({
-      canvas,
+  const lastExportRef = useRef(lastExport);
+  const uploadedAudioRef = useRef(uploadedAudio);
+
+  useEffect(() => {
+    renderConfigRef.current = {
       lines,
-      currentTime: currentTime ?? audioRef.current?.currentTime ?? 0,
-      offsetSec: offsetMs / 1000,
-      bpm: tempo,
+      offsetMs,
+      tempo,
       snapToBeat,
       fontSize,
       revealMode,
       showNextLine,
-      speed: speedPct / 100,
-      fontFamily: FONT_FAMILIES[fontKey],
+      speedPct,
+      fontKey,
       animStyle,
-    });
-  }, [fontSize, lines, offsetMs, snapToBeat, tempo, revealMode, showNextLine, speedPct, fontKey, animStyle]);
+    };
+    drawFrame();
+  }, [lines, offsetMs, tempo, snapToBeat, fontSize, revealMode, showNextLine, speedPct, fontKey, animStyle]);
+
+  useEffect(() => {
+    lastExportRef.current = lastExport;
+  }, [lastExport]);
+
+  useEffect(() => {
+    uploadedAudioRef.current = uploadedAudio;
+  }, [uploadedAudio]);
+
+  const drawFrame = useCallback((currentTime?: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    try {
+      const config = renderConfigRef.current;
+      renderLyricFrame({
+        canvas,
+        lines: config.lines,
+        currentTime: currentTime ?? audioRef.current?.currentTime ?? 0,
+        offsetSec: config.offsetMs / 1000,
+        bpm: config.tempo,
+        snapToBeat: config.snapToBeat,
+        fontSize: config.fontSize,
+        revealMode: config.revealMode,
+        showNextLine: config.showNextLine,
+        speed: config.speedPct / 100,
+        fontFamily: FONT_FAMILIES[config.fontKey],
+        animStyle: config.animStyle,
+        canvasWidth: CANVAS_WIDTH,
+        canvasHeight: CANVAS_HEIGHT,
+      });
+      if (renderError) setRenderError(null);
+    } catch (err) {
+      console.error('Error drawing lyric frame:', err);
+      setRenderError(err instanceof Error ? err.message : 'Canvas rendering error');
+    }
+  }, [renderError]);
 
   const stopDrawLoop = useCallback(() => {
     if (rafRef.current !== null) {
@@ -459,17 +255,22 @@ export default function LyricVideoMaker() {
     rafRef.current = requestAnimationFrame(tick);
   }, [drawFrame, stopDrawLoop]);
 
-  useEffect(() => {
-    drawFrame();
-  }, [drawFrame]);
-
-  useEffect(() => () => stopDrawLoop(), [stopDrawLoop]);
-
+  // Combined cleanup effect for component unmount
   useEffect(() => {
     return () => {
-      if (lastExport) URL.revokeObjectURL(lastExport.url);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (exportRafRef.current !== null) cancelAnimationFrame(exportRafRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      if (lastExportRef.current) {
+        URL.revokeObjectURL(lastExportRef.current.url);
+      }
+      if (uploadedAudioRef.current && uploadedAudioRef.current.url.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedAudioRef.current.url);
+      }
     };
-  }, [lastExport]);
+  }, []);
 
   const getUploadParameters = async (file?: File) => {
     const fileName = file?.name || '';
@@ -488,10 +289,14 @@ export default function LyricVideoMaker() {
   };
 
   const handleUploadComplete = (result: { url: string; name: string; file: File }) => {
+    if (uploadedAudio && uploadedAudio.url.startsWith('blob:')) {
+      URL.revokeObjectURL(uploadedAudio.url);
+    }
     setUploadedAudio({ url: result.url, name: result.name });
     setLyricsText('');
     setTimedWords([]);
     setDuration(0);
+    setPlaybackTime(0);
     setLastExport(null);
     setIsPreviewing(false);
     stopDrawLoop();
@@ -509,6 +314,13 @@ export default function LyricVideoMaker() {
         variant: 'destructive',
       });
       return;
+    }
+
+    if (lyricsText.trim()) {
+      const confirmSync = window.confirm(
+        'Warning: Syncing will overwrite your current transcript and any manual edits you have made. Do you want to continue?'
+      );
+      if (!confirmSync) return;
     }
 
     setIsTranscribing(true);
@@ -579,14 +391,14 @@ export default function LyricVideoMaker() {
     if (!audio) return;
     audio.pause();
     audio.currentTime = 0;
+    setPlaybackTime(0);
     setIsPreviewing(false);
     stopDrawLoop();
     drawFrame(0);
   };
 
-  // Record the canvas + audio to a WebM blob. Browsers can only record WebM
-  // reliably; the server transcodes it to MP4. Shared by export and share.
-  const recordToWebm = async (): Promise<Blob> => {
+  // Record the canvas + audio to a WebM blob.
+  const recordToWebm = async (onProgress?: (progress: number) => void): Promise<Blob> => {
     const canvas = canvasRef.current;
     const audio = audioRef.current;
     if (!canvas || !audio) throw new Error('Player not ready');
@@ -596,6 +408,7 @@ export default function LyricVideoMaker() {
 
     pausePreview();
     audio.currentTime = 0;
+    setPlaybackTime(0);
     drawFrame(0);
 
     const videoStream = canvas.captureStream(EXPORT_FPS);
@@ -605,6 +418,7 @@ export default function LyricVideoMaker() {
       ...(audioStream?.getAudioTracks() ?? []),
     ]);
     const recorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = recorder;
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
@@ -613,14 +427,21 @@ export default function LyricVideoMaker() {
     const complete = new Promise<Blob>((resolve) => {
       recorder.onstop = () => {
         stream.getTracks().forEach((track) => track.stop());
+        mediaRecorderRef.current = null;
         resolve(new Blob(chunks, { type: mimeType }));
       };
     });
 
+    const durationSec = audio.duration || duration || 0;
     const loop = () => {
-      drawFrame(audio.currentTime);
+      const current = audio.currentTime;
+      drawFrame(current);
+      setPlaybackTime(current);
+      if (onProgress && durationSec > 0) {
+        onProgress(Math.min(99, Math.round((current / durationSec) * 100)));
+      }
       if (recorder.state === 'recording' && !audio.ended) {
-        rafRef.current = requestAnimationFrame(loop);
+        exportRafRef.current = requestAnimationFrame(loop);
       }
     };
 
@@ -630,12 +451,17 @@ export default function LyricVideoMaker() {
 
     const stopRecording = () => {
       if (recorder.state === 'recording') recorder.stop();
+      if (exportRafRef.current !== null) {
+        cancelAnimationFrame(exportRafRef.current);
+        exportRafRef.current = null;
+      }
     };
     audio.addEventListener('ended', stopRecording, { once: true });
-    window.setTimeout(stopRecording, Math.ceil((audio.duration || duration || 0) * 1000) + 750);
+    const timerId = window.setTimeout(stopRecording, Math.ceil((audio.duration || duration || 0) * 1000) + 750);
 
     const blob = await complete;
     audio.removeEventListener('ended', stopRecording);
+    window.clearTimeout(timerId);
     if (blob.size === 0) {
       throw new Error('The browser recorded an empty video. Try reloading the page and exporting again.');
     }
@@ -648,12 +474,12 @@ export default function LyricVideoMaker() {
       audio.pause();
       audio.currentTime = 0;
     }
+    setPlaybackTime(0);
     setIsPreviewing(false);
     stopDrawLoop();
     drawFrame(0);
   };
 
-  // Shared precheck: need audio + lyrics before recording anything.
   const ensureReady = (): boolean => {
     if (!uploadedAudio) return false;
     if (!lines.length) {
@@ -670,9 +496,11 @@ export default function LyricVideoMaker() {
   const exportVideo = async () => {
     if (!ensureReady()) return;
     setIsExporting(true);
-    setRenderStatus('Recording video in real time. Keep this tab open.');
+    setRenderStatus('Recording video in real time: 0%');
     try {
-      const webmBlob = await recordToWebm();
+      const webmBlob = await recordToWebm((progress) => {
+        setRenderStatus(`Recording video in real time: ${progress}%`);
+      });
       setRenderStatus('Converting to MP4...');
       const form = new FormData();
       form.append('video', webmBlob, 'lyric-video.webm');
@@ -692,7 +520,10 @@ export default function LyricVideoMaker() {
       setRenderStatus('Starting download...');
       const url = URL.createObjectURL(mp4Blob);
       const filename = `${sanitizeDownloadName(uploadedAudio?.name ?? 'lyric')}-lyrics-video.mp4`;
+      
+      if (lastExport) URL.revokeObjectURL(lastExport.url);
       setLastExport({ url, filename });
+      
       const link = document.createElement('a');
       link.href = url;
       link.download = filename;
@@ -717,9 +548,11 @@ export default function LyricVideoMaker() {
   const shareToFeed = async () => {
     if (!ensureReady()) return;
     setIsSharing(true);
-    setRenderStatus('Recording video in real time. Keep this tab open.');
+    setRenderStatus('Recording video in real time: 0%');
     try {
-      const webmBlob = await recordToWebm();
+      const webmBlob = await recordToWebm((progress) => {
+        setRenderStatus(`Recording video in real time: ${progress}%`);
+      });
       setRenderStatus('Uploading video...');
       const form = new FormData();
       form.append('video', webmBlob, 'lyric-video.webm');
@@ -773,22 +606,43 @@ export default function LyricVideoMaker() {
 
       <div className="grid gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-3">
-          <div className="overflow-hidden rounded-md border border-border bg-black">
+          <div className="overflow-hidden rounded-md border border-border bg-black relative">
             <canvas
               ref={canvasRef}
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
               className="aspect-video w-full bg-black"
+              role="img"
+              aria-label={`Lyric video preview showing: ${
+                lines.find(l => {
+                  const opts = {
+                    offsetSec: offsetMs / 1000,
+                    bpm: tempo,
+                    snapToBeat,
+                    speed: speedPct / 100
+                  };
+                  const res = resolveLyricLineTiming(l, opts);
+                  return (playbackTime >= res.displayStart && playbackTime < res.displayEnd);
+                })?.text || 'No active lyrics'
+              }`}
             />
+            {renderError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-4 text-center">
+                <div className="text-red-400 space-y-2">
+                  <p className="font-semibold">Canvas Rendering Error</p>
+                  <p className="text-xs font-mono">{renderError}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <audio
             ref={audioRef}
             src={uploadedAudio?.url}
-            controls
             preload="metadata"
-            className="h-9 w-full"
+            className="hidden"
             onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+            onTimeUpdate={(event) => setPlaybackTime(event.currentTarget.currentTime || 0)}
             onPlay={() => {
               setIsPreviewing(true);
               startDrawLoop();
@@ -850,7 +704,7 @@ export default function LyricVideoMaker() {
               {isSharing ? 'Sharing' : 'Share to Feed'}
             </Button>
             <span className="ml-auto font-mono text-xs text-muted-foreground">
-              {formatTime(audioRef.current?.currentTime || 0)} / {formatTime(duration)}
+              {formatTime(playbackTime)} / {formatTime(duration)}
             </span>
           </div>
           {(renderStatus || lastExport) && (
@@ -919,8 +773,8 @@ export default function LyricVideoMaker() {
                 </div>
                 <Slider
                   value={[offsetMs]}
-                  min={-2000}
-                  max={2000}
+                  min={MIN_OFFSET_MS}
+                  max={MAX_OFFSET_MS}
                   step={25}
                   onValueChange={(value) => setOffsetMs(value[0] ?? 0)}
                 />
@@ -938,14 +792,14 @@ export default function LyricVideoMaker() {
                     id="lyric-speed"
                     type="number"
                     value={speedPct}
-                    onChange={(event) => setSpeedPct(Math.max(80, Math.min(120, Number(event.target.value) || 100)))}
+                    onChange={(event) => setSpeedPct(Math.max(MIN_SPEED_PCT, Math.min(MAX_SPEED_PCT, Number(event.target.value) || 100)))}
                     className="h-8 w-24 bg-background text-right font-mono text-xs"
                   />
                 </div>
                 <Slider
                   value={[speedPct]}
-                  min={80}
-                  max={120}
+                  min={MIN_SPEED_PCT}
+                  max={MAX_SPEED_PCT}
                   step={1}
                   onValueChange={(value) => setSpeedPct(value[0] ?? 100)}
                 />
@@ -963,9 +817,9 @@ export default function LyricVideoMaker() {
                     id="words-per-line"
                     type="number"
                     min={1}
-                    max={12}
+                    max={MAX_WORDS_PER_LINE}
                     value={wordsPerLine}
-                    onChange={(event) => setWordsPerLine(Math.max(1, Math.min(12, Number(event.target.value) || 1)))}
+                    onChange={(event) => setWordsPerLine(Math.max(1, Math.min(MAX_WORDS_PER_LINE, Number(event.target.value) || 1)))}
                     className="h-8 bg-background text-xs"
                   />
                 </div>
@@ -976,18 +830,18 @@ export default function LyricVideoMaker() {
                   <Input
                     id="font-size"
                     type="number"
-                    min={40}
-                    max={120}
+                    min={MIN_FONT_SIZE}
+                    max={MAX_FONT_SIZE}
                     value={fontSize}
-                    onChange={(event) => setFontSize(Math.max(40, Math.min(120, Number(event.target.value) || 82)))}
+                    onChange={(event) => setFontSize(Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, Number(event.target.value) || 82)))}
                     className="h-8 bg-background text-xs"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Reveal</Label>
-                <div className="grid grid-cols-3 gap-1">
+                <Label className="text-xs text-muted-foreground" id="reveal-mode-label">Reveal</Label>
+                <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-labelledby="reveal-mode-label">
                   {([
                     ['line', 'Line'],
                     ['build', 'Build'],
@@ -998,6 +852,8 @@ export default function LyricVideoMaker() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      role="radio"
+                      aria-checked={revealMode === mode}
                       onClick={() => setRevealMode(mode)}
                       className={cn(
                         'h-8 px-1 text-[11px]',
@@ -1011,14 +867,16 @@ export default function LyricVideoMaker() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Font</Label>
-                <div className="grid grid-cols-4 gap-1">
+                <Label className="text-xs text-muted-foreground" id="font-family-label">Font</Label>
+                <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-labelledby="font-family-label">
                   {(['Inter', 'Impact', 'Serif', 'Mono'] as const).map((key) => (
                     <Button
                       key={key}
                       type="button"
                       size="sm"
                       variant="outline"
+                      role="radio"
+                      aria-checked={fontKey === key}
                       onClick={() => setFontKey(key)}
                       className={cn(
                         'h-8 px-1 text-[11px]',
@@ -1032,8 +890,8 @@ export default function LyricVideoMaker() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Animation</Label>
-                <div className="grid grid-cols-4 gap-1">
+                <Label className="text-xs text-muted-foreground" id="anim-style-label">Animation</Label>
+                <div className="grid grid-cols-4 gap-1" role="radiogroup" aria-labelledby="anim-style-label">
                   {([
                     ['none', 'None'],
                     ['fade', 'Fade'],
@@ -1045,6 +903,8 @@ export default function LyricVideoMaker() {
                       type="button"
                       size="sm"
                       variant="outline"
+                      role="radio"
+                      aria-checked={animStyle === mode}
                       onClick={() => setAnimStyle(mode)}
                       className={cn(
                         'h-8 px-1 text-[11px]',
@@ -1057,7 +917,7 @@ export default function LyricVideoMaker() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground">
+              <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox
                   checked={showNextLine}
                   onCheckedChange={(checked) => setShowNextLine(checked === true)}
@@ -1065,7 +925,7 @@ export default function LyricVideoMaker() {
                 Show next line
               </label>
 
-              <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground">
+              <label className="flex items-center gap-2 rounded-md border border-border bg-background/60 px-2 py-2 text-xs text-muted-foreground cursor-pointer">
                 <Checkbox
                   checked={snapToBeat}
                   onCheckedChange={(checked) => setSnapToBeat(checked === true)}
