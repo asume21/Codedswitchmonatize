@@ -55,7 +55,7 @@ describe('sixteenthPosOf', () => {
   })
 })
 
-import { shapePerformanceDynamics } from '../performerExpression'
+import { shapePerformanceDynamics, applyBreathAndRests } from '../performerExpression'
 import type { ScheduledNote } from '../../types'
 
 function flatPhrase(n = 8, vel = 0.7): ScheduledNote[] {
@@ -112,5 +112,56 @@ describe('shapePerformanceDynamics', () => {
     ]
     const out = shapePerformanceDynamics(notes, { peakPosition: 0.66 })
     expect(out[0].velocity).toBe(out[1].velocity)
+  })
+})
+
+describe('applyBreathAndRests', () => {
+  // 10 notes, interior ones (index 1..8) deliberately "weak" (velocity < 0.55)
+  // so they're eligible to be dropped; first/last are loud so they're protected.
+  function breathablePhrase(n = 10): ScheduledNote[] {
+    const notes: ScheduledNote[] = []
+    for (let i = 0; i < n; i++) {
+      const weak = i > 0 && i < n - 1
+      notes.push({ pitch: 'C4', duration: '8n', velocity: weak ? 0.3 : 0.9, time: `0:${i}:0` })
+    }
+    return notes
+  }
+
+  it('never drops the first or last note', () => {
+    const alwaysDrop = () => 0 // rng always below any probability threshold
+    const out = applyBreathAndRests(breathablePhrase(), { dropMod: 3, rng: alwaysDrop })
+    const input = breathablePhrase()
+    expect(out[0]).toEqual(input[0])
+    expect(out[out.length - 1]).toEqual(input[input.length - 1])
+  })
+
+  it('never drops loud (non-weak) interior notes', () => {
+    const notes: ScheduledNote[] = [
+      { pitch: 'C4', duration: '8n', velocity: 0.9, time: '0:0:0' },
+      { pitch: 'C4', duration: '8n', velocity: 0.9, time: '0:1:0' }, // loud interior — protected
+      { pitch: 'C4', duration: '8n', velocity: 0.9, time: '0:2:0' },
+    ]
+    const out = applyBreathAndRests(notes, { dropMod: 3, rng: () => 0 })
+    expect(out).toHaveLength(3)
+  })
+
+  it('drops weak interior notes when rng rolls under the threshold', () => {
+    const out = applyBreathAndRests(breathablePhrase(), { dropMod: 3, rng: () => 0 })
+    expect(out.length).toBeLessThan(10)
+  })
+
+  it('drops nothing when rng always rolls above any threshold', () => {
+    const out = applyBreathAndRests(breathablePhrase(), { dropMod: 3, rng: () => 0.999 })
+    expect(out).toHaveLength(10)
+  })
+
+  it('never thins below 2 notes remaining', () => {
+    const tiny: ScheduledNote[] = [
+      { pitch: 'C4', duration: '8n', velocity: 0.9, time: '0:0:0' },
+      { pitch: 'C4', duration: '8n', velocity: 0.3, time: '0:1:0' },
+      { pitch: 'C4', duration: '8n', velocity: 0.9, time: '0:2:0' },
+    ]
+    const out = applyBreathAndRests(tiny, { dropMod: 3, rng: () => 0 })
+    expect(out.length).toBeGreaterThanOrEqual(2)
   })
 })

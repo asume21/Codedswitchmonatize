@@ -90,3 +90,33 @@ export function shapePerformanceDynamics(notes: ScheduledNote[], options: Dynami
     return { ...note, velocity: Math.max(0, Math.min(1, note.velocity * g + accent)) }
   })
 }
+
+export interface BreathOptions {
+  /** Smaller = more rests. Typically 3 (airy), 4 (default), or 6 (driving/dense). */
+  dropMod: number
+  /** Injected PRNG (0..1) so this stays pure/deterministic under test. */
+  rng: () => number
+}
+
+/**
+ * BREATH — rests weak interior notes (never the first/last) so a phrase opens
+ * space and rings instead of filling every slot. Drop probability rises toward
+ * the phrase end (a real player breathes more as a phrase resolves).
+ */
+export function applyBreathAndRests(notes: ScheduledNote[], options: BreathOptions): ScheduledNote[] {
+  const { dropMod, rng } = options
+  const n = notes.length
+  if (n < 3) return notes
+
+  const kept: ScheduledNote[] = []
+  for (let i = 0; i < n; i++) {
+    const interior = i > 0 && i < n - 1
+    const weak = notes[i].velocity < 0.55
+    const pos = i / (n - 1)
+    const baseProb = 1 / dropMod
+    const scaledProb = baseProb * (0.2 + 1.6 * pos)
+    const restHere = interior && weak && (rng() < scaledProb)
+    if (!restHere) kept.push(notes[i])
+  }
+  return (kept.length >= 2 && kept.length < n) ? kept : notes
+}
