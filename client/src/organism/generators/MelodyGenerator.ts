@@ -39,6 +39,7 @@ import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+import { extractBusySlots16ths } from './freeplay/utils'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -125,6 +126,8 @@ export class MelodyGenerator extends GeneratorBase {
   // Persists across phrase refreshes WITHIN a section (the idea recurs);
   // onSectionChange() nulls it so the next section commits to a fresh motif.
   private currentSectionMotif: MelodyMotif | null = null
+  private busySlots16ths: number[] = []
+  private lastNoteEndSec: number = 0
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
@@ -517,10 +520,6 @@ export class MelodyGenerator extends GeneratorBase {
     return this.explicitPerformerId ? [this.explicitPerformerId] : []
   }
 
-  /**
-   * Intelligently picks from GLOBAL_VOICES based on performer features
-   * (Aggressive rap = 808s/pianos, softer = rhodes/pads)
-   */
   /** Rebuild the performer voice (e.g. after real samples finish loading). */
   refreshVoice(): void {
     this.applyModeVoice(this.currentModeName)
@@ -832,6 +831,9 @@ export class MelodyGenerator extends GeneratorBase {
     // 2 bars = one fresh phrase per refresh cycle + room to develop an idea.
     if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
     let notes          = this.generatePhrase(phraseLength, physics)
+    if (this.isSoloMode) {
+      notes = this.applySoloistEmbellishments(notes, physics)
+    }
 
     // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
     // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
@@ -901,7 +903,9 @@ export class MelodyGenerator extends GeneratorBase {
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (artId === DEFAULT_ARTICULATION_ID) {
-        voice.triggerAttackRelease(playableNote, event.dur, Math.max(0, time), finalVel)
+        const t = Math.max(0, time)
+        voice.triggerAttackRelease(playableNote, event.dur, t, finalVel)
+        this.lastNoteEndSec = t + Tone.Time(event.dur).toSeconds()
         return
       }
 
@@ -933,8 +937,13 @@ export class MelodyGenerator extends GeneratorBase {
         // Tone's "value must be within [0, Infinity]" and silence the voice.
         const t = Math.max(0, time + n.timeOffset)
         voice.triggerAttackRelease(note, n.duration, t, n.velocity)
+        this.lastNoteEndSec = t + Tone.Time(n.duration).toSeconds()
       }
-    }, notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined })))
+    }, (() => {
+      const events = notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined }));
+      this.busySlots16ths = extractBusySlots16ths(events);
+      return events;
+    })())
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
@@ -982,6 +991,9 @@ export class MelodyGenerator extends GeneratorBase {
     let durSec = 0.25
     try { durSec = Tone.Time(dur).toSeconds() } catch { /* keep default */ }
 
+    // Intense vibrato for soloists
+    this.vibrato.frequency.value = this.isSoloMode ? 6.5 : 5.0
+
     try {
       depth.cancelScheduledValues(time)
       if (durSec < 0.22) {
@@ -990,7 +1002,9 @@ export class MelodyGenerator extends GeneratorBase {
       } else {
         // Sustained note — straight attack, then vibrato blooms in and widens
         // with length (capped so it stays musical, not seasick).
-        const target = Math.min(0.35, 0.16 + durSec * 0.12)
+        const target = this.isSoloMode
+          ? Math.min(0.48, 0.22 + durSec * 0.15)
+          : Math.min(0.35, 0.16 + durSec * 0.12)
         const bloomAt = time + Math.min(0.35, durSec * 0.45)
         depth.setValueAtTime(0.02, time)
         depth.linearRampToValueAtTime(target, bloomAt)
@@ -1348,7 +1362,7 @@ export class MelodyGenerator extends GeneratorBase {
     return notes
   }
 
-  private stopPart(): void {
+  stopPart(): void {
     if (this.part) {
       this.part.stop()
       this.part.dispose()
@@ -1359,6 +1373,7 @@ export class MelodyGenerator extends GeneratorBase {
       this.phraseRefreshEventId = null
     }
     this.phraseDirty = false
+    this.busySlots16ths = []
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())
       this.synth.releaseAll()
@@ -1378,6 +1393,120 @@ export class MelodyGenerator extends GeneratorBase {
   private isSamplerReady(): boolean {
     if (this.synth instanceof Tone.PolySynth) return false
     return (this.synth as LoadableSampler).isLoaded === true
+  }
+
+  getBusySlots16ths(): number[] {
+    return this.busySlots16ths
+  }
+
+  getLastNoteEndSec(): number {
+    return this.lastNoteEndSec
+  }
+
+  private applySoloistEmbellishments(notes: ScheduledNote[], physics: PhysicsState): ScheduledNote[] {
+    const embellished: ScheduledNote[] = []
+    const scale = this.currentScale
+    if (scale.length === 0) return notes
+
+    for (let i = 0; i < notes.length; i++) {
+      const n = notes[i]
+      const midi = noteToMidi(String(n.pitch))
+      if (midi === null) {
+        embellished.push(n)
+        continue
+      }
+
+      // Check duration in 16ths
+      let dur16ths = 1
+      if (n.duration.endsWith('m')) {
+        dur16ths = parseFloat(n.duration) * 16
+      } else {
+        const denom = parseFloat(n.duration.replace('n', '').replace('.', '')) || 4
+        const dotMultiplier = n.duration.endsWith('.') ? 1.5 : 1.0
+        dur16ths = (16 / denom) * dotMultiplier
+      }
+
+      const parts = n.time.split(':')
+      const bar = parseInt(parts[0] ?? '0', 10)
+      const beat = parseInt(parts[1] ?? '0', 10)
+      const sub = parseFloat(parts[2] ?? '0')
+
+      // 1. Trills: for long notes (>= 4 sixteenths), 50% probability
+      const hash = Math.sin(bar * 7.1 + beat * 3.2 + sub) * 1000
+      const randVal = hash - Math.floor(hash)
+      
+      if (dur16ths >= 4 && randVal < 0.5) {
+        // Alternate main note and note above
+        const upperMidi = snapNoteToScale(midi + 2, this.rootPitchClass, scale, this.pitchOffsetSemitones, 'up')
+        const upperPitch = typeof upperMidi === 'number' ? midiToNote(upperMidi) : upperMidi
+        
+        for (let j = 0; j < dur16ths; j++) {
+          const isUpper = j % 2 === 1
+          const stepSub = sub + j
+          const stepBar = bar + Math.floor((beat + Math.floor(stepSub / 4)) / 4)
+          const stepBeat = (beat + Math.floor(stepSub / 4)) % 4
+          const stepSubGrid = stepSub % 4
+          const stepTime = `${stepBar}:${stepBeat}:${stepSubGrid.toFixed(2)}`
+          
+          embellished.push({
+            pitch: isUpper ? upperPitch : n.pitch,
+            duration: '16n',
+            velocity: n.velocity * (isUpper ? 0.85 : 1.0),
+            time: stepTime
+          })
+        }
+        continue
+      }
+
+      // 2. Grace notes: for medium-to-long notes, 70% probability
+      if (dur16ths >= 2 && randVal >= 0.3) {
+        const lowerMidi = snapNoteToScale(midi - 2, this.rootPitchClass, scale, this.pitchOffsetSemitones, 'down')
+        const lowerPitch = typeof lowerMidi === 'number' ? midiToNote(lowerMidi) : lowerMidi
+        
+        // Grace note on original time, dur 32n
+        embellished.push({
+          pitch: lowerPitch,
+          duration: '32n',
+          velocity: n.velocity * 0.7,
+          time: n.time
+        })
+        
+        // Shift main note late by 32n (0.5 of a sixteenth)
+        const mainSub = sub + 0.5
+        const mainBar = bar + Math.floor((beat + Math.floor(mainSub / 4)) / 4)
+        const mainBeat = (beat + Math.floor(mainSub / 4)) % 4
+        const mainSubGrid = mainSub % 4
+        const mainTime = `${mainBar}:${mainBeat}:${mainSubGrid.toFixed(2)}`
+        
+        embellished.push({
+          pitch: n.pitch,
+          duration: n.duration,
+          velocity: n.velocity,
+          time: mainTime
+        })
+        continue
+      }
+
+      // Default: keep original note
+      embellished.push(n)
+    }
+
+    // Apply legato overlaps for adjacent close notes
+    if (this.isBowedString() || this.isGuitar()) {
+      for (let i = 0; i < embellished.length - 1; i++) {
+        const curr = embellished[i]
+        const next = embellished[i + 1]
+        const currMidi = noteToMidi(String(curr.pitch))
+        const nextMidi = noteToMidi(String(next.pitch))
+        if (currMidi !== null && nextMidi !== null && Math.abs(currMidi - nextMidi) <= 2) {
+          if (curr.duration.endsWith('n')) {
+            curr.duration = curr.duration + '.'
+          }
+        }
+      }
+    }
+
+    return embellished
   }
 
   dispose(): void {
