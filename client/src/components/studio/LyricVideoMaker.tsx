@@ -41,6 +41,11 @@ interface UploadedAudio {
   name: string;
 }
 
+interface DownloadLink {
+  url: string;
+  filename: string;
+}
+
 interface TranscriptResponse {
   transcript?: string;
   words?: TimedLyricWord[];
@@ -88,6 +93,26 @@ function getMediaElementCaptureStream(audio: HTMLAudioElement): MediaStream | nu
     (audio as HTMLAudioElement & { mozCaptureStream?: () => MediaStream }).mozCaptureStream;
 
   return captureStream ? captureStream.call(audio) : null;
+}
+
+function getAuthHeaders(): HeadersInit {
+  const token = window.localStorage.getItem('authToken');
+  if (!token) return {};
+  return {
+    Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+  };
+}
+
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    const body = await response.json().catch(() => null);
+    const message = body?.message || body?.error || body?.detail;
+    if (message) return String(message);
+  }
+
+  const text = await response.text().catch(() => '');
+  return text ? text.slice(0, 200) : fallback;
 }
 
 type FontKey = 'Inter' | 'Impact' | 'Serif' | 'Mono';
@@ -370,6 +395,8 @@ export default function LyricVideoMaker() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [renderStatus, setRenderStatus] = useState('');
+  const [lastExport, setLastExport] = useState<DownloadLink | null>(null);
   const [duration, setDuration] = useState(0);
   const [offsetMs, setOffsetMs] = useState(0);
   // Snap defaults OFF: beat-snapping rounds each line's start to the grid, which
@@ -438,6 +465,12 @@ export default function LyricVideoMaker() {
 
   useEffect(() => () => stopDrawLoop(), [stopDrawLoop]);
 
+  useEffect(() => {
+    return () => {
+      if (lastExport) URL.revokeObjectURL(lastExport.url);
+    };
+  }, [lastExport]);
+
   const getUploadParameters = async (file?: File) => {
     const fileName = file?.name || '';
     const format = fileName.split('.').pop()?.toLowerCase() || '';
@@ -459,6 +492,7 @@ export default function LyricVideoMaker() {
     setLyricsText('');
     setTimedWords([]);
     setDuration(0);
+    setLastExport(null);
     setIsPreviewing(false);
     stopDrawLoop();
     toast({
@@ -602,6 +636,9 @@ export default function LyricVideoMaker() {
 
     const blob = await complete;
     audio.removeEventListener('ended', stopRecording);
+    if (blob.size === 0) {
+      throw new Error('The browser recorded an empty video. Try reloading the page and exporting again.');
+    }
     return blob;
   };
 
@@ -633,24 +670,35 @@ export default function LyricVideoMaker() {
   const exportVideo = async () => {
     if (!ensureReady()) return;
     setIsExporting(true);
+    setRenderStatus('Recording video in real time. Keep this tab open.');
     try {
       const webmBlob = await recordToWebm();
+      setRenderStatus('Converting to MP4...');
       const form = new FormData();
       form.append('video', webmBlob, 'lyric-video.webm');
       const response = await fetch('/api/lyric-video/transcode', {
         method: 'POST',
+        headers: getAuthHeaders(),
         body: form,
         credentials: 'include',
       });
-      if (!response.ok) throw new Error(`MP4 export failed (${response.status})`);
+      if (!response.ok) {
+        const message = await readApiErrorMessage(response, `MP4 export failed (${response.status})`);
+        throw new Error(message);
+      }
       const mp4Blob = await response.blob();
+      if (mp4Blob.size === 0) throw new Error('The MP4 export came back empty.');
 
+      setRenderStatus('Starting download...');
       const url = URL.createObjectURL(mp4Blob);
+      const filename = `${sanitizeDownloadName(uploadedAudio?.name ?? 'lyric')}-lyrics-video.mp4`;
+      setLastExport({ url, filename });
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${sanitizeDownloadName(uploadedAudio?.name ?? 'lyric')}-lyrics-video.mp4`;
+      link.download = filename;
+      document.body.appendChild(link);
       link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+      link.remove();
 
       toast({ title: 'Video exported', description: 'MP4 ready to share.' });
     } catch (error) {
@@ -661,6 +709,7 @@ export default function LyricVideoMaker() {
       });
     } finally {
       setIsExporting(false);
+      setRenderStatus('');
       resetPlayback();
     }
   };
@@ -668,17 +717,23 @@ export default function LyricVideoMaker() {
   const shareToFeed = async () => {
     if (!ensureReady()) return;
     setIsSharing(true);
+    setRenderStatus('Recording video in real time. Keep this tab open.');
     try {
       const webmBlob = await recordToWebm();
+      setRenderStatus('Uploading video...');
       const form = new FormData();
       form.append('video', webmBlob, 'lyric-video.webm');
       form.append('caption', lyricsText.split('\n')[0]?.slice(0, 120) ?? '');
       const response = await fetch('/api/lyric-video/share', {
         method: 'POST',
+        headers: getAuthHeaders(),
         body: form,
         credentials: 'include',
       });
-      if (!response.ok) throw new Error(`Share failed (${response.status})`);
+      if (!response.ok) {
+        const message = await readApiErrorMessage(response, `Share failed (${response.status})`);
+        throw new Error(message);
+      }
       toast({ title: 'Shared to feed', description: 'Your lyric video is live in the Social Hub.' });
     } catch (error) {
       toast({
@@ -688,6 +743,7 @@ export default function LyricVideoMaker() {
       });
     } finally {
       setIsSharing(false);
+      setRenderStatus('');
       resetPlayback();
     }
   };
@@ -797,6 +853,21 @@ export default function LyricVideoMaker() {
               {formatTime(audioRef.current?.currentTime || 0)} / {formatTime(duration)}
             </span>
           </div>
+          {(renderStatus || lastExport) && (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100">
+              {renderStatus && <span>{renderStatus}</span>}
+              {lastExport && !renderStatus && (
+                <a
+                  href={lastExport.url}
+                  download={lastExport.filename}
+                  className="inline-flex items-center gap-2 font-semibold text-cyan-200 underline-offset-4 hover:underline"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download MP4
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="min-w-0 space-y-3">
