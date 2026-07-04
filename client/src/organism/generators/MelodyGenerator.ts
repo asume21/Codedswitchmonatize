@@ -39,6 +39,14 @@ import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+import {
+  getPerformerExpressionConfig,
+  isSustainedPitch,
+  shapePerformanceDynamics,
+  applyBreathAndRests,
+  phraseCharacterOf,
+  developPhraseCharacter,
+} from './melody/performerExpression'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -833,20 +841,17 @@ export class MelodyGenerator extends GeneratorBase {
     if (this.isBowedString()) phraseLength = Math.max(32, phraseLength)
     let notes          = this.generatePhrase(phraseLength, physics)
 
-    // Pro-instruments M2.5 slice 1: a real string player breathes + shapes
-    // dynamics. Gated to bowed strings (violin/cello) so other leads are untouched.
-    if (this.isBowedString()) this.applyStringPerformance(notes)
-
-    // Pro-instruments M2.6 — the Guitar Player. Gated to guitar voices so other
-    // leads are untouched. Order matters: develop the LINE first (what to play),
-    // then shape dynamics (how loud) — articulations (how to play) come below.
+    // Pro-instruments Slice 4: EVERY lead family gets the shared breathe/arc/
+    // develop performance pass, tuned per family via performerExpression.ts.
+    // Guitar additionally gets its own idiom-specific line development below
+    // (call-and-answer thinning + picking accents) before the shared pass —
+    // order matters: develop the LINE first (what to play), THEN shape the
+    // shared dynamics/breath (how loud/where to rest), THEN articulations
+    // (how to play) below.
     if (this.isGuitar()) {
-      // Slice 3: call-and-answer development — odd phrases answer the statement
-      // with more space so consecutive phrases don't loop identically.
       notes = developGuitarPhrase(notes, this.guitarPhraseCounter++)
-      // Slice 1: arch swell + downbeat picking accents (non-destructive velocity).
-      notes = shapeGuitarDynamics(notes)
     }
+    notes = this.applyPerformerExpression(notes)
 
     // Pro-instruments M2.6 slice 2: guitar idiom, per note. Choose a note-based
     // ornament per note (bend into peaks, hammer-on stepwise, release at the end)
@@ -897,7 +902,7 @@ export class MelodyGenerator extends GeneratorBase {
 
       // Slice 2 — expressive vibrato. Done at the top so it applies on BOTH the
       // fast-path and the articulation path (violin runs legato-slur, not default).
-      if (this.isBowedString()) this.shapeVibrato(event.dur, Math.max(0, time))
+      if (isSustainedPitch(this.currentPerformer?.family)) this.shapeVibrato(event.dur, Math.max(0, time))
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (artId === DEFAULT_ARTICULATION_ID) {
@@ -961,10 +966,13 @@ export class MelodyGenerator extends GeneratorBase {
 
   /** True when the current lead voice is a bowed string (violin / cello / viola). */
   private isBowedString(): boolean {
-    return /violin|cello|viola|string/i.test(this.currentVoiceName)
+    return this.currentPerformer?.family === 'bowed'
   }
 
-  /** True when the current lead voice is a guitar (nylon / clean / distortion). */
+  /** True when the current lead voice is a guitar (nylon / clean / distortion). Guitar
+   *  ornamentation (planGuitarArticulations) is idiom-specific, not shared expression,
+   *  so it stays keyed on the actual voice name rather than the broader 'plucked' family
+   *  (which also covers harp/pizzicato — those should NOT get guitar bends/hammer-ons). */
   private isGuitar(): boolean {
     return /guitar|nylon/i.test(this.currentVoiceName)
   }
@@ -978,6 +986,9 @@ export class MelodyGenerator extends GeneratorBase {
    * shared Tone.Vibrato depth signal per note at the scheduled audio time.
    */
   private shapeVibrato(dur: Tone.Unit.Time, time: number): void {
+    const depthCap = getPerformerExpressionConfig(this.currentPerformer?.family).vibratoDepthCap
+    if (depthCap === null) return // this family doesn't vibrato (plucked/keyboard/synth)
+
     const depth = this.vibrato.depth
     let durSec = 0.25
     try { durSec = Tone.Time(dur).toSeconds() } catch { /* keep default */ }
@@ -989,8 +1000,8 @@ export class MelodyGenerator extends GeneratorBase {
         depth.setValueAtTime(0.012, time)
       } else {
         // Sustained note — straight attack, then vibrato blooms in and widens
-        // with length (capped so it stays musical, not seasick).
-        const target = Math.min(0.35, 0.16 + durSec * 0.12)
+        // with length (capped per-family so it stays musical, not seasick).
+        const target = Math.min(depthCap, 0.16 + durSec * 0.12)
         const bloomAt = time + Math.min(0.35, durSec * 0.45)
         depth.setValueAtTime(0.02, time)
         depth.linearRampToValueAtTime(target, bloomAt)
@@ -1011,60 +1022,37 @@ export class MelodyGenerator extends GeneratorBase {
    *     and rings rather than filling every bar.
    * (Legato note-ring + vibrato/rubato are slice 2; idea-development is slice 3.)
    */
-  private applyStringPerformance(notes: ScheduledNote[]): void {
+  /**
+   * Pro-instruments spec M2.5/Slice 4 — the shared lead PERFORMER pass. Runs
+   * for any family via performerExpression.ts; per-family tuning comes from
+   * getPerformerExpressionConfig(). Mutates in place is NOT done — this
+   * reassigns the array reference the caller passed by returning the shaped
+   * result, mirroring guitarPerformance's non-destructive contract.
+   */
+  private applyPerformerExpression(notes: ScheduledNote[]): ScheduledNote[] {
     const n = notes.length
-    if (n < 3) return
+    if (n < 3) return notes
     this.phraseCounter++
 
-    // DEVELOPMENT — a real soloist states an idea, then answers it / varies it /
-    // builds on it; they don't replay it. Each phrase commits to a different
-    // CHARACTER so a recurring motif is genuinely re-cast, not looped:
-    //   0 statement  — as written, mid register, lightly thinned
-    //   1 answer     — leaps an octave up, airier (more rests) = a question answered
-    //   2 variation  — drops an octave, breathier, lower/darker restatement
-    //   3 climb      — denser & driving, fewer rests, pushing to a peak
-    const character = this.phraseCounter % 4
+    const family = this.currentPerformer?.family
+    const config = getPerformerExpressionConfig(family)
+    const character = phraseCharacterOf(this.phraseCounter)
 
-    // Register shift recasts the actual melodic line (conformNoteToInstrument in
-    // the Part callback keeps it inside the violin's range).
-    const octaveShift = character === 1 ? 12 : character === 2 ? -12 : 0
-    if (octaveShift !== 0) {
-      for (let i = 0; i < n; i++) {
-        try { notes[i].pitch = Tone.Frequency(notes[i].pitch).transpose(octaveShift).toNote() }
-        catch { /* leave the pitch as-is if it can't be parsed */ }
-      }
-    }
+    // DEVELOPMENT — recast register per character (no-op if this family doesn't recast).
+    let shaped = developPhraseCharacter(notes, character, config.octaveRecastEnabled)
 
-    // Velocity ARC — crescendo toward a drifting peak, ease at the cadence.
-    const peak = 0.58 + 0.12 * ((this.phraseCounter % 3) / 2)
-    for (let i = 0; i < n; i++) {
-      const pos = i / (n - 1)
-      const g = pos <= peak
-        ? 0.78 + 0.22 * (pos / peak)
-        : 1.0 - 0.20 * ((pos - peak) / (1 - peak))
-      notes[i].velocity = Math.max(0.05, Math.min(1, notes[i].velocity * g))
-    }
+    // Velocity ARC — crescendo toward a drifting peak, ease at the cadence. The peak
+    // drifts slightly per phrase (same "not identical every time" feel as before).
+    const peak = Math.min(0.85, config.peakPosition + 0.12 * ((this.phraseCounter % 3) / 2) - 0.08)
+    shaped = shapePerformanceDynamics(shaped, { peakPosition: peak })
 
-    // BREATH — rest weak interior notes (never the first/last). Density varies by
-    // character: the answer is airy, the climb is driving.
-    // Quality 30: Weight rests higher at phrase ends, lower at phrase starts.
-    const dropMod = character === 1 ? 3 : character === 3 ? 6 : 4  // smaller = more rests
-    const kept: ScheduledNote[] = []
+    // BREATH — rest weak interior notes (never first/last). Density varies by
+    // character (answer is airy, climb is driving) and by family (config.restDensityMultiplier).
+    const dropMod = (character === 1 ? 3 : character === 3 ? 6 : 4) * config.restDensityMultiplier
     this.seedRng(this.sessionSeed + this.phraseCounter)
-    for (let i = 0; i < n; i++) {
-      const interior = i > 0 && i < n - 1
-      const weak = notes[i].velocity < 0.55
-      const pos = i / (n - 1)
-      const baseProb = 1 / dropMod
-      const scaledProb = baseProb * (0.2 + 1.6 * pos)
-      const rand = this.nextRandom()
-      const restHere = interior && weak && (rand < scaledProb)
-      if (!restHere) kept.push(notes[i])
-    }
-    if (kept.length >= 2 && kept.length < n) {
-      notes.length = 0
-      notes.push(...kept)
-    }
+    shaped = applyBreathAndRests(shaped, { dropMod, rng: () => this.nextRandom() })
+
+    return shaped
   }
 
   private conformArticulatedNote(note: string | number): string | number {

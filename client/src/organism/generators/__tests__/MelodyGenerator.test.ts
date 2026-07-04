@@ -214,9 +214,12 @@ describe('MelodyGenerator', () => {
     const partMock = Tone.Part as any
     const events = partMock.mock.calls.at(-1)?.[1] ?? []
     
-    // Sad intent clamps velocities between 0.4 and 0.6
+    // Sad intent clamps base velocities between 0.4 and 0.6; the shared
+    // performer-expression velocity ARC (applied to every family, including
+    // piano, since Task 5) then multiplies by an edge taper down to 0.78x at
+    // the phrase's start/end, so the observed floor is a bit lower.
     for (const event of events) {
-      expect(event.vel).toBeGreaterThanOrEqual(0.4)
+      expect(event.vel).toBeGreaterThanOrEqual(0.4 * 0.78)
       expect(event.vel).toBeLessThanOrEqual(0.6)
     }
 
@@ -227,9 +230,10 @@ describe('MelodyGenerator', () => {
     gen.processFrame(physics, makeOrganism())
     const eventsBeautiful = partMock.mock.calls.at(-1)?.[1] ?? []
     
-    // Beautiful intent clamps velocities between 0.45 and 0.7
+    // Beautiful intent clamps base velocities between 0.45 and 0.7; same edge
+    // taper as above lowers the observed floor.
     for (const event of eventsBeautiful) {
-      expect(event.vel).toBeGreaterThanOrEqual(0.45)
+      expect(event.vel).toBeGreaterThanOrEqual(0.45 * 0.78)
       expect(event.vel).toBeLessThanOrEqual(0.7)
     }
   })
