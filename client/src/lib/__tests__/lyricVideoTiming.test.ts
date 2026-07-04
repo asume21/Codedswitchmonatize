@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  alignTimedWordsToTranscript,
   buildLyricVideoLines,
   findActiveLyricLine,
   normalizeTimedWords,
@@ -20,6 +21,37 @@ describe('lyricVideoTiming', () => {
     const line = { id: 'l', text: 'a', start: 8, end: 9, words: [] };
     expect(resolveLyricLineTiming(line, {}).displayStart).toBeCloseTo(8, 5);
     expect(resolveLyricLineTiming(line, { speed: 0 }).displayStart).toBeCloseTo(8, 5);
+  });
+
+  it('keeps every transcript word even when Whisper dropped some (missing-words bug)', () => {
+    // Whisper's word array is missing "brown", but the transcript has it.
+    const aligned = alignTimedWordsToTranscript('the quick brown fox', [
+      { text: 'the', start: 0, end: 0.4 },
+      { text: 'quick', start: 1, end: 1.4 },
+      { text: 'fox', start: 3, end: 3.4 },
+    ]);
+    expect(aligned.map((w) => w.text)).toEqual(['the', 'quick', 'brown', 'fox']);
+    // matched words keep real timing
+    expect(aligned[0].start).toBeCloseTo(0, 5);
+    expect(aligned[3].start).toBeCloseTo(3, 5);
+    // the dropped word gets a time between its neighbors (1 → 3)
+    expect(aligned[2].start).toBeGreaterThan(1);
+    expect(aligned[2].start).toBeLessThan(3);
+  });
+
+  it('zips timing 1:1 when transcript and timings match, ignoring punctuation', () => {
+    const aligned = alignTimedWordsToTranscript('Hello world,', [
+      { text: 'hello', start: 0, end: 0.5 },
+      { text: 'world', start: 1, end: 1.5 },
+    ]);
+    expect(aligned.map((w) => w.text)).toEqual(['Hello', 'world,']);
+    expect(aligned[1].start).toBeCloseTo(1, 5);
+  });
+
+  it('falls back to timings when transcript is empty, and to [] when no timings', () => {
+    const timed = [{ text: 'a', start: 0, end: 0.3 }];
+    expect(alignTimedWordsToTranscript('', timed)).toEqual(timed);
+    expect(alignTimedWordsToTranscript('some words here', [])).toEqual([]);
   });
 
   it('normalizes OpenAI word timestamp shapes', () => {
