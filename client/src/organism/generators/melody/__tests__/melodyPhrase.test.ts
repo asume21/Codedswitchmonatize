@@ -5,6 +5,7 @@ import {
   resolveDegreeComplementing,
   contourOffset,
   cadenceStep,
+  phraseNeedsContourFallback,
 } from '../melodyPhrase'
 
 describe('isStrongBeat', () => {
@@ -88,5 +89,16 @@ describe('cadenceStep', () => {
     expect(s.index).toBe(0)
     expect(s.isChordTone).toBe(true)
     expect(s.dur16ths).toBeGreaterThanOrEqual(4)
+  })
+})
+
+describe('phraseNeedsContourFallback', () => {
+  it('catches phrases that get stuck on one pitch with only token variation', () => {
+    expect(phraseNeedsContourFallback(['C4', 'C4', 'C4', 'C4', 'D4'])).toBe(true)
+    expect(phraseNeedsContourFallback(['C4', 'D4', 'C4', 'C4', 'C4', 'C4', 'C4'])).toBe(true)
+  })
+
+  it('leaves a real melodic contour alone', () => {
+    expect(phraseNeedsContourFallback(['C4', 'D4', 'E4', 'G4', 'E4', 'D4', 'C4'])).toBe(false)
   })
 })

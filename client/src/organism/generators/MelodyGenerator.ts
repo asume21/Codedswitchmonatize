@@ -37,7 +37,13 @@ import {
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
-import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
+import {
+  isStrongBeat,
+  resolveDegreeComplementing,
+  contourOffset,
+  cadenceStep,
+  phraseNeedsContourFallback,
+} from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import { applyVoiceLeading } from './melody/voiceLeading'
@@ -139,10 +145,9 @@ export class MelodyGenerator extends GeneratorBase {
   // so the lead doesn't mud-double the colour the chords are already stating.
   private currentGuideTones: number[] = []
   private unsubscribeConductor: (() => void) | null = null
-  // Tracks the last conductor progression version we rebuilt for. Used to
-  // distinguish a chord ADVANCE (same key, same progression) from a key/scale
-  // CHANGE (sub-genre swap, key change, new progression). Chord advances do not
-  // warrant a phrase rebuild — the running loop keeps playing through them.
+  // Tracks the last conductor progression version we rebuilt for. Progression
+  // replacement means key/scale/harmony changed; ordinary chord advances still
+  // rebuild the next phrase, but they do not reset the section motif.
   private lastProgressionVersion: number = -1
 
   // Physics cache
@@ -439,16 +444,17 @@ export class MelodyGenerator extends GeneratorBase {
       if (!guidePcs.includes(pc)) guidePcs.push(pc)
     }
     this.currentGuideTones = guidePcs
-    // Only rebuild when the KEY or SCALE changes (sub-genre swap, explicit key
-    // change, new progression). A plain chord advance (advanceChord) increments
-    // the chord index but does NOT bump progressionVersion — the running phrase
-    // keeps playing through it so the melody builds continuously over the beat
-    // rather than hard-resetting every 2 bars.
+    // Progression replacements need a full scale-aware rebuild. Ordinary chord
+    // advances also need a phrase refresh: the phrase is four bars, and the
+    // Conductor advances one bar before the next harmony lands, so the rebuild
+    // schedules cleanly onto that next downbeat without hard-resetting mid-line.
     const progressionVersion = conductor.getProgressionVersion()
     const progressionChanged = progressionVersion !== this.lastProgressionVersion
     if (triggerRebuild && progressionChanged) {
       this.lastProgressionVersion = progressionVersion
       this.scaleDirty = true
+    } else if (triggerRebuild) {
+      this.phraseDirty = true
     }
   }
 
@@ -761,7 +767,7 @@ export class MelodyGenerator extends GeneratorBase {
       return
     }
     if (to === OState.Breathing || to === OState.Flow) {
-      this.currentScale = MODE_SCALES[physics.mode] ?? MODE_SCALES.glow
+      this.syncFromConductor(false)
       
       // Only re-apply voice if the mode has changed to prevent glitchy 
       // audio dropouts during rapid state transitions.
@@ -1405,14 +1411,13 @@ export class MelodyGenerator extends GeneratorBase {
       notes.push(...cadResult.out)
     }
 
-    // Safety net: if the generated phrase collapsed to a single pitch (motif
-    // step.index aligned with chordDegs[0] for every step, or chord-tone
-    // mapping returned only the root), fall back to a deterministic 4-bar
-    // minor contour. Without this guard the listener can hear the engine
-    // stuck on a single repeating note while the rest of the mix keeps moving.
-    const uniquePitches = new Set(notes.map(n => n.pitch))
-    if (uniquePitches.size <= 1) {
-      return this.defaultMinorContour(length16ths, melodicOctave)
+    // Safety net: if the generated phrase collapsed into one dominant pitch
+    // (motif step.index aligned with chordDegs[0], or strong-beat resolution
+    // pulled too much material home), fall back to a deterministic contour.
+    // The contour uses the ACTIVE scale, not hard-coded minor, so major/R&B
+    // and Dorian boom-bap lines stay inside the Conductor's harmony.
+    if (phraseNeedsContourFallback(notes.map(n => n.pitch))) {
+      return this.defaultScaleContour(length16ths, melodicOctave)
     }
 
     // Record where this phrase lands so the NEXT phrase can start near here
@@ -1428,15 +1433,17 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   /**
-   * Deterministic 4-bar (or shorter) minor contour:
-   *   root – ♭3 – 5 – ♭7 – 5 – ♭3 – root
+   * Deterministic 4-bar (or shorter) scale contour:
+   *   root - 3rd - 5th - 7th-ish peak - 5th - 3rd - root
    * Used when the motif renderer collapses to a single repeated pitch.
-   * Always plays in natural minor relative to the current rootPitchClass so
-   * the contour fits with whatever harmony the chord generator is on.
+   * Uses the Conductor's active scale so the fallback never injects a minor
+   * third into a major/R&B or chill progression.
    */
-  private defaultMinorContour(length16ths: number, octave: number): ScheduledNote[] {
-    const minor = MelodyGenerator.NATURAL_MINOR    // [0, 2, 3, 5, 7, 8, 10]
-    const degreePattern = [0, 2, 4, 6, 4, 2, 0]    // 1-♭3-5-♭7-5-♭3-1
+  private defaultScaleContour(length16ths: number, octave: number): ScheduledNote[] {
+    const scale = this.currentScale.length > 0 ? this.currentScale : MelodyGenerator.NATURAL_MINOR
+    const degreePattern = scale.length >= 7
+      ? [0, 2, 4, 6, 4, 2, 0]
+      : [0, 1, 2, 3, 2, 1, 0]
     const notes: ScheduledNote[] = []
     const stepSpacing = Math.max(4, Math.floor(length16ths / degreePattern.length))
 
@@ -1444,7 +1451,8 @@ export class MelodyGenerator extends GeneratorBase {
       const c = i * stepSpacing
       if (c >= length16ths) break
       const deg = degreePattern[i]
-      const semitone = minor[deg % minor.length] + Math.floor(deg / minor.length) * 12
+      const normDeg = ((deg % scale.length) + scale.length) % scale.length
+      const semitone = scale[normDeg] + Math.floor(deg / scale.length) * 12
       const midi = (octave * 12) + 12 + semitone + this.rootPitchClass + this.pitchOffsetSemitones
       const pitch = Tone.Frequency(midi, 'midi').toNote()
       const bar  = Math.floor(c / 16)

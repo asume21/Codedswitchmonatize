@@ -9,6 +9,7 @@ import { createToneMock, mockGainRampTo } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
 
+import * as Tone from 'tone'
 import { DrumGenerator } from '../DrumGenerator'
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -163,6 +164,28 @@ describe('DrumGenerator', () => {
     ], true)
 
     expect(events.map(event => event.pitch)).toEqual([36, 38, 42])
+  })
+
+  it('keeps default runtime pocket tight instead of dragging the kit late', () => {
+    gen.loadGeneratedPattern([
+      { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
+      { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
+      { instrument: DrumInstrument.Hat, time: '0:0:1', velocity: 0.5 },
+    ], true)
+
+    const partMock = Tone.Part as unknown as {
+      mock: {
+        calls: Array<[unknown, Array<{ instrument: DrumInstrument; microShift: number }>]>
+      }
+    }
+    const events = partMock.mock.calls.at(-1)?.[1] ?? []
+    const snare = events.find(event => event.instrument === DrumInstrument.Snare)
+    const hat = events.find(event => event.instrument === DrumInstrument.Hat)
+
+    expect(snare?.microShift).toBeGreaterThanOrEqual(0.002)
+    expect(snare?.microShift).toBeLessThanOrEqual(0.007)
+    expect(hat?.microShift).toBeGreaterThanOrEqual(0)
+    expect(hat?.microShift).toBeLessThanOrEqual(0.003)
   })
 
   it('reset() zeros activity level', () => {

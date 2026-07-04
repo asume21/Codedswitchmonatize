@@ -217,10 +217,10 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   // Tunable micro-timing and groove settings
-  private lazySnareMinMs: number = 5
-  private lazySnareMaxMs: number = 15
-  private hatShuffleMinPct: number = 1.5
-  private hatShuffleMaxPct: number = 3.0
+  private lazySnareMinMs: number = 2
+  private lazySnareMaxMs: number = 7
+  private hatShuffleMinPct: number = 0.6
+  private hatShuffleMaxPct: number = 1.6
 
   // ── Groove template (the pocket) ──────────────────────────────────
   // Per-16th-slot micro-timing offsets that are STABLE across bars and

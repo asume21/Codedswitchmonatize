@@ -11,6 +11,7 @@ vi.mock('tone', () => createToneMock())
 
 import { MelodyGenerator, snapNoteToScale } from '../MelodyGenerator'
 import { getMelodyBehavior } from '../patterns/MelodyPatternLibrary'
+import { getConductor, resetConductor } from '../../conductor/Conductor'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ describe('MelodyGenerator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resetConductor()
     gen = new MelodyGenerator()
   })
 
@@ -143,9 +145,57 @@ describe('MelodyGenerator', () => {
     expect(report.activityLevel).toBe(0)
   })
 
-  it('onStateTransition to FLOW sets scale from mode', () => {
+  it('onStateTransition to FLOW rebuilds without throwing', () => {
     const physics = makePhysics({ mode: OrganismMode.Heat })
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
+  })
+
+  it('keeps state-transition scale locked to the Conductor harmony', () => {
+    const physics = makePhysics({ mode: OrganismMode.Smoke })
+
+    gen.onStateTransition(OState.Flow, physics)
+
+    expect((gen as any).currentScale).toEqual(getConductor().scaleIntervals())
+    expect((gen as any).currentScale).not.toEqual([0, 3, 5, 6, 7, 10])
+  })
+
+  it('refreshes the next phrase on a Conductor chord advance', () => {
+    const nowSpy = vi.spyOn(performance, 'now')
+    nowSpy.mockReturnValue(1000)
+
+    try {
+      const physics = makePhysics({ voiceActive: false })
+      const organism = makeOrganism({ current: OState.Flow, flowDepth: 0.8 })
+
+      gen.setInstrumentPerformer('piano')
+      gen.onStateTransition(OState.Flow, physics)
+      vi.clearAllMocks()
+
+      getConductor().advanceChord()
+      expect(mockPartStart).not.toHaveBeenCalled()
+      expect((gen as any).phraseDirty).toBe(true)
+
+      nowSpy.mockReturnValue(1700)
+      gen.processFrame(physics, organism)
+
+      expect(mockPartStart).toHaveBeenCalled()
+      expect((gen as any).phraseDirty).toBe(false)
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it('fallback contour stays inside the active major scale', () => {
+    ;(gen as any).rootPitchClass = 0
+    ;(gen as any).currentScale = [0, 2, 4, 5, 7, 9, 11]
+
+    const notes = (gen as any).defaultScaleContour(64, 4) as Array<{ pitch: string }>
+    const pitchClasses = notes.map(note =>
+      Number(String(note.pitch).replace('Note', '')) % 12
+    )
+
+    expect(pitchClasses.every(pc => [0, 2, 4, 5, 7, 9, 11].includes(pc))).toBe(true)
+    expect(pitchClasses).not.toContain(3)
   })
 
   it('reset() zeros activity and sets behavior to Rest', () => {

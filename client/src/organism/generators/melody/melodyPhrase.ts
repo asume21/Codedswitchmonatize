@@ -85,3 +85,44 @@ export function contourOffset(posFraction: number, intensity: number): number {
 export function cadenceStep(dur16ths = 4): MotifStep {
   return { index: 0, isChordTone: true, dur16ths }
 }
+
+/**
+ * Detect phrases that technically contain more than one pitch but still read as
+ * stuck on one note. This protects the renderer from motif/chord-tone mappings
+ * that collapse most of a line onto the same landing pitch.
+ */
+export function phraseNeedsContourFallback(
+  pitches: readonly (string | number)[],
+  maxDominantRatio = 0.65,
+  maxRepeatRun = 4,
+): boolean {
+  if (pitches.length <= 1) return true
+
+  const counts = new Map<string, number>()
+  let longestRun = 1
+  let currentRun = 1
+  let previous = String(pitches[0])
+
+  for (const pitch of pitches) {
+    const key = String(pitch)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  for (let i = 1; i < pitches.length; i++) {
+    const key = String(pitches[i])
+    if (key === previous) {
+      currentRun += 1
+      longestRun = Math.max(longestRun, currentRun)
+    } else {
+      previous = key
+      currentRun = 1
+    }
+  }
+
+  const dominant = Math.max(...counts.values())
+  const dominantRatio = dominant / pitches.length
+
+  return counts.size <= 1
+    || longestRun >= maxRepeatRun
+    || (counts.size <= 2 && dominantRatio >= maxDominantRatio)
+}
