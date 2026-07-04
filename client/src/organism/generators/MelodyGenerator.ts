@@ -38,7 +38,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
-import { shapeGuitarDynamics, planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
+import { planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import {
   getPerformerExpressionConfig,
   isSustainedPitch,
