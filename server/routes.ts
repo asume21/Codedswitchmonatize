@@ -392,7 +392,7 @@ ${urls
   app.use("/api/voice-convert", createVoiceConvertRoutes(storage));
 
   // Mount Lyric Video Maker transcode route (WebM → MP4 for social sharing)
-  app.use("/api/lyric-video", createLyricVideoRoutes());
+  app.use("/api/lyric-video", createLyricVideoRoutes(storage));
 
   // Mount AI Stem Generation routes
   app.use("/api/stem-generation", createStemGenerationRoutes());
@@ -4214,6 +4214,8 @@ ${code}
       else if (ext === ".m4a") type = "audio/mp4";
       else if (ext === ".ogg") type = "audio/ogg";
       else if (ext === ".flac") type = "audio/flac";
+      else if (ext === ".mp4") type = "video/mp4";
+      else if (ext === ".webm") type = "video/webm";
       
       res.setHeader("Content-Type", type);
       res.setHeader("Accept-Ranges", "bytes");

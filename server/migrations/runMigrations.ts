@@ -339,6 +339,94 @@ export async function runMigrations() {
     await sql`CREATE INDEX IF NOT EXISTS idx_organism_profiles_computed_at ON organism_profiles(computed_at DESC)`;
     console.log('✅ Migration: organism_profiles table ensured');
 
+    // Social Hub tables — were defined in schema.ts but never pushed to prod,
+    // which 500'd every Social Hub action (posting/feed/chat/collab). Additive.
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_profiles (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar REFERENCES users(id),
+        display_name varchar, bio text, avatar_url varchar, website_url varchar,
+        social_links jsonb, location varchar,
+        favorite_genres text[], instruments text[], skill_level varchar,
+        created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS project_shares (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar REFERENCES projects(id),
+        shared_by_user_id varchar REFERENCES users(id),
+        shared_with_user_id varchar REFERENCES users(id),
+        permission varchar DEFAULT 'view', created_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS project_collaborations (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar REFERENCES projects(id),
+        user_id varchar REFERENCES users(id),
+        role varchar DEFAULT 'collaborator',
+        joined_at timestamp DEFAULT now(), last_active_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS project_comments (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar REFERENCES projects(id),
+        user_id varchar REFERENCES users(id),
+        content text NOT NULL, parent_comment_id varchar,
+        created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS project_likes (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id varchar REFERENCES projects(id),
+        user_id varchar REFERENCES users(id),
+        created_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS user_follows (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        follower_id varchar REFERENCES users(id),
+        following_id varchar REFERENCES users(id),
+        created_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS social_posts (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar REFERENCES users(id),
+        platform varchar NOT NULL, content text NOT NULL, type varchar NOT NULL,
+        title varchar, url varchar, media_url varchar,
+        project_id varchar REFERENCES projects(id),
+        likes integer DEFAULT 0, comments integer DEFAULT 0,
+        shares integer DEFAULT 0, views integer DEFAULT 0,
+        created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS social_connections (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id varchar REFERENCES users(id),
+        platform varchar NOT NULL, platform_user_id varchar, platform_username varchar,
+        access_token text, refresh_token text,
+        connected boolean DEFAULT true, followers integer DEFAULT 0,
+        created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        sender_id varchar REFERENCES users(id),
+        recipient_id varchar REFERENCES users(id),
+        conversation_id varchar NOT NULL, content text NOT NULL,
+        message_type varchar DEFAULT 'text', attachment_url varchar,
+        read_at timestamp, created_at timestamp DEFAULT now()
+      )`;
+    await sql`
+      CREATE TABLE IF NOT EXISTS collab_invites (
+        id serial PRIMARY KEY,
+        from_user_id text NOT NULL, to_user_id text NOT NULL,
+        project_id integer, type text NOT NULL, message text,
+        status text NOT NULL DEFAULT 'pending',
+        created_at timestamp DEFAULT now(), expires_at timestamp
+      )`;
+    console.log('✅ Migration: Social Hub tables ensured');
+
     console.log('✅ All migrations completed successfully');
   } catch (error) {
     // If columns already exist, that's fine
