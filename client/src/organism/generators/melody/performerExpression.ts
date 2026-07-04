@@ -82,7 +82,7 @@ export interface DynamicsOptions {
 export function shapePerformanceDynamics(notes: ScheduledNote[], options: DynamicsOptions): ScheduledNote[] {
   const { peakPosition: peak, edgeFloor = 0.78, downbeatAccent = 0 } = options
   const n = notes.length
-  if (n === 0) return notes
+  if (n === 0) return [...notes]
 
   return notes.map((note, i) => {
     const pos = n <= 1 ? peak : i / (n - 1)
@@ -110,7 +110,7 @@ export interface BreathOptions {
 export function applyBreathAndRests(notes: ScheduledNote[], options: BreathOptions): ScheduledNote[] {
   const { dropMod, rng } = options
   const n = notes.length
-  if (n < 3) return notes
+  if (n < 3) return [...notes]
 
   const kept: ScheduledNote[] = []
   for (let i = 0; i < n; i++) {
@@ -122,7 +122,7 @@ export function applyBreathAndRests(notes: ScheduledNote[], options: BreathOptio
     const restHere = interior && weak && (rng() < scaledProb)
     if (!restHere) kept.push(notes[i])
   }
-  return (kept.length >= 2 && kept.length < n) ? kept : notes
+  return (kept.length >= 2 && kept.length < n) ? kept : [...notes]
 }
 
 export type PhraseCharacter = 0 | 1 | 2 | 3
@@ -146,9 +146,9 @@ export function developPhraseCharacter(
   character: PhraseCharacter,
   octaveRecastEnabled: boolean,
 ): ScheduledNote[] {
-  if (!octaveRecastEnabled) return notes
+  if (!octaveRecastEnabled) return [...notes]
   const octaveShift = character === 1 ? 12 : character === 2 ? -12 : 0
-  if (octaveShift === 0) return notes
+  if (octaveShift === 0) return [...notes]
 
   return notes.map((note) => {
     try {
