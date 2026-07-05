@@ -46,6 +46,11 @@ describe('InstrumentPerformerRouter', () => {
       .toContain(selectInstrumentPerformer({ role: 'bass', mode: 'heat', energy: 0.8 }).id)
   })
 
+  it('maps upright bass to the recorded SSO basses multisample when available', () => {
+    const upright = INSTRUMENT_PERFORMERS_BY_ID.get('bass-upright')!
+    expect(upright.realInstrument).toBe('SSO_Basses')
+  })
+
   it('converts between note names and midi', () => {
     expect(noteToMidi('C4')).toBe(60)
     expect(noteToMidi('A0')).toBe(21)

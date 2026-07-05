@@ -1258,11 +1258,12 @@ export class GeneratorOrchestrator {
   }
 
   /**
-   * Re-apply the chord + melody performer voices. Called when the real-instrument
+   * Re-apply the bass + chord + melody performer voices. Called when the real-instrument
    * catalog finishes loading so a voice built on the GM fallback upgrades to its
    * real recorded multisample without waiting for the next section change.
    */
   refreshInstrumentVoices(): void {
+    try { this.bass.refreshVoice() } catch { /* */ }
     try { this.chord.refreshVoice() } catch { /* */ }
     try { this.melody.refreshVoice() } catch { /* */ }
   }

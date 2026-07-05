@@ -93,6 +93,23 @@ describe('ChordImproviser', () => {
     }
   })
 
+  it('4-bar plan uses a real phrase shape, not the same bar four times', () => {
+    let varied = 0
+    for (let seed = 0; seed < 12; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, rng: mulberry32(seed) }))
+      const barSlots = (bar: number) =>
+        plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
+      const shapes = [0, 1, 2, 3].map(bar => JSON.stringify(barSlots(bar)))
+      expect(barSlots(0).length).toBeGreaterThanOrEqual(1)
+      expect(barSlots(1).length).toBeGreaterThanOrEqual(1)
+      expect(barSlots(2).length).toBeGreaterThanOrEqual(1)
+      expect(barSlots(3).length).toBeGreaterThanOrEqual(1)
+      if (new Set(shapes).size >= 3) varied++
+    }
+    expect(varied).toBeGreaterThan(8)
+  })
+
   it('comps in the pockets BETWEEN the kicks — never doubles a syncopated kick slot', () => {
     // Boom-bap-ish kick pattern across 4 bars: slots 0, 6, 10 per bar
     const kicks = [0, 6, 10, 16, 22, 26, 32, 38, 42, 48, 54, 58]
@@ -149,5 +166,11 @@ describe('ChordImproviser', () => {
     expect(barOf(plan[0].time)).toBe(0)
     expect(barOf(plan[1].time)).toBe(1)
     expect(plan[1].vel).toBeLessThan(plan[0].vel)
+  })
+
+  it('low-energy 4-bar plan pads every bar so the harmony breathes across the phrase', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.2 }))
+    expect(plan).toHaveLength(4)
+    expect(new Set(plan.map(e => barOf(e.time)))).toEqual(new Set([0, 1, 2, 3]))
   })
 })

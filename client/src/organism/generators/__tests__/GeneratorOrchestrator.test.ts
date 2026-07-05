@@ -234,6 +234,18 @@ describe('GeneratorOrchestrator', () => {
     // No error means thinning was set successfully
     expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalled()
   })
+
+  it('refreshInstrumentVoices re-applies bass, chord, and melody voices', () => {
+    const bassSpy = vi.spyOn((orchestrator as any).bass, 'refreshVoice').mockImplementation(() => {})
+    const chordSpy = vi.spyOn((orchestrator as any).chord, 'refreshVoice').mockImplementation(() => {})
+    const melodySpy = vi.spyOn((orchestrator as any).melody, 'refreshVoice').mockImplementation(() => {})
+
+    orchestrator.refreshInstrumentVoices()
+
+    expect(bassSpy).toHaveBeenCalledOnce()
+    expect(chordSpy).toHaveBeenCalledOnce()
+    expect(melodySpy).toHaveBeenCalledOnce()
+  })
 })
 
 // ── Loop Pack tests ──────────────────────────────────────────────────

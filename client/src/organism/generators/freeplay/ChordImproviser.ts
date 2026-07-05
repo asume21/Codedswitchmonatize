@@ -18,7 +18,8 @@ export interface CompEvent {
   useNextVoicing?: boolean
 }
 
-// Per-section call counter → A-A-A'-A across successive rebuilds.
+// Per-section call counter → legacy 1-bar mode repeats A-A-A'-A across
+// successive rebuilds. Multi-bar plans now develop INSIDE the phrase.
 const compCounters = new Map<string, number>()
 
 const BACKBEAT = new Set([4, 12])
@@ -33,9 +34,9 @@ const clampVel = (v: number) => Math.min(0.7, Math.max(0.3, v))
 
 /**
  * Multi-bar comp plan (ctx.bars, aligned to the part loop):
- * bar 0 states the section's comp motif; the LAST bar develops it — one bounded
- * variation plus (usually) a mid-bar push. A 1-bar request keeps the legacy
- * behaviour: statement bars with a variation every 3rd rebuild.
+ * - 1 bar: legacy A / A / A' / A across rebuilds
+ * - 2 bars: statement -> development
+ * - 4 bars: statement -> echo -> development -> answer
  */
 export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const bars = Math.max(1, Math.floor(ctx.bars) || 1)
@@ -72,28 +73,62 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
 
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
-    const isDevBar = bars > 1 ? bar === bars - 1 : count % 3 === 0
-    const mask: RhythmMotif = isDevBar ? varyMotif(motif, ctx.rng) : motif
+    const role = bars <= 1
+      ? (count % 3 === 0 ? 'develop' : 'statement')
+      : bars === 2
+        ? (bar === 0 ? 'statement' : 'develop')
+        : ((bar % 4) === 0 ? 'statement'
+          : (bar % 4) === 1 ? 'echo'
+          : (bar % 4) === 2 ? 'develop'
+          : 'answer')
+
+    const mask: RhythmMotif = role === 'statement' || role === 'echo'
+      ? motif
+      : varyMotif(motif, ctx.rng)
     const kickFree = mask.slots.filter(s => !BACKBEAT.has(s) && !collides(s))
     const roomy = kickFree.filter(leadRoom)
-    const slots = (roomy.length > 0 ? roomy : kickFree)
-      .slice(0, ctx.energy > 0.7 ? 4 : 3)
+    const pool = roomy.length > 0 ? roomy : kickFree
+    const baseLimit = ctx.energy > 0.7 ? 4 : 3
+    const limit = role === 'echo' ? Math.max(1, baseLimit - 1)
+      : role === 'answer' ? Math.max(2, baseLimit - 1)
+      : baseLimit
+    let slots = pool.slice(0, limit)
+
+    if (role === 'answer') {
+      const keepDownbeat = slots.includes(0) ? [0] : []
+      const later = pool.filter(s => s >= PUSH_SLOT && s !== 0)
+      const early = pool.filter(s => s < PUSH_SLOT && s !== 0)
+      slots = [...new Set([...keepDownbeat, ...later, ...early])].slice(0, limit).sort((a, b) => a - b)
+    }
 
     slots.forEach((slot, i) => {
+      const isStatementBar = role === 'statement'
+      const isDevBar = role === 'develop'
+      const isAnswerBar = role === 'answer'
       events.push({
         time: swungTime(bar, slot, ctx.swing),
-        dur: ctx.energy > 0.7 ? '8n' : slot === 0 ? '2n' : '4n',
-        vel: clampVel((slot === 0 ? 0.6 : 0.48) - i * 0.02 + (isDevBar ? 0.04 : 0)),
+        dur: ctx.energy > 0.7
+          ? '8n'
+          : slot === 0
+            ? (isStatementBar ? '2n' : '4n')
+            : (isAnswerBar ? '8n' : '4n'),
+        vel: clampVel(
+          (slot === 0 ? 0.6 : 0.48)
+          - i * 0.02
+          + (isDevBar ? 0.04 : 0)
+          - (role === 'echo' ? 0.03 : 0)
+          - (isAnswerBar ? 0.02 : 0),
+        ),
       })
     })
 
-    // Development bar usually adds the mid-bar push (same voicing — safe).
+    // Development/answer bars usually add the mid-bar push (same voicing — safe).
     // The push also dodges the kick: try the and-of-2 first, then neighbours.
-    if (isDevBar && bars > 1 && ctx.rng() < 0.8) {
+    if ((role === 'develop' || role === 'answer') && bars > 1 && ctx.rng() < (role === 'develop' ? 0.85 : 0.65)) {
       const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
         .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(s))
       if (pushSlot !== undefined) {
-        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: 0.52 })
+        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: role === 'develop' ? 0.52 : 0.48 })
       }
     }
   }

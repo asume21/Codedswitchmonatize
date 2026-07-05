@@ -8,6 +8,7 @@ vi.mock('tone', () => createToneMock())
 
 import { ChordGenerator } from '../ChordGenerator'
 import { getConductor, resetConductor } from '../../conductor/Conductor'
+import * as Tone from 'tone'
 
 function makePhysics(overrides: Partial<PhysicsState> = {}): PhysicsState {
   return {
@@ -118,6 +119,17 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
     gen.processFrame(physics, organism)
 
     expect(gen.getTechnique()).toBe('piano-block-chord')
+  })
+
+  it('freeplay uses a 4-bar comp loop instead of a tiny 2-bar cell', () => {
+    const gen = new ChordGenerator()
+    gen.onStateTransition(OState.Flow, makePhysics({ mode: OrganismMode.Smoke }))
+
+    const partMock = Tone.Part as unknown as {
+      mock: { instances: Array<{ loopEnd: string }> }
+    }
+    const part = partMock.mock.instances.at(-1)
+    expect(part?.loopEnd).toBe('4m')
   })
 
   it('authored mode still applies section technique automation', () => {

@@ -111,6 +111,7 @@ export const INSTRUMENT_PERFORMERS: InstrumentPerformerProfile[] = [
     family: 'plucked',
     roles: ['bass'],
     samplerPreset: 'acoustic_bass',
+    realInstrument: 'SSO_Basses',
     range: [28, 52],
     preferredOctave: 2,
     polyphony: 'mono',

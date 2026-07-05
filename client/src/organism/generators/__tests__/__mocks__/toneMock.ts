@@ -99,18 +99,41 @@ function makePlayer() {
 }
 
 export function createToneMock() {
+  const makeAudioBuffer = () => ({
+    duration: 2.0,
+    length: 88200,
+    sampleRate: 44100,
+    numberOfChannels: 2,
+    getChannelData: vi.fn().mockReturnValue(new Float32Array(88200)),
+  })
+
+  const ToneAudioBuffer = vi.fn().mockImplementation(function (
+    this: Record<string, unknown>,
+    source?: unknown,
+    onload?: () => void,
+    _onerror?: (err: unknown) => void,
+  ) {
+    const audio = source && typeof source === 'object' && 'getChannelData' in (source as Record<string, unknown>)
+      ? source
+      : makeAudioBuffer()
+
+    const instance = Object.assign(this, {
+      get: vi.fn().mockReturnValue(audio),
+      dispose: vi.fn(),
+    })
+
+    if (typeof onload === 'function') {
+      setTimeout(() => onload(), 0)
+    }
+
+    return instance
+  })
+  ;(ToneAudioBuffer as unknown as { load: ReturnType<typeof vi.fn> }).load = vi.fn().mockResolvedValue(makeAudioBuffer())
+
   return {
     start: mockToneStart,
     loaded: vi.fn().mockResolvedValue(undefined),
-    ToneAudioBuffer: {
-      load: vi.fn().mockResolvedValue({
-        duration: 2.0,
-        length: 88200,
-        sampleRate: 44100,
-        numberOfChannels: 2,
-        getChannelData: vi.fn().mockReturnValue(new Float32Array(88200))
-      })
-    },
+    ToneAudioBuffer,
     getTransport: vi.fn().mockReturnValue({
       bpm: { value: 90 },
       start: mockTransportStart,

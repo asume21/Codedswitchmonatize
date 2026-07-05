@@ -25,9 +25,10 @@ import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
-import { createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { createNeumannBassSampler } from '../instruments/NeumannBassSampler'
 import { Real808BassSampler, findBass808Sample } from '../instruments/Real808BassSampler'
+import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import {
   applyArticulation,
   DEFAULT_ARTICULATION_ID,
@@ -118,6 +119,7 @@ export class BassGenerator extends GeneratorBase {
   // Bumped on every voice switch (applyBassPreset). A pending 808 load captures
   // this token and bails if the voice changed while its kit fetch was in flight.
   private voiceGeneration: number = 0
+  private currentVoiceKey: string | null = null
   private glideRate: number = 0.15 // default 150ms
 
   // Loop playback (_loopPlayer / _loopMode / loadLoop / setLoopMode / swapLoop)
@@ -409,9 +411,12 @@ export class BassGenerator extends GeneratorBase {
     this.setOutputLevel(0)
   }
 
+  /** Rebuild the performer voice (e.g. after real samples finish loading). */
+  refreshVoice(): void {
+    this.applyBassPreset()
+  }
+
   private applyBassPreset(): void {
-    // Each voice switch invalidates any in-flight async 808 load.
-    this.voiceGeneration++
     const performer = selectInstrumentPerformer({
       role: 'bass',
       mode: this.currentMode.toString(),
@@ -460,10 +465,30 @@ export class BassGenerator extends GeneratorBase {
     const sg = (this.currentSubGenre ?? '').toLowerCase()
     const use808 = !this.explicitPerformerId &&
       (modeStr === 'heat' || modeStr === 'gravel' || sg === 'trap' || sg === 'drill' || sg === 'bounce')
+    const realNotes = use808 ? null : getRealInstrumentNotes(performer)
+    const nextVoiceKey = use808
+      ? '808:synth'
+      : realNotes
+        ? `real:${performer.realInstrument}`
+        : `neumann:${performer.id}`
 
     // Add sub to ANY style: 808 styles already ARE the sub (level 0 to avoid
     // doubling/mud); every other style gets a sine sub under its bass voice.
     this.setSubLevel(use808 ? 0 : 0.5)
+
+    // Same voice already active: keep the current sampler/synth alive and only
+    // retune the lightweight state around it. This avoids dropping back to the
+    // fallback synth just because the organism re-entered the same mode/state.
+    if (nextVoiceKey === this.currentVoiceKey) {
+      this.use808Active = use808
+      this.isCurrentVoiceSampler = !use808
+      this.distortion.wet.rampTo(performer.id === 'bass-synth' ? 0.12 : 0, 0.1)
+      try { this.synth.volume.rampTo(performer.volume ?? 0, 0.1) } catch { /* */ }
+      return
+    }
+
+    // Each actual voice switch invalidates any in-flight async 808 load.
+    this.voiceGeneration++
 
     if (use808) {
       // Modern 808: prefer a real recorded 808 bass sample when the premium kit
@@ -506,6 +531,7 @@ export class BassGenerator extends GeneratorBase {
       this.synth = s808
       this.isCurrentVoiceSampler = false
       this.use808Active = true
+      this.currentVoiceKey = nextVoiceKey
 
       // Kick off the real 808 sampler load. If the kit has no bass808 sample or
       // the fetch fails, the synth 808 above remains the active voice.
@@ -519,16 +545,23 @@ export class BassGenerator extends GeneratorBase {
     this.disposeReal808Sampler()
 
     this.isCurrentVoiceSampler = true
-    // Use Neumann bass samples for all acoustic/electric modes — real recorded
-    // bass sounds dramatically better than General MIDI soundfonts.
-    const neumannSynth = createNeumannBassSampler()
-    neumannSynth.volume.value = performer.volume ?? 0
-    neumannSynth.connect(this.compressor)
-    this.synth = neumannSynth as unknown as LoadableSampler
+    if (realNotes) {
+      const multisampleSynth = createMultisampleSampler(realNotes, performer.envelope, performer.volume ?? 0)
+      multisampleSynth.connect(this.compressor)
+      this.synth = multisampleSynth
+    } else {
+      // Use Neumann bass samples for bass performers without a mapped real
+      // multisample catalog entry — still a better fallback than thin GM bass.
+      const neumannSynth = createNeumannBassSampler()
+      neumannSynth.volume.value = performer.volume ?? 0
+      neumannSynth.connect(this.compressor)
+      this.synth = neumannSynth as unknown as LoadableSampler
+    }
+    this.currentVoiceKey = nextVoiceKey
     this.distortion.wet.rampTo(performer.id === 'bass-synth' ? 0.12 : 0, 0.1)
 
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      console.debug(`Bass performer: ${performer.name} (${this.currentMode}) — Neumann sampler`)
+      console.debug(`Bass performer: ${performer.name} (${this.currentMode})${realNotes ? ' — real multisample' : ' — Neumann sampler'}`)
     }
   }
 

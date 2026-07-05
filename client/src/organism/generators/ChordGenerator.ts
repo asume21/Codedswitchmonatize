@@ -597,12 +597,11 @@ export class ChordGenerator extends GeneratorBase {
       const plan = buildFreeplayCompPlan({
         rootMidi: parsedCurrent.rootMidi,
         chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
-        // 2 bars: bar 1 states the comp motif, bar 2 develops it (variation +
-        // mid-bar push). The old 1-bar loop hit the SAME three slots every bar
-        // of the whole section — the "still repetitive" chord layer. Notes stay
-        // the current voicing throughout, so the 2-bar plan is chord-safe: a
-        // chord change rebuilds the part at the boundary exactly as before.
-        bars: 2,
+        // 4 bars: statement -> echo -> development -> answer. The old 2-bar
+        // loop was still small enough to read as a style cell repeating. Notes
+        // stay the current voicing throughout, so the longer plan is chord-safe:
+        // a chord change rebuilds the part at the boundary exactly as before.
+        bars: 4,
         swing: this.currentSwing,
         subGenre: score.subGenre,
         energy,
@@ -650,9 +649,9 @@ export class ChordGenerator extends GeneratorBase {
       }
     }
 
-    // Freeplay comps a 2-bar statement/development cycle; authored behaviors
+    // Freeplay comps a 4-bar phrase cycle; authored behaviors
     // keep their original 1-bar loop.
-    const loopBars = this.freeplayEnabled ? 2 : 1
+    const loopBars = this.freeplayEnabled ? 4 : 1
 
     const quantizedEvents = events.map(event => ({
       ...event,
@@ -758,10 +757,9 @@ export class ChordGenerator extends GeneratorBase {
 
     this.part.loop = true
     this.part.loopEnd = `${loopBars}m`
-    // Phase-aligned like drums/bass: the 2-bar statement/development cycle
-    // stays locked to the band's bar count, so the development bar (with its
-    // push) consistently answers the drums' bar-B kicks instead of drifting
-    // to whichever bar the rebuild happened on.
+    // Phase-aligned like drums/bass: the 4-bar comp phrase stays locked to the
+    // band's bar count, so echo/development/answer bars keep landing where
+    // they belong instead of collapsing back to the same tiny rhythm cell.
     this.part.start(startAt, livePartStartOffset(startAt, loopBars))
     this.hasStartedPlayback = true
     return true
