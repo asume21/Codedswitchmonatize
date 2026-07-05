@@ -5,6 +5,9 @@
  * finger exercises on a SINGING instrument. Violin/cello/wind/brass leads route
  * to the `lyrical` bank instead — in BOTH auto (demo, no mic) and live modes,
  * because the auto performance has to wow on its own.
+ *
+ * 2026-07-05: soloing piano measured ~12 onsets/sec of arp/fill content and
+ * didn't read as a melody at all — piano gets the same lyrical treatment now.
  */
 export interface MotifBankSelectionInput {
   /** Performer family: 'bowed' | 'wind' | 'brass' | 'keys' | 'pluck' | ... */
@@ -18,7 +21,7 @@ export interface MotifBankSelectionInput {
 }
 
 /** Singing families that should play lyrical lines, not arpeggios. */
-const LYRICAL_FAMILIES = new Set(['bowed', 'wind', 'brass'])
+const LYRICAL_FAMILIES = new Set(['bowed', 'wind', 'brass', 'keyboard'])
 
 export function selectMotifBankKey(input: MotifBankSelectionInput): string {
   const { family, voiceActive, preferredBankKey, chordSeed } = input

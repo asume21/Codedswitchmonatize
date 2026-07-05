@@ -38,6 +38,7 @@ import { getConductor } from '../conductor/Conductor'
 import { developMotif, pickPhraseVariations } from './melody/melodyMotif'
 import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } from './melody/melodyPhrase'
 import { assignMelodyVoice } from './melody/melodyVoice'
+import { selectMotifBankKey } from './melody/motifSelection'
 import { planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import {
   getPerformerExpressionConfig,
@@ -1079,13 +1080,15 @@ export class MelodyGenerator extends GeneratorBase {
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
     
-    let motifBank: MelodyMotif[] = HIP_HOP_MOTIFS.ostinatos
-    if (this.preferredMotifBankKey && HIP_HOP_MOTIFS[this.preferredMotifBankKey]) {
-      // Chorus/hook contrast set by onSectionChange — overrides the default pick.
-      motifBank = HIP_HOP_MOTIFS[this.preferredMotifBankKey]
-    } else if (!this.voiceActive) {
-      motifBank = chordSeed > 5 ? HIP_HOP_MOTIFS.arps : HIP_HOP_MOTIFS.fills
-    }
+    // Singing families (bowed/wind/brass/keyboard) get the lyrical bank instead
+    // of arp/fill "finger exercise" content — see motifSelection.ts.
+    const motifBankKey = selectMotifBankKey({
+      family: this.currentPerformer?.family,
+      voiceActive: this.voiceActive,
+      preferredBankKey: this.preferredMotifBankKey,
+      chordSeed,
+    })
+    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[motifBankKey] ?? HIP_HOP_MOTIFS.ostinatos
     
     // Performance 19: Cache chord tones mapping
     const chordDegs = this.cachedChordDegs

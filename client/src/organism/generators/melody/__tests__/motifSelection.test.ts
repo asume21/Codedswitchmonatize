@@ -19,8 +19,13 @@ describe('selectMotifBankKey', () => {
   })
 
   it('preserves the existing arps/fills split for non-lyrical leads in auto mode', () => {
-    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: false, preferredBankKey: null, chordSeed: 7 })).toBe('arps')
-    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: false, preferredBankKey: null, chordSeed: 3 })).toBe('fills')
+    expect(selectMotifBankKey({ family: 'plucked', voiceActive: false, preferredBankKey: null, chordSeed: 7 })).toBe('arps')
+    expect(selectMotifBankKey({ family: 'plucked', voiceActive: false, preferredBankKey: null, chordSeed: 3 })).toBe('fills')
+  })
+
+  it('routes a keyboard (piano) lead to the lyrical bank instead of arps/fills (2026-07-05)', () => {
+    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: false, preferredBankKey: null, chordSeed: 7 })).toBe('lyrical')
+    expect(selectMotifBankKey({ family: 'keyboard', voiceActive: true, preferredBankKey: null, chordSeed: 2 })).toBe('lyrical')
   })
 
   it('defaults to ostinatos for a non-lyrical lead with a live vocalist', () => {
