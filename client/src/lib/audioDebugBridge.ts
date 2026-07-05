@@ -34,11 +34,13 @@ interface WebEarBridgeStatus {
 let tapNode:        MediaStreamAudioDestinationNode | null = null
 let tapContext:     AudioContext | null = null  // track which context the tap belongs to
 let tapSource:      { disconnect: (node?: AudioNode) => unknown } | null = null
-interface OrganismTapSource {
+interface AudioDebugTapSource {
   connect: (destination: Tone.InputNode) => void
   disconnect: (destination: Tone.InputNode) => void
 }
-let organismSource: OrganismTapSource | null = null
+// Any number of playback sources (Organism, Recording Booth beats, etc.) can
+// feed the tap at once — a Set so registering one never evicts another.
+const registeredSources = new Set<AudioDebugTapSource>()
 let recorder:       MediaRecorder | null = null
 let sseSource:      EventSource   | null = null
 let localSseSource: EventSource   | null = null
@@ -65,41 +67,48 @@ function setWebEarStatus(state: WebEarBridgeState, message: string) {
   window.dispatchEvent(new CustomEvent('webear:status', { detail: status }))
 }
 
-export function registerOrganismAudioDebugSource(source: OrganismTapSource): () => void {
-  // The organism master IS the capture source. Measured live 2026-06-12 (Tone
-  // 15.1.22): the Tone.getDestination() internal gain nodes that ensureTap()
-  // guesses at carry NO signal even while audio is audible, so the destination
-  // tap records pure silence — the organism registration is the only live
-  // source. (The earlier "false +6 dB double-tap" was double-REGISTRATION, not
-  // organism+destination summing; connectSourceToTap below is idempotent.)
-  if (organismSource && organismSource !== source && tapNode) {
-    try { organismSource.disconnect(tapNode) } catch { /* not connected */ }
-    tapConnectedSource = null
+/**
+ * Register a playback source (Organism master, Recording Booth beat, etc.)
+ * so WebEar's capture tap actually hears it. Measured live 2026-06-12 (Tone
+ * 15.1.22): the Tone.getDestination() internal gain nodes that ensureTap()
+ * guesses at carry NO signal even while audio is audible, so anything that
+ * only routes to Tone's destination or a raw AudioContext.destination
+ * records as pure silence — explicit registration is the only live path.
+ * Returns an unregister function; call it when the source stops/unmounts.
+ */
+export function registerAudioDebugSource(source: AudioDebugTapSource): () => void {
+  registeredSources.add(source)
+  if (tapNode) {
+    try {
+      source.connect(tapNode)
+      log('Audio-debug source connected to capture tap ✓')
+    } catch (e) {
+      log(`Could not connect audio-debug source to tap: ${e}`)
+    }
   }
-  organismSource = source
-  connectSourceToTap()
 
   return () => {
-    if (organismSource !== source) return
+    registeredSources.delete(source)
     if (tapNode) {
       try { source.disconnect(tapNode) } catch { /* not connected */ }
     }
-    if (tapConnectedSource === source) tapConnectedSource = null
-    organismSource = null
   }
 }
 
-let tapConnectedSource: OrganismTapSource | null = null
-
-/** Connect the registered organism source to the tap exactly once per tap node. */
-function connectSourceToTap(): void {
-  if (!tapNode || !organismSource || tapConnectedSource === organismSource) return
-  try {
-    organismSource.connect(tapNode)
-    tapConnectedSource = organismSource
-    log('Organism master connected to capture tap ✓')
-  } catch (e) {
-    log(`Could not connect organism source to tap: ${e}`)
+/**
+ * Connect every currently-registered source to a freshly (re)built tap node.
+ * Only called right after a new tapNode is created, so none of these sources
+ * can already be connected to it — safe against the "false +6 dB double-tap"
+ * bug a double-registration caused previously.
+ */
+function connectAllRegisteredSources(): void {
+  if (!tapNode) return
+  for (const source of registeredSources) {
+    try {
+      source.connect(tapNode)
+    } catch (e) {
+      log(`Could not connect audio-debug source to tap: ${e}`)
+    }
   }
 }
 
@@ -182,14 +191,12 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     const ctx  = Tone.getContext().rawContext as AudioContext
     const dest = Tone.getDestination() as any
 
-    // If context changed (Tone.start() creates a new one), invalidate cached tap
+    // If context changed (Tone.start() creates a new one), invalidate cached tap.
+    // Registered sources stay registered — they'll be reconnected to the fresh
+    // tapNode below once it's rebuilt.
     if (tapNode && tapContext !== ctx) {
       log('AudioContext changed — rebuilding tap')
       try { tapSource?.disconnect(tapNode) } catch { /* ignore */ }
-      if (tapConnectedSource) {
-        try { tapConnectedSource.disconnect(tapNode) } catch { /* ignore */ }
-        tapConnectedSource = null
-      }
       tapNode = null
       tapContext = null
       tapSource = null
@@ -231,8 +238,8 @@ async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
     log(`Tapped Tone.js master gain ✓ (ctx.state=${ctx.state}, sampleRate=${ctx.sampleRate})`)
 
     // The destination gain above carries no signal in Tone 15.1.22 (verified
-    // live) — the organism master registration is the real capture source.
-    connectSourceToTap()
+    // live) — explicitly-registered sources are the real capture source.
+    connectAllRegisteredSources()
   } catch (e) {
     log(`ensureTap error: ${e}`)
     return null

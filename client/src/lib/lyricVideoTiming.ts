@@ -115,10 +115,22 @@ export function alignTimedWordsToTranscript(
   // Create DP table
   const dp: number[][] = Array.from({ length: N + 1 }, () => new Array(M + 1).fill(0));
 
-  const GAP_TOKEN = -1;
-  const GAP_TIMED = -1;
-  const MATCH_SCORE = 2;
-  const MISMATCH_SCORE = -2;
+  // Scaled so a genuine match/mismatch/gap decision (always a multiple of
+  // SCALE apart) can never be flipped by the tie-break term below.
+  const SCALE = 1000;
+  const GAP_TOKEN = -1 * SCALE;
+  const GAP_TIMED = -1 * SCALE;
+  const MATCH_SCORE = 2 * SCALE;
+  const MISMATCH_SCORE = -2 * SCALE;
+
+  // Lyrics repeat constantly (choruses, hooks, ad-libs), so identical words
+  // routinely tie for the same total score across many different pairings.
+  // Without a tie-break, backtracking can match a *later* transcript
+  // repeat to an *earlier* timed word, leaving a real occurrence with no
+  // timestamp at all. This term (always < 1, so it never outweighs a real
+  // score difference) nudges ties toward the pairing whose relative
+  // position in each sequence lines up, i.e. the order-preserving match.
+  const positionSkew = (i: number, j: number) => Math.abs((i - 1) / N - (j - 1) / M);
 
   // Initialize borders
   for (let i = 1; i <= N; i++) {
@@ -133,8 +145,10 @@ export function alignTimedWordsToTranscript(
     const token = normalizeToken(tokens[i - 1]);
     for (let j = 1; j <= M; j++) {
       const timed = normalizeToken(timedWords[j - 1].text);
-      const matchScore = token === timed ? MATCH_SCORE : MISMATCH_SCORE;
-      
+      const matchScore = token === timed
+        ? MATCH_SCORE - positionSkew(i, j)
+        : MISMATCH_SCORE;
+
       dp[i][j] = Math.max(
         dp[i - 1][j - 1] + matchScore,
         dp[i - 1][j] + GAP_TOKEN,
@@ -152,8 +166,10 @@ export function alignTimedWordsToTranscript(
     if (i > 0 && j > 0) {
       const token = normalizeToken(tokens[i - 1]);
       const timed = normalizeToken(timedWords[j - 1].text);
-      const matchScore = token === timed ? MATCH_SCORE : MISMATCH_SCORE;
-      
+      const matchScore = token === timed
+        ? MATCH_SCORE - positionSkew(i, j)
+        : MISMATCH_SCORE;
+
       const scoreDiag = dp[i - 1][j - 1] + matchScore;
       const scoreUp = dp[i - 1][j] + GAP_TOKEN;
       const currentScore = dp[i][j];
