@@ -381,7 +381,7 @@ export class ChordGenerator extends GeneratorBase {
     //   1. User explicit override (techniqueOverridden=true) — never touched here
     //   2. Section technique (sectionTechniqueId) — arrangement automation
     //   3. Mode default — fires only on mode change when no section override
-    if (!this.techniqueOverridden) {
+    if (!this.freeplayEnabled && !this.techniqueOverridden) {
       if (this.sectionTechniqueId !== null) {
         if (this.currentTechniqueId !== this.sectionTechniqueId) {
           this.setTechnique(this.sectionTechniqueId, /* markAsOverride */ false)
@@ -592,9 +592,11 @@ export class ChordGenerator extends GeneratorBase {
       // organism state to intensity, so reuse it instead of a second signal.
       const energy = this.currentBehavior === ChordBehavior.Pad ? 0.3
         : this.currentBehavior === ChordBehavior.Stab ? 0.85 : 0.6
-      const seed = hashString(`chord:${this.currentSectionName}`)
+      const score = conductor.getScoreFrame()
+      const seed = hashString(`chord:${this.currentSectionName}:${score.subGenre}`)
       const plan = buildFreeplayCompPlan({
-        rootMidi: 60, chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
+        rootMidi: parsedCurrent.rootMidi,
+        chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
         // 2 bars: bar 1 states the comp motif, bar 2 develops it (variation +
         // mid-bar push). The old 1-bar loop hit the SAME three slots every bar
         // of the whole section — the "still repetitive" chord layer. Notes stay
@@ -602,7 +604,7 @@ export class ChordGenerator extends GeneratorBase {
         // chord change rebuilds the part at the boundary exactly as before.
         bars: 2,
         swing: this.currentSwing,
-        subGenre: 'none',
+        subGenre: score.subGenre,
         energy,
         density: energy,
         sectionName: this.currentSectionName,
@@ -704,12 +706,12 @@ export class ChordGenerator extends GeneratorBase {
         : event.notes
 
       // ── Technique dispatch ─────────────────────────────────────────
-      // Instead of firing all chord notes simultaneously (block-chord), the
-      // active technique returns per-note events with time offsets, allowing
-      // guitar-strum, piano-roll, Alberti patterns, etc. Falls back to
-      // simultaneous play when the default block-chord technique is active.
+      // Authored mode may redistribute a chord hit into a named technique
+      // (rolled chord, Alberti, muted stab, etc.). Freeplay already owns WHEN
+      // and HOW the comp hits; running another scheduler underneath it gives
+      // the chord layer two competing rhythmic brains.
       const technique = getTechnique(this.currentTechniqueId)
-      if (technique && this.currentTechniqueId !== DEFAULT_TECHNIQUE_ID) {
+      if (!this.freeplayEnabled && technique && this.currentTechniqueId !== DEFAULT_TECHNIQUE_ID) {
         const tempo = Tone.getTransport().bpm.value || 90
         const chordDurationSec = Tone.Time(event.dur).toSeconds()
         const ctx: TechniqueContext = {

@@ -89,25 +89,47 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
       const organism = makeOrganism()
       gen.onStateTransition(OState.Flow, physics)
 
-      nowSpy.mockReturnValue(1600)
-      gen.processFrame(physics, organism)
-
       vi.clearAllMocks()
       getConductor().advanceChord()
       expect(mockPartStart).not.toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(true)
 
-      nowSpy.mockReturnValue(1601)
+      nowSpy.mockReturnValue(1001)
       gen.processFrame(physics, organism)
       expect(mockPartStart).not.toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(true)
 
-      nowSpy.mockReturnValue(2200)
+      nowSpy.mockReturnValue(1600)
       gen.processFrame(physics, organism)
       expect(mockPartStart).toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(false)
     } finally {
       nowSpy.mockRestore()
     }
+  })
+
+  it('freeplay ignores section technique automation so the comp plan owns the rhythm', () => {
+    const gen = new ChordGenerator()
+    const physics = makePhysics({ mode: OrganismMode.Smoke })
+    const organism = makeOrganism()
+
+    gen.onSectionChange('verse')
+    gen.onStateTransition(OState.Flow, physics)
+    gen.processFrame(physics, organism)
+
+    expect(gen.getTechnique()).toBe('piano-block-chord')
+  })
+
+  it('authored mode still applies section technique automation', () => {
+    const gen = new ChordGenerator()
+    const physics = makePhysics({ mode: OrganismMode.Smoke })
+    const organism = makeOrganism()
+
+    gen.setFreeplay(false)
+    gen.onSectionChange('verse')
+    gen.onStateTransition(OState.Flow, physics)
+    gen.processFrame(physics, organism)
+
+    expect(gen.getTechnique()).toBe('piano-rolled-chord')
   })
 })
