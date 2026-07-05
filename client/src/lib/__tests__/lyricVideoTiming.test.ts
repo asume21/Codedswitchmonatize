@@ -56,6 +56,36 @@ describe('lyricVideoTiming', () => {
     expect(alignTimedWordsToTranscript('some words here', [])).toEqual([]);
   });
 
+  it('keeps a repeated phrase in its own real occurrence when Whisper drops the middle repeat (repeated-chorus bug)', () => {
+    // Lyrics repeat the phrase 3x; Whisper only caught the 1st and 3rd repeats
+    // (the middle repeat's audio was missed entirely). Every word in the
+    // triplet is textually identical, so a naive alignment can tie-break
+    // into matching the LAST transcript repeat to the timed words that
+    // really belong to the middle gap, leaving the middle repeat's words
+    // with no real timing (previously they collapsed to 0.00).
+    const transcript = 'one two three one two three one two three';
+    const timed = [
+      { text: 'one', start: 0.0, end: 0.2 },
+      { text: 'two', start: 0.2, end: 0.4 },
+      { text: 'three', start: 0.4, end: 0.6 },
+      { text: 'one', start: 2.0, end: 2.2 },
+      { text: 'two', start: 2.2, end: 2.4 },
+      { text: 'three', start: 2.4, end: 2.6 },
+    ];
+    const aligned = alignTimedWordsToTranscript(transcript, timed);
+
+    // First repeat keeps its own real timing.
+    expect(aligned[0].start).toBeCloseTo(0.0, 5);
+    expect(aligned[2].start).toBeCloseTo(0.4, 5);
+    // Middle (dropped) repeat interpolates strictly between the two anchors,
+    // rather than collapsing to 0 or stealing the last repeat's timing.
+    expect(aligned[3].start).toBeGreaterThan(aligned[2].start);
+    expect(aligned[5].start).toBeLessThan(2.0);
+    // Last repeat keeps its own real timing — not stolen by the middle one.
+    expect(aligned[6].start).toBeCloseTo(2.0, 5);
+    expect(aligned[8].start).toBeCloseTo(2.4, 5);
+  });
+
   it('handles all-unstamped words in normalizeTimedWords', () => {
     expect(normalizeTimedWords([
       { word: 'hello' }, // missing start/end

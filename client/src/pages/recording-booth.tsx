@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useLocation } from 'wouter'
 import { getAudioContext, resumeAudioContext } from '@/lib/audioContext'
+import { registerAudioDebugSource } from '@/lib/audioDebugBridge'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -287,11 +288,16 @@ export default function RecordingBooth() {
   const quickBeatAudioRef = useRef<HTMLAudioElement | null>(null)
   const quickBeatSrcRef = useRef<MediaElementAudioSourceNode | null>(null)
   const quickBeatGainRef = useRef<GainNode | null>(null)
+  // Unregisters the beat's gain node from WebEar's capture tap (see
+  // audioDebugBridge.ts — without this, WebEar hears nothing even though the
+  // beat plays audibly, since it bypasses Tone's destination entirely).
+  const quickBeatUnregisterTapRef = useRef<(() => void) | null>(null)
 
   // Uploaded beat Web Audio nodes
   const uploadedAudioRef = useRef<HTMLAudioElement | null>(null)
   const uploadedSrcRef   = useRef<MediaElementAudioSourceNode | null>(null)
   const uploadedGainRef  = useRef<GainNode | null>(null)
+  const uploadedUnregisterTapRef = useRef<(() => void) | null>(null)
 
   // Beat recording — captures what plays through speakers
   const beatRecDestRef  = useRef<MediaStreamAudioDestinationNode | null>(null)
@@ -301,6 +307,8 @@ export default function RecordingBooth() {
   // My Songs
   const audioElRef     = useRef<HTMLAudioElement | null>(null)
   const audioSrcRef    = useRef<MediaElementAudioSourceNode | null>(null)
+  const songGainRef    = useRef<GainNode | null>(null)
+  const songUnregisterTapRef = useRef<(() => void) | null>(null)
 
   // Mic / recording
   const micStreamRef     = useRef<MediaStream | null>(null)
@@ -382,6 +390,8 @@ export default function RecordingBooth() {
     }
     quickBeatSrcRef.current?.disconnect()
     quickBeatGainRef.current?.disconnect()
+    quickBeatUnregisterTapRef.current?.()
+    quickBeatUnregisterTapRef.current = null
     quickBeatAudioRef.current = null
     quickBeatSrcRef.current = null
     quickBeatGainRef.current = null
@@ -409,6 +419,11 @@ export default function RecordingBooth() {
     source.connect(gain)
     gain.connect(rawAC.destination)
     gain.connect(recDest)
+
+    quickBeatUnregisterTapRef.current = registerAudioDebugSource({
+      connect: (destination) => gain.connect(destination as unknown as AudioNode),
+      disconnect: (destination) => gain.disconnect(destination as unknown as AudioNode),
+    })
 
     quickBeatAudioRef.current = audio
     quickBeatSrcRef.current = source
@@ -464,6 +479,11 @@ export default function RecordingBooth() {
       gainNode.connect(rawAC.destination)          // speakers
       gainNode.connect(ensureBeatRecDest())         // recording
       audioSrcRef.current = src
+      songGainRef.current = gainNode
+      songUnregisterTapRef.current = registerAudioDebugSource({
+        connect: (destination) => gainNode.connect(destination as unknown as AudioNode),
+        disconnect: (destination) => gainNode.disconnect(destination as unknown as AudioNode),
+      })
     }
 
     setSelectedSong(song)
@@ -507,6 +527,8 @@ export default function RecordingBooth() {
     if (uploadedAudioRef.current) { uploadedAudioRef.current.pause(); uploadedAudioRef.current.currentTime = 0 }
     uploadedSrcRef.current?.disconnect()
     uploadedGainRef.current?.disconnect()
+    uploadedUnregisterTapRef.current?.()
+    uploadedUnregisterTapRef.current = null
     uploadedAudioRef.current = null
     uploadedSrcRef.current   = null
     uploadedGainRef.current  = null
@@ -529,6 +551,11 @@ export default function RecordingBooth() {
     source.connect(gain)
     gain.connect(rawAC.destination)
     gain.connect(recDest)
+
+    uploadedUnregisterTapRef.current = registerAudioDebugSource({
+      connect: (destination) => gain.connect(destination as unknown as AudioNode),
+      disconnect: (destination) => gain.disconnect(destination as unknown as AudioNode),
+    })
 
     uploadedAudioRef.current = audio
     uploadedSrcRef.current   = source
@@ -820,6 +847,12 @@ export default function RecordingBooth() {
   useEffect(() => () => {
     void stopQuickBeat()
     stopSong()
+    // My Songs' gain node is intentionally kept connected across pause/play
+    // (see toggleSong), so it isn't torn down by stopSong — unregister it
+    // here on unmount so the WebEar tap doesn't hold a strong reference to
+    // it forever.
+    songUnregisterTapRef.current?.()
+    songUnregisterTapRef.current = null
     stopUploadedBeat()
     if (micRecorderRef.current?.state === 'recording') micRecorderRef.current.stop()
     if (beatRecorderRef.current?.state === 'recording') beatRecorderRef.current.stop()

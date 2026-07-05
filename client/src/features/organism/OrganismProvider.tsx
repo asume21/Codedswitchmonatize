@@ -65,7 +65,7 @@ import type { MusicalKey, KeyMode } from '../../stores/useStudioStore'
 import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
-import { registerOrganismAudioDebugSource } from '../../lib/audioDebugBridge'
+import { registerAudioDebugSource } from '../../lib/audioDebugBridge'
 import type { OrganismV2Status } from './OrganismContext'
 import { MelodicLoopPlayer } from '../../organism/loops/MelodicLoopPlayer'
 import { getConductor } from '../../organism/conductor/Conductor'
@@ -592,7 +592,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
 
     // Wire AI Director — pre-generates next section directive while current plays
     const aiDirector = new AIDirector(orchestr)
-    const unregisterAudioDebugSource = registerOrganismAudioDebugSource({
+    const unregisterAudioDebugSource = registerAudioDebugSource({
       connect: (destination) => {
         mix.connectMasterOutput(destination)
       },
