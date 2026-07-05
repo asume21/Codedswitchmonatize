@@ -166,6 +166,7 @@ describe('MelodyGenerator', () => {
     it('routes a bowed-string lead (violin) to the lyrical bank, not arps/fills', () => {
       const physics = makePhysics({ voiceActive: false })
 
+      gen.setFreeplay(false)
       gen.setInstrumentPerformer('violin')
       gen.onStateTransition(OState.Flow, physics)
 
@@ -178,6 +179,7 @@ describe('MelodyGenerator', () => {
     it('routes a keyboard lead (piano) to the lyrical bank too, not the tiny arps/fills loop', () => {
       const physics = makePhysics({ voiceActive: false })
 
+      gen.setFreeplay(false)
       gen.setInstrumentPerformer('piano')
       gen.onStateTransition(OState.Flow, physics)
 

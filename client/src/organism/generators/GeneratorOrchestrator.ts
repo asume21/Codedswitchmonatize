@@ -285,6 +285,7 @@ export class GeneratorOrchestrator {
       // Freeplay improvisers key their committed motifs on the section name.
       this.currentSectionName = section
       this.bass.setSectionName(section)
+      this.melody.setSectionName(section)
       this.chord.setSectionName(section)
       orgLog('arrangement:section', {
         section,
@@ -464,6 +465,7 @@ export class GeneratorOrchestrator {
     this.freeplayDrumCounter = 0
     this.chord.resetFreeplayCounter()
     this.bass.resetFreeplayCounter()
+    this.melody.resetFreeplayCounter()
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
     )
@@ -1306,6 +1308,11 @@ export class GeneratorOrchestrator {
   /** Freeplay switch — bass improvises from the live chord vs authored patterns. */
   setBassFreeplay(enabled: boolean): void {
     this.bass.setFreeplay(enabled)
+  }
+
+  /** Freeplay switch — melody improvises from the live chord vs authored motifs. */
+  setMelodyFreeplay(enabled: boolean): void {
+    this.melody.setFreeplay(enabled)
   }
 
   /** Freeplay switch for drums (UI: DRUMS panel pill). */

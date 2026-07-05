@@ -40,7 +40,8 @@ import { isStrongBeat, resolveDegreeComplementing, contourOffset, cadenceStep } 
 import { assignMelodyVoice } from './melody/melodyVoice'
 import { selectMotifBankKey } from './melody/motifSelection'
 import { planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
-import { extractBusySlots16ths } from './freeplay/utils'
+import { buildFreeplayMelodyNotes, clearMelodyMotifs } from './freeplay/MelodyImproviser'
+import { extractBusySlots16ths, getSessionSalt, hashString, mulberry32 } from './freeplay/utils'
 import {
   getPerformerExpressionConfig,
   isSustainedPitch,
@@ -139,6 +140,11 @@ export class MelodyGenerator extends GeneratorBase {
   private lastNoteEndSec: number = 0
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
+  // ── Freeplay (2026-07-04) ── melody now uses the shared improviser by
+  // default. The authored HIP_HOP_MOTIFS renderer remains available as a
+  // fallback/style source via setFreeplay(false).
+  private freeplayEnabled = true
+  private freeplayPhraseCounter = 0
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
   // by default: timbre variety only pays off once the LINE is good, and we don't
   // want to debug a jumping voice while the note logic is still settling.
@@ -405,16 +411,20 @@ export class MelodyGenerator extends GeneratorBase {
 
     this.updateChordDegreesCache()
 
-    // Only rebuild when the KEY or SCALE changes (sub-genre swap, explicit key
-    // change, new progression). A plain chord advance (advanceChord) increments
-    // the chord index but does NOT bump progressionVersion — the running phrase
-    // keeps playing through it so the melody builds continuously over the beat
-    // rather than hard-resetting every 2 bars.
+    // Authored-motif mode keeps the legacy behavior: rebuild only when the KEY
+    // or SCALE changes (sub-genre swap, explicit key change, new progression).
+    //
+    // Freeplay mode is generated from the current live chord, so a plain chord
+    // advance must schedule a fresh phrase at the next boundary. Otherwise the
+    // melody keeps targeting the previous chord while harmony has moved.
     const progressionVersion = conductor.getProgressionVersion()
     const progressionChanged = progressionVersion !== this.lastProgressionVersion
-    if (triggerRebuild && progressionChanged) {
+    if (progressionChanged) {
       this.lastProgressionVersion = progressionVersion
+    }
+    if (triggerRebuild && (progressionChanged || this.freeplayEnabled)) {
       this.scaleDirty = true
+      if (this.freeplayEnabled) this.lastRebuildTime = -Infinity
     }
   }
 
@@ -457,6 +467,21 @@ export class MelodyGenerator extends GeneratorBase {
     this.subGenreSwing = Math.max(0, Math.min(1, amount))
   }
 
+  /** Zeroed on every organism start so a pinned freeplay seed replays the same take. */
+  resetFreeplayCounter(): void {
+    this.freeplayPhraseCounter = 0
+    clearMelodyMotifs()
+  }
+
+  /** Freeplay on/off. Rebuild immediately so the switch is audible. */
+  setFreeplay(enabled: boolean): void {
+    if (this.freeplayEnabled === enabled) return
+    this.freeplayEnabled = enabled
+    this.currentSectionMotif = null
+    this.scaleDirty = true
+    this.lastRebuildTime = -Infinity
+  }
+
   // Per-start phrase variety — rolled by the orchestrator on each cold start
   // so two sessions over the same progression don't play identical phrases.
   private sessionSeed: number = Math.floor(Math.random() * 97)
@@ -496,6 +521,7 @@ export class MelodyGenerator extends GeneratorBase {
    * The lead instrument DOES NOT change — it is the signature of the beat.
    */
   onSectionChange(_sectionName: string, behaviorOverride?: MelodyBehavior): void {
+    this.setSectionName(_sectionName)
     if (behaviorOverride) {
       this.sectionBehavior = behaviorOverride
     } else {
@@ -524,7 +550,7 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   /** Performer ids the melody may hand off to. Stub returns the current one only
-   *  until a richer catalog is wired; keeps hand-off safe + deterministic. */
+   *  until a richer catalog is wired; keeps hand-off safe + repeatable. */
   private availablePerformerIds(): InstrumentPerformerId[] {
     return this.explicitPerformerId ? [this.explicitPerformerId] : []
   }
@@ -1081,7 +1107,7 @@ export class MelodyGenerator extends GeneratorBase {
     const notes: ScheduledNote[] = []
     const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
     
-    // Deterministic octave based on mode hash
+    // Stable octave based on mode hash.
     const modeHash = physics.mode.toString().length
     const octave  = octaves[0] + (modeHash % (octaves[1] - octaves[0] + 1))
     
@@ -1090,24 +1116,11 @@ export class MelodyGenerator extends GeneratorBase {
       ? this.lastPerformerEnergy
       : Math.max(0.75, this.lastPerformerEnergy)
 
-    // CALL & RESPONSE: Deterministic selection based on chord root and absolute
-    // bar, mixed with a per-start session seed — pure (root, bar) seeding made
-    // every cold start play the EXACT same phrase note-for-note.
+    // CALL & RESPONSE: selection based on chord root and absolute bar, mixed
+    // with a per-start session seed. Pure (root, bar) seeding made every cold
+    // start play the exact same phrase note-for-note.
     const currentBar = getConductor().getScoreFrame().bar
     const chordSeed = (this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar + this.sessionSeed) % 10
-    
-    // Singing families (bowed/wind/brass) route to the 'lyrical' bank instead
-    // of the arp/fill banks, which read as "finger exercises" on an instrument
-    // that's supposed to sustain and swell like a voice (user feedback,
-    // 2026-06-23 — see motifSelection.ts). preferredBankKey (chorus/hook
-    // contrast) still overrides everything.
-    const motifBankKey = selectMotifBankKey({
-      family: this.currentPerformer?.family,
-      voiceActive: this.voiceActive,
-      preferredBankKey: this.preferredMotifBankKey,
-      chordSeed,
-    })
-    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[motifBankKey] ?? HIP_HOP_MOTIFS.ostinatos
     
     // Performance 19: Cache chord tones mapping
     const chordDegs = this.cachedChordDegs
@@ -1118,6 +1131,54 @@ export class MelodyGenerator extends GeneratorBase {
     const melodicOctave = isBowedLead
       ? Math.min(octaves[1], Math.max(octaves[0], (performer?.preferredOctave ?? octave + 1) - 1))
       : octave
+
+    if (this.freeplayEnabled) {
+      const conductor = getConductor()
+      const score = conductor.getScoreFrame()
+      const chord = score.currentChord ?? conductor.currentChord()
+      const behavior = this.currentBehavior === MelodyBehavior.Hint
+        ? 'hint'
+        : this.currentBehavior === MelodyBehavior.Respond ? 'respond' : 'lead'
+      const seed = hashString(`melody:${this.currentSectionName}:${score.subGenre}:${behavior}`)
+
+      return buildFreeplayMelodyNotes({
+        rootMidi: chord.rootMidi,
+        chordIntervals: chord.intervals ?? [0, 3, 7],
+        bars: Math.max(1, Math.ceil(length16ths / 16)),
+        swing: this.currentSwing,
+        subGenre: score.subGenre,
+        energy: Math.max(0.2, Math.min(1, velocityEnergy)),
+        density: behavior === 'lead'
+          ? Math.max(0.58, Math.min(0.95, 0.58 + this.flowDepth * 0.35))
+          : behavior === 'respond' ? 0.48 : 0.22,
+        sectionName: this.currentSectionName,
+        motifSeed: seed,
+        kickTimes16ths: [],
+        rng: mulberry32(seed + getSessionSalt() + this.freeplayPhraseCounter++),
+        scaleIntervals: this.currentScale,
+        keyPitchClass: this.rootPitchClass,
+        chordDegrees: chordDegs,
+        preferredDegrees: preferredDegs,
+        octave: melodicOctave,
+        pitchOffsetSemitones: this.pitchOffsetSemitones,
+        length16ths,
+        behavior,
+        performerFamily: performer?.family,
+        emotionalIntent: this.emotionalIntent,
+      })
+    }
+
+    // Authored fallback: singing families (bowed/wind/brass/keyboard) route to
+    // the 'lyrical' bank instead of the arp/fill banks, which read as finger
+    // exercises on instruments expected to carry a tune. preferredBankKey
+    // (chorus/hook contrast) still overrides everything.
+    const motifBankKey = selectMotifBankKey({
+      family: this.currentPerformer?.family,
+      voiceActive: this.voiceActive,
+      preferredBankKey: this.preferredMotifBankKey,
+      chordSeed,
+    })
+    const motifBank: MelodyMotif[] = HIP_HOP_MOTIFS[motifBankKey] ?? HIP_HOP_MOTIFS.ostinatos
 
     const degreeToPitch = (degIndex: number, transposeOct: number = 0): string => {
       if (this.currentScale.length === 0) return 'C4'
@@ -1230,15 +1291,15 @@ export class MelodyGenerator extends GeneratorBase {
 
         const accentBase = sub === 0 ? 0.78 : sub === 2 ? 0.60 : 0.42
 
-        // Deterministic velocity seeded by position and energy
+        // Repeatable velocity texture seeded by position and energy.
         const seed = (bar * 16) + (beat * 4) + sub
         const hash = Math.sin(seed * 9.87) * 1000
         const pseudoRand = hash - Math.floor(hash)
 
         let vel = Math.min(1, Math.max(0.22, (accentBase * velocityEnergy) + (pseudoRand - 0.5) * 0.12))
 
-        // Emotional-intent velocity shaping. Applied after the deterministic
-        // hash so the per-position pseudo-random texture is preserved, just
+        // Emotional-intent velocity shaping. Applied after the position hash
+        // so the per-position pseudo-random texture is preserved, just
         // mapped into a different dynamic range.
         if (this.emotionalIntent === 'sad') {
           // Clamp to [0.4, 0.6] for the soft, contained dynamics of a
@@ -1307,7 +1368,7 @@ export class MelodyGenerator extends GeneratorBase {
 
     // Safety net: if the generated phrase collapsed to a single pitch (motif
     // step.index aligned with chordDegs[0] for every step, or chord-tone
-    // mapping returned only the root), fall back to a deterministic 4-bar
+    // mapping returned only the root), fall back to a stable 4-bar
     // minor contour. Without this guard the listener can hear the engine
     // stuck on a single repeating note while the rest of the mix keeps moving.
     const uniquePitches = new Set(notes.map(n => n.pitch))
@@ -1319,7 +1380,7 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   /**
-   * Deterministic 4-bar (or shorter) minor contour:
+   * Stable 4-bar (or shorter) minor contour:
    *   root – ♭3 – 5 – ♭7 – 5 – ♭3 – root
    * Used when the motif renderer collapses to a single repeated pitch.
    * Always plays in natural minor relative to the current rootPitchClass so
