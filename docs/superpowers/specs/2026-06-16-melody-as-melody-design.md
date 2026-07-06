@@ -196,3 +196,87 @@ sane register instead of zig-zagging.
 - Not hand-authoring new motif banks — reuse `HIP_HOP_MOTIFS` as seed material; the
   win is development, not more raw motifs.
 - Not changing the melody routing/level work shipped earlier this session.
+
+## Addendum 2026-07-06 — §4's wiring was lost; add cross-phrase continuity + one deliberate rule-break
+
+_Audit finding: `voiceLeading.ts`/`applyVoiceLeading()` from the §4 addendum above was built
+and unit-tested exactly as speced, but is **never called from anywhere** in the generator
+pipeline — same class of bug as `selectMotifBankKey()` (built 2026-06-23, wired in
+2026-07-04): a real fix that shipped as a module but never got connected. Likely lost during
+the Slice 4 performer-expression consolidation, which replaced `applyStringPerformance()`
+with the shared `applyPerformerExpression()` and evidently dropped the voice-leading call
+site in the process. Confirmed via `MelodyGenerator.test.ts` + `voiceLeading.test.ts` both
+green in isolation — nothing currently exercises them together._
+
+_Separately, even once wired, §4 as speced resets `prev = null` at the start of every
+`generatePhrase()` call — voice-leading is smooth **within** a phrase but every phrase
+boundary is still a hard reset, so the line still doesn't carry across phrases like a real
+soloist's continuous idea. And a user question during this session's design review: is it
+possible to build a rule-based system that also deliberately breaks its own rules? Yes —
+real players follow voice-leading constantly and violate it on purpose at expressive
+moments (an "answer" phrase's dramatic reach); the rule is what makes the break read as
+meaningful instead of just another random note. This addendum adds both fixes together
+since they touch the same call site._
+
+**Change 1 (wire it in):** In `MelodyGenerator.generatePhrase()`, call `applyVoiceLeading()`
+as the LAST step, after `applyPerformerExpression()` (which includes `developPhraseCharacter`'s
+±12-semitone octave recast for answer/variation phrases) — voice-leading must run after that
+recast, not before, or the recast would immediately undo the smoothing. Use the performer's
+existing octave range for `floorMidi`/`ceilingMidi` (same values already used to compute
+`melodicOctave`) and a family-appropriate `maxLeapSemitones` (tight for bowed/wind —
+mostly-stepwise singing lines — wider for plucked/synth, matching §4's original "bowed
+strings get a tight ceiling" intent).
+
+**Change 2 (cross-phrase continuity):** Add `applyVoiceLeading(notes, opts)`'s existing
+internal `prev` seed as a new optional `seedMidi: number | null` parameter (default `null`,
+preserving today's tested behavior when omitted). `MelodyGenerator` gets one new instance
+field, `lastPhraseEndMidi: number | null` (starts `null`), read as the seed for the next
+`generatePhrase()` call and updated to the new phrase's last note's MIDI value at the end of
+each call. Result: phrase 2 voice-leads relative to where phrase 1 ended, instead of
+resetting — the line continues like one soloist's train of thought instead of restarting
+every phrase.
+
+**Change 3 (one deliberate rule-break):** Add a second new optional parameter,
+`breakAt: number | null` (default `null`) — the note index, if any, that skips the leap-fold
+entirely (still register-capped, so it can't shriek, but allowed to leap past
+`maxLeapSemitones`). `MelodyGenerator` passes a `breakAt` index only on `character === 'answer'`
+(the existing statement/echo/develop/answer cycle from Slice 4), pointing at the note nearest
+the phrase's dynamic peak (already computed for `shapePerformanceDynamics`'s `peakPosition`).
+On all other phrase characters, `breakAt` stays `null` — no break, matching current tested
+behavior.
+
+**Wire-in registers:** unchanged from §4 — bowed/wind get the tight ceiling + small
+`maxLeap`; keyboard/plucked/synth/brass keep wider defaults appropriate to their existing
+octave ranges.
+
+**Tests (pure, extend `voiceLeading.test.ts`):**
+- `seedMidi` provided: the first note voice-leads relative to `seedMidi`, not treated as
+  a free first note.
+- `seedMidi` omitted (`null`/default): behavior identical to today's tests — no regression.
+- `breakAt` targeting an index whose natural leap exceeds `maxLeapSemitones`: that note is
+  NOT folded (leap survives) but IS still register-capped if it exceeds `ceilingMidi`/
+  `floorMidi`.
+- `breakAt` omitted or pointing at an in-range note: no observable difference from the
+  no-break path.
+
+**Integration test (`MelodyGenerator.test.ts`):** two consecutive `generatePhrase()` calls on
+the same generator instance — the first note of phrase 2 sits within `maxLeapSemitones` of
+phrase 1's last note (continuity), and this only holds because `lastPhraseEndMidi` was
+actually threaded through (test would fail against the current unwired code).
+
+**Regression:** existing `MelodyGenerator`/`voiceLeading`/Organism suites stay green;
+`npx tsc --noEmit -p .` clean.
+
+**By-ear:** the lead's phrases sound connected across bar-lines instead of restarting, still
+sits in a sane register, and roughly every 4th phrase (the "answer") takes one noticeably
+bigger, purposeful leap instead of always smoothing back into range.
+
+### Non-goals (this addendum)
+
+- Not touching Chord/Bass generators — melody only, matching HANDOFF's explicit guidance
+  ("extend voiceLeading.ts; don't build a new brain"). Extending to other voices is a
+  reasonable follow-up, not part of this change.
+- Not a probabilistic/random rule-break — `breakAt` is deterministically tied to the
+  existing phrase-character cycle, not `rng()`-driven, so behavior stays predictable and
+  testable.
+- Not changing `HIP_HOP_MOTIFS`, chord-tone resolution, or any harmony logic.

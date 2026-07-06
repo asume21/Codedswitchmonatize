@@ -123,6 +123,8 @@ export interface OrganismContextValue {
   activePresetId:     string | null
   v2Status:           OrganismV2Status
   setV2MasterGain:    (value: number) => void
+  /** -1 (dark/warm) .. 0 (neutral) .. 1 (bright) master tone tilt. */
+  setMasterBrightness: (value: number) => void
 
   // Count-In Start — "1, 2, 3, 4" then beat drops
   countInStart:       (presetId: string) => Promise<void>

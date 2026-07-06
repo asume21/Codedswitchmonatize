@@ -3365,6 +3365,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     mixRef.current?.setMasterGainDb(-2 + 20 * Math.log10(normalized))
   }, [])
 
+  const setMasterBrightness = useCallback((value: number) => {
+    mixRef.current?.setMasterBrightness(value)
+  }, [])
+
   const setAceHybridMode = useCallback((mode: import('./AceHybridController').AceHybridMode) => {
     setAceHybridModeState(mode)
     controllerRef.current?.setMode(mode)
@@ -3394,6 +3398,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     activePresetId,
     v2Status,
     setV2MasterGain,
+    setMasterBrightness,
     aceHybridMode,
     setAceHybridMode,
     aceStemsLoading,
@@ -3628,6 +3633,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lastSessionDNA,
     start, stop, captureSession, downloadMidi,
     quickStart, swapPreset, startRealBeat, activePresetId, v2Status, setV2MasterGain,
+    setMasterBrightness,
     aceHybridMode, setAceHybridMode, aceStemsLoading,
     countInStart, countInBeat,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,

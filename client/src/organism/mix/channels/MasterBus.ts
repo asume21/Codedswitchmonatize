@@ -7,6 +7,15 @@
 
 import * as Tone from 'tone'
 
+// Base shelf gains the tilt-EQ pivots around (matches the tuned defaults set
+// in the constructor below — kept as constants so setBrightness() can offset
+// from the mastering-tuned baseline instead of a hardcoded neutral value).
+const BASE_LOW_SHELF_GAIN_DB  = -3.0
+const BASE_HIGH_SHELF_GAIN_DB = -0.5
+// Musical range for the brightness knob — enough to noticeably warm/brighten
+// without fighting the hip-hop master EQ tuning above it.
+const BRIGHTNESS_TILT_DB = 4
+
 export class MasterBus {
   readonly input:      Tone.Gain
   private  masterGain: Tone.Gain
@@ -39,9 +48,9 @@ export class MasterBus {
     // the bass a mid-rangey "grunt". Move the corner down to 30 Hz and back off
     // to -3 dB so true sub-rumble below ~30 Hz is tamed but the 40-80 Hz
     // foundation that drives hip-hop survives.
-    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 30,    gain: -3.0 })
+    this.lowShelf  = new Tone.Filter({ type: 'lowshelf',  frequency: 30,    gain: BASE_LOW_SHELF_GAIN_DB })
     this.midCut    = new Tone.Filter({ type: 'peaking',   frequency: 200,   gain: -1.5, Q: 2.0 })
-    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: -0.5 })
+    this.highShelf = new Tone.Filter({ type: 'highshelf', frequency: 10000, gain: BASE_HIGH_SHELF_GAIN_DB })
     this.hiCut     = new Tone.Filter({ type: 'lowpass',   frequency: 18000, rolloff: -24 })
 
     // Glue compressor — fast attack catches transients before they hit the
@@ -130,6 +139,19 @@ export class MasterBus {
 
   setGainDb(db: number): void {
     this.masterGain.gain.rampTo(Tone.dbToGain(db), 0.05)
+  }
+
+  /**
+   * Master tone tilt knob. `value` is -1 (dark/warm) .. 0 (neutral) .. 1
+   * (bright). Tilts the low and high shelves in opposite directions around
+   * their mastering-tuned baseline — brighter lifts highs and gently pulls
+   * back lows (and vice versa for darker) so the low end doesn't just pile
+   * up when you brighten, or the top end doesn't just vanish when you warm.
+   */
+  setBrightness(value: number): void {
+    const v = Math.max(-1, Math.min(1, value))
+    this.highShelf.gain.rampTo(BASE_HIGH_SHELF_GAIN_DB + v * BRIGHTNESS_TILT_DB, 0.05)
+    this.lowShelf.gain.rampTo(BASE_LOW_SHELF_GAIN_DB - v * (BRIGHTNESS_TILT_DB * 0.5), 0.05)
   }
 
   connectOutput(destination: Tone.InputNode): void {

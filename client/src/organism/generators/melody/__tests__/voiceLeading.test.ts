@@ -41,4 +41,37 @@ describe('applyVoiceLeading', () => {
     expect(out[0].duration).toBe('4n')
     expect(out[0].time).toBe('1:2:3')
   })
+
+  it('seedMidi threads the fold into the first note instead of leaving it free (2026-07-06)', () => {
+    const seed = noteToMidi('C4') as number
+    const out = applyVoiceLeading([n('A5')], { maxLeapSemitones: 7, floorMidi: 0, ceilingMidi: 127, seedMidi: seed })
+    const midi = noteToMidi(out[0].pitch) as number
+    expect(Math.abs(midi - seed)).toBeLessThanOrEqual(7)
+  })
+
+  it('without seedMidi, the first note is only register-capped (unchanged legacy behavior)', () => {
+    const out = applyVoiceLeading([n('A5')], { maxLeapSemitones: 7, floorMidi: 0, ceilingMidi: 127 })
+    expect(out[0].pitch).toBe('A5')
+  })
+
+  it('breakAt lets one note leap past maxLeapSemitones on purpose (still register-capped)', () => {
+    const input = [n('C4', '0:0:0'), n('C6', '0:1:0')]
+    const noBreak = applyVoiceLeading(input, { maxLeapSemitones: 7, floorMidi: 0, ceilingMidi: 127 })
+    const withBreak = applyVoiceLeading(input, { maxLeapSemitones: 7, floorMidi: 0, ceilingMidi: 127, breakAt: 1 })
+
+    const noBreakMidi = noteToMidi(noBreak[1].pitch) as number
+    const withBreakMidi = noteToMidi(withBreak[1].pitch) as number
+
+    // Without the break, the leap gets folded down within range of note 0.
+    expect(Math.abs(noBreakMidi - (noteToMidi(noBreak[0].pitch) as number))).toBeLessThanOrEqual(7)
+    // With the break, the leap survives untouched (same octave as the input).
+    expect(withBreakMidi).toBe(noteToMidi('C6'))
+  })
+
+  it('breakAt still enforces the register ceiling even though the leap-fold is skipped', () => {
+    const ceiling = noteToMidi('A5') as number
+    const input = [n('C4', '0:0:0'), n('C7', '0:1:0')]
+    const out = applyVoiceLeading(input, { maxLeapSemitones: 7, floorMidi: 0, ceilingMidi: ceiling, breakAt: 1 })
+    expect(noteToMidi(out[1].pitch) as number).toBeLessThanOrEqual(ceiling)
+  })
 })

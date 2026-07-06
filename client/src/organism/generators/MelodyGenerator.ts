@@ -49,7 +49,9 @@ import {
   applyBreathAndRests,
   phraseCharacterOf,
   developPhraseCharacter,
+  type PhraseCharacter,
 } from './melody/performerExpression'
+import { applyVoiceLeading } from './melody/voiceLeading'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -489,6 +491,12 @@ export class MelodyGenerator extends GeneratorBase {
   // Advances every string-performance phrase so the dynamic peak + breath slots
   // shift between phrases (slice 1 of the violin performer).
   private phraseCounter: number = 0
+  // Cross-phrase voice-leading continuity (2026-07-06 addendum): the previous
+  // phrase's last note, threaded in as the fold seed so the next phrase
+  // continues instead of resetting; and the previous phrase's character, so
+  // rebuildPhrase can place the deliberate rule-break on "answer" phrases.
+  private lastPhraseEndMidi: number | null = null
+  private lastPhraseCharacter: PhraseCharacter | null = null
 
   // Advances every guitar-performance phrase — drives M2.6 slice 3 call-and-answer
   // (even = statement, odd = sparser answer).
@@ -877,6 +885,34 @@ export class MelodyGenerator extends GeneratorBase {
     }
     notes = this.applyPerformerExpression(notes)
 
+    // Cross-phrase voice-leading (2026-06-16 spec §4, wired in 2026-07-06 — the
+    // module existed and was unit-tested but was never called from here). Runs
+    // LAST, after developPhraseCharacter's ±12-semitone register recast above,
+    // so it smooths the final register-shifted line rather than being undone
+    // by that recast. seedMidi threads in the previous phrase's last note so
+    // the line continues instead of resetting every phrase; breakAt allows one
+    // deliberate leap on "answer" phrases (a real reach, not smoothed away).
+    {
+      const octaves = MODE_OCTAVES[physics.mode] ?? [4, 5]
+      const floorMidi = octaves[0] * 12 + 12
+      const ceilingMidi = (octaves[1] * 12 + 12) + 11
+      const maxLeapSemitones = isSustainedPitch(this.currentPerformer?.family) ? 4 : 7
+      const breakAt = this.lastPhraseCharacter === 1 ? Math.floor(notes.length * 0.66) : null
+
+      notes = applyVoiceLeading(notes, {
+        maxLeapSemitones,
+        floorMidi,
+        ceilingMidi,
+        seedMidi: this.lastPhraseEndMidi,
+        breakAt,
+      })
+
+      if (notes.length > 0) {
+        const lastMidi = noteToMidi(notes[notes.length - 1].pitch)
+        if (lastMidi != null) this.lastPhraseEndMidi = lastMidi
+      }
+    }
+
     // Pro-instruments M2.6 slice 2: guitar idiom, per note. Choose a note-based
     // ornament per note (bend into peaks, hammer-on stepwise, release at the end)
     // — applied via the existing articulation engine, no audio-chain change.
@@ -1069,12 +1105,16 @@ export class MelodyGenerator extends GeneratorBase {
    */
   private applyPerformerExpression(notes: ScheduledNote[]): ScheduledNote[] {
     const n = notes.length
-    if (n < 3) return notes
+    if (n < 3) {
+      this.lastPhraseCharacter = null
+      return notes
+    }
     this.phraseCounter++
 
     const family = this.currentPerformer?.family
     const config = getPerformerExpressionConfig(family)
     const character = phraseCharacterOf(this.phraseCounter)
+    this.lastPhraseCharacter = character
 
     // DEVELOPMENT — recast register per character (no-op if this family doesn't recast).
     let shaped = developPhraseCharacter(notes, character, config.octaveRecastEnabled)
@@ -1414,6 +1454,8 @@ export class MelodyGenerator extends GeneratorBase {
     return notes
   }
 
+  // Matches GeneratorBase's `abstract stopPart(): void` — must not be private,
+  // since GeneratorOrchestrator calls it directly on generator instances.
   stopPart(): void {
     if (this.part) {
       this.part.stop()
@@ -1451,6 +1493,8 @@ export class MelodyGenerator extends GeneratorBase {
     return this.busySlots16ths
   }
 
+  /** Band-awareness: absolute audio-clock time (seconds, comparable to
+   *  Tone.now()) the most recently triggered note ends. 0 = hasn't played yet. */
   getLastNoteEndSec(): number {
     return this.lastNoteEndSec
   }

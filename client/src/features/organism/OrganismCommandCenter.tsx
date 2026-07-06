@@ -316,7 +316,7 @@ export function OrganismCommandCenter() {
   const {
     start, stop, isRunning, isStarting, error,
     quickStartPresets, activePresetId, swapPreset, countInStart, countInBeat,
-    v2Status, setV2MasterGain,
+    v2Status, setV2MasterGain, setMasterBrightness,
     soundTriggerArmed, armSoundTrigger, disarmSoundTrigger,
     isRecording, startRecording, stopRecording,
     currentBpm: contextBpm,
@@ -516,6 +516,7 @@ export function OrganismCommandCenter() {
   const [styleShifts,  setStyleShiftsLocal] = useState(true)
   const [bpmInput,     setBpmInput]     = useState('')
   const [v2Gain,       setV2Gain]       = useState(1.45)
+  const [brightness,   setBrightness]   = useState(0) // -1 dark/warm .. 0 neutral .. 1 bright
 
   const applyMode = useCallback((mode: string | null) => {
     setLockedMode(mode)
@@ -918,6 +919,11 @@ export function OrganismCommandCenter() {
     setV2MasterGain(value)
   }, [setV2MasterGain])
 
+  const handleBrightness = useCallback((value: number) => {
+    setBrightness(value)
+    setMasterBrightness(value)
+  }, [setMasterBrightness])
+
   useEffect(() => {
     lyricsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcription?.lines.length])
@@ -1112,6 +1118,15 @@ export function OrganismCommandCenter() {
               max={2.5}
               step={0.05}
               color={C.green}
+            />
+            <SliderRow
+              label="Brightness"
+              value={brightness}
+              onChange={handleBrightness}
+              min={-1}
+              max={1}
+              step={0.05}
+              color={C.amber}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: C.text2 }}>Playback Mode:</span>

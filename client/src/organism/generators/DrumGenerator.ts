@@ -17,6 +17,7 @@ import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
 import { mulberry32, getSessionSalt, hashString } from './freeplay/utils'
+import { midiToNote }          from '../performers/InstrumentPerformerRouter'
 
 const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
   'latin': (v: number) => v < 0.6 ? v * 0.7 : v,
@@ -464,7 +465,10 @@ export class DrumGenerator extends GeneratorBase {
   private applyKitPreset(): void {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
-    this.sampledKit!.setKeyRoot(getConductor().getKeyPitchClass())
+    // setKeyRoot expects a root-letter string (e.g. "F#"), not a raw 0-11
+    // pitch class number — convert via midiToNote and strip the octave digit.
+    const keyRootNote = midiToNote(60 + getConductor().getKeyPitchClass()).replace(/-?\d+$/, '')
+    this.sampledKit!.setKeyRoot(keyRootNote)
     this.sampledKit!.setMode(this.currentPhysicsMode)
     this.currentKickNote          = preset.kickNote
     this.kickSub!.pitchDecay       = preset.kickPitchDecay
@@ -736,6 +740,8 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
+  // Matches GeneratorBase's `abstract stopPart(): void` — must not be private,
+  // since GeneratorOrchestrator calls it directly on generator instances.
   stopPart(): void {
     this.clearBarEndBreakFill()
     this.clearMicroFill()
