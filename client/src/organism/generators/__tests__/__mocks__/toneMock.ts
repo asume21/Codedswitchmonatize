@@ -1,5 +1,19 @@
 // Shared Tone.js mock for generator tests
 import { vi } from 'vitest'
+import { midiToNote, noteToMidi } from '../../../performers/InstrumentPerformerRouter'
+
+/**
+ * Resolves a Tone.Frequency(value, unit?) constructor call to a MIDI number.
+ * Matches every call pattern actually used in production code: `(midi, 'midi')`,
+ * a bare note-name string `(pitch)`, and a bare MIDI number with no unit
+ * (several call sites pass a raw MIDI number without the 'midi' tag).
+ */
+function resolveMockMidi(value: string | number, unit?: string): number | null {
+  if (unit === 'midi' || typeof value === 'number') {
+    return typeof value === 'number' ? value : null
+  }
+  return noteToMidi(value)
+}
 
 export const mockRampTo = vi.fn()
 export const mockTriggerAttackRelease = vi.fn()
@@ -257,9 +271,24 @@ export function createToneMock() {
         dispose: mockPartDispose,
       })
     }),
-    Frequency: vi.fn().mockImplementation(function (this: Record<string, unknown>, midi: number) {
+    // Real, parseable note names/MIDI (not a fake "NoteXX" string) — matches
+    // production Tone.Frequency() closely enough that code paths round-tripping
+    // through noteToMidi()/midiToNote() work correctly under test, instead of
+    // silently no-op'ing on an unparseable fake value.
+    Frequency: vi.fn().mockImplementation(function (this: Record<string, unknown>, value: string | number, unit?: string) {
+      const baseMidi = resolveMockMidi(value, unit)
       return Object.assign(this, {
-        toNote: vi.fn().mockReturnValue(`Note${midi}`),
+        toNote: vi.fn().mockImplementation(() => baseMidi != null ? midiToNote(baseMidi) : String(value)),
+        toMidi: vi.fn().mockImplementation(() => baseMidi),
+        toFrequency: vi.fn().mockImplementation(() =>
+          baseMidi != null ? 440 * Math.pow(2, (baseMidi - 69) / 12) : 0),
+        transpose: vi.fn().mockImplementation((semitones: number) => {
+          const newMidi = (baseMidi ?? 0) + semitones
+          return {
+            toNote: vi.fn().mockReturnValue(midiToNote(newMidi)),
+            toMidi: vi.fn().mockReturnValue(newMidi),
+          }
+        }),
       })
     }),
     now: vi.fn().mockReturnValue(0),

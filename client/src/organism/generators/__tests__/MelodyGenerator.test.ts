@@ -12,6 +12,7 @@ vi.mock('tone', () => createToneMock())
 import { MelodyGenerator, snapNoteToScale } from '../MelodyGenerator'
 import { getMelodyBehavior } from '../patterns/MelodyPatternLibrary'
 import { getConductor } from '../../conductor/Conductor'
+import { noteToMidi } from '../../performers/InstrumentPerformerRouter'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -373,5 +374,61 @@ describe('MelodyGenerator', () => {
 
   it('disposes clean without errors', () => {
     expect(() => gen.dispose()).not.toThrow()
+  })
+
+  describe('cross-phrase voice-leading continuity (2026-07-06 addendum)', () => {
+    it('each phrase boundary voice-leads relative to the previous phrase\'s last note instead of resetting', () => {
+      const physics = makePhysics({ voiceActive: false })
+
+      gen.setInstrumentPerformer('flute')
+      gen.onStateTransition(OState.Flow, physics)
+      gen.onStateTransition(OState.Breathing, physics)
+      gen.onStateTransition(OState.Flow, physics)
+
+      const partMock = Tone.Part as unknown as {
+        mock: { calls: Array<[unknown, Array<{ note: string | number }>]> }
+      }
+      expect(partMock.mock.calls.length).toBeGreaterThanOrEqual(3)
+
+      // Bound is generous (not the tight per-family maxLeapSemitones) because the
+      // deliberate rule-break on "answer" phrases (see performerExpression.ts
+      // phraseCharacterOf) can legitimately push a phrase's ending register far
+      // enough that the NEXT phrase's register cap — which always wins over the
+      // leap-fold — has to correct by a further octave. The point of this bound
+      // is to distinguish "some cross-phrase relationship exists" (this fix) from
+      // "phrases reset independently" (the old unwired behavior, which — with no
+      // seed at all — is free to land anywhere in the ~2-octave MODE_OCTAVES
+      // register span and routinely produces gaps at or beyond it).
+      const GENEROUS_CONTINUITY_BOUND_SEMITONES = 20
+      let checked = 0
+      for (let i = 1; i < partMock.mock.calls.length; i++) {
+        const prevEvents = partMock.mock.calls[i - 1][1]
+        const currEvents = partMock.mock.calls[i][1]
+        if (prevEvents.length === 0 || currEvents.length === 0) continue
+
+        const prevLastMidi = noteToMidi(prevEvents[prevEvents.length - 1].note as string)
+        const currFirstMidi = noteToMidi(currEvents[0].note as string)
+        if (prevLastMidi == null || currFirstMidi == null) continue
+
+        expect(Math.abs(currFirstMidi - prevLastMidi)).toBeLessThanOrEqual(GENEROUS_CONTINUITY_BOUND_SEMITONES)
+        checked++
+      }
+      expect(checked).toBeGreaterThan(0)
+    })
+
+    it('tracks lastPhraseEndMidi after each rebuild instead of staying null (the actual seed mechanism)', () => {
+      const physics = makePhysics({ voiceActive: false })
+      gen.setInstrumentPerformer('flute')
+
+      expect((gen as any).lastPhraseEndMidi).toBeNull()
+
+      gen.onStateTransition(OState.Flow, physics)
+      const afterFirst = (gen as any).lastPhraseEndMidi as number | null
+      expect(afterFirst).not.toBeNull()
+
+      gen.onStateTransition(OState.Breathing, physics)
+      const afterSecond = (gen as any).lastPhraseEndMidi as number | null
+      expect(afterSecond).not.toBeNull()
+    })
   })
 })
