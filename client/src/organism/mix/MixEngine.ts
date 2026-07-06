@@ -206,6 +206,11 @@ export class MixEngine {
     this.master.setGainDb(db)
   }
 
+  /** -1 (dark/warm) .. 0 (neutral) .. 1 (bright) master tone tilt. */
+  setMasterBrightness(value: number): void {
+    this.master.setBrightness(value)
+  }
+
   setBandSilenced(silenced: boolean): void {
     this.bandMaster.gain.rampTo(silenced ? 0 : 1, 0.05)
   }
