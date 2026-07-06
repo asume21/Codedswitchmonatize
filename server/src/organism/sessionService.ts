@@ -48,6 +48,9 @@ export const sessionService = {
         ${dna.avgSyllabicDensity}, ${pitchCenter}, ${dna.energyProfile},
         ${JSON.stringify(dna)}::jsonb
       )
+      ON CONFLICT (session_id) DO UPDATE SET
+        duration_ms = EXCLUDED.duration_ms,
+        session_dna = EXCLUDED.session_dna
       RETURNING id, session_id as "sessionId"
     `)
     return result[0] as { id: string; sessionId: string }
