@@ -161,7 +161,7 @@ body::before {
   bottom: 0;
   pointer-events: none;
   z-index: 1;
-  opacity: var(--presence-glow-intensity);
+  opacity: calc(var(--presence-glow-intensity) * 0.75);
   background:
     radial-gradient(ellipse 80% 50% at 25% 20%, var(--presence-warm-glow) 0%, transparent 70%),
     radial-gradient(ellipse 60% 40% at 75% 60%, hsla(var(--presence-secondary-hue), 90%, 50%, 0.08) 0%, transparent 60%),
@@ -182,40 +182,40 @@ div:not(.absolute):not(.relative):not(.flex):not(.flex-col):not(.flex-row) {
 
 /* CARDS - Global Override — presence-driven warm inner glow */
 [class*="Card"], .card, section, article {
-  background: rgba(2, 6, 23, 0.85) !important;
-  border: 1px solid rgba(6, 182, 212, 0.4) !important;
-  backdrop-filter: blur(20px) !important;
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 30px var(--presence-warm-inset), inset 0 0 15px rgba(6, 182, 212, 0.08) !important;
+  background: rgba(2, 6, 23, 0.78) !important;
+  border: 1px solid rgba(6, 182, 212, 0.22) !important;
+  backdrop-filter: blur(18px) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
   border-radius: 4px !important;
-  transition: box-shadow 2s ease !important;
+  transition: box-shadow 0.2s ease !important;
 }
 
 /* BUTTONS - Global Override */
 button, .btn, [class*="Button"], [role="button"], [data-radix-collection-item] {
-  letter-spacing: 0.04em !important;
-  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  font-weight: 500 !important;
   font-size: 0.9rem !important;
   border-radius: 6px !important;
-  border: 1px solid rgba(6, 182, 212, 0.3) !important;
-  background: rgba(6, 182, 212, 0.08) !important;
-  color: #06b6d4 !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: 1px solid rgba(6, 182, 212, 0.18) !important;
+  background: rgba(6, 182, 212, 0.05) !important;
+  color: #d7f9ff !important;
+  transition: all 0.16s ease !important;
 }
 
 button:hover, .btn:hover, [role="button"]:hover, [class*="Button"]:hover {
-  background: rgba(6, 182, 212, 0.2) !important;
-  border-color: #06b6d4 !important;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.5) !important;
+  background: rgba(6, 182, 212, 0.1) !important;
+  border-color: rgba(6, 182, 212, 0.35) !important;
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.12) !important;
   transform: translateY(-1px) !important;
-  color: #fff !important;
+  color: #ffffff !important;
 }
 
 /* TABS & NAVIGATION */
 [data-state="active"], .active, [aria-selected="true"], .bg-primary {
-  background: rgba(6, 182, 212, 0.3) !important;
-  border-color: #06b6d4 !important;
+  background: rgba(6, 182, 212, 0.14) !important;
+  border-color: rgba(6, 182, 212, 0.45) !important;
   color: #fff !important;
-  box-shadow: 0 0 30px rgba(6, 182, 212, 0.4) !important;
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.14) !important;
 }
 
 /* INPUTS & FORM ELEMENTS */
@@ -235,29 +235,29 @@ input:focus, textarea:focus, select:focus {
 
 /* HEADERS & TYPOGRAPHY */
 h1 {
-  font-weight: 800 !important;
+  font-weight: 700 !important;
   font-size: 1.75rem !important;
-  letter-spacing: 0.06em !important;
-  color: #06b6d4 !important;
-  text-shadow: 0 0 15px rgba(6, 182, 212, 0.6) !important;
+  letter-spacing: 0.02em !important;
+  color: #d7f9ff !important;
+  text-shadow: none !important;
   font-family: 'Inter', system-ui, sans-serif !important;
 }
 
 h2 {
   font-weight: 700 !important;
   font-size: 1.4rem !important;
-  letter-spacing: 0.04em !important;
-  color: #06b6d4 !important;
-  text-shadow: 0 0 12px rgba(6, 182, 212, 0.5) !important;
+  letter-spacing: 0.02em !important;
+  color: #d7f9ff !important;
+  text-shadow: none !important;
   font-family: 'Inter', system-ui, sans-serif !important;
 }
 
 h3, h4, h5, h6 {
   font-weight: 600 !important;
   font-size: 1.15rem !important;
-  letter-spacing: 0.03em !important;
-  color: #06b6d4 !important;
-  text-shadow: 0 0 10px rgba(6, 182, 212, 0.4) !important;
+  letter-spacing: 0.01em !important;
+  color: #d7f9ff !important;
+  text-shadow: none !important;
   font-family: 'Inter', system-ui, sans-serif !important;
 }
 
@@ -358,16 +358,16 @@ nav a, nav button, nav span {
   bottom: 0;
   pointer-events: none;
   z-index: 9998;
-  opacity: 0.03;
+  opacity: 0.014;
   background: linear-gradient(
     rgba(18, 16, 16, 0) 50%,
-    rgba(0, 0, 0, 0.25) 50%
+    rgba(0, 0, 0, 0.16) 50%
   ),
   linear-gradient(
     90deg,
-    rgba(255, 0, 0, 0.06),
-    rgba(0, 255, 0, 0.02),
-    rgba(0, 0, 255, 0.06)
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
   );
   background-size: 100% 2px, 3px 100%;
 }
@@ -380,9 +380,9 @@ nav a, nav button, nav span {
   background-image: 
     linear-gradient(var(--presence-warm-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--presence-warm-grid) 1px, transparent 1px),
-    linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
-  background-size: 30px 30px, 30px 30px, 30px 30px, 30px 30px;
+    linear-gradient(rgba(6, 182, 212, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.018) 1px, transparent 1px);
+  background-size: 36px 36px, 36px 36px, 36px 36px, 36px 36px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
