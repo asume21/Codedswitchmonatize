@@ -8,7 +8,7 @@ const stubbedMusic = {
 };
 
 async function openCodeToMusic(page: Page) {
-  await page.goto('/studio', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto('/studio/ai?tool=codebeat', { waitUntil: 'domcontentloaded', timeout: 60000 });
   // Verify page body is visible first
   await expect(page.locator('body')).toBeVisible({ timeout: 15000 });
   
@@ -32,13 +32,12 @@ async function openCodeToMusic(page: Page) {
     await page.waitForTimeout(200);
   }
   
-  // Try to find and click the code-to-music tab
-  const codeToMusicTab = page.getByTestId('tab-code-to-music');
   try {
+    const codeToMusicTab = page.getByTestId('tab-code-to-music');
     await codeToMusicTab.waitFor({ state: 'visible', timeout: 5000 });
     await codeToMusicTab.click({ timeout: 5000 });
-  } catch {
-    // Tab might not exist or be visible - that's ok for some tests
+  } catch (err) {
+    console.error('Failed to navigate to Code-to-Music:', err);
   }
 }
 
@@ -67,7 +66,9 @@ test.describe('Code-to-Music Studio V2', () => {
   });
 
   test('should display Code-to-Music tab in desktop navigation', async ({ page }) => {
-    // Look for the Code to Music button in the DAW-style tab bar
+    await page.goto('/studio/ai', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    
+    // Look for the Code to Music button (Codebeat tab trigger)
     const codeToMusicTab = page.getByTestId('tab-code-to-music');
     await expect(codeToMusicTab).toBeVisible({ timeout: 10000 });
   });
@@ -116,7 +117,7 @@ test.describe('Code-to-Music Studio V2', () => {
     await page.waitForTimeout(500);
     
     // Verify code was loaded
-    const codeTextarea = page.getByRole('textbox').first();
+    const codeTextarea = page.getByTestId('code-to-music-editor');
     const codeContent = await codeTextarea.inputValue();
     expect(codeContent.length).toBeGreaterThan(0);
     expect(codeContent).toContain('class MusicPlayer');

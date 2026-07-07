@@ -1,6 +1,6 @@
 import React, { Suspense, useCallback, useMemo } from 'react';
 import { Redirect, useLocation } from 'wouter';
-import { Mic, Music, Users, FolderOpen, Command } from 'lucide-react';
+import { Mic, Music, Users, FolderOpen, Command, Brain } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,9 @@ const UnifiedStudioWorkspace = React.lazy(
 const MakeSurface = React.lazy(
   () => import('./surfaces/MakeSurface')
 );
+const AstutelySurface = React.lazy(
+  () => import('./surfaces/AstutelySurface')
+);
 // SHARE and LIBRARY surfaces mount the already-built pages directly (per
 // CLAUDE.md: SHARE = Social Hub, LIBRARY = Sample Library). The shell is
 // already inside ProtectedRoute + the studio provider stack, so these page
@@ -24,7 +27,7 @@ const MakeSurface = React.lazy(
 const SocialHub = React.lazy(() => import('@/pages/social-hub'));
 const SampleLibraryPage = React.lazy(() => import('@/pages/sample-library'));
 
-const SURFACES = ['make', 'mix', 'share', 'library'] as const;
+const SURFACES = ['make', 'mix', 'ai', 'library', 'share'] as const;
 type Surface = (typeof SURFACES)[number];
 
 const DEFAULT_SURFACE: Surface = 'mix';
@@ -36,8 +39,9 @@ const SURFACE_META: Record<Surface, {
 }> = {
   make:    { label: 'MAKE',    icon: Mic,        hint: 'Live performance & voice' },
   mix:     { label: 'MIX',     icon: Music,      hint: 'Beat maker, piano roll, mixer' },
-  share:   { label: 'SHARE',   icon: Users,      hint: 'Social hub & profiles' },
+  ai:      { label: 'ASTUTELY', icon: Brain,  hint: 'AI mastering, stems, arranging, and assistant cockpit' },
   library: { label: 'LIBRARY', icon: FolderOpen, hint: 'Samples & saved beats' },
+  share:   { label: 'SHARE',   icon: Users,      hint: 'Social hub & profiles' },
 };
 
 const OVERLAY_IDS = ['translator', 'assistant'] as const;
@@ -159,6 +163,12 @@ function SurfaceRouter({ surface }: { surface: Surface }) {
           <UnifiedStudioWorkspace />
         </Suspense>
       );
+    case 'ai':
+      return (
+        <Suspense fallback={<SurfaceLoading label="ASTUTELY AI" />}>
+          <AstutelySurface />
+        </Suspense>
+      );
     case 'share':
       return (
         <Suspense fallback={<SurfaceLoading label="SHARE" />}>
@@ -229,7 +239,7 @@ function MobileSurfaceTabs({
   return (
     <nav
       data-testid="studio-shell-tabs-mobile"
-      className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-4 border-t border-border bg-background/95 backdrop-blur h-16"
+      className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 backdrop-blur h-16"
     >
       {SURFACES.map((s) => (
         <SurfaceButton

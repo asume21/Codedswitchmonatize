@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -475,6 +476,7 @@ function chooseAstutelyFocusTrack(groupedNotes: ReturnType<typeof convertAstutel
 export default function UnifiedStudioWorkspace() {
   useRenderCounter('UnifiedStudioWorkspace');
   const isMobile = useIsMobile();
+  const [, navigate] = useLocation();
   const currentKey = useStudioStore((s) => s.key);
   const { toast } = useToast();
   const {
@@ -1055,11 +1057,11 @@ export default function UnifiedStudioWorkspace() {
           break;
         case 'code-to-music':
         case 'codebeat':
-          setActiveView('code-to-music');
+          navigate('/studio/ai?tool=codebeat');
           break;
         case 'ai-studio':
         case 'assistant':
-          setActiveView('ai-studio');
+          navigate('/studio/ai');
           break;
         case 'multitrack':
           setActiveView('multitrack');
@@ -1075,7 +1077,7 @@ export default function UnifiedStudioWorkspace() {
         case 'translator':
         case 'musiccode':
         case 'layers':
-          setActiveView('code-to-music');
+          navigate('/studio/ai?tool=codebeat');
           break;
         case 'midi':
         case 'advanced-sequencer':
@@ -1089,16 +1091,20 @@ export default function UnifiedStudioWorkspace() {
           setActiveView('audio-tools');
           break;
         case 'security':
-          setActiveView('ai-studio');
+          navigate('/studio/ai?tool=tools');
           break;
         case 'granular-engine':
         case 'wavetable-oscillator':
-          setActiveView('ai-studio');
-          toast({ title: 'Synth Engine', description: 'Opening AI Studio for synthesis tools', onClick: () => setActiveView('ai-studio') });
+          navigate('/studio/ai?tool=generate');
+          toast({ title: 'Synth Engine', description: 'Opening Astutely AI for synthesis tools', onClick: () => navigate('/studio/ai?tool=generate') });
           break;
         default:
           // Try direct match as activeView value
-          if (['arrangement', 'beat-lab', 'piano-roll', 'mixer', 'ai-studio', 'lyrics', 'song-uploader', 'code-to-music', 'audio-tools', 'multitrack'].includes(detail)) {
+          if (detail === 'ai-studio') {
+            navigate('/studio/ai');
+          } else if (detail === 'code-to-music') {
+            navigate('/studio/ai?tool=codebeat');
+          } else if (['arrangement', 'beat-lab', 'piano-roll', 'mixer', 'lyrics', 'song-uploader', 'audio-tools', 'multitrack'].includes(detail)) {
             setActiveView(detail as any);
           }
           break;
@@ -1107,7 +1113,7 @@ export default function UnifiedStudioWorkspace() {
 
     window.addEventListener('navigateToTab', handleNavigateToTab as EventListener);
     return () => window.removeEventListener('navigateToTab', handleNavigateToTab as EventListener);
-  }, [toast]);
+  }, [navigate, toast]);
 
   // Handle stem-separator navigation
   useEffect(() => {
@@ -3301,7 +3307,7 @@ export default function UnifiedStudioWorkspace() {
                   <FileText className="w-8 h-8 text-green-400" />
                   <span className="text-sm font-medium">Lyrics</span>
                 </button>
-                <button onClick={() => setActiveView('ai-studio')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-yellow-500/30 hover:border-yellow-400/60 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                <button onClick={() => navigate('/studio/ai')} className="p-4 bg-gray-800 rounded-xl flex flex-col items-center gap-2 active:scale-95 transition-transform border border-yellow-500/30 hover:border-yellow-400/60 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]">
                   <Wand2 className="w-8 h-8 text-yellow-400" />
                   <span className="text-sm font-medium">AI Studio</span>
                 </button>
@@ -3435,12 +3441,12 @@ export default function UnifiedStudioWorkspace() {
                   <span className="text-xs text-cyan-400">F4</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
-                <button onClick={menuAction(() => setActiveView('ai-studio'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                  <span>{activeView === 'ai-studio' ? '✓' : '  '} AI Studio</span>
+                <button onClick={menuAction(() => navigate('/studio/ai'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Astutely AI</span>
                   <span className="text-xs text-cyan-400">F5</span>
                 </button>
-                <button onClick={menuAction(() => setActiveView('code-to-music'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item" data-testid="tab-code-to-music">
-                  <span>{activeView === 'code-to-music' ? '✓' : '  '} Code to Music</span>
+                <button onClick={menuAction(() => navigate('/studio/ai?tool=codebeat'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Codebeat</span>
                   <span className="text-xs text-cyan-400">F6</span>
                 </button>
                 <button onClick={menuAction(() => setActiveView('lyrics'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
@@ -4150,26 +4156,7 @@ export default function UnifiedStudioWorkspace() {
             <Layers className="w-3 h-3 mr-1" />
             Multi-Track
           </Button>
-          <div className="w-px h-5 astutely-divider-yellow mx-1" />
-          <Button
-            variant={activeView === 'ai-studio' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('ai-studio')}
-            className={`h-8 px-3 text-xs ${activeView === 'ai-studio' ? 'astutely-btn-yellow active' : 'astutely-btn-yellow'}`}
-          >
-            <Wand2 className="w-3 h-3 mr-1" />
-            AI Studio
-          </Button>
-          <Button
-            variant={activeView === 'code-to-music' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveView('code-to-music')}
-            className={`h-8 px-3 text-xs ${activeView === 'code-to-music' ? 'astutely-btn-yellow active' : 'astutely-btn-yellow'}`}
-            data-testid="tab-code-to-music"
-          >
-            <Wand2 className="w-3 h-3 mr-1" />
-            Code to Music
-          </Button>
+
           <div className="w-px h-5 astutely-divider-green mx-1" />
           <Button
             variant={activeView === 'lyrics' ? 'default' : 'ghost'}

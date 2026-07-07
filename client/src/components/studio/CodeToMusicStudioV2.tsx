@@ -412,6 +412,7 @@ export default function CodeToMusicStudioV2() {
             {/* Code Editor */}
             <div className="flex-1 flex flex-col">
               <Textarea
+                data-testid="code-to-music-editor"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="Paste your code here..."
