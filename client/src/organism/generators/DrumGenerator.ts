@@ -18,6 +18,7 @@ import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
 import { mulberry32, getSessionSalt, hashString } from './freeplay/utils'
 import { midiToNote }          from '../performers/InstrumentPerformerRouter'
+import { applyGroovePocket, GROOVE_SLOT_COUNT } from './groove'
 
 const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
   'latin': (v: number) => v < 0.6 ? v * 0.7 : v,
@@ -462,6 +463,28 @@ export class DrumGenerator extends GeneratorBase {
     this.grooveSnareLagMs  = Array.from({ length: 16 }, () => rng() * 8)
   }
 
+  getGroovePocket(): number[] {
+    if (this.grooveHatShiftPct.length === 0) this.buildGrooveTemplate()
+    const bpm = Tone.getTransport().bpm.value || 120
+    const sixteenthDurationSec = 60 / (bpm * 4)
+
+    return Array.from({ length: GROOVE_SLOT_COUNT }, (_, slot) => {
+      let offset = 0
+      if (slot === 4 || slot === 12) {
+        offset = Math.max(offset, (this.grooveSnareLagMs[slot] ?? 0) / 1000)
+      }
+
+      const shiftPct = (this.grooveHatShiftPct[slot] ?? 0) / 100
+      if (shiftPct > 0) {
+        offset = Math.max(offset, shiftPct * sixteenthDurationSec)
+      }
+      if (slot % 2 === 1) {
+        offset += this.swingAmount
+      }
+      return offset
+    })
+  }
+
   private applyKitPreset(): void {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
@@ -524,6 +547,7 @@ export class DrumGenerator extends GeneratorBase {
 
     this.emitDrumEvents(finalHits)
 
+    const groovePocket = this.getGroovePocket()
     const events = finalHits.map(h => {
       const parts = h.time.split(':')
       const beat = parseInt(parts[1] ?? '0', 10)
@@ -533,22 +557,14 @@ export class DrumGenerator extends GeneratorBase {
 
       // 1. Lazy Snare: backbeats (2 and 4) land late by the template's lag
       if (h.instrument === DrumInstrument.Snare && (beat === 1 || beat === 3) && sub === 0) {
-        microShift = (this.grooveSnareLagMs[beat] ?? 0) / 1000
+        microShift = applyGroovePocket(0, Math.floor(beat * 4 + sub), groovePocket)
       }
 
       // 2. Hat shuffle: off-beat 16ths pushed late by the template's per-slot
       //    percentage of a 16th — the same slot always lands the same amount late.
       if (h.instrument === DrumInstrument.Hat) {
         const sixteenthPos = Math.floor(beat * 4 + sub) % 16
-        const shiftPct = (this.grooveHatShiftPct[sixteenthPos] ?? 0) / 100
-        if (shiftPct > 0) {
-          const bpm = Tone.getTransport().bpm.value || 120
-          const sixteenthDurationSec = 60 / (bpm * 4)
-          microShift = shiftPct * sixteenthDurationSec
-        }
-        if (sixteenthPos % 2 === 1) {
-          microShift += this.swingAmount
-        }
+        microShift = applyGroovePocket(0, sixteenthPos, groovePocket)
       }
 
       return {

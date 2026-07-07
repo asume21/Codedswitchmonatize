@@ -26,6 +26,7 @@ import {
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { applyGroovePocket } from './groove'
 import {
   conformNoteToInstrument,
   midiToNote,
@@ -140,6 +141,8 @@ export class MelodyGenerator extends GeneratorBase {
   private currentSectionMotif: MelodyMotif | null = null
   private busySlots16ths: number[] = []
   private lastNoteEndSec: number = 0
+  private groovePocket: number[] = Array(16).fill(0)
+  setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
   // ── Freeplay (2026-07-04) ── melody now uses the shared improviser by
@@ -964,20 +967,21 @@ export class MelodyGenerator extends GeneratorBase {
       // fast-path and the articulation path (violin runs legato-slur, not default).
       if (isSustainedPitch(this.currentPerformer?.family)) this.shapeVibrato(event.dur, Math.max(0, time))
 
-      // Fast-path: default articulation skips the transform for zero overhead.
-      if (artId === DEFAULT_ARTICULATION_ID) {
-        const t = Math.max(0, time)
-        voice.triggerAttackRelease(playableNote, event.dur, t, finalVel)
-        this.lastNoteEndSec = t + Tone.Time(event.dur).toSeconds()
-        return
-      }
-
-      // Decode sixteenthPos from event.time (bar:beat:sub) for articulation context.
       const timeStr = String(event.time ?? '0:0:0')
       const parts = timeStr.split(':')
       const beat = parseFloat(parts[1] ?? '0')
       const sub  = parseFloat(parts[2] ?? '0')
       const sixteenthPos = Math.floor(beat * 4 + sub) % 16
+      const pocketOffset = applyGroovePocket(0, sixteenthPos, this.groovePocket)
+
+      // Fast-path: default articulation skips the transform for zero overhead.
+      if (artId === DEFAULT_ARTICULATION_ID) {
+        const t = Math.max(0, time + pocketOffset)
+        voice.triggerAttackRelease(playableNote, event.dur, t, finalVel)
+        this.lastNoteEndSec = t + Tone.Time(event.dur).toSeconds()
+        return
+      }
+
       const isDownbeat = sixteenthPos % 4 === 0
 
       const artCtx: ArticulationContext = {
@@ -998,7 +1002,7 @@ export class MelodyGenerator extends GeneratorBase {
         const note = this.conformArticulatedNote(n.note)
         // Clamp to ≥0 — float-negative times (and pre-beat offsets) throw
         // Tone's "value must be within [0, Infinity]" and silence the voice.
-        const t = Math.max(0, time + n.timeOffset)
+        const t = Math.max(0, time + n.timeOffset + pocketOffset)
         voice.triggerAttackRelease(note, n.duration, t, n.velocity)
         this.lastNoteEndSec = t + Tone.Time(n.duration).toSeconds()
       }

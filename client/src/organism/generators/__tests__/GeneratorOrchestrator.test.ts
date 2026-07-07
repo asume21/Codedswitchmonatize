@@ -116,6 +116,20 @@ describe('GeneratorOrchestrator', () => {
     expect(slots).toContain(0)   // every sub-genre pattern kicks on beat 1
   })
 
+  it('pushes the drum groove pocket to bass, chord, and melody on start', async () => {
+    const pocket = Array.from({ length: 16 }, (_, i) => i / 1000)
+    vi.spyOn((orchestrator as any).drum, 'getGroovePocket').mockReturnValue(pocket)
+    const bassSpy = vi.spyOn((orchestrator as any).bass, 'setGroovePocket')
+    const chordSpy = vi.spyOn((orchestrator as any).chord, 'setGroovePocket')
+    const melodySpy = vi.spyOn((orchestrator as any).melody, 'setGroovePocket')
+
+    await orchestrator.start(90)
+
+    expect(bassSpy).toHaveBeenCalledWith(pocket)
+    expect(chordSpy).toHaveBeenCalledWith(pocket)
+    expect(melodySpy).toHaveBeenCalledWith(pocket)
+  })
+
   it('freeplay drum patterns keep the genre skeleton (loud snares present)', async () => {
     const spy = vi.spyOn((orchestrator as any).drum, 'loadGeneratedPattern')
     await orchestrator.start(90)   // startup sub-genre is boom-bap (commit 9d9eb4fc)

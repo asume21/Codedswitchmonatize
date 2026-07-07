@@ -42,6 +42,7 @@ import {
   type InstrumentPerformerProfile,
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { applyGroovePocket } from './groove'
 
 export class BassGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -70,10 +71,12 @@ export class BassGenerator extends GeneratorBase {
   private freeplayEnabled = true
   private chordIntervals: number[] = [0, 3, 7]
   private kickAnchors: number[] = []
+  private groovePocket: number[] = Array(16).fill(0)
   private freeplayPhraseCounter = 0
 
   /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
   resetFreeplayCounter(): void { this.freeplayPhraseCounter = 0 }
+  setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
 
   private unsubscribeConductor: (() => void) | null = null
   // Set by the Conductor's onChordChange listener; consumed on the next
@@ -706,7 +709,12 @@ export class BassGenerator extends GeneratorBase {
     this.part = new Tone.Part((time, event) => {
       const pocketVelocity = event.vel * Math.max(0.35, 1 - this.currentPocket * 0.45)
       const voice = this.getActiveVoice()
-      const scheduledTime = time + LAY_BACK_SEC
+      const timeStr = String(event.time ?? '0:0:0')
+      const parts = timeStr.split(':')
+      const beat = parseFloat(parts[1] ?? '0')
+      const sub  = parseFloat(parts[2] ?? '0')
+      const sixteenthPos = Math.floor(beat * 4 + sub) % 16
+      const scheduledTime = time + LAY_BACK_SEC + applyGroovePocket(0, sixteenthPos, this.groovePocket)
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
@@ -742,12 +750,6 @@ export class BassGenerator extends GeneratorBase {
         return
       }
 
-      // Decode sixteenthPos from event.time for articulation context.
-      const timeStr = String(event.time ?? '0:0:0')
-      const parts = timeStr.split(':')
-      const beat = parseFloat(parts[1] ?? '0')
-      const sub  = parseFloat(parts[2] ?? '0')
-      const sixteenthPos = Math.floor(beat * 4 + sub) % 16
       const isDownbeat = sixteenthPos % 4 === 0
 
       const artCtx: ArticulationContext = {

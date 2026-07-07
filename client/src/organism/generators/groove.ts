@@ -7,15 +7,23 @@
 
 import { DrumInstrument, type DrumHit } from './types'
 
+export const GROOVE_SLOT_COUNT = 16
+
+export function applyGroovePocket(baseTimeSec: number, sixteenthPos: number, pocket: readonly number[]): number {
+  const slot = ((Math.floor(sixteenthPos) % GROOVE_SLOT_COUNT) + GROOVE_SLOT_COUNT) % GROOVE_SLOT_COUNT
+  const offset = Number.isFinite(pocket[slot]) ? pocket[slot] : 0
+  return baseTimeSec + offset
+}
+
 /**
  * Returns humanized velocity and optional microShift (seconds) for a single
  * drum strike. The base velocity is whatever the source produced (onset
  * strength, anchor preset, library swing/accent); humanize layers per-instrument
  * groove rules on top.
  *
- *   Snare: velocity 90–100% of base
- *   Hat:   sub 0/2 → 85–100% of base, sub 1/3 → 45–60% of base
- *   Kick:  grid-locked, velocity ±4% variance
+ *   Snare: velocity 90-100% of base
+ *   Hat:   sub 0/2 -> 85-100% of base, sub 1/3 -> 45-60% of base
+ *   Kick:  grid-locked, velocity +/-4% variance
  *   Perc / other: pass-through (no humanization)
  */
 export function humanize(

@@ -1497,6 +1497,10 @@ export class GeneratorOrchestrator {
     const anchors = extractKickSlots(mutated)
     this.bass.setKickAnchors(anchors)
     this.chord.setKickAnchors(anchors)
+    const pocket = this.drum.getGroovePocket()
+    this.bass.setGroovePocket(pocket)
+    this.chord.setGroovePocket(pocket)
+    this.melody.setGroovePocket(pocket)
   }
 
   /** ONE drum-pattern source: freeplay improviser (default) or the authored
@@ -1526,6 +1530,10 @@ export class GeneratorOrchestrator {
     const anchors = extractKickSlots(hits)
     this.bass.setKickAnchors(anchors)
     this.chord.setKickAnchors(anchors)
+    const pocket = this.drum.getGroovePocket()
+    this.bass.setGroovePocket(pocket)
+    this.chord.setGroovePocket(pocket)
+    this.melody.setGroovePocket(pocket)
     return hits
   }
 

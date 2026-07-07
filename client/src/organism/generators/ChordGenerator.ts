@@ -21,6 +21,7 @@ import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { applyGroovePocket } from './groove'
 import {
   conformChordToInstrument,
   selectInstrumentPerformer,
@@ -98,10 +99,13 @@ export class ChordGenerator extends GeneratorBase {
   // the orchestrator after every drum rebuild — same channel the bass uses.
   // Freeplay comping reads these to sit in the pockets BETWEEN the kicks.
   private kickAnchors: number[] = []
+  private groovePocket: number[] = Array(16).fill(0)
 
   setKickAnchors(slots: number[]): void {
     this.kickAnchors = [...slots]
   }
+
+  setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
 
   // Per-bar slots (0..15) the melody occupies, pushed by the orchestrator
   // before every chord rebuild — the comp dodges the lead like it dodges
@@ -696,6 +700,13 @@ export class ChordGenerator extends GeneratorBase {
       // Orchestrator's bar tick). The audio callback no longer writes to any
       // shared state — it only renders sound.
 
+      const timeStr = String(event.time ?? '0:0:0')
+      const timeParts = timeStr.split(':')
+      const timeBeat = parseFloat(timeParts[1] ?? '0')
+      const timeSub  = parseFloat(timeParts[2] ?? '0')
+      const sixteenthPos = Math.floor(timeBeat * 4 + timeSub) % 16
+      const pocketOffset = applyGroovePocket(0, sixteenthPos, this.groovePocket)
+
       const vel = Math.min(1, Math.max(0.1, event.vel + (Math.random() - 0.5) * 0.08))
 
       // Use sampler only if fully loaded; otherwise use fallback PolySynth
@@ -728,7 +739,7 @@ export class ChordGenerator extends GeneratorBase {
           // Clamp to ≥0: the first event of a freshly-started Part can compute
           // a float-negative absolute time (e.g. -1.6e-11), which Tone rejects
           // with "value must be within [0, Infinity]" and silences the voice.
-          voice.triggerAttackRelease(n.note, n.duration, Math.max(0, time + n.timeOffset), noteVel)
+          voice.triggerAttackRelease(n.note, n.duration, Math.max(0, time + n.timeOffset + pocketOffset), noteVel)
         }
       } else {
         // Humanised block-chord path: micro-strum note arrivals (lowest to highest)
@@ -750,7 +761,7 @@ export class ChordGenerator extends GeneratorBase {
           const baseScale = index === 0 ? 1.05 : 0.92
           const noteVel = Math.min(1.0, Math.max(0.1, vel * baseScale + randomShift))
 
-          voice.triggerAttackRelease(note, event.dur, Math.max(0, time + strumDelay), noteVel)
+          voice.triggerAttackRelease(note, event.dur, Math.max(0, time + strumDelay + pocketOffset), noteVel)
         })
       }
     }, quantizedEvents)
