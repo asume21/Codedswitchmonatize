@@ -69,6 +69,7 @@ export default function Signup() {
       if (data.userId) {
         localStorage.setItem('authUserId', data.userId);
       }
+      window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'signup' } }));
 
       // If activation key provided, activate the account
       if (formData.activationKey.trim()) {
@@ -233,6 +234,7 @@ export default function Signup() {
                 if (data.userId) {
                   localStorage.setItem('authUserId', data.userId);
                 }
+                window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'google-login' } }));
                 toast({
                   title: data.message === "Login successful" ? "Welcome back!" : "Account created!",
                   description: "You're signed in with Google.",

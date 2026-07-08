@@ -53,7 +53,11 @@ export function UserAccountMenu() {
         method: 'POST',
         credentials: 'include',
       });
-      
+
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authUserId');
+      window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'logout' } }));
+
       setUser(null);
       toast({
         title: "Logged out",

@@ -43,6 +43,7 @@ export default function Login() {
     if (data.userId) {
       localStorage.setItem('authUserId', data.userId);
     }
+    window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'login' } }));
 
     queryClient.setQueryData<SubscriptionStatus>(SUBSCRIPTION_QUERY_KEY, {
       hasActiveSubscription:

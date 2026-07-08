@@ -22,6 +22,7 @@ declare global {
 }
 
 const BLOB_URL = (id: string) => `/api/webear/blob/${id}`
+const AUTH_CHANGE_EVENT = 'codedswitch:auth-changed'
 
 type WebEarBridgeState = 'initializing' | 'connected' | 'disconnected' | 'no-auth' | 'no-key' | 'error'
 
@@ -181,9 +182,25 @@ function scheduleReconnect() {
   if (reconnectTimer !== null) return
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null
-    connectSSE()
+    void connectSSE()
   }, reconnectDelayMs)
   reconnectDelayMs = Math.min(reconnectDelayMs * 1.5, 30000)
+}
+
+function requestReconnect(reason: string): void {
+  log(`Reconnect requested: ${reason}`)
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (sseSource) {
+    sseSource.close()
+    sseSource = null
+  }
+  isConnected = false
+  resolvedApiKey = null
+  reconnectDelayMs = 1000
+  void connectSSE()
 }
 
 async function ensureTap(): Promise<MediaStreamAudioDestinationNode | null> {
@@ -434,6 +451,26 @@ export function disposeAudioDebugBridge(): void {
   localSseSource = null
   isConnected = false
   if (recorder?.state === 'recording') recorder.stop()
+  window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange as EventListener)
+  window.removeEventListener('focus', handleVisibilityReconnect)
+  window.removeEventListener('visibilitychange', handleVisibilityReconnect)
+  window.removeEventListener('storage', handleStorageAuthChange)
+}
+
+function handleAuthChange(): void {
+  requestReconnect('auth changed')
+}
+
+function handleVisibilityReconnect(): void {
+  if (document.visibilityState !== 'hidden' && (status.state === 'no-auth' || status.state === 'disconnected' || status.state === 'error')) {
+    requestReconnect('page focus/visibility')
+  }
+}
+
+function handleStorageAuthChange(e: StorageEvent): void {
+  if (e.key === 'authToken' || e.key === 'authUserId' || e.key === null) {
+    requestReconnect(`storage changed: ${e.key ?? 'all'}`)
+  }
 }
 
 export function initAudioDebugBridge(): void {
@@ -450,6 +487,11 @@ export function initAudioDebugBridge(): void {
   if (import.meta.hot) {
     import.meta.hot.dispose(disposeAudioDebugBridge)
   }
+
+  window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange as EventListener)
+  window.addEventListener('focus', handleVisibilityReconnect)
+  window.addEventListener('visibilitychange', handleVisibilityReconnect)
+  window.addEventListener('storage', handleStorageAuthChange)
 
   window.__audioDebug = {
     startCapture: async (durationMs = 3000) => {
