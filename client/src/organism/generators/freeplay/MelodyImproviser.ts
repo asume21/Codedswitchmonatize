@@ -65,6 +65,42 @@ const PITCH_CONTOURS = [
   [0, -1, 0, 1, 2, 1, 0, 1],
 ]
 
+type SectionKind = 'intro' | 'verse' | 'hook' | 'drop' | 'breakdown' | 'bridge'
+
+const SECTION_CONTOURS: Record<SectionKind, number[][]> = {
+  intro: [
+    [0, 1, 0, -1, 0, 1, 0, 0],
+    [0, 0, 1, 0, -1, 0, 0, 0],
+  ],
+  verse: PITCH_CONTOURS,
+  hook: [
+    [0, 1, 2, 3, 2, 1, 0, -1],
+    [0, 1, 0, 2, 3, 4, 2, 0],
+  ],
+  drop: [
+    [0, 2, 3, 2, 4, 3, 2, 0],
+    [0, 1, 2, 3, 4, 3, 1, 0],
+  ],
+  breakdown: [
+    [0, 0, 1, 0, -1, 0, 0, 0],
+    [0, 1, 0, 1, 0, -1, 0, 0],
+  ],
+  bridge: [
+    [0, -1, 0, 1, 2, 1, 0, -1],
+    [0, 1, 0, 2, 1, 0, -1, 0],
+  ],
+}
+
+function sectionKind(sectionName: string): SectionKind {
+  const n = sectionName.toLowerCase()
+  if (n.includes('intro')) return 'intro'
+  if (n.includes('drop')) return 'drop'
+  if (n.includes('hook') || n.includes('chorus')) return 'hook'
+  if (n.includes('break')) return 'breakdown'
+  if (n.includes('bridge')) return 'bridge'
+  return 'verse'
+}
+
 function mod(n: number, d: number): number {
   return ((Math.floor(n) % d) + d) % d
 }
@@ -94,25 +130,41 @@ function preferredDegreesFor(ctx: MelodyFreeplayContext, chordDegrees: number[])
 }
 
 function pitchIdeaFor(ctx: MelodyFreeplayContext, chordDegrees: number[], preferredDegrees: number[]): PitchIdea {
-  const key = `melody-pitch:${ctx.sectionName}:${ctx.subGenre}:${ctx.motifSeed}`
+  const kind = sectionKind(ctx.sectionName)
+  const key = `melody-pitch:${kind}:${ctx.subGenre}:${ctx.motifSeed}`
   const existing = pitchIdeaStore.get(key)
   if (existing) return existing
 
   const anchors = preferredDegrees.length > 0 ? preferredDegrees : chordDegrees
   const anchorDegree = anchors[Math.floor(ctx.rng() * anchors.length)] ?? chordDegrees[0] ?? 0
-  const moves = PITCH_CONTOURS[Math.floor(ctx.rng() * PITCH_CONTOURS.length)] ?? PITCH_CONTOURS[0]
+  const contourBank = SECTION_CONTOURS[kind]
+  const moves = contourBank[Math.floor(ctx.rng() * contourBank.length)] ?? contourBank[0]
   const idea: PitchIdea = {
-    anchorDegree,
+    anchorDegree: kind === 'intro' || kind === 'breakdown'
+      ? chordDegrees[0] ?? anchorDegree
+      : kind === 'hook' || kind === 'drop'
+        ? anchors[Math.min(anchors.length - 1, 1)] ?? anchorDegree
+        : anchorDegree,
     moves,
     answerShift: ctx.rng() < 0.5 ? -1 : 1,
-    peakLift: ctx.rng() < 0.55 ? 1 : 2,
+    peakLift: kind === 'drop' || kind === 'hook'
+      ? (ctx.rng() < 0.5 ? 2 : 3)
+      : ctx.rng() < 0.55 ? 1 : 2,
   }
   pitchIdeaStore.set(key, idea)
   return idea
 }
 
-function capSlots(slots: number[], behavior: MelodyFreeplayBehavior): number[] {
-  const max = behavior === 'lead' ? 5 : behavior === 'respond' ? 4 : 2
+function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: SectionKind): number[] {
+  const sectionMax: Record<SectionKind, number> = {
+    intro: 2,
+    verse: behavior === 'lead' ? 5 : 4,
+    hook: behavior === 'lead' ? 6 : 4,
+    drop: behavior === 'lead' ? 6 : 4,
+    breakdown: 2,
+    bridge: 3,
+  }
+  const max = sectionMax[kind] ?? (behavior === 'lead' ? 5 : behavior === 'respond' ? 4 : 2)
   const filtered = behavior === 'hint'
     ? slots.filter(slot => slot === 0 || slot === 8 || slot === 12)
     : slots
@@ -125,16 +177,20 @@ function slotsForBar(
   bars: number,
   baseSlots: number[],
   behavior: MelodyFreeplayBehavior,
+  kind: SectionKind,
   rng: () => number,
 ): number[] {
-  if (behavior === 'hint') return baseSlots
-  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior)
+  if (kind === 'intro' || kind === 'breakdown') {
+    return capSlots(baseSlots, behavior, kind)
+  }
+  if (behavior === 'hint') return capSlots(baseSlots, behavior, kind)
+  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior, kind)
   if (bars > 1 && bar === bars - 1) {
     const cadenceSlot = 12
     const setup = baseSlots.filter(slot => slot < cadenceSlot).slice(0, Math.max(1, baseSlots.length - 1))
     return [...new Set([...setup, cadenceSlot])].sort((a, b) => a - b)
   }
-  return baseSlots
+  return capSlots(baseSlots, behavior, kind)
 }
 
 function durationFromGap(slots: number, family: string | undefined): string {
@@ -184,6 +240,7 @@ function rawDegreeFor(
   idea: PitchIdea,
   chordDegrees: number[],
   preferredDegrees: number[],
+  kind: SectionKind,
   bar: number,
   slot: number,
   absSlot: number,
@@ -196,10 +253,22 @@ function rawDegreeFor(
   const move = idea.moves[melodicIndex % idea.moves.length] ?? 0
   let degree = idea.anchorDegree + move
 
+  if (absSlot === 0) {
+    return chordDegrees[0] ?? 0
+  }
   if (bar % 4 === 1) degree += idea.answerShift
   if (bar % 4 === 2) degree += idea.peakLift
-  if (behavior === 'lead') degree += contourOffset(pos, 2)
+  if (kind === 'intro' || kind === 'breakdown') degree += contourOffset(pos, 0)
+  else if (kind === 'hook' || kind === 'drop') degree += contourOffset(pos, 3)
+  else if (behavior === 'lead') degree += contourOffset(pos, 2)
   else if (behavior === 'respond') degree += contourOffset(pos, 1)
+
+  if (kind === 'hook' || kind === 'drop') {
+    if (slot === 4 || slot === 10) degree += 1
+    if (slot === 8) degree += 2
+  } else if (kind === 'intro' || kind === 'breakdown') {
+    if (slot === 4 || slot === 10) degree -= 1
+  }
 
   if (slot >= 12 || absSlot >= phraseSlots - 4) {
     degree = chordDegrees[0] ?? 0
@@ -275,6 +344,7 @@ function renderEvents(
 
 export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledNote[] {
   const behavior = ctx.behavior ?? 'lead'
+  const kind = sectionKind(ctx.sectionName)
   const bars = Math.max(1, Math.floor(ctx.bars) || 1)
   const totalSlots = Math.max(1, ctx.length16ths ?? bars * 16)
   const chordDegrees = chordDegreesFor(ctx)
@@ -295,11 +365,11 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
   const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR).length
 
   for (let bar = 0; bar < bars; bar++) {
-    const slots = slotsForBar(bar, bars, baseSlots, behavior, ctx.rng)
+    const slots = slotsForBar(bar, bars, baseSlots, behavior, kind, ctx.rng)
     for (const slot of slots) {
       const absSlot = bar * 16 + slot
       if (absSlot >= totalSlots) continue
-      let degree = rawDegreeFor(ctx, idea, chordDegrees, preferredDegrees, bar, slot, absSlot, melodicIndex)
+      let degree = rawDegreeFor(ctx, idea, chordDegrees, preferredDegrees, kind, bar, slot, absSlot, melodicIndex)
       degree = smoothLeap(degree, previousDegree, scaleLen)
       previousDegree = degree
       events.push({ absSlot, degree, velocity: velocityFor(ctx, absSlot) })
@@ -311,7 +381,7 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
   const cadenceSlot = Math.max(0, totalSlots - cadenceDur)
   events.push({
     absSlot: cadenceSlot,
-    degree: chordDegrees[0] ?? 0,
+    degree: 4,
     velocity: velocityFor(ctx, cadenceSlot),
   })
 

@@ -86,6 +86,19 @@ describe('MelodyImproviser', () => {
     expect(barSlots(notes, 3)).toContain(12)
   })
 
+  it('starts on the root and cadences on the fifth', () => {
+    const notes = buildFreeplayMelodyNotes(ctx())
+    expect(pcOf(notes[0].pitch)).toBe(0)
+    expect(pcOf(notes[notes.length - 1].pitch)).toBe(7)
+  })
+
+  it('hook sections carry more melodic motion than intros', () => {
+    const intro = buildFreeplayMelodyNotes(ctx({ sectionName: 'intro', behavior: 'hint', density: 0.22 }))
+    const hook = buildFreeplayMelodyNotes(ctx({ sectionName: 'hook', behavior: 'lead', density: 0.85 }))
+    expect(hook.length).toBeGreaterThan(intro.length)
+    expect(new Set(hook.map(note => note.pitch)).size).toBeGreaterThanOrEqual(new Set(intro.map(note => note.pitch)).size)
+  })
+
   it('creates a real contour instead of one repeated note', () => {
     for (let seed = 1; seed <= 12; seed++) {
       clearMotifs()

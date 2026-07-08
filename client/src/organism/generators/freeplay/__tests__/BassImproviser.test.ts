@@ -103,6 +103,20 @@ describe('BassImproviser', () => {
     expect(pitchClasses.size).toBeGreaterThanOrEqual(3)
   })
 
+  it('intro stays sparser than hook/drop sections', () => {
+    const intro = buildFreeplayBassNotes(ctx({ sectionName: 'intro' }))
+    const drop = buildFreeplayBassNotes(ctx({ sectionName: 'drop' }))
+    expect(drop.length).toBeGreaterThan(intro.length)
+  })
+
+  it('starts on the root and ends on the fifth', () => {
+    const notes = buildFreeplayBassNotes(ctx())
+    const noteToMidi = new Map<string, number>()
+    for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
+    expect(noteToMidi.get(notes[0].pitch)! % 12).toBe(0)
+    expect(noteToMidi.get(notes[notes.length - 1].pitch)! % 12).toBe(7)
+  })
+
   it('is deterministic for the same seed', () => {
     const n1 = buildFreeplayBassNotes(ctx({ rng: mulberry32(5) }))
     clearMotifs()
