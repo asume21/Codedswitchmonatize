@@ -91,6 +91,18 @@ describe('BassImproviser', () => {
     }
   })
 
+  it('trap freeplay leans into a moving 808 line instead of only root hits', () => {
+    const notes = buildFreeplayBassNotes(ctx({
+      subGenre: 'trap',
+      density: 0.7,
+      rng: mulberry32(7),
+    }))
+    const noteToMidi = new Map<string, number>()
+    for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
+    const pitchClasses = new Set(notes.map((n) => noteToMidi.get(n.pitch)! % 12))
+    expect(pitchClasses.size).toBeGreaterThanOrEqual(3)
+  })
+
   it('is deterministic for the same seed', () => {
     const n1 = buildFreeplayBassNotes(ctx({ rng: mulberry32(5) }))
     clearMotifs()

@@ -47,6 +47,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const sustained = SUSTAINED_SUBGENRES.has(ctx.subGenre)
   const kickSet = new Set(ctx.kickTimes16ths)
   const notes: ScheduledNote[] = []
+  const sustainedContour = [0, 12, 7, seventh, third, 0]
 
   for (let bar = 0; bar < ctx.bars; bar++) {
     // A-A-A'-A: bar 3 (index 2) is the single bounded variation.
@@ -59,10 +60,15 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
       const isDownbeat = slot === 0
       const onKick = kickSet.has(bar * 16 + slot) || kickSlotsBar.includes(slot)
 
-      // Pitch: downbeat = root; kick-anchored = root or octave; free slots =
-      // 5th / chord 3rd / chord 7th (all pitches are chord tones — no scale runs).
+      // Pitch: trap/drill/phonk want a real 808 line, not a pile of isolated
+      // hits. Downbeats stay rooted; the rest of the phrase walks a short,
+      // chord-tone contour so the low end reads as a line with motion.
       let interval = 0
-      if (!isDownbeat) {
+      if (!isDownbeat && sustained) {
+        const contourStep = (bar * 4 + i) % sustainedContour.length
+        const contour = sustainedContour[contourStep]
+        interval = contour
+      } else if (!isDownbeat) {
         const roll = ctx.rng()
         if (onKick) interval = roll < 0.7 ? 0 : 12
         else interval = roll < 0.4 ? 7 : roll < 0.7 ? third : seventh

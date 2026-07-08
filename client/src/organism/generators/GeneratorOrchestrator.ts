@@ -843,6 +843,7 @@ export class GeneratorOrchestrator {
       wasQuiet: this.instDuetWasQuiet,
       msSinceLastAnswer: performance.now() - this.instDuetLastAnswerMs,
       voiceActive,
+      section: this.director.getState().section,
     })
     this.instDuetWasQuiet = melodyIsQuiet(restSec, beatSec)
     if (!cue) return

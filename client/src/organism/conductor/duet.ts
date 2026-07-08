@@ -73,6 +73,8 @@ export interface InstrumentalDuetContext {
   msSinceLastAnswer: number
   /** An MC is actively performing — the vocal Duet owns the conversation. */
   voiceActive: boolean
+  /** Optional section name so song mode can answer more intentionally. */
+  section?: string
   /** Minimum spacing between answers (ms). Default 2500. */
   minGapMs?: number
 }
@@ -91,7 +93,19 @@ export function planInstrumentalAnswer(ctx: InstrumentalDuetContext): DuetCue | 
   if (ctx.voiceActive) return null
   const quiet = melodyIsQuiet(ctx.melodyRestSec, ctx.beatSec)
   if (!quiet || ctx.wasQuiet) return null   // rising edge only
-  if (ctx.msSinceLastAnswer < (ctx.minGapMs ?? 2500)) return null
+  const section = (ctx.section ?? '').toLowerCase()
+  const sectionGapMs = section === 'drop' || section === 'drop2' || section === 'chorus' || section === 'hook'
+    ? 1800
+    : section === 'breakdown' || section === 'intro'
+      ? 3200
+      : (ctx.minGapMs ?? 2500)
+  if (ctx.msSinceLastAnswer < sectionGapMs) return null
+  // In song mode, longer gaps in the hook/drop deserve an actual melodic answer;
+  // intro/breakdown stays more restrained and answers with a stab.
+  if (section === 'drop' || section === 'drop2' || section === 'chorus' || section === 'hook') {
+    const phraseVelocity = Math.max(0.42, Math.min(0.8, 0.5 + (ctx.melodyRestSec / Math.max(0.01, ctx.beatSec)) * 0.08))
+    return { answer: 'phrase', velocity: phraseVelocity }
+  }
   // The melody is the one resting — answering with a lead lick would fill its
   // own silence. The chords punctuate instead: a soft comp stab in the pocket.
   return { answer: 'stab', velocity: 0.55 }

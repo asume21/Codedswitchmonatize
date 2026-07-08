@@ -72,6 +72,12 @@ describe('planInstrumentalAnswer', () => {
     expect(cue!.answer).toBe('stab')
   })
 
+  it('can answer the drop with a melodic phrase instead of only stabs', () => {
+    const cue = planInstrumentalAnswer(instCtx({ section: 'drop', melodyRestSec: 1.7 }))
+    expect(cue).not.toBeNull()
+    expect(cue!.answer).toBe('phrase')
+  })
+
   it('fires on the rising edge of the rest only — not every silent frame', () => {
     expect(planInstrumentalAnswer(instCtx({ wasQuiet: true }))).toBeNull()
   })
