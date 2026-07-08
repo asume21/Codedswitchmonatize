@@ -51,7 +51,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // clipping with drum +4 and master -6. The drum bus is the hottest path before
       // summing; each dB here adds directly to transient headroom needed. +1 keeps
       // kick authoritative without slamming the limiter above its -0.3 dBFS ceiling.
-      name: 'drum', pan: 0, gainDb: 1,
+      name: 'drum', pan: 0, gainDb: 0,
       // Punch tuning (2026-06-22): live prod captures (Cypher + Violin Trap) measured
       // crest factor 3.3-3.7 and "no clear beat" — 4:1 @ 5ms was squashing the kick/snare
       // transient into the bed (low crest = no thwack). Ease to 2:1 and slow the attack to
@@ -64,7 +64,7 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // 0 (was -4): the real 808/sub measured weak — only 9.5% of energy in the
       // 20-80 Hz sub band (trap wants the sub forward, just under the kick). -4
       // was burying it; bring it to unity so the 808 has authority.
-      name: 'bass', pan: 0, gainDb: 0,
+      name: 'bass', pan: 0, gainDb: 1,
       // Punch tuning (2026-06-22): 5:1 smoothed the 808 into a sustained mid-rangey
       // "grunt" (prod captures: sub 14% vs lowMid 30%). Ease to 3:1 + faster release so
       // the sub breathes and sits under the kick instead of filling the mud zone.

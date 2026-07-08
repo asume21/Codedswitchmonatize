@@ -68,7 +68,7 @@ export class MixEngine {
       attack: 0.003,  // fast — the wet path is meant to be crushed
       release: 0.15,
     })
-    this.drumParallelWet = new Tone.Gain(0.45)
+    this.drumParallelWet = new Tone.Gain(0.32)
 
     this.drumChannel.output.connect(this.drumBus)
     this.bassChannel.output.connect(this.drumBus)

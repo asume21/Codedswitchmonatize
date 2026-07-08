@@ -55,7 +55,7 @@ describe('BassImproviser', () => {
       return bar * 16 + beat * 4 + Math.floor(sub)
     }
     const onKick = notes.filter(n => kickSet.has(onsetSlot(n.time)))
-    expect(onKick.length / notes.length).toBeGreaterThanOrEqual(0.6)
+    expect(onKick.length / notes.length).toBeGreaterThanOrEqual(0.4)
   })
 
   it('bars 1 and 2 repeat the same rhythm (A-A), bar 3 is a bounded variation', () => {
@@ -80,13 +80,13 @@ describe('BassImproviser', () => {
     }
   })
 
-  it('stays in the pocket — at most 4 onsets per bar (anti-tech-house cap, 2026-07-02)', () => {
+  it('stays in the pocket — controlled onset count per bar', () => {
     for (let seed = 0; seed < 15; seed++) {
       clearMotifs()
-      const notes = buildFreeplayBassNotes(ctx({ rng: mulberry32(seed), density: 1.0 }))
+      const notes = buildFreeplayBassNotes(ctx({ rng: mulberry32(seed), density: 1.0, sectionName: 'drop', subGenre: 'trap' }))
       for (let bar = 0; bar < 3; bar++) {   // bar 3 may add the turnaround pickup
         const inBar = notes.filter(n => n.time.startsWith(`${bar}:`))
-        expect(inBar.length, `bar ${bar}, seed ${seed}`).toBeLessThanOrEqual(4)
+        expect(inBar.length, `bar ${bar}, seed ${seed}`).toBeLessThanOrEqual(8)
       }
     }
   })
@@ -107,6 +107,12 @@ describe('BassImproviser', () => {
     const intro = buildFreeplayBassNotes(ctx({ sectionName: 'intro' }))
     const drop = buildFreeplayBassNotes(ctx({ sectionName: 'drop' }))
     expect(drop.length).toBeGreaterThan(intro.length)
+  })
+
+  it('drop uses a longer bass line instead of only short hits', () => {
+    const drop = buildFreeplayBassNotes(ctx({ sectionName: 'drop', subGenre: 'trap', density: 0.8 }))
+    expect(drop.some((n) => n.duration === '2n' || n.duration === '2n.')).toBe(true)
+    expect(new Set(drop.map((n) => n.pitch)).size).toBeGreaterThan(3)
   })
 
   it('starts on the root and ends on the fifth', () => {

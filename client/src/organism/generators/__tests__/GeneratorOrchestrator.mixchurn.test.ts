@@ -38,6 +38,26 @@ describe('GeneratorOrchestrator — no per-frame volume writes (Part 2)', () => 
     expect(spies.texture).not.toHaveBeenCalled()
   })
 
+  it('applyPerformerState keeps drum boosts capped for stability', () => {
+    const orch = new GeneratorOrchestrator()
+    const kickSpy = vi.spyOn((orch as any).drum, 'setKickVelocityMultiplier').mockImplementation(() => {})
+    const hatSpy = vi.spyOn((orch as any).drum, 'setHatDensityMultiplier').mockImplementation(() => {})
+
+    orch.applyPerformerState({
+      energy: 1.0,
+      breathingNow: true,
+      syllabicRate: 8,
+      phraseBar: 1,
+      phrasePosition: 0.5,
+      spectralBrightness: 0.5,
+    } as any)
+
+    expect(kickSpy).toHaveBeenCalled()
+    expect(hatSpy).toHaveBeenCalled()
+    expect(kickSpy.mock.calls[kickSpy.mock.calls.length - 1][0]).toBeLessThanOrEqual(1.25)
+    expect(hatSpy.mock.calls[hatSpy.mock.calls.length - 1][0]).toBeLessThanOrEqual(1.15)
+  })
+
   it('applySelfListenReport does not move any generator volume', () => {
     const orch = new GeneratorOrchestrator()
     const spies = spyVolume(orch)

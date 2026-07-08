@@ -760,9 +760,9 @@ export class GeneratorOrchestrator {
     // they do NOT compound on top of stored multipliers.
 
     // 1. Energy → kick punch + melody presence
-    const energyBias = 0.7 + performer.energy * 0.6   // 0.7–1.3
+    const energyBias = 0.7 + performer.energy * 0.5   // 0.7–1.2
     const kickMult = Math.min(
-      1.4,
+      1.25,
       this.kickVelocityMultiplier * energyBias,
     )
     this.drum.setKickVelocityMultiplier(kickMult)
@@ -771,7 +771,7 @@ export class GeneratorOrchestrator {
     // hatArcMultiplier is updated once per bar by onArrangementBar; combining
     // here ensures performer reactivity rides the arc rather than clobbering it.
     const normalSyllabic = Math.min(1, performer.syllabicRate / 8)
-    const hatPerformance = Math.max(0.35, Math.min(1.35, 0.55 + normalSyllabic * 0.75))
+    const hatPerformance = Math.max(0.4, Math.min(1.15, 0.5 + normalSyllabic * 0.6))
     this.drum.setHatDensityMultiplier(
       this.hatDensityMultiplier * this.hatArcMultiplier * hatPerformance,
     )

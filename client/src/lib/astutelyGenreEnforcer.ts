@@ -70,12 +70,12 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: 'Travis Scott rage',
     quickStartPresetId: 'trap-140',
-    generatorVolumes: { hatDensity: 1.3, kickVelocity: 1.2, bassVolume: 1.1, melodyVolume: 0.8, chordVolume: 0.7 },
+    generatorVolumes: { hatDensity: 1.1, kickVelocity: 1.1, bassVolume: 1.15, melodyVolume: 0.8, chordVolume: 0.7 },
     mixPreset: {
       name: 'Trap',
       channels: {
-        drums:  { volume: 0.85, pan: 0, eq: { low: 2, lowMid: -1, highMid: 2, high: 1 } },
-        bass:   { volume: 0.8,  pan: 0, eq: { low: 2, lowMid: 0, highMid: -2, high: -3 } },
+        drums:  { volume: 0.8, pan: 0, eq: { low: 2, lowMid: -1, highMid: 2, high: 1 } },
+        bass:   { volume: 0.84, pan: 0, eq: { low: 2, lowMid: 0, highMid: -2, high: -3 } },
         melody: { volume: 0.72, pan: 0.1, eq: { low: -3, lowMid: 0, highMid: 1, high: 2 } },
         chords: { volume: 0.6,  pan: -0.1, eq: { low: -2, lowMid: 1, highMid: 0, high: 1 } },
       },
@@ -154,12 +154,12 @@ export const GENRE_PROFILES: Record<string, GenreProfile> = {
     textureEnabled: false,
     patternStyle: 'UK drill dark sliding 808',
     quickStartPresetId: 'drill-140',
-    generatorVolumes: { hatDensity: 1.4, kickVelocity: 1.0, bassVolume: 1.2, melodyVolume: 0.7, chordVolume: 0.6 },
+    generatorVolumes: { hatDensity: 1.1, kickVelocity: 0.95, bassVolume: 1.25, melodyVolume: 0.7, chordVolume: 0.6 },
     mixPreset: {
       name: 'Drill',
       channels: {
-        drums:  { volume: 0.8,  pan: 0, eq: { low: 1.5, lowMid: 0, highMid: 3, high: 2 } },
-        bass:   { volume: 0.82, pan: 0, eq: { low: 2.5, lowMid: -1, highMid: -3, high: -4 } },
+        drums:  { volume: 0.74, pan: 0, eq: { low: 1.5, lowMid: 0, highMid: 3, high: 2 } },
+        bass:   { volume: 0.86, pan: 0, eq: { low: 2.5, lowMid: -1, highMid: -3, high: -4 } },
         melody: { volume: 0.68, pan: 0.1, eq: { low: -3, lowMid: -1, highMid: 2, high: 3 } },
         chords: { volume: 0.52, pan: -0.1, eq: { low: -2, lowMid: 0, highMid: 1, high: 2 } },
       },

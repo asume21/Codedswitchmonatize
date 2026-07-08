@@ -34,8 +34,8 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const third = ctx.chordIntervals.includes(4) && !ctx.chordIntervals.includes(3) ? 4 : 3
   const seventh = ctx.chordIntervals.includes(11) && !ctx.chordIntervals.includes(10) ? 11 : 10
 
-  // Motif anchored to bar-1 kicks — this is the kick-glue: the motif's slots
-  // ARE (mostly) kick slots, so ≥60% of onsets land with the kick by design.
+  // Motif anchored to bar-1 kicks — keep the bass rhythm tied to the kick
+  // while still leaving room for a short line rather than isolated hits.
   const kickSlotsBar = [...new Set(ctx.kickTimes16ths.map(s => s % 16))].sort((a, b) => a - b)
   const motif = getSectionMotif(
     `bass:${ctx.sectionName}:${ctx.subGenre}`,
@@ -56,11 +56,11 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const free = motif.slots.filter(s => !kickSlotsBar.includes(s)).slice(0, freeCap)
   const sectionMaxOnsets: Record<SectionKind, number> = {
     intro: 2,
-    verse: 3,
-    hook: 4,
-    drop: 4,
+    verse: 4,
+    hook: 5,
+    drop: 6,
     breakdown: 2,
-    bridge: 3,
+    bridge: 4,
   }
   const maxOnsets = sectionMaxOnsets[kind] ?? 4
   const baseMask = { slots: [...new Set([...kickish, ...free])].sort((a, b) => a - b).slice(0, maxOnsets) }
@@ -71,19 +71,29 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const sustainedContours: Record<SectionKind, number[]> = {
     intro: [0, 0, 7, 0],
     verse: [0, 7, third, 0, seventh, 0],
-    hook: [0, 12, 7, 12, third, 0],
-    drop: [0, 12, 7, 12, seventh, 0],
+    hook: [0, 7, 12, third, 7, seventh, 0],
+    drop: [0, 7, 12, seventh, 7, third, 0],
     breakdown: [0, 0, third, 0],
-    bridge: [0, third, 7, seventh],
+    bridge: [0, third, 7, seventh, 7, 0],
   }
   const sustainedContour = sustainedContours[kind]
+  const lineSlotsBySection: Record<SectionKind, number[]> = {
+    intro: [0, 8, 12],
+    verse: [0, 4, 8, 12],
+    hook: [0, 2, 6, 8, 10, 12],
+    drop: [0, 2, 4, 6, 8, 10, 12],
+    breakdown: [0, 8, 12],
+    bridge: [0, 4, 8, 12],
+  }
+  const lineSlots = lineSlotsBySection[kind]
 
   for (let bar = 0; bar < ctx.bars; bar++) {
     // A-A-A'-A: bar 3 (index 2) is the single bounded variation.
-    // Re-cap after varying — the 'add' op must not break the 4-onset pocket cap.
+    // Re-cap after varying so the line stays controlled before the line slots
+    // are layered on top.
     const varied = bar === 2 ? varyMotif(baseMask, ctx.rng) : baseMask
     const mask = varied.slots.length > maxOnsets ? { slots: varied.slots.slice(0, maxOnsets) } : varied
-    const slots = mask.slots
+    const slots = [...new Set([...mask.slots, ...lineSlots])].sort((a, b) => a - b).filter((slot) => slot < 16)
 
     slots.forEach((slot, i) => {
       const isDownbeat = slot === 0
@@ -93,7 +103,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
       // hits. Downbeats stay rooted; the rest of the phrase walks a short,
       // chord-tone contour so the low end reads as a line with motion.
       let interval = 0
-      if (!isDownbeat && sustained) {
+      if (sustained) {
         const contourStep = (bar * 4 + i) % sustainedContour.length
         const contour = sustainedContour[contourStep]
         interval = contour
@@ -114,8 +124,10 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
       // Duration from the gap to the next onset; 808 genres sustain the downbeat.
       const nextSlot = slots[i + 1] ?? 16
       const gap = nextSlot - slot
-      const dur = sustained && isDownbeat
-        ? (kind === 'intro' || kind === 'breakdown' ? '2n.' : '2n')
+      const dur = sustained
+        ? (kind === 'intro' || kind === 'breakdown'
+          ? (isDownbeat ? '2n.' : gap >= 4 ? '4n' : gap >= 2 ? '8n' : '16n')
+          : gap >= 4 ? '2n' : gap >= 2 ? '4n' : '8n')
         : gap >= 4 ? '4n' : gap >= 2 ? '8n' : '16n'
 
       notes.push({
@@ -124,6 +136,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
         velocity: jitterVel(
           isDownbeat ? 0.9
             : (kind === 'intro' || kind === 'breakdown') ? 0.5
+            : kind === 'drop' || kind === 'hook' ? 0.64
             : onKick ? 0.68
             : 0.55,
           ctx.rng,
