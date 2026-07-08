@@ -79,4 +79,9 @@ describe('preset performers', () => {
     expect(preset?.performers?.lead).toBe('violin')
     expect(preset?.emotionalIntent).toBe('sad')
   })
+
+  it('Violin Trap uses the orchestral trap base pack from the recording booth', () => {
+    const preset = getQuickStartPreset('ref-violin-trap-130')
+    expect(preset?.loopPackId).toBe('cymatics-trap-150')
+  })
 })

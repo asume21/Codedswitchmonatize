@@ -113,7 +113,10 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
   },
   {
     id:       'ref-violin-trap-130',
-    loopPackId: 'cymatics-bunny-126',
+    // Use a trap-first orchestral base so the live generators can build from
+    // the recorded Violin Trap / Orchestral Trap reference without copying it
+    // verbatim.
+    loopPackId: 'cymatics-trap-150',
     label:    'Violin Trap',
     genre:    'Reference / Orchestral Trap',
     bpm:      130,
