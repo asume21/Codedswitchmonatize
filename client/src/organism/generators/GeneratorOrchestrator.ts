@@ -112,7 +112,7 @@ export class GeneratorOrchestrator {
   private freeplayDrumCounter = 0
 
   // Texture toggle — when false, texture generator is fully silenced
-  private textureEnabled: boolean = false  // off by default for hip-hop
+  private textureEnabled: boolean = true
 
   // ── Arrangement state ─────────────────────────────────────────────
   //
@@ -1267,6 +1267,7 @@ export class GeneratorOrchestrator {
     try { this.bass.refreshVoice() } catch { /* */ }
     try { this.chord.refreshVoice() } catch { /* */ }
     try { this.melody.refreshVoice() } catch { /* */ }
+    try { this.texture.refreshVoice() } catch { /* */ }
   }
 
   /** Get the currently active chord technique id. */

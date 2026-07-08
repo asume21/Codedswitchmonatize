@@ -308,7 +308,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [melodyVolume,     setMelodyVolumeState]= useState(1.55)
   const [chordVolume,      setChordVolumeState] = useState(1.0)
   const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
-  const [textureEnabled,   setTextureEnabledState] = useState(false)  // off by default for hip-hop
+  const [textureEnabled,   setTextureEnabledState] = useState(true)
+  const textureEnabledRef = useRef(true)
   // Switches-not-modes: the Organism is a steady beat machine by default.
   // Everything "smart" is an explicit opt-in toggle.
   const [reactToVoiceEnabled, setReactToVoiceEnabledState] = useState(false)
@@ -1172,8 +1173,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // re-enabled song structure on every start/swap.
     orchestr.setArrangementEnabled(songModeEnabledRef.current)
     orchestr.setGrooveLocked(true)
-    orchestr.setTextureVolumeMultiplier(0)
-    orchestr.setTextureEnabled(false)
+    orchestr.setTextureVolumeMultiplier(textureEnabledRef.current ? 1 : 0)
+    orchestr.setTextureEnabled(textureEnabledRef.current)
   }, [])
 
   const seedSongRamp = useCallback((seedPhysics: PhysicsState) => {
@@ -3564,6 +3565,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     textureEnabled,
     setTextureEnabled: (enabled: boolean) => {
       setTextureEnabledState(enabled)
+      textureEnabledRef.current = enabled
       orchestrRef.current?.setTextureEnabled(enabled)
     },
 

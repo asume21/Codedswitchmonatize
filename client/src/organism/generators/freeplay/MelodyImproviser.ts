@@ -358,7 +358,7 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
       : Math.min(0.25, ctx.density),
     [0],
   )
-  const baseSlots = capSlots(motif.slots, behavior)
+  const baseSlots = capSlots(motif.slots, behavior, kind)
   const events: RawMelodyEvent[] = []
   let melodicIndex = 0
   let previousDegree: number | null = null

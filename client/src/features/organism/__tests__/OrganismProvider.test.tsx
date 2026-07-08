@@ -160,6 +160,11 @@ describe('OrganismProvider', () => {
     expect(result.current.isCapturing).toBe(false)
   })
 
+  it('texture starts enabled by default', () => {
+    const { result } = renderHook(() => useOrganism(), { wrapper })
+    expect(result.current.textureEnabled).toBe(true)
+  })
+
   it('lastSessionDNA starts as null', () => {
     const { result } = renderHook(() => useOrganism(), { wrapper })
     expect(result.current.lastSessionDNA).toBeNull()

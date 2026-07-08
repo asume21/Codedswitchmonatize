@@ -15,13 +15,31 @@ import { TEXTURE_BY_MODE }    from './patterns/TexturePatternLibrary'
 import type { PhysicsState }  from '../physics/types'
 import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
-import { createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
+import { createMultisampleSampler, createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getConductor }       from '../conductor/Conductor'
+import { getRealInstrumentNotes, realInstrumentsReady } from '../instruments/realInstruments'
 
-// Cymatics keys/Rhodes one-shot (warm melodic stab, tuned to C) — committed
-// under server/Assets and served from the public /assets mount. Tone.Sampler
-// pitch-shifts this single sample across the chord voicing.
-const PAD_SAMPLE_URL = '/assets/keys/cymatics/keys.wav'
+type TextureVoiceSpec = {
+  key: string
+  kind: 'real' | 'soundfont'
+  instrumentId: string
+  attack: number
+  release: number
+  volume: number
+}
+
+const TEXTURE_VOICE_BY_MODE: Record<string, TextureVoiceSpec> = {
+  heat:   { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.01, release: 2.8, volume: -6 },
+  gravel: { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.01, release: 2.8, volume: -6 },
+  smoke:  { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.02, release: 3.0, volume: -6 },
+  glow:   { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.18, release: 3.6, volume: -4 },
+  ice:    { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.22, release: 4.0, volume: -4 },
+}
+
+const TEXTURE_VOICE_FALLBACK: Record<string, TextureVoiceSpec> = {
+  rhodes:  { key: 'rhodes',  kind: 'soundfont', instrumentId: 'electric_piano_1',  attack: 0.01, release: 2.8, volume: -6 },
+  strings: { key: 'strings', kind: 'soundfont', instrumentId: 'string_ensemble_1', attack: 0.18, release: 3.6, volume: -4 },
+}
 
 export class TextureGenerator extends GeneratorBase {
   readonly output: Tone.Gain
@@ -54,8 +72,11 @@ export class TextureGenerator extends GeneratorBase {
   private padReverb:  Tone.Reverb
   private padGain:    Tone.Gain
   private padEventId: number | null = null
+  private textureVolumeMultiplier: number = 1.0
   private padVolumeMultiplier: number = 1.0
   private lastPadGain: number = 0
+  private activeVoiceKey: string | null = null
+  private currentModeKey: string = 'glow'
 
   // Ramp dedup — skip scheduling redundant ramps when values haven't changed
   private lastOutputGain:    number = 0
@@ -89,15 +110,13 @@ export class TextureGenerator extends GeneratorBase {
     this.riserFilter.connect(this.riserGain)
     this.riserGain.connect(this.output)
 
-    // Synth-pad/keys chain: sampler → lush reverb → padGain → output. padGain
-    // starts silent and is opened in processFrame from the activity level.
+    // Synth-pad/keys chain: sampler → lush reverb → padGain → output. Unlike the
+    // old stretched one-shot, this uses the same sample-backed sources as the
+    // other generators: real multisamples when the catalog is ready, otherwise
+    // the self-hosted soundfonts.
     this.padReverb  = new Tone.Reverb({ decay: 3.5, wet: 0.4 })
     this.padGain    = new Tone.Gain(0)
-    this.padSampler = createMultisampleSampler(
-      { C3: PAD_SAMPLE_URL },
-      { attack: 0.25, release: 2.5 },
-      -9,
-    )
+    this.padSampler = this.createPadSamplerForMode(this.currentModeKey)
     this.padSampler.connect(this.padReverb)
     this.padReverb.connect(this.padGain)
     this.padGain.connect(this.output)
@@ -107,21 +126,27 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   // ── Synth-pad chord loop ───────────────────────────────────────────
-  // Comps the Conductor's current voicing every 2 bars with a long, soft pad
+  // Comps the Conductor's current voicing every bar with a long, soft pad
   // swell. Reads the live voicing at callback time so it always agrees with the
   // band's harmony. Scheduled on the Transport so it stays grid-locked.
   private startPadLoop(): void {
     if (this.padEventId !== null) return
     this.padEventId = Tone.getTransport().scheduleRepeat((time) => {
       if (this._loopMode || !this.enabled) return
+      if (this.padSampler.isLoaded !== true) return
       const inner = getConductor().currentVoicing().inner
       if (!inner.length) return
-      const notes = inner.map((m) => Tone.Frequency(m, 'midi').toNote())
+      const lifted = inner.map((m) => Math.min(84, m + 12))
+      const top = lifted[lifted.length - 1]
+      const voiced = top != null && top <= 72
+        ? [...lifted, top + 12]
+        : lifted
+      const notes = [...new Set(voiced)].map((m) => Tone.Frequency(m, 'midi').toNote())
       try {
         this.padSampler.releaseAll(time)
-        this.padSampler.triggerAttackRelease(notes, '2m', time, 0.6)
+        this.padSampler.triggerAttackRelease(notes, '1m', time, 0.52)
       } catch { /* sampler not ready / retrigger race — skip this bar */ }
-    }, '2m', '0:0:0')
+    }, '1m', '0:0:0')
   }
 
   private stopPadLoop(): void {
@@ -133,6 +158,43 @@ export class TextureGenerator extends GeneratorBase {
     this.lastPadGain = 0
     this.padGain.gain.cancelScheduledValues(Tone.now())
     this.padGain.gain.rampTo(0, 0.4)
+  }
+
+  private voiceSpecForMode(modeKey: string): TextureVoiceSpec {
+    const preferred = TEXTURE_VOICE_BY_MODE[modeKey] ?? TEXTURE_VOICE_BY_MODE.glow
+    if (preferred.kind === 'real') {
+      const realNotes = getRealInstrumentNotes({ realInstrument: preferred.instrumentId })
+      if (realNotes) return preferred
+    }
+    return TEXTURE_VOICE_FALLBACK[preferred.key] ?? TEXTURE_VOICE_FALLBACK.strings
+  }
+
+  private createPadSamplerForMode(modeKey: string): LoadableSampler {
+    const spec = this.voiceSpecForMode(modeKey)
+    this.activeVoiceKey = `${spec.kind}:${spec.instrumentId}`
+    const envelope = { attack: spec.attack, release: spec.release }
+
+    if (spec.kind === 'real') {
+      const realNotes = getRealInstrumentNotes({ realInstrument: spec.instrumentId })
+      if (realNotes) return createMultisampleSampler(realNotes, envelope, spec.volume)
+    }
+
+    return createSoundfontSampler(spec.instrumentId, envelope, spec.volume)
+  }
+
+  private swapPadVoice(modeKey: string): void {
+    const nextSpec = this.voiceSpecForMode(modeKey)
+    const nextVoiceKey = `${nextSpec.kind}:${nextSpec.instrumentId}`
+    if (nextVoiceKey === this.activeVoiceKey) return
+
+    const oldSampler = this.padSampler
+    try { oldSampler.releaseAll() } catch { /* */ }
+    try { oldSampler.disconnect() } catch { /* */ }
+
+    this.padSampler = this.createPadSamplerForMode(modeKey)
+    this.padSampler.connect(this.padReverb)
+
+    try { oldSampler.dispose() } catch { /* */ }
   }
 
   /**
@@ -184,6 +246,10 @@ export class TextureGenerator extends GeneratorBase {
     if (!this.enabled) return
 
     const modeName = physics.mode.toString()
+    if (modeName !== this.currentModeKey) {
+      this.currentModeKey = modeName
+      this.swapPadVoice(modeName)
+    }
     const layer    = TEXTURE_BY_MODE[modeName]
     if (!layer) return
 
@@ -195,7 +261,10 @@ export class TextureGenerator extends GeneratorBase {
     this.activityLevel += this.smoothingCoeff(130) * (targetLevel - this.activityLevel)
 
     // Apply gain (texture is always soft — max -12 dB)
-    const shaped = this.activityLevel * layer.gainLevel * this.arrangementMultiplier
+    const shaped = this.activityLevel
+      * layer.gainLevel
+      * this.arrangementMultiplier
+      * this.textureVolumeMultiplier
     const db = shaped <= 0
       ? -Infinity
       : 20 * Math.log10(Math.max(0.0001, shaped))
@@ -224,7 +293,7 @@ export class TextureGenerator extends GeneratorBase {
     // Synth-pad/keys gain — the audible voice. Pads sit well above the
     // subliminal noise bed, scaled by the same activity level + the texture
     // volume slider, and capped so they support rather than dominate the mix.
-    const padTarget = Math.min(0.7, this.activityLevel * 2.5)
+    const padTarget = Math.min(0.82, this.activityLevel * 3.1)
       * this.arrangementMultiplier * this.padVolumeMultiplier
     if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
       this.lastPadGain = padTarget
@@ -266,25 +335,29 @@ export class TextureGenerator extends GeneratorBase {
     // Gain ramp to 0 provides silence; source is disposed in dispose().
   }
 
-  /** Public so the orchestrator can hard-cut the keys/pad on a live preset swap
-   *  (see GeneratorOrchestrator.cutActivePartsForSwap). Texture has no Tone.Part
-   *  — its "part" is the SUSTAINED pad voicing, which otherwise rings for up to
-   *  2 bars (it re-comps every '2m') and drones the old preset's chord under the
-   *  new one. We release the held voicing immediately but leave the pad loop
-   *  scheduler running, so it re-comps the new voicing on the next 2-bar tick. */
+   /** Public so the orchestrator can hard-cut the keys/pad on a live preset swap
+    *  (see GeneratorOrchestrator.cutActivePartsForSwap). Texture has no Tone.Part
+    *  — its "part" is the sustained pad voicing. We release the held voicing
+    *  immediately but leave the pad loop scheduler running, so it re-comps the
+    *  new voicing on the next bar. */
   stopPart(): void {
     try { this.padSampler.releaseAll() } catch { /* sampler not ready */ }
+  }
+
+  refreshVoice(): void {
+    if (!realInstrumentsReady()) return
+    this.swapPadVoice(this.currentModeKey)
   }
 
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
   applyVolumeMultiplier(multiplier: number): void {
     const m = Math.max(0, Math.min(1.3, multiplier))  // cap at 1.3 — texture should never dominate
+    this.textureVolumeMultiplier = m
     // Drives the synth-pad level too (processFrame multiplies padTarget by it),
     // so the texture volume slider — and the orchestrator's mute via
     // applyVolumeMultiplier(0) — control the pads as well as the noise bed.
     this.padVolumeMultiplier = m
-    this.gain.gain.rampTo(m, 0.25)
   }
 
   private computeTargetLevel(organism: OrganismState): number {

@@ -134,4 +134,10 @@ describe('TextureGenerator', () => {
     expect(report.activityLevel).toBe(0)
     expect(mockGainRampTo).toHaveBeenCalledWith(0, 0.5)
   })
+
+  it('applyVolumeMultiplier stores one shared texture/pad multiplier', () => {
+    gen.applyVolumeMultiplier(0.75)
+    expect((gen as any).textureVolumeMultiplier).toBe(0.75)
+    expect((gen as any).padVolumeMultiplier).toBe(0.75)
+  })
 })
