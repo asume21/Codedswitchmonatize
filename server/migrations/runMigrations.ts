@@ -149,6 +149,27 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: user_subscriptions table ensured');
 
+    // Migration: WebEar API keys table. Production hit /api/webear-keys/reveal
+    // before this table was guaranteed on boot, which turned a missing-table
+    // SQL error into a 5xx/edge 502 and left the browser bridge unable to auth.
+    await sql`
+      CREATE TABLE IF NOT EXISTS webear_api_keys (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        key TEXT NOT NULL UNIQUE,
+        name VARCHAR DEFAULT 'Default',
+        usage_count INTEGER DEFAULT 0,
+        last_used_at TIMESTAMP,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_webear_api_keys_user_active
+      ON webear_api_keys(user_id, is_active, created_at DESC)
+    `;
+    console.log('✅ Migration: webear_api_keys table ensured');
+
     // Migration: tracks table
     await sql`
       CREATE TABLE IF NOT EXISTS tracks (
