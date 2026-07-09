@@ -49,34 +49,51 @@ import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
+// A failed dynamic import is a stale/broken module graph (dev-server restart,
+// mid-deploy chunk invalidation) — NOT a missing route. Rendering <NotFound />
+// here reads as a fake 404 and strands the user; a fresh page load fixes it.
+// Reload at most once per 10s (sessionStorage-throttled) so a genuinely
+// broken build degrades to the 404 card instead of a reload loop.
+function ChunkReloadFallback() {
+  const RELOAD_TS_KEY = "chunk-reload-ts";
+  React.useEffect(() => {
+    const last = Number(sessionStorage.getItem(RELOAD_TS_KEY) || 0);
+    if (Date.now() - last > 10_000) {
+      sessionStorage.setItem(RELOAD_TS_KEY, String(Date.now()));
+      window.location.reload();
+    }
+  }, []);
+  return <NotFound />;
+}
+
 // Lazy loaded pages - only load when needed
-const PricingPage = React.lazy(() => import("@/pages/pricing").catch(() => ({ default: () => <NotFound /> })));
-const OnboardingPage = React.lazy(() => import("@/pages/onboarding").catch(() => ({ default: () => <NotFound /> })));
-const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: () => <NotFound /> })));
-const StudioShell = React.lazy(() => import("@/components/studio/StudioShell").catch(() => ({ default: () => <NotFound /> })));
-const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: () => <NotFound /> })));
-const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: () => <NotFound /> })));
-const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: () => <NotFound /> })));
-const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: () => <NotFound /> })));
-const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: () => <NotFound /> })));
-const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() => ({ default: () => <NotFound /> })));
-const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: () => <NotFound /> })));
-const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: () => <NotFound /> })));
-const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: () => <NotFound /> })));
-const VoiceConvertPage = React.lazy(() => import("@/pages/voice-convert").catch(() => ({ default: () => <NotFound /> })));
-const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catch(() => ({ default: () => <NotFound /> })));
-const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: () => <NotFound /> })));
-const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: () => <NotFound /> })));
-const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: () => <NotFound /> })));
-const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: () => <NotFound /> })));
-const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: () => <NotFound /> })));
-const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() => ({ default: () => <NotFound /> })));
-const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() => ({ default: () => <NotFound /> })));
-const DawLayoutLanding = React.lazy(() => import("@/pages/daw-layout").catch(() => ({ default: () => <NotFound /> })));
-const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").catch(() => ({ default: () => <NotFound /> })));
-const DemoPage = React.lazy(() => import("@/pages/DemoPage").catch(() => ({ default: () => <NotFound /> })));
-const PrivacyPage = React.lazy(() => import("@/pages/privacy").catch(() => ({ default: () => <NotFound /> })));
-const TermsPage = React.lazy(() => import("@/pages/terms").catch(() => ({ default: () => <NotFound /> })));
+const PricingPage = React.lazy(() => import("@/pages/pricing").catch(() => ({ default: ChunkReloadFallback })));
+const OnboardingPage = React.lazy(() => import("@/pages/onboarding").catch(() => ({ default: ChunkReloadFallback })));
+const Dashboard = React.lazy(() => import("@/pages/dashboard").catch(() => ({ default: ChunkReloadFallback })));
+const StudioShell = React.lazy(() => import("@/components/studio/StudioShell").catch(() => ({ default: ChunkReloadFallback })));
+const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ default: ChunkReloadFallback })));
+const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: ChunkReloadFallback })));
+const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: ChunkReloadFallback })));
+const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: ChunkReloadFallback })));
+const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: ChunkReloadFallback })));
+const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() => ({ default: ChunkReloadFallback })));
+const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: ChunkReloadFallback })));
+const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: ChunkReloadFallback })));
+const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: ChunkReloadFallback })));
+const VoiceConvertPage = React.lazy(() => import("@/pages/voice-convert").catch(() => ({ default: ChunkReloadFallback })));
+const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catch(() => ({ default: ChunkReloadFallback })));
+const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: ChunkReloadFallback })));
+const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: ChunkReloadFallback })));
+const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: ChunkReloadFallback })));
+const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: ChunkReloadFallback })));
+const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: ChunkReloadFallback })));
+const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() => ({ default: ChunkReloadFallback })));
+const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() => ({ default: ChunkReloadFallback })));
+const DawLayoutLanding = React.lazy(() => import("@/pages/daw-layout").catch(() => ({ default: ChunkReloadFallback })));
+const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").catch(() => ({ default: ChunkReloadFallback })));
+const DemoPage = React.lazy(() => import("@/pages/DemoPage").catch(() => ({ default: ChunkReloadFallback })));
+const PrivacyPage = React.lazy(() => import("@/pages/privacy").catch(() => ({ default: ChunkReloadFallback })));
+const TermsPage = React.lazy(() => import("@/pages/terms").catch(() => ({ default: ChunkReloadFallback })));
 
 
 // Loading fallback component
