@@ -715,9 +715,20 @@ export class BassGenerator extends GeneratorBase {
       const sub  = parseFloat(parts[2] ?? '0')
       const sixteenthPos = Math.floor(beat * 4 + sub) % 16
       const scheduledTime = time + LAY_BACK_SEC + applyGroovePocket(0, sixteenthPos, this.groovePocket)
-      const playableNote = this.currentPerformer
+      let playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
+
+      // 808 register correction: the shared bass register (MIDI 33-48,
+      // 55-130Hz) sits an octave above where real 808s live, so 808 styles
+      // produced almost no energy in the 20-80Hz sub band (measured 1.8% vs
+      // ~32% in reference beats) — and the sine sub layer is off for 808s by
+      // design. Drop 808 notes one octave, floored at D1 (36.7Hz), so the
+      // fundamental lands in the true sub range.
+      if (this.use808Active) {
+        const midi = Tone.Frequency(playableNote).toMidi()
+        if (midi >= 38) playableNote = Tone.Frequency(midi - 12, 'midi').toNote()
+      }
 
       const noteFreq = Tone.Frequency(playableNote).toFrequency()
 
