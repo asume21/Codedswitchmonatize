@@ -31,6 +31,27 @@ try {
   console.warn('⚠️ Could not create storage directories:', err);
 }
 
+// Process-level safety net. The server holds long-lived browser connections
+// (WebEar relay SSE, audio-debug captures); when a tab navigates away, the
+// socket can die mid-read and surface as an ECONNRESET inside a promise no
+// try/catch owns. Node's default is to kill the process — one closed tab
+// took down the whole API (2026-07-09). Log and keep serving instead.
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection (server kept alive)');
+});
+process.on('uncaughtException', (err) => {
+  const code = (err as NodeJS.ErrnoException).code;
+  // Socket-noise errors from disconnecting clients are survivable. Anything
+  // else is a real bug: log loudly and exit so the platform restarts us
+  // cleanly rather than running in an unknown state.
+  if (code === 'ECONNRESET' || code === 'EPIPE' || code === 'ECONNABORTED') {
+    logger.error({ code, err }, 'Client socket error (server kept alive)');
+    return;
+  }
+  logger.error({ err }, 'Uncaught exception — exiting');
+  process.exit(1);
+});
+
 const app = express();
 
 // Lightweight healthcheck for deploy platforms
