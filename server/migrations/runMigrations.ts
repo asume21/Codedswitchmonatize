@@ -177,10 +177,19 @@ export async function runMigrations() {
       CREATE TABLE IF NOT EXISTS webear_captures (
         capture_id VARCHAR PRIMARY KEY,
         content_type TEXT NOT NULL,
-        audio_data BYTEA NOT NULL,
+        audio_data BYTEA,
+        audio_base64 TEXT,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       )
+    `;
+    await sql`
+      ALTER TABLE webear_captures
+      ADD COLUMN IF NOT EXISTS audio_base64 TEXT
+    `;
+    await sql`
+      ALTER TABLE webear_captures
+      ALTER COLUMN audio_data DROP NOT NULL
     `;
     await sql`
       CREATE INDEX IF NOT EXISTS idx_webear_captures_expires_at

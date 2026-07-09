@@ -163,21 +163,22 @@ function storeAudioBlob(id: string, entry: BlobEntry): void {
 
 async function persistAudioBlob(id: string, entry: BlobEntry): Promise<void> {
   const expiresAt = new Date(entry.expiresAt);
+  const audioBase64 = entry.buffer.toString('base64');
   await db.execute(sql`
     INSERT INTO webear_captures (
       capture_id,
       content_type,
-      audio_data,
+      audio_base64,
       expires_at
     ) VALUES (
       ${id},
       ${entry.contentType},
-      ${entry.buffer},
+      ${audioBase64},
       ${expiresAt}
     )
     ON CONFLICT (capture_id) DO UPDATE SET
       content_type = EXCLUDED.content_type,
-      audio_data = EXCLUDED.audio_data,
+      audio_base64 = EXCLUDED.audio_base64,
       expires_at = EXCLUDED.expires_at
   `);
 }
@@ -187,6 +188,7 @@ async function loadPersistedAudioBlob(id: string): Promise<BlobEntry | null> {
     SELECT
       content_type as "contentType",
       audio_data as "audioData",
+      audio_base64 as "audioBase64",
       expires_at as "expiresAt"
     FROM webear_captures
     WHERE capture_id = ${id}
@@ -197,14 +199,21 @@ async function loadPersistedAudioBlob(id: string): Promise<BlobEntry | null> {
   if (!rows[0]) return null;
   const row = rows[0] as Record<string, unknown>;
   const audioData = row.audioData as Buffer | Uint8Array | null;
+  const audioBase64 = typeof row.audioBase64 === 'string' ? row.audioBase64 : '';
   const expiresAt = row.expiresAt instanceof Date
     ? row.expiresAt.getTime()
     : Date.parse(String(row.expiresAt));
 
-  if (!audioData || !Number.isFinite(expiresAt)) return null;
+  if (!Number.isFinite(expiresAt)) return null;
+  const buffer = audioBase64
+    ? Buffer.from(audioBase64, 'base64')
+    : audioData
+      ? Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData)
+      : null;
+  if (!buffer) return null;
 
   return {
-    buffer: Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData),
+    buffer,
     contentType: String(row.contentType || 'audio/webm'),
     expiresAt,
   };
