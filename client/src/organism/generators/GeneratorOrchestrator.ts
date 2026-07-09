@@ -22,6 +22,7 @@ import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { planPreDropMoment, planDropEntryBoost } from './freeplay/ArrangementMoments'
 import { planAnswer, planInstrumentalAnswer, melodyIsQuiet, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
@@ -1719,7 +1720,7 @@ export class GeneratorOrchestrator {
    * enters. Skipped in melodyOnlyMode (freestyle) where flourishes would compete
    * with vocal performance, and skipped if the drum kit is soloed off.
    */
-  private fireSectionFx(sectionName: string, _bpm: number): void {
+  private fireSectionFx(sectionName: string, _bpm: number, impactVelocity?: number): void {
     if (this.melodyOnlyMode) return
     if (!this.arrangementEnabled) return
 
@@ -1735,7 +1736,7 @@ export class GeneratorOrchestrator {
         // simultaneously with the first kick of the drop.
         if (this.drumEnabled) {
           const impactTime = Tone.now() + 0.01
-          const vel = sectionName === 'drop' ? 0.98 : 0.88
+          const vel = impactVelocity ?? (sectionName === 'drop' ? 0.98 : 0.88)
           this.drum.triggerImpact(impactTime, vel)
         }
         break
@@ -1805,41 +1806,54 @@ export class GeneratorOrchestrator {
     // every section end dropped the bass out every few seconds once sections
     // are short, which read as "jumping mid-play." Gating it to drops keeps
     // the dramatic pre-drop snare break and lets ordinary section changes
-    // cross-fade smoothly at the bar line instead.
+    // cross-fade smoothly at the bar line instead. The decision logic lives
+    // in the pure planner (ArrangementMoments.ts) so it stays unit-testable;
+    // this block only executes the returned plan.
     if (sectionBar === section.bars - 1 && this.lastScheduledBreakBar !== barNumber) {
-      this.lastScheduledBreakBar = barNumber
       const nextBarNumber = barNumber + 1
-      const nextSlotInfo = getProducerArrangementSlot(nextBarNumber)
-      const nextSection = nextSlotInfo.slot
+      const nextSection = getProducerArrangementSlot(nextBarNumber).slot
 
-      const enteringDrop = nextSection.energy >= 0.9 && nextSection.energy > section.energy + 0.05
-      if (enteringDrop) {
-      const breakStartId = transport.scheduleOnce((time) => {
-        // Bass drops out briefly — the classic hip-hop "snare break" moment.
-        // Melody and chords do NOT mute: wiping them caused a jarring complete
-        // dropout that interrupted the listener's sense of a continuous melody.
-        // The hi-hat roll fill covers the transition; the melodic instruments
-        // cross-fade into the next section's levels at the bar boundary instead.
-        this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
-        this.bass.output.gain.linearRampToValueAtTime(0, time + 0.02)
-        this.bass.applyArrangementMultiplier(0)
+      const moment = planPreDropMoment({
+        current: section,
+        next: nextSection,
+        sectionBar,
+        barNumber,
+        cycleBar,
+        arrangementEnabled: this.arrangementEnabled,
+        melodyOnlyMode: this.melodyOnlyMode,
+        drumEnabled: this.drumEnabled,
+      })
 
-        // Trigger hi-hat roll fill
-        this.drum.triggerBarEndBreakFill(time)
-      }, `${barNumber}:2:0`)
+      if (moment.shouldFire && moment.breakStartTime && moment.breakEndTime) {
+        this.lastScheduledBreakBar = barNumber
+        const breakStartId = transport.scheduleOnce((time) => {
+          // Bass drops out briefly — the classic hip-hop "snare break" moment.
+          // Melody and chords do NOT hard-mute: wiping them caused a jarring
+          // complete dropout that read as playback failure. On build-like
+          // sections the planner tucks them slightly (negative space makes the
+          // drop feel bigger); otherwise they hold at current-section levels
+          // and cross-fade into the next section at the bar boundary.
+          this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
+          this.bass.output.gain.linearRampToValueAtTime(moment.bassDuck, time + 0.02)
+          this.bass.applyArrangementMultiplier(moment.bassDuck)
+          this.melody.applyArrangementMultiplier(moment.melodyDuck)
+          this.chord.applyArrangementMultiplier(moment.chordDuck)
 
-      const breakEndId = transport.scheduleOnce((time) => {
-        // Clear the hi-hat roll fill
-        this.drum.clearBarEndBreakFill()
+          if (moment.triggerFill) this.drum.triggerBarEndBreakFill(time)
+        }, moment.breakStartTime)
 
-        // Restore multipliers to next section's values (all instruments)
-        this.bass.applyArrangementMultiplier(nextSection.bass)
-        this.melody.applyArrangementMultiplier(nextSection.melody)
-        this.chord.applyArrangementMultiplier(nextSection.chord)
-        this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
-      }, `${nextBarNumber}:0:0`)
+        const breakEndId = transport.scheduleOnce(() => {
+          // Clear the hi-hat roll fill
+          this.drum.clearBarEndBreakFill()
 
-      this.scheduledBreakEventIds.push(breakStartId, breakEndId)
+          // Restore multipliers to next section's values (all instruments)
+          this.bass.applyArrangementMultiplier(nextSection.bass)
+          this.melody.applyArrangementMultiplier(nextSection.melody)
+          this.chord.applyArrangementMultiplier(nextSection.chord)
+          this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
+        }, moment.breakEndTime)
+
+        this.scheduledBreakEventIds.push(breakStartId, breakEndId)
       }
     }
 
@@ -2003,7 +2017,23 @@ export class GeneratorOrchestrator {
       // Producer-style flourishes that turn the loop into a song.
       // Routed through the existing drum/texture channels so they inherit
       // the channel-strip EQ + compressor + the new MasterBus chain.
-      this.fireSectionFx(section.name, transport.bpm.value)
+      //
+      // Drop-entry boost: one bar of extra kick punch + hat excitement so the
+      // drop lands harder than the pre-drop break that set it up. Multipliers
+      // stack on top of the user/base values (never replace them) and settle
+      // back after `settleBars`. The per-bar hat-arc recompute above naturally
+      // resets hats next bar; the scheduled settle covers the kick.
+      const boost = planDropEntryBoost(section, sectionBar)
+      if (boost.shouldBoost && this.drumEnabled) {
+        this.drum.setKickVelocityMultiplier(Math.min(1.5, this.kickVelocityMultiplier * boost.kickMultiplier))
+        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier * boost.hatMultiplier)
+        const settleId = transport.scheduleOnce(() => {
+          this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier)
+          this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier)
+        }, `${barNumber + boost.settleBars}:0:0`)
+        this.scheduledBreakEventIds.push(settleId)
+      }
+      this.fireSectionFx(section.name, transport.bpm.value, boost.shouldBoost ? boost.impactVelocity : undefined)
 
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {
