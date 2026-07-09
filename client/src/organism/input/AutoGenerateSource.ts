@@ -71,7 +71,14 @@ export class AutoGenerateSource implements InputSource {
   private noiseStep = 0.013
   private drift = 0
 
-  private static readonly FRAME_INTERVAL_MS = 23 // ~43 fps
+  // ~30 fps (was 23ms/43fps). This setInterval drives physics + reactive style
+  // on the MAIN thread every tick — the same thread the Tone.js note scheduler
+  // runs on. At full rate it competes with the scheduler and, when the tab is
+  // focused (setInterval runs full-speed; background clamps it to ~1fps), that
+  // contention starves note scheduling → crackle → cutout. 30fps is ample for
+  // the slow synthetic energy drift of auto/preset playback; live mic input has
+  // its own frame path and is unaffected.
+  private static readonly FRAME_INTERVAL_MS = 33 // ~30 fps
 
   constructor(config: Partial<AutoGenerateConfig> = {}) {
     this.bpm = config.bpm ?? 90
