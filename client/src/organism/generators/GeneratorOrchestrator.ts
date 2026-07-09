@@ -2012,6 +2012,9 @@ export class GeneratorOrchestrator {
           this.chord.onSectionChange(section.name)
         }
       }, 160)
+      // Texture (the pad BED) shapes how it sits per section — staggered after
+      // chord so the three Part-affecting rebuilds don't collide on the thread.
+      setTimeout(() => this.texture.onSectionChange(section.name), 240)
 
       // ── Arrangement primitives ──────────────────────────────────
       // Producer-style flourishes that turn the loop into a song.

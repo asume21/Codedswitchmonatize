@@ -71,12 +71,24 @@ export class TextureGenerator extends GeneratorBase {
   private padSampler: LoadableSampler
   private padReverb:  Tone.Reverb
   private padGain:    Tone.Gain
+  // Stereo widener — the reference study's "pad wide, hook center" rule. The
+  // bed spreads across the field so the center stays clear for the chord
+  // animator + lead. Mid-side matrix: cheap DSP, safe to add to the pad chain.
+  private padWidener: Tone.StereoWidener
   private padEventId: number | null = null
   private textureVolumeMultiplier: number = 1.0
   private padVolumeMultiplier: number = 1.0
   private lastPadGain: number = 0
   private activeVoiceKey: string | null = null
   private currentModeKey: string = 'glow'
+
+  // Section-aware bed character (set by onSectionChange). The pad is the BED,
+  // not the animator — so section-awareness shapes how it SITS (velocity, hold
+  // length), never a rhythmic gesture. intro/breakdown: the pad leads (fuller,
+  // longer washes); verse: tucked under the chord animator; build: swelling.
+  private sectionPadVelocity: number = 0.52
+  private sectionPadHoldBars: number = 1
+  private padLoopBar: number = 0
 
   // Ramp dedup — skip scheduling redundant ramps when values haven't changed
   private lastOutputGain:    number = 0
@@ -116,10 +128,12 @@ export class TextureGenerator extends GeneratorBase {
     // the self-hosted soundfonts.
     this.padReverb  = new Tone.Reverb({ decay: 3.5, wet: 0.4 })
     this.padGain    = new Tone.Gain(0)
+    this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)
     this.padSampler.connect(this.padReverb)
     this.padReverb.connect(this.padGain)
-    this.padGain.connect(this.output)
+    this.padGain.connect(this.padWidener)
+    this.padWidener.connect(this.output)
 
     // Do NOT start noise here — defer until organism leaves Dormant
     // this.noiseSource.start()
@@ -131,9 +145,15 @@ export class TextureGenerator extends GeneratorBase {
   // band's harmony. Scheduled on the Transport so it stays grid-locked.
   private startPadLoop(): void {
     if (this.padEventId !== null) return
+    this.padLoopBar = 0
     this.padEventId = Tone.getTransport().scheduleRepeat((time) => {
       if (this._loopMode || !this.enabled) return
       if (this.padSampler.isLoaded !== true) return
+      const bar = this.padLoopBar++
+      // Multi-bar holds: on a 2-bar wash, re-attack only on even bars and let
+      // the sustained voicing ring through the odd bar (no releaseAll then).
+      const hold = Math.max(1, this.sectionPadHoldBars)
+      if (bar % hold !== 0) return
       const inner = getConductor().currentVoicing().inner
       if (!inner.length) return
       const lifted = inner.map((m) => Math.min(84, m + 12))
@@ -144,9 +164,36 @@ export class TextureGenerator extends GeneratorBase {
       const notes = [...new Set(voiced)].map((m) => Tone.Frequency(m, 'midi').toNote())
       try {
         this.padSampler.releaseAll(time)
-        this.padSampler.triggerAttackRelease(notes, '1m', time, 0.52)
+        this.padSampler.triggerAttackRelease(notes, `${hold}m`, time, this.sectionPadVelocity)
       } catch { /* sampler not ready / retrigger race — skip this bar */ }
     }, '1m', '0:0:0')
+  }
+
+  /**
+   * Section-aware bed character. The pad is the BED under the chord animator,
+   * so this shapes how it SITS — velocity and wash length — not rhythm.
+   *   intro / breakdown → the pad leads: fuller, 2-bar washes
+   *   verse            → tucked under the animator: softer, 1-bar
+   *   build            → swelling forward
+   *   drop / hook      → present but not competing with the busy animator
+   * Called from the orchestrator's section-change stagger (after chord).
+   */
+  onSectionChange(sectionName: string): void {
+    const n = sectionName.toLowerCase()
+    if (n.includes('intro') || n.includes('break')) {
+      this.sectionPadVelocity = 0.6
+      this.sectionPadHoldBars = 2
+    } else if (n.includes('build')) {
+      this.sectionPadVelocity = 0.58
+      this.sectionPadHoldBars = 1
+    } else if (n.includes('drop') || n.includes('hook') || n.includes('chorus')) {
+      this.sectionPadVelocity = 0.5
+      this.sectionPadHoldBars = 1
+    } else {
+      // verse / default — tuck under the chord animator
+      this.sectionPadVelocity = 0.46
+      this.sectionPadHoldBars = 1
+    }
   }
 
   private stopPadLoop(): void {
@@ -379,6 +426,7 @@ export class TextureGenerator extends GeneratorBase {
     this.padSampler.dispose()
     this.padReverb.dispose()
     this.padGain.dispose()
+    this.padWidener.dispose()
     try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
     try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()
