@@ -115,12 +115,35 @@ describe('BassImproviser', () => {
     expect(new Set(drop.map((n) => n.pitch)).size).toBeGreaterThan(3)
   })
 
-  it('starts on the root and ends on the fifth', () => {
+  it('starts on the root', () => {
     const notes = buildFreeplayBassNotes(ctx())
     const noteToMidi = new Map<string, number>()
     for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
     expect(noteToMidi.get(notes[0].pitch)! % 12).toBe(0)
-    expect(noteToMidi.get(notes[notes.length - 1].pitch)! % 12).toBe(7)
+  })
+
+  it('rotates phrase-end gestures across seeds: rest, turnaround, and plain all occur', () => {
+    // Phrase ends carry the groove personality (2026-07-09 reference study).
+    // Across seeds we must see all three gestures; a single fixed ending is
+    // the "every phrase ends the same" monotony this feature removes.
+    const onsetSlot = (t: string) => {
+      const [bar, beat, sub] = t.split(':').map(parseFloat)
+      return bar * 16 + beat * 4 + Math.floor(sub)
+    }
+    let sawRest = false
+    let sawTurnaround = false
+    let sawPlain = false
+    for (let seed = 0; seed < 30; seed++) {
+      clearMotifs()
+      const notes = buildFreeplayBassNotes(ctx({ rng: mulberry32(seed) }))
+      const finalBeatOnsets = notes.filter(n => onsetSlot(n.time) >= 3 * 16 + 12)
+      if (finalBeatOnsets.length === 0) sawRest = true
+      else if (finalBeatOnsets.some(n => onsetSlot(n.time) === 3 * 16 + 15)) sawTurnaround = true
+      else sawPlain = true
+    }
+    expect(sawRest).toBe(true)
+    expect(sawTurnaround).toBe(true)
+    expect(sawPlain).toBe(true)
   })
 
   it('is deterministic for the same seed', () => {

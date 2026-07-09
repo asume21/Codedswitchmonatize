@@ -13,4 +13,15 @@ export interface FreeplayContext {
   kickTimes16ths: number[]    // absolute kick slots 0..(bars*16-1), for bass glue
   leadBusy16ths?: number[]    // per-bar slots 0..15 the melody occupies — comp dodges the lead (empty/absent = deaf)
   rng: () => number           // seeded — improvisers are deterministic per seed
+  compGesture?: CompGesture   // chord comp gesture override; absent = derive from motifSeed
 }
+
+// Chord comping "animator" gesture (2026-07-09 reference study). Defined here so
+// the orchestrator can pin one per section; the vocabulary lives in ChordImproviser.
+export type CompGesture =
+  | 'stabs'
+  | 'sustain'
+  | 'roll'
+  | 'phrase-end'
+  | 'alternate'
+  | 'call-response'

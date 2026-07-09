@@ -87,13 +87,33 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   }
   const lineSlots = lineSlotsBySection[kind]
 
+  // Phrase-end breathing (2026-07-09 reference study): real 808 lines put
+  // their personality at the phrase boundary. The most common move is a
+  // dropout just before the loop turns around — a one-beat rest that makes
+  // the next downbeat land harder. Rotate per-phrase (seeded rng) between
+  // that rest, the existing chord-tone turnaround, and playing it plain, so
+  // consecutive phrases don't all end with the same gesture. Intro/breakdown
+  // are already sparse — no extra move needed there.
+  const endRoll = ctx.rng()
+  const phraseEnd: 'rest' | 'turnaround' | 'plain' =
+    kind === 'intro' || kind === 'breakdown' ? 'plain'
+      : endRoll < 0.4 ? 'rest'
+      : endRoll < 0.75 ? 'turnaround'
+      : 'plain'
+
   for (let bar = 0; bar < ctx.bars; bar++) {
     // A-A-A'-A: bar 3 (index 2) is the single bounded variation.
     // Re-cap after varying so the line stays controlled before the line slots
     // are layered on top.
     const varied = bar === 2 ? varyMotif(baseMask, ctx.rng) : baseMask
     const mask = varied.slots.length > maxOnsets ? { slots: varied.slots.slice(0, maxOnsets) } : varied
-    const slots = [...new Set([...mask.slots, ...lineSlots])].sort((a, b) => a - b).filter((slot) => slot < 16)
+    const isFinalBar = bar === ctx.bars - 1
+    const slots = [...new Set([...mask.slots, ...lineSlots])]
+      .sort((a, b) => a - b)
+      .filter((slot) => slot < 16)
+      // The dropout: silence the final beat of the phrase so the loop's
+      // return downbeat gets a running start.
+      .filter((slot) => !(isFinalBar && phraseEnd === 'rest' && slot >= 12))
 
     slots.forEach((slot, i) => {
       const isDownbeat = slot === 0
@@ -145,9 +165,10 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
       })
     })
 
-    // Turnaround: approach the next downbeat from the chord third on the
-    // final swung 16th of the phrase.
-    if (bar === ctx.bars - 1 && !baseMask.slots.includes(15)) {
+    // Turnaround: approach the next downbeat from the chord fifth on the
+    // final swung 16th of the phrase. Only when this phrase's end-gesture is
+    // the turnaround — the rest/plain phrases leave the boundary alone.
+    if (bar === ctx.bars - 1 && phraseEnd === 'turnaround' && !baseMask.slots.includes(15)) {
       notes.push({
         pitch: midiToNote(clampToBassRegister(root + 7)),
         duration: '16n',

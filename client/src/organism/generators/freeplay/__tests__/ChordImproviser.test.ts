@@ -1,6 +1,6 @@
 // client/src/organism/generators/freeplay/__tests__/ChordImproviser.test.ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { buildFreeplayCompPlan, clearCompCounters } from '../ChordImproviser'
+import { buildFreeplayCompPlan, clearCompCounters, pickCompGesture } from '../ChordImproviser'
 import { clearMotifs } from '../motif'
 import { mulberry32, hashString } from '../utils'
 import type { FreeplayContext } from '../types'
@@ -45,7 +45,7 @@ describe('ChordImproviser', () => {
   it('NEVER emits next-voicing anticipations — the looping 1-bar part would fire them a bar early (the "not in key" bug, 2026-07-02)', () => {
     for (let seed = 0; seed < 10; seed++) {
       clearMotifs(); clearCompCounters()
-      const plan = buildFreeplayCompPlan(ctx({ energy: 0.9, rng: mulberry32(seed) }))
+      const plan = buildFreeplayCompPlan(ctx({ energy: 0.9, compGesture: 'stabs', rng: mulberry32(seed) }))
       expect(plan.length).toBeGreaterThanOrEqual(3)   // stabs still happen
       expect(plan.some(e => e.useNextVoicing)).toBe(false)
     }
@@ -71,7 +71,7 @@ describe('ChordImproviser', () => {
     let developed = 0
     for (let seed = 0; seed < 12; seed++) {
       clearMotifs(); clearCompCounters()
-      const plan = buildFreeplayCompPlan(ctx({ bars: 2, rng: mulberry32(seed) }))
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, compGesture: 'stabs', rng: mulberry32(seed) }))
       const barSlots = (bar: number) =>
         plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
       expect(barSlots(0).length).toBeGreaterThanOrEqual(1)
@@ -97,7 +97,7 @@ describe('ChordImproviser', () => {
     let varied = 0
     for (let seed = 0; seed < 12; seed++) {
       clearMotifs(); clearCompCounters()
-      const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, rng: mulberry32(seed) }))
+      const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, compGesture: 'stabs', rng: mulberry32(seed) }))
       const barSlots = (bar: number) =>
         plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
       const shapes = [0, 1, 2, 3].map(bar => JSON.stringify(barSlots(bar)))
@@ -172,5 +172,69 @@ describe('ChordImproviser', () => {
     const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.2 }))
     expect(plan).toHaveLength(4)
     expect(new Set(plan.map(e => barOf(e.time)))).toEqual(new Set([0, 1, 2, 3]))
+  })
+
+  // ── Animator gestures (2026-07-09 reference study) ──────────────────
+
+  it('sustain gesture is a legato bed: one whole-bar hold per bar', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, compGesture: 'sustain' }))
+    expect(plan).toHaveLength(4)
+    for (const ev of plan) {
+      expect(ev.dur).toBe('1m')
+      expect(slotOf(ev.time)).toBe(0)   // downbeat only — no stabs
+    }
+  })
+
+  it('roll gesture re-attacks mid-bar so chords flow (downbeat + half-bar)', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, compGesture: 'roll' }))
+    const slots = plan.map(e => slotOf(e.time)).sort((a, b) => a - b)
+    expect(slots).toContain(0)   // downbeat
+    expect(slots).toContain(8)   // half-bar re-attack
+  })
+
+  it('phrase-end gesture holds a quiet bed then bursts into the turnaround', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, compGesture: 'phrase-end' }))
+    const finalBarBurst = plan.filter(e => barOf(e.time) === 3 && slotOf(e.time) >= 9)
+    expect(finalBarBurst.length).toBeGreaterThanOrEqual(2)   // the burst exists
+    // earlier bars are single whole-bar holds
+    for (const bar of [0, 1, 2]) {
+      const inBar = plan.filter(e => barOf(e.time) === bar)
+      expect(inBar).toHaveLength(1)
+      expect(inBar[0].dur).toBe('1m')
+    }
+  })
+
+  it('alternate gesture leaves odd bars as a single pad hold between stab bars', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, compGesture: 'alternate', motifSeed: hashString('chord:verse') }))
+    for (const oddBar of [1, 3]) {
+      const inBar = plan.filter(e => barOf(e.time) === oddBar)
+      expect(inBar, `bar ${oddBar} should be one pad hold`).toHaveLength(1)
+      expect(inBar[0].dur).toBe('1m')
+    }
+  })
+
+  it('call-response gesture keeps its non-downbeat comps in the back half of the bar', () => {
+    for (let seed = 0; seed < 8; seed++) {
+      clearMotifs(); clearCompCounters()
+      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, compGesture: 'call-response', rng: mulberry32(seed) }))
+      for (const ev of plan) {
+        const slot = slotOf(ev.time)
+        if (slot === 0) continue   // downbeat anchor allowed
+        expect(slot, `call-response comp in front half (slot ${slot}, seed ${seed})`).toBeGreaterThanOrEqual(8)
+      }
+    }
+  })
+
+  it('gesture is stable per motifSeed but varies across seeds (identity, not churn)', () => {
+    // Same seed → same gesture every time (a section keeps its comping
+    // identity; churn was the conductor-part2 lesson).
+    const seed = hashString('chord:verse')
+    expect(pickCompGesture(seed)).toBe(pickCompGesture(seed))
+    // Different sections must not all collapse to one gesture.
+    const gestures = new Set(
+      ['chord:intro', 'chord:verse', 'chord:hook', 'chord:drop', 'chord:bridge', 'chord:break']
+        .map(s => pickCompGesture(hashString(s))),
+    )
+    expect(gestures.size).toBeGreaterThanOrEqual(2)
   })
 })
