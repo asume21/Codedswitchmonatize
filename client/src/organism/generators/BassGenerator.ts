@@ -509,13 +509,16 @@ export class BassGenerator extends GeneratorBase {
           attack:  0.002,
           decay:   1.0,
           sustain: 0.05,
-          release: 1.8,
+          // 1.8s release rang "flubby" once the 808 dropped into the true sub
+          // octave (36-65Hz fundamentals decay slower perceptually) and its
+          // tail smeared into the next kick. Tightened after the sub-octave fix.
+          release: 1.1,
         },
         filterEnvelope: {
           attack: 0.002,
           decay:  0.35,
           sustain: 0.0,
-          release: 0.6,
+          release: 0.45,
           baseFrequency: 60,
           octaves: 3.0,
         },
