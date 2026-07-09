@@ -303,11 +303,15 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
 
   log(`Uploading ${blob.size} bytes (${chunks.length} chunks)...`)
 
-  await fetch(BLOB_URL(captureId), {
+  const uploadRes = await fetch(BLOB_URL(captureId), {
     method:  'POST',
     headers: { 'Content-Type': 'audio/webm' },
     body:    buffer,
   })
+  if (!uploadRes.ok) {
+    isCapturing = false
+    throw new Error(`WebEar blob upload failed (${uploadRes.status})`)
+  }
 
   log(`Delivered — capture_id: ${captureId}`)
   isCapturing = false
@@ -435,7 +439,11 @@ async function doLocalCapture(captureId: string, durationMs: number): Promise<vo
   form.append('captureId', captureId)
   form.append('durationMs', String(durationMs))
 
-  await fetch('/api/audio-debug/capture', { method: 'POST', body: form })
+  const uploadRes = await fetch('/api/audio-debug/capture', { method: 'POST', body: form })
+  if (!uploadRes.ok) {
+    isCapturing = false
+    throw new Error(`Local audio-debug upload failed (${uploadRes.status})`)
+  }
   log(`Local capture delivered — id: ${captureId}, bytes: ${blob.size}`)
   isCapturing = false
 }

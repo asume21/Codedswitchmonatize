@@ -170,6 +170,24 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: webear_api_keys table ensured');
 
+    // Migration: Persist short-lived WebEar captures in Postgres so Railway
+    // edge/load balancing cannot lose them between the blob upload request and
+    // the later analyze request that may hit a different app instance.
+    await sql`
+      CREATE TABLE IF NOT EXISTS webear_captures (
+        capture_id VARCHAR PRIMARY KEY,
+        content_type TEXT NOT NULL,
+        audio_data BYTEA NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_webear_captures_expires_at
+      ON webear_captures(expires_at)
+    `;
+    console.log('✅ Migration: webear_captures table ensured');
+
     // Migration: tracks table
     await sql`
       CREATE TABLE IF NOT EXISTS tracks (

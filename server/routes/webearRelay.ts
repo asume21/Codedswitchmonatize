@@ -12,6 +12,8 @@ import { Router, Request, Response } from 'express';
 import express from 'express';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 import type { IStorage } from '../storage';
 import { analyzePcm } from '../services/mcpAudioAnalysis';
 import { describeAudio } from '../services/audioDescribe';
@@ -157,6 +159,64 @@ function storeAudioBlob(id: string, entry: BlobEntry): void {
     if (oldest === undefined || oldest === id) break;
     deleteAudioBlob(oldest);
   }
+}
+
+async function persistAudioBlob(id: string, entry: BlobEntry): Promise<void> {
+  const expiresAt = new Date(entry.expiresAt);
+  await db.execute(sql`
+    INSERT INTO webear_captures (
+      capture_id,
+      content_type,
+      audio_data,
+      expires_at
+    ) VALUES (
+      ${id},
+      ${entry.contentType},
+      ${entry.buffer},
+      ${expiresAt}
+    )
+    ON CONFLICT (capture_id) DO UPDATE SET
+      content_type = EXCLUDED.content_type,
+      audio_data = EXCLUDED.audio_data,
+      expires_at = EXCLUDED.expires_at
+  `);
+}
+
+async function loadPersistedAudioBlob(id: string): Promise<BlobEntry | null> {
+  const rows = await db.execute(sql`
+    SELECT
+      content_type as "contentType",
+      audio_data as "audioData",
+      expires_at as "expiresAt"
+    FROM webear_captures
+    WHERE capture_id = ${id}
+      AND expires_at > NOW()
+    LIMIT 1
+  `);
+
+  if (!rows[0]) return null;
+  const row = rows[0] as Record<string, unknown>;
+  const audioData = row.audioData as Buffer | Uint8Array | null;
+  const expiresAt = row.expiresAt instanceof Date
+    ? row.expiresAt.getTime()
+    : Date.parse(String(row.expiresAt));
+
+  if (!audioData || !Number.isFinite(expiresAt)) return null;
+
+  return {
+    buffer: Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData),
+    contentType: String(row.contentType || 'audio/webm'),
+    expiresAt,
+  };
+}
+
+async function getAudioBlob(captureId: string): Promise<BlobEntry | null> {
+  const inMemory = audioBlobs.get(captureId);
+  if (inMemory && inMemory.expiresAt > Date.now()) return inMemory;
+  const persisted = await loadPersistedAudioBlob(captureId);
+  if (!persisted) return null;
+  storeAudioBlob(captureId, persisted);
+  return persisted;
 }
 
 // ── Video Blob store with a hard memory ceiling ──────────────────────────────────────
@@ -2070,12 +2130,18 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
   });
 
   // ── 2. Browser POSTs captured blob ────────────────────────────────────────
-  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '50mb' }), (req: Request, res: Response) => {
+  router.post('/blob/:captureId', express.raw({ type: '*/*', limit: '50mb' }), async (req: Request, res: Response) => {
     const { captureId } = req.params;
     const buffer      = req.body as Buffer;
     const contentType = req.headers['content-type'] || 'audio/webm';
 
-    storeAudioBlob(captureId, { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 });
+    const entry: BlobEntry = { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 };
+    storeAudioBlob(captureId, entry);
+    try {
+      await persistAudioBlob(captureId, entry);
+    } catch (err: any) {
+      return void res.status(500).json({ error: `Could not persist capture: ${err.message}` });
+    }
 
     const pending = pendingCaptures.get(captureId);
     if (pending) {
@@ -2102,7 +2168,7 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
 
   // ── 3. In-app analyze — no auth, no credits; used by mastering card ─────
   router.get('/analyze-app/:captureId', async (req: Request, res: Response) => {
-    const blob = audioBlobs.get(req.params.captureId);
+    const blob = await getAudioBlob(req.params.captureId);
     if (!blob) return void res.status(404).json({ error: 'Capture not found or expired (5 min TTL)' });
     try {
       const decoded = await decodeWebmToPcm(blob.buffer);
