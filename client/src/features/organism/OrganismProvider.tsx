@@ -507,15 +507,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // command center subscribes to this context, so frequent updates make hover
     // states blink and steal time from the audio thread.
     //
-    // DevTools profiling (2026-07-09) traced the crackle/cutout to THIS update:
-    // each one re-renders the ~2.6k-line OrganismCommandCenter tree at ~120ms.
-    // At 250ms that's ~4×/sec × 120ms ≈ half the main thread, which starves the
-    // Tone.js note scheduler → channels drop to silence → crackle+cutout (worst
-    // when the tab is focused; unmounting the tree by leaving the tab clears it).
-    // 500ms halves the re-render frequency for immediate relief; the real fix is
-    // memoizing the heavy viz subtrees / moving synthesis to an AudioWorklet.
     let lastPhysicsUIUpdate = 0
-    const ORGANISM_UI_INTERVAL_MS = 500
+    const ORGANISM_UI_INTERVAL_MS = 250
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 
