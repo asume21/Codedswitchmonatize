@@ -126,7 +126,11 @@ export class TextureGenerator extends GeneratorBase {
     // old stretched one-shot, this uses the same sample-backed sources as the
     // other generators: real multisamples when the catalog is ready, otherwise
     // the self-hosted soundfonts.
-    this.padReverb  = new Tone.Reverb({ decay: 3.5, wet: 0.4 })
+    // Convolution reverb cost scales with IR length. The 3.5s tail was the
+    // heaviest always-on node in the generator stack and the AI-ear localized
+    // crackle to "reverb tails"; 1.8s keeps a lush bed while roughly halving
+    // this node's audio-thread cost. Re-applied 2026-07-11 after revert 7a2767cd.
+    this.padReverb  = new Tone.Reverb({ decay: 1.8, wet: 0.3 })
     this.padGain    = new Tone.Gain(0)
     this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)

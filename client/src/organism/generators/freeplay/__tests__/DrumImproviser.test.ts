@@ -74,12 +74,26 @@ describe('DrumImproviser', () => {
     }
   })
 
-  it('density controls hat count', () => {
+  it('hats hold a stable locked pocket — density does NOT balloon them', () => {
+    // 2026-07-11 fire-beats cohesion: the hat pocket is a COMMITTED repeating
+    // figure (8th-note backbone + at most 2 deterministic 16th infills),
+    // deliberately NOT scaled by density — a busier section no longer turns the
+    // hats into a wandering rattle. This intentionally supersedes the old
+    // "density controls hat count" contract.
     const sparse = buildFreeplayDrumHits(ctx({ density: 0.2, sectionName: 'intro' }))
     clearMotifs()
     const busy = buildFreeplayDrumHits(ctx({ density: 1.0, sectionName: 'drop' }))
     const hats = (hs: typeof sparse) => hs.filter(h => h.instrument === 'hat').length
-    expect(hats(busy)).toBeGreaterThan(hats(sparse))
+
+    // Both sections keep a solid, steady hat backbone...
+    expect(hats(sparse)).toBeGreaterThan(24)
+    expect(hats(busy)).toBeGreaterThan(24)
+    // ...and neither balloons: the count stays in a tight band regardless of density.
+    expect(Math.abs(hats(busy) - hats(sparse))).toBeLessThanOrEqual(6)
+
+    // OPEN QUESTION — judge by ear via `npm run capture:fire-beats`: should a
+    // `drop` feel busier than an `intro`? If yes, scale the infill cap with
+    // density in DrumImproviser and assert hats(busy) > hats(sparse) here.
   })
 
   it('16th hat infill repeats as a motif — same off-16th slots recur across bars', () => {

@@ -112,6 +112,16 @@ export class GeneratorOrchestrator {
   private sectionDensityLevel = 0.7
   private freeplayDrumCounter = 0
 
+  // Groove lock (2026-07-11 fire-beats) — when true (default), the core groove
+  // COMMITS and LOOPS within a section instead of re-rolling a fresh variation
+  // every mutation tick. Re-rolling was the "never a groove / mess": the ear
+  // never locked before the pattern swapped. This is the minimum-freedom end of
+  // the "improvisation-freedom" control in the playable-instrument spec.
+  // Section changes still bring new material. Unlock for constant variation.
+  private grooveLock = true
+  setGrooveLock(on: boolean): void { this.grooveLock = on }
+  getGrooveLock(): boolean { return this.grooveLock }
+
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = true
 
@@ -148,22 +158,22 @@ export class GeneratorOrchestrator {
   // ── Progressive Intro ─────────────────────────────────────────────
   // Musician-style instrument stacking: instead of every generator entering
   // at bar 1, they layer in over the first 6 bars so the listener hears the
-  // "idea" first (melody solo), then harmony, then bass, then drums.
+  // "idea" first (melody + keys/pads), then harmony, then bass, then drums.
   // Only applies when arrangementEnabled === false (jam mode).
   private progressiveIntroEnabled: boolean = true
   private introStartBar: number = -1
 
   private static readonly INTRO_STACK: ReadonlyArray<{
-    atBar: number; drum: number; bass: number; chord: number; melody: number
+    atBar: number; drum: number; bass: number; chord: number; melody: number; texture: number
   }> = [
-    // Bar 0-1: melody + chords play alone — the idea, the seed
-    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0 },
+    // Bar 0-1: melody + chords + pad bed play alone — the idea, the seed
+    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0, texture: 0.45 },
     // Bar 2-3: bass enters — the foundation grounds the melody
-    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0 },
+    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0, texture: 0.45 },
     // Bar 4-5: drums enter softly — the pulse begins
-    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0 },
+    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
     // Bar 6+: full groove — everything playing and building
-    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0 },
+    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
   ]
 
   // AI Director overrides — keyed by section name, applied next time that section starts
@@ -1100,6 +1110,7 @@ export class GeneratorOrchestrator {
       this.bass.applyArrangementMultiplier(1.0)
       this.chord.applyArrangementMultiplier(1.0)
       this.melody.applyArrangementMultiplier(1.0)
+      this.texture.applyArrangementMultiplier(this.textureEnabled ? 1.0 : 0)
     }
   }
 
@@ -1484,6 +1495,13 @@ export class GeneratorOrchestrator {
 
     const state = this.director.getState()
     if (this.drumFreeplay) {
+      // Groove lock: commit the core groove and LET IT LOOP. Regenerating a
+      // fresh pattern every mutation tick was the "never a groove / mess" — the
+      // committed 4-bar loop never got to repeat long enough to lock. When
+      // locked (default), skip the re-roll; the loop keeps playing and section
+      // changes still evolve it. Unlock (setGrooveLock(false)) for the old
+      // constant-variation behaviour.
+      if (this.grooveLock) return
       // Freeplay regenerates a fresh variation each mutation tick — that IS
       // the mutation (same skeleton + motif, new hats/ghosts/fill roll).
       this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex))
@@ -1777,6 +1795,7 @@ export class GeneratorOrchestrator {
         this.bass.applyArrangementMultiplier(stage.bass)
         this.chord.applyArrangementMultiplier(stage.chord)
         this.melody.applyArrangementMultiplier(stage.melody)
+        this.texture.applyArrangementMultiplier(this.textureEnabled ? stage.texture : 0)
       }
       return
     }
@@ -1934,11 +1953,11 @@ export class GeneratorOrchestrator {
     this.chord.applyArrangementMultiplier(section.chord)
 
     // Composer roles: who plays / how forward this section. Absent orchestration
-    // (old plans / jam mode) defaults every instrument to 'support' so behavior
-    // matches today minus the full-time-everyone problem.
+    // (old plans / jam mode) should still behave like a hip-hop beat machine:
+    // drums and bass lead, melodic parts support.
     const orch = section.orchestration
-    this.drum.setRole(orch?.drums ?? 'support')
-    this.bass.setRole(orch?.bass ?? 'support')
+    this.drum.setRole(orch?.drums ?? 'lead')
+    this.bass.setRole(orch?.bass ?? 'lead')
     this.melody.setRole(orch?.melody ?? 'support')
     this.chord.setRole(orch?.chord ?? 'support')
     this.texture.setRole(orch?.texture ?? 'support')

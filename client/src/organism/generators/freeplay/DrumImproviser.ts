@@ -75,10 +75,15 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
   // Hat 16th infill is MOTIF-driven, not a per-slot coin flip: a committed set
   // of off-16th slots per section so the infill is a repeating idea the ear can
   // lock onto, with a small rng sparkle on top.
+  // Cap the 16th infill to 2 hits (2026-07-11 "too many drums"): the 8th-note
+  // hats are the backbone; a couple of committed 16ths add motion without
+  // turning the pocket into a busy rattle. Simpler pocket = more space to hear
+  // the bass and feel the lock.
   const hatInfill = new Set(
     getSectionMotif(`hats:${ctx.sectionName}:${ctx.subGenre}`, ctx.rng, ctx.density, [])
       .slots.map(s => (s + 1) % 16)      // shift motif onto the off-16ths
-      .filter(s => s % 2 === 1),
+      .filter(s => s % 2 === 1)
+      .slice(0, 2),
   )
 
   // 0-2 open-hat accents per bar, drawn once per phrase so the placement is an
@@ -111,7 +116,7 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
     for (let slot = 0; slot < 16; slot++) {
       if (cutFill && slot >= 12) continue // fill = silence, let the beat breathe
       const isEighth = slot % 2 === 0
-      const rollZone = slot >= 14 && bar % 2 === 1 && ctx.energy > 0.6
+      const rollZone = slot >= 14 && isFillBar && ctx.energy > 0.6
       if (rollZone) continue // handled below
       if (isEighth) {
         if (openHatSlots.includes(slot)) {
@@ -120,13 +125,20 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
           const accent = slot % 4 === 0 ? 0.48 : 0.35
           push(hits, H, bar, slot, accent, ctx.swing, ctx.rng)
         }
-      } else if (hatInfill.has(slot) && ctx.rng() < 0.35 + ctx.density * 0.5) {
+      } else if (hatInfill.has(slot)) {
+        // LOCK (2026-07-11 fire-beats cohesion): the committed infill plays
+        // EVERY bar, deterministically — no per-bar coin flip. The AI listen
+        // heard "busy, wandering hats that never lock into a groove"; the
+        // rng gate made the committed figure flicker bar-to-bar so the pattern
+        // never repeated. An instrumental beat's hats are a REPEATING loop.
+        // The random off-motif sparkle is dropped for the same reason.
         push(hits, H, bar, slot, 0.24, ctx.swing, ctx.rng)
-      } else if (ctx.rng() < ctx.density * 0.05) {
-        push(hits, H, bar, slot, 0.18, ctx.swing, ctx.rng) // rare sparkle outside the motif
       }
     }
-    if (bar % 2 === 1 && ctx.energy > 0.6 && !cutFill && ctx.rng() < 0.7) {
+    // Roll only on the phrase's fill bar now (was every odd bar, 70% of the
+    // time) — "too many drums / so fast": the 32nd roll is the fastest element,
+    // so it becomes a deliberate once-per-phrase fill instead of constant chatter.
+    if (isFillBar && ctx.energy > 0.6 && !cutFill) {
       // 32nd hat roll across the last two 16ths (slots 14-15 as 4 hits)
       for (let i = 0; i < 4; i++) {
         hits.push({

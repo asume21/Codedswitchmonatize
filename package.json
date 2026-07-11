@@ -22,6 +22,7 @@
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:unit": "vitest run",
+    "capture:fire-beats": "node scripts/capture-fire-beats.mjs",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "lint:css": "stylelint \"**/*.css\"",

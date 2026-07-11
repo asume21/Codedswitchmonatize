@@ -495,6 +495,19 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     mixRef.current       = mix
     captureRef.current   = capture
 
+    // Dev-only: expose channel isolation for the fire-beats capture bench and
+    // console tuning. Mirrors window.setFreeplaySeed (freeplay/utils.ts). Lets
+    // `window.soloChannel('drum')` record one role at a time on the master tap.
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>
+      w.soloChannel   = (role: string | null) => mix.soloChannel(role as never)
+      w.__organismMix = mix
+      // Fire-beats A/B: grooveLock(true) commits+loops the core groove;
+      // grooveLock(false) restores the old constant re-roll. Toggle while
+      // playing to hear the difference.
+      w.grooveLock = (on: boolean) => orchestr.setGrooveLock(on)
+    }
+
     // 3. Wire in correct order:
     //    input → physics → state machine
     //    physics + state machine → generators
@@ -507,8 +520,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // command center subscribes to this context, so frequent updates make hover
     // states blink and steal time from the audio thread.
     //
+    // DevTools profiling (2026-07-09) traced the crackle/cutout to THIS update:
+    // each one re-renders the ~2.6k-line OrganismCommandCenter tree at ~120ms.
+    // At 250ms that's ~4×/sec × 120ms ≈ half the main thread, which starves the
+    // Tone.js note scheduler → channels drop to silence → crackle+cutout (worst
+    // when the tab is focused; unmounting the tree by leaving the tab clears it).
+    // 500ms halves the re-render frequency for immediate relief; the real fix is
+    // memoizing the heavy viz subtrees / moving synthesis to an AudioWorklet.
+    // Re-applied 2026-07-11 after revert 7a2767cd — the user's foreground-crackle/
+    // background-clean repro (no DevTools throttle) confirms the starvation is real.
     let lastPhysicsUIUpdate = 0
-    const ORGANISM_UI_INTERVAL_MS = 250
+    const ORGANISM_UI_INTERVAL_MS = 500
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 
@@ -764,6 +786,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       stemLayerRef.current = null
       controllerRef.current = null
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
+      if (import.meta.env.DEV) {
+        const w = window as unknown as Record<string, unknown>
+        delete w.soloChannel
+        delete w.__organismMix
+        delete w.grooveLock
+      }
       mix.dispose()
       capture.reset()
       transcriber.reset()

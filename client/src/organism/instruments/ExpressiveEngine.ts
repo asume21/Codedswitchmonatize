@@ -362,7 +362,9 @@ export class ExpressiveEngine {
     });
     this.limiter = new Tone.Limiter(-1); // Safety brick-wall limiter
 
-    // Chain: voices → filter → expressionGain → masterGain → limiter → destination
+    // Chain: voices -> filter -> expressionGain -> masterGain -> limiter -> destination.
+    // MixEngine calls connectTo() after construction; that removes this fallback
+    // destination route so live Organism notes hit the channel strip + MasterBus.
     this.filter.connect(this.expressionGain);
     this.expressionGain.connect(this.masterGain);
     this.masterGain.connect(this.limiter);
@@ -373,6 +375,7 @@ export class ExpressiveEngine {
    * Connect the engine to a custom output node instead of the default destination.
    */
   connectTo(node: Tone.InputNode): void {
+    try { this.limiter.disconnect(); } catch { /* fallback output may already be disconnected */ }
     this.masterGain.disconnect();
     this.masterGain.connect(node);
   }
@@ -977,6 +980,7 @@ export class ExpressiveEngine {
     this.filter.dispose();
     this.expressionGain.dispose();
     this.masterGain.dispose();
+    this.limiter.dispose();
   }
 
   // ─── Static helpers ─────────────────────────────────────────────

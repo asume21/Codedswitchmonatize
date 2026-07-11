@@ -19,6 +19,10 @@ export class ChannelStrip {
 
   private  sidechain:  SidechainDucker | null = null
 
+  // Solo/isolation state — used by the fire-beats capture bench to record one
+  // role at a time, and by future "Solo Spotlight" UI to reflect the live state.
+  private  _muted:     boolean = false
+
   // Bass parallel saturation crossover
   private  bassLowpass?:    Tone.Filter
   private  bassBandpass?:   Tone.Filter
@@ -152,6 +156,21 @@ export class ChannelStrip {
 
   setGainDb(db: number): void {
     this.fader.gain.rampTo(Tone.dbToGain(db), 0.15)
+  }
+
+  /** Whether this strip is currently silenced by a solo elsewhere. */
+  get muted(): boolean {
+    return this._muted
+  }
+
+  /**
+   * Silence or restore this strip's output without touching the tuned fader
+   * gain. Uses the dedicated output node so restore is bit-exact (always 1),
+   * and a short ramp avoids a click. Independent of setGainDb().
+   */
+  setSoloMuted(muted: boolean): void {
+    this._muted = muted
+    this.output.gain.rampTo(muted ? 0 : 1, 0.05)
   }
 
   setPan(pan: number): void {

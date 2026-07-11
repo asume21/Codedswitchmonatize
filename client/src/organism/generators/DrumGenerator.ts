@@ -478,9 +478,13 @@ export class DrumGenerator extends GeneratorBase {
       if (shiftPct > 0) {
         offset = Math.max(offset, shiftPct * sixteenthDurationSec)
       }
-      if (slot % 2 === 1) {
-        offset += this.swingAmount
-      }
+      // NOTE (2026-07-10 fire-beats cohesion): swing is NOT re-added here.
+      // The pocket carries human micro-feel only (snare lag, hat shift). Swing
+      // is the ONE authored source — swungTime(swingForSubGenre) in freeplay and
+      // the pattern-authored sub.swing in the library path. Adding swingAmount
+      // here double-swung every off-beat (trap: authored 0.10 of a 16th + up to
+      // ~80ms pocket = a rubbery pocket that never locked). See plan
+      // 2026-07-10-fire-beats-shared-pocket.md.
       return offset
     })
   }

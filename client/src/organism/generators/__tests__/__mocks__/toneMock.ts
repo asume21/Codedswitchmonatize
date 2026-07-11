@@ -215,6 +215,15 @@ export function createToneMock() {
       return Object.assign(this, {
         toDestination: vi.fn().mockReturnThis(),
         connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn().mockReturnThis(),
+        dispose: vi.fn(),
+      })
+    }),
+    Limiter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+      return Object.assign(this, {
+        toDestination: vi.fn().mockReturnThis(),
+        connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn().mockReturnThis(),
         dispose: vi.fn(),
       })
     }),
