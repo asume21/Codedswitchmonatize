@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodedSwitch Web Perception Demo Capture</title>
+  <style>
+    :root {
+      --bg: #101113;
+      --panel: #f7f4ee;
+      --panel-2: #202225;
+      --panel-3: #2c2d31;
+      --ink: #f8f5ef;
+      --ink-dark: #161719;
+      --muted: #9b9a96;
+      --line: rgba(255, 255, 255, 0.14);
+      --line-dark: rgba(0, 0, 0, 0.13);
+      --mint: #31d19a;
+      --cyan: #54c7ec;
+      --amber: #f2b84b;
+      --coral: #ee675d;
+      --violet: #9d7bed;
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        linear-gradient(110deg, rgba(49, 209, 154, 0.14), transparent 32%),
+        linear-gradient(250deg, rgba(238, 103, 93, 0.12), transparent 34%),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    .stage {
+      width: 100vw;
+      height: 100vh;
+      padding: 36px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 20px;
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 52px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+      font-size: 26px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--mint), var(--cyan));
+      color: #0d1211;
+      box-shadow: 0 15px 30px rgba(49, 209, 154, 0.2);
+      font-weight: 900;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .browser {
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #17181b;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 48px 1fr;
+    }
+
+    .browser-bar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 0 18px;
+      background: #232529;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+    }
+
+    .traffic span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: block;
+    }
+
+    .traffic span:nth-child(1) { background: #ff625d; }
+    .traffic span:nth-child(2) { background: #f2c14e; }
+    .traffic span:nth-child(3) { background: #35c76f; }
+
+    .url {
+      height: 30px;
+      border-radius: 6px;
+      background: #151619;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      color: #c8c7c2;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 14px;
+    }
+
+    .recording {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #f6d087;
+      font-size: 13px;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    .pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--coral);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.45); opacity: 0.55; }
+    }
+
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .app-view,
+    .ai-view {
+      min-width: 0;
+      min-height: 0;
+      background: var(--panel);
+      color: var(--ink-dark);
+      padding: 24px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 18px;
+    }
+
+    .ai-view {
+      background: #18191c;
+      color: var(--ink);
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 34px;
+      line-height: 1.06;
+      letter-spacing: 0;
+      max-width: 700px;
+    }
+
+    h2 {
+      font-size: 21px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtle {
+      color: #63605a;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .ai-view .subtle {
+      color: #aaa7a0;
+    }
+
+    .sensor-row {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .sensor {
+      border: 1px solid var(--line-dark);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fffdf8;
+      min-height: 76px;
+      display: grid;
+      gap: 6px;
+      transition: 320ms ease;
+    }
+
+    .sensor strong {
+      font-size: 14px;
+    }
+
+    .sensor small {
+      color: #74716b;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dotline {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #79756e;
+      text-transform: uppercase;
+    }
+
+    .dotline::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #b7b2a7;
+    }
+
+    body[data-phase="connect"] .sensor,
+    body[data-phase="capture"] .sensor,
+    body[data-phase="results"] .sensor,
+    body[data-phase="close"] .sensor {
+      transform: translateY(-2px);
+      border-color: rgba(49, 209, 154, 0.45);
+      box-shadow: 0 12px 28px rgba(24, 25, 28, 0.09);
+    }
+
+    body[data-phase="connect"] .dotline,
+    body[data-phase="capture"] .dotline,
+    body[data-phase="results"] .dotline,
+    body[data-phase="close"] .dotline {
+      color: #13865f;
+    }
+
+    body[data-phase="connect"] .dotline::before,
+    body[data-phase="capture"] .dotline::before,
+    body[data-phase="results"] .dotline::before,
+    body[data-phase="close"] .dotline::before {
+      background: var(--mint);
+      box-shadow: 0 0 0 5px rgba(49, 209, 154, 0.12);
+    }
+
+    .app-main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 330px;
+      gap: 18px;
+    }
+
+    .studio {
+      min-width: 0;
+      border-radius: 10px;
+      border: 1px solid var(--line-dark);
+      background: #141518;
+      color: var(--ink);
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 18px;
+      overflow: hidden;
+    }
+
+    .studio-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .pill {
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #e7e4de;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mint);
+    }
+
+    .visualizer {
+      position: relative;
+      min-height: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        #0b0d0f;
+      background-size: 42px 42px;
+    }
+
+    #wave {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .capture-badge {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      min-width: 210px;
+      border: 1px solid rgba(84, 199, 236, 0.35);
+      background: rgba(10, 16, 18, 0.84);
+      backdrop-filter: blur(6px);
+      border-radius: 8px;
+      padding: 12px;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: 320ms ease;
+    }
+
+    body[data-phase="capture"] .capture-badge,
+    body[data-phase="results"] .capture-badge,
+    body[data-phase="close"] .capture-badge {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .meter-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .meter {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 11px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .meter span {
+      color: #afa99e;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .meter strong {
+      font-size: 18px;
+    }
+
+    .side-panel {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+
+    .code-card,
+    .tool-card,
+    .result-card {
+      border-radius: 8px;
+      border: 1px solid var(--line-dark);
+      background: #fffdf8;
+      padding: 14px;
+    }
+
+    .code-card {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.48;
+      color: #252527;
+      overflow: hidden;
+    }
+
+    .code-card .comment { color: #78736b; }
+    .code-card .keyword { color: #9a5de8; font-weight: 800; }
+    .code-card .string { color: #0a875b; }
+
+    .tool-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .tool-card {
+      display: grid;
+      gap: 8px;
+      min-height: 82px;
+      opacity: 0.45;
+      transform: translateX(8px);
+      transition: 300ms ease;
+    }
+
+    body[data-step-index="3"] .tool-card:nth-child(1),
+    body[data-step-index="4"] .tool-card:nth-child(-n+2),
+    body[data-step-index="5"] .tool-card:nth-child(-n+3),
+    body[data-phase="results"] .tool-card,
+    body[data-phase="close"] .tool-card {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .tool-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .tool-chip {
+      color: #0e6147;
+      background: rgba(49, 209, 154, 0.16);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    .ai-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .assistant-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .assistant-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: #f1efe8;
+      color: #17181b;
+      font-weight: 900;
+    }
+
+    .chat {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+    }
+
+    .prompt {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #202225;
+      padding: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .speaker {
+      color: #bbb7ae;
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+
+    .prompt-text {
+      font-size: 20px;
+      line-height: 1.25;
+      font-weight: 760;
+    }
+
+    .terminal {
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0d0f11;
+      padding: 14px;
+      min-height: 168px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.55;
+      color: #d8d5ce;
+      overflow: hidden;
+    }
+
+    .terminal-line {
+      opacity: 0;
+      transform: translateY(6px);
+      transition: 250ms ease;
+    }
+
+    .terminal-line.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .terminal .cmd { color: #54c7ec; }
+    .terminal .ok { color: #31d19a; }
+    .terminal .warn { color: #f2b84b; }
+
+    .results {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: 420ms ease;
+    }
+
+    body[data-phase="results"] .results,
+    body[data-phase="close"] .results {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .result-card {
+      background: #222428;
+      border-color: var(--line);
+      color: var(--ink);
+      display: grid;
+      gap: 8px;
+      min-height: 132px;
+    }
+
+    .result-card b {
+      color: #ffffff;
+      font-size: 15px;
+    }
+
+    .result-card p {
+      color: #c9c4ba;
+      font-size: 14px;
+      line-height: 1.42;
+    }
+
+    .bottom-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 52px;
+      color: #cac6bd;
+      font-size: 18px;
+      font-weight: 740;
+    }
+
+    .headline-word {
+      color: var(--mint);
+    }
+
+    .timeline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 420px;
+    }
+
+    .timeline-bar {
+      height: 8px;
+      flex: 1;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .timeline-fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--mint), var(--cyan), var(--amber));
+      border-radius: inherit;
+      transition: 300ms linear;
+    }
+
+    .timecode {
+      min-width: 54px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      color: #918e87;
+      font-size: 13px;
+    }
+
+    .closing-overlay {
+      position: fixed;
+      inset: 84px 120px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(16, 17, 19, 0.86);
+      backdrop-filter: blur(12px);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 60px;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.98);
+      transition: 520ms ease;
+    }
+
+    body[data-phase="close"] .closing-overlay {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .closing-overlay h2 {
+      font-size: 62px;
+      line-height: 1.02;
+      max-width: 980px;
+    }
+
+    .closing-overlay p {
+      margin-top: 22px;
+      color: #d9d3c7;
+      font-size: 24px;
+      font-weight: 650;
+    }
+
+    @media (max-width: 1100px) {
+      .stage {
+        padding: 18px;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .sensor-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .app-main {
+        grid-template-columns: 1fr;
+      }
+
+      .ai-view {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body data-phase="intro" data-step-index="0">
+  <main class="stage">
+    <header class="topline">
+      <div class="brand">
+        <div class="brand-mark">CS</div>
+        <span>CodedSwitch Web Perception</span>
+      </div>
+      <div class="tagline">Give any AI senses inside any web app.</div>
+    </header>
+
+    <section class="browser" aria-label="Product demo capture">
+      <div class="browser-bar">
+        <div class="traffic"><span></span><span></span><span></span></div>
+        <div class="url">any-app.local/studio?webperception=1</div>
+        <div class="recording"><span class="pulse"></span> live demo</div>
+      </div>
+
+      <div class="workspace">
+        <section class="app-view">
+          <div class="section-head">
+            <div>
+              <h1>One SDK installs senses into the browser.</h1>
+              <p class="subtle">Audio, visuals, performance, network, security, and logs through one MCP relay.</p>
+            </div>
+            <div class="pill" style="background:#111315;color:#f6f1e8"><span class="live-dot"></span> target app running</div>
+          </div>
+
+          <div class="sensor-row">
+            <div class="sensor"><strong>WebEar</strong><div class="dotline">ready</div><small>Live audio</small></div>
+            <div class="sensor"><strong>WebEye</strong><div class="dotline">ready</div><small>Canvas and UI</small></div>
+            <div class="sensor"><strong>WebSense</strong><div class="dotline">ready</div><small>FPS and latency</small></div>
+            <div class="sensor"><strong>WebNerve</strong><div class="dotline">ready</div><small>API timing</small></div>
+            <div class="sensor"><strong>WebShield</strong><div class="dotline">ready</div><small>Security surface</small></div>
+            <div class="sensor"><strong>WebLog</strong><div class="dotline">ready</div><small>Console stream</small></div>
+          </div>
+
+          <div class="app-main">
+            <div class="studio">
+              <div class="studio-top">
+                <h2>BeatLab demo app</h2>
+                <div class="pill"><span class="live-dot"></span> playing 93 BPM</div>
+              </div>
+              <div class="visualizer">
+                <canvas id="wave"></canvas>
+                <div class="capture-badge">
+                  <div class="speaker">AI tool call</div>
+                  <h3 id="capture-title">capture_audio</h3>
+                  <p class="subtle" id="capture-copy" style="color:#c9c4ba">Recording the real browser output.</p>
+                </div>
+              </div>
+              <div class="meter-grid">
+                <div class="meter"><span>Peak</span><strong>-1.8 dBFS</strong></div>
+                <div class="meter"><span>Groove</span><strong>87/100</strong></div>
+                <div class="meter"><span>Frame rate</span><strong>59 fps</strong></div>
+                <div class="meter"><span>Latency</span><strong>18 ms</strong></div>
+              </div>
+            </div>
+
+            <aside class="side-panel">
+              <div class="code-card">
+                <span class="comment">// install once</span><br>
+                <span class="keyword">import</span> { WebPerception } <span class="keyword">from</span> <span class="string">'@codedswitch/web-perception/browser'</span><br><br>
+                WebPerception.init({<br>
+                &nbsp;&nbsp;apiKey: <span class="string">'wbr_...'</span>,<br>
+                &nbsp;&nbsp;relayUrl: <span class="string">'https://www.codedswitch.com'</span>,<br>
+                &nbsp;&nbsp;sensors: [<span class="string">'ear'</span>, <span class="string">'eye'</span>, <span class="string">'sense'</span>, <span class="string">'log'</span>]<br>
+                })
+              </div>
+
+              <div class="tool-stack">
+                <div class="tool-card">
+                  <div class="tool-name">capture_audio <span class="tool-chip">WebEar</span></div>
+                  <p class="subtle">Captures the actual audio graph, not the room mic.</p>
+                </div>
+                <div class="tool-card">
+                  <div class="tool-name">describe_video <span class="tool-chip">WebEye</span></div>
+                  <p class="subtle">Sees the canvas, layout, animation, and UI state.</p>
+                </div>
+                <div class="tool-card">
+                  <div class="tool-name">analyze_logs <span class="tool-chip">WebLog</span></div>
+                  <p class="subtle">Reads errors and app state at capture time.</p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="ai-view">
+          <div class="ai-head">
+            <div class="assistant-title">
+              <div class="assistant-avatar">AI</div>
+              <div>
+                <h2>AI assistant with browser senses</h2>
+                <p class="subtle">MCP connected to CodedSwitch relay</p>
+              </div>
+            </div>
+            <div class="pill"><span class="live-dot"></span> connected</div>
+          </div>
+
+          <div class="chat">
+            <div class="prompt">
+              <div class="speaker">developer</div>
+              <div class="prompt-text">Check the app. Tell me why the beat feels off and whether the UI is healthy.</div>
+            </div>
+
+            <div class="terminal" id="terminal">
+              <div class="terminal-line visible"><span class="cmd">$</span> waiting for Web Perception sensors...</div>
+              <div class="terminal-line"><span class="ok">connected</span> WebEar, WebEye, WebSense, WebNerve, WebShield, WebLog</div>
+              <div class="terminal-line"><span class="cmd">tool</span> capture_audio({ duration_ms: 3000 })</div>
+              <div class="terminal-line"><span class="cmd">tool</span> describe_video({ selector: "#app" })</div>
+              <div class="terminal-line"><span class="cmd">tool</span> analyze_telemetry({ duration_ms: 3000 })</div>
+              <div class="terminal-line"><span class="cmd">tool</span> analyze_logs({ duration_ms: 3000 })</div>
+              <div class="terminal-line"><span class="ok">done</span> diagnosis ready in one AI response</div>
+            </div>
+
+            <div class="results">
+              <div class="result-card">
+                <b>Audio diagnosis</b>
+                <p>Beat is 93 BPM with a late snare transient around 18 ms. Low band energy is heavy but not clipping.</p>
+              </div>
+              <div class="result-card">
+                <b>Visual diagnosis</b>
+                <p>Canvas is rendering and meters are visible. The capture badge stays inside the viewport at 1920x1080.</p>
+              </div>
+              <div class="result-card">
+                <b>Performance diagnosis</b>
+                <p>Average frame rate is stable. Main-thread pressure increases during the dropdown animation.</p>
+              </div>
+              <div class="result-card">
+                <b>Console diagnosis</b>
+                <p>No fatal errors. One warning identifies the exact component that should throttle telemetry sampling.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="subtle">Any MCP-compatible AI can call the same tools.</div>
+        </section>
+      </div>
+    </section>
+
+    <footer class="bottom-strip">
+      <div><span class="headline-word">Install once.</span> Your AI can hear, see, feel, trace, audit, and read the app.</div>
+      <div class="timeline">
+        <div class="timeline-bar"><div class="timeline-fill" id="timeline-fill"></div></div>
+        <div class="timecode" id="timecode">00:00</div>
+      </div>
+    </footer>
+  </main>
+
+  <section class="closing-overlay">
+    <div>
+      <h2>AI debugging finally gets browser senses.</h2>
+      <p>WebEar stays focused on audio. Web Perception expands the suite to the whole app.</p>
+    </div>
+  </section>
+
+  <script>
+    const durationMs = 26000;
+    const startedAt = performance.now();
+    const body = document.body;
+    const terminalLines = Array.from(document.querySelectorAll('.terminal-line'));
+    const fill = document.getElementById('timeline-fill');
+    const timecode = document.getElementById('timecode');
+    const captureTitle = document.getElementById('capture-title');
+    const captureCopy = document.getElementById('capture-copy');
+    const canvas = document.getElementById('wave');
+    const ctx = canvas.getContext('2d');
+
+    const phases = [
+      { at: 0, phase: 'intro', step: 0, title: 'capture_audio', copy: 'Recording the real browser output.' },
+      { at: 3600, phase: 'install', step: 1, title: 'install', copy: 'One package boots the browser sensors.' },
+      { at: 7200, phase: 'connect', step: 2, title: 'connect_sensors', copy: 'The browser opens secure SSE channels.' },
+      { at: 10800, phase: 'capture', step: 3, title: 'capture_audio', copy: 'WebEar records the real audio graph.' },
+      { at: 14200, phase: 'capture', step: 4, title: 'describe_video', copy: 'WebEye captures the active UI state.' },
+      { at: 17400, phase: 'capture', step: 5, title: 'analyze_telemetry', copy: 'WebSense and WebLog collect performance and errors.' },
+      { at: 20500, phase: 'results', step: 6, title: 'AI diagnosis', copy: 'All signals return in one assistant response.' },
+      { at: 23600, phase: 'close', step: 7, title: 'ship it', copy: 'Use the findings to fix the app.' }
+    ];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const scale = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * scale));
+      canvas.height = Math.max(1, Math.floor(rect.height * scale));
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    }
+
+    function drawWave(now) {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const bars = 80;
+      const gap = 4;
+      const barW = Math.max(4, (w - gap * (bars - 1)) / bars);
+      for (let i = 0; i < bars; i += 1) {
+        const beat = Math.sin((now / 110) + i * 0.82);
+        const accent = i % 8 === 0 ? 1.45 : i % 4 === 0 ? 1.18 : 0.84;
+        const value = (0.45 + Math.abs(beat) * 0.48) * accent;
+        const barH = Math.min(h - 40, value * (h * 0.48));
+        const x = 20 + i * (barW + gap);
+        const y = h / 2 - barH / 2;
+        const hue = i % 3 === 0 ? '#31d19a' : i % 3 === 1 ? '#54c7ec' : '#f2b84b';
+        ctx.fillStyle = hue;
+        ctx.globalAlpha = i % 8 === 0 ? 0.95 : 0.62;
+        ctx.fillRect(x, y, barW, barH);
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x < w; x += 8) {
+        const y = h / 2 + Math.sin((x / 46) + now / 220) * 38 + Math.sin((x / 13) + now / 130) * 9;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    function tick(now) {
+      const elapsed = Math.min(durationMs, now - startedAt);
+      const active = phases.reduce((current, phase) => elapsed >= phase.at ? phase : current, phases[0]);
+      body.dataset.phase = active.phase;
+      body.dataset.stepIndex = String(active.step);
+      captureTitle.textContent = active.title;
+      captureCopy.textContent = active.copy;
+
+      terminalLines.forEach((line, index) => {
+        line.classList.toggle('visible', index <= active.step);
+      });
+
+      const progress = Math.min(1, elapsed / durationMs);
+      fill.style.width = `${progress * 100}%`;
+      const seconds = Math.floor(elapsed / 1000);
+      timecode.textContent = `00:${String(seconds).padStart(2, '0')}`;
+
+      drawWave(now);
+
+      if (elapsed >= durationMs) {
+        window.__demoDone = true;
+        return;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
