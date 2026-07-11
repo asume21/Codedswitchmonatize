@@ -85,6 +85,7 @@ const SampleLibraryPage = React.lazy(() => import("@/pages/sample-library").catc
 const BlogPage = React.lazy(() => import("@/pages/blog").catch(() => ({ default: ChunkReloadFallback })));
 const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => ({ default: ChunkReloadFallback })));
 const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: ChunkReloadFallback })));
+const DevelopersPage = React.lazy(() => import("@/pages/developers").catch(() => ({ default: ChunkReloadFallback })));
 const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: ChunkReloadFallback })));
 const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: ChunkReloadFallback })));
 const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() => ({ default: ChunkReloadFallback })));
@@ -314,6 +315,10 @@ function App() {
               <Route path="/sample-library">
                 <ProtectedRoute><AppLayout><SampleLibraryPage /></AppLayout></ProtectedRoute>
               </Route>
+              {/* Public developer funnel — cold visitors from the `webear` npm
+                  package land here (no login wall). The auth-only /developer
+                  page below is where keys are actually generated. */}
+              <Route path="/developers"><DevelopersPage /></Route>
               <Route path="/developer">
                 <ProtectedRoute><DeveloperPage /></ProtectedRoute>
               </Route>

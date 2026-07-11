@@ -155,6 +155,7 @@ export default function Landing() {
             <a href="#organism" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Organism</a>
             <a href="#pricing" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Pricing</a>
             <a href="#social" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Community</a>
+            <Link href="/developers"><span className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors cursor-pointer">Developers</span></Link>
             <Link href="/organism"><span className="text-sm font-bold uppercase tracking-widest text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer">Try Free →</span></Link>
             {isAuthenticated ? (
               <Link href="/dashboard">
