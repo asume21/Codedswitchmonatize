@@ -140,7 +140,7 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private get arrangementTotalBars(): number { return getProducerArrangementTotalBars() }
-  // Song Mode — ON by default (2026-07-11, "lock the loop").
+  // Song Mode — turned ON in start() (2026-07-11, "lock the loop").
   //
   // It used to be off: the Organism was "a steady beat machine; sections are
   // opt-in." That pairing is no longer coherent. The rhythm section is now a
@@ -148,7 +148,14 @@ export class GeneratorOrchestrator {
   // 4 bars forever — and nobody wants to rap over one loop for three minutes.
   // The arrangement is what makes it a song rather than a metronome: it is the
   // ONLY thing that changes the beat now, and it is where change belongs.
-  private arrangementEnabled: boolean = true
+  //
+  // This field MUST initialise to false and be switched on via
+  // setArrangementEnabled(true) in start(). The MusicalDirector keeps its OWN
+  // arrangement flag, and only the setter forwards to it — and the setter
+  // early-returns when the value already matches. So defaulting this to `true`
+  // silently leaves the director in jam mode forever (section stays 'none' and
+  // no arrangement ever runs). Verified live via window.__orgDebug().
+  private arrangementEnabled: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -483,6 +490,14 @@ export class GeneratorOrchestrator {
     // hold a rebuild counter at all: their seed is a pure function of the section
     // so the rhythm section is a LOCKED, byte-identical loop. See BassGenerator.
     this.melody.resetFreeplayCounter()
+
+    // Song Mode on. This MUST go through the setter — it is what forwards the
+    // flag to the MusicalDirector, which owns the section clock. Without it the
+    // director stays in jam mode, `section` reads 'none' forever, and no
+    // arrangement runs at all (the locked loop would then repeat for the whole
+    // take). See the field declaration for why the initialiser can't just be true.
+    this.setArrangementEnabled(true)
+
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
     )
