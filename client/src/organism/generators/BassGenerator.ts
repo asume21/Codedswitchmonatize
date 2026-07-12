@@ -72,10 +72,6 @@ export class BassGenerator extends GeneratorBase {
   private chordIntervals: number[] = [0, 3, 7]
   private kickAnchors: number[] = []
   private groovePocket: number[] = Array(16).fill(0)
-  private freeplayPhraseCounter = 0
-
-  /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
-  resetFreeplayCounter(): void { this.freeplayPhraseCounter = 0 }
   setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
 
   private unsubscribeConductor: (() => void) | null = null
@@ -833,7 +829,14 @@ export class BassGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayPhraseCounter++),
+        // LOCKED LOOP (2026-07-11): the seed is a pure function of the SECTION —
+        // no per-rebuild counter. Rebuilds fire constantly (every chord change,
+        // every state transition), and an incrementing counter meant each one
+        // re-rolled the bassline into different notes. That was the drift: a beat
+        // that sounds right, then quietly rewrites itself out from under you.
+        // Same section => byte-identical line, every cycle. The SECTION is the
+        // unit of change, not the bar.
+        rng: mulberry32(seed + getSessionSalt()),
       })
     }
 

@@ -110,7 +110,6 @@ export class GeneratorOrchestrator {
   private drumFreeplay = true
   private currentSectionName = 'intro'
   private sectionDensityLevel = 0.7
-  private freeplayDrumCounter = 0
 
   // Groove lock (2026-07-11 fire-beats) — when true (default), the core groove
   // COMMITS and LOOPS within a section instead of re-rolling a fresh variation
@@ -479,9 +478,10 @@ export class GeneratorOrchestrator {
     const freeplaySeed = rerollSessionSalt()
     clearMotifs()
     clearCompCounters()
-    this.freeplayDrumCounter = 0
-    this.chord.resetFreeplayCounter()
-    this.bass.resetFreeplayCounter()
+    // Only the melody still counts phrases — it's the soloist, and it develops
+    // (statement / answer / variation / climb). Drums, bass and chords no longer
+    // hold a rebuild counter at all: their seed is a pure function of the section
+    // so the rhythm section is a LOCKED, byte-identical loop. See BassGenerator.
     this.melody.resetFreeplayCounter()
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
@@ -1573,7 +1573,12 @@ export class GeneratorOrchestrator {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayDrumCounter++),
+        // LOCKED LOOP (2026-07-11) — see BassGenerator. buildDrumHits() is called
+        // from six places (sub-genre change, regenerateAll, re-enable, mutation
+        // tick...). With a counter in the seed, every one of those re-rolled the
+        // pocket — which quietly defeated grooveLock. Now the pattern is a pure
+        // function of the section, so the beat is the SAME beat all section long.
+        rng: mulberry32(seed + getSessionSalt()),
       })
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits

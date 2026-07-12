@@ -90,10 +90,6 @@ export class ChordGenerator extends GeneratorBase {
 
   // ── Freeplay (spec 2026-07-02) ── comp plans instead of a fixed technique.
   private freeplayEnabled = true
-  private freeplayCallCounter = 0
-
-  /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
-  resetFreeplayCounter(): void { this.freeplayCallCounter = 0 }
 
   // Kick onset slots from the current drum pattern (absolute 16ths), pushed by
   // the orchestrator after every drum rebuild — same channel the bass uses.
@@ -614,7 +610,10 @@ export class ChordGenerator extends GeneratorBase {
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
         leadBusy16ths: this.leadBusySlots,
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayCallCounter++),
+        // LOCKED LOOP (2026-07-11) — see BassGenerator. Seed is a pure function
+        // of the section, so the comp is identical every cycle. Section changes
+        // the seed; nothing else does.
+        rng: mulberry32(seed + getSessionSalt()),
       })
       for (const ev of plan) {
         const notes = ev.useNextVoicing
