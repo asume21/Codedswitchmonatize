@@ -140,15 +140,15 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private get arrangementTotalBars(): number { return getProducerArrangementTotalBars() }
-  // Song Mode switch — OFF by default (switches-not-modes design): the
-  // Organism is a steady beat machine; sections/builds/drops are opt-in.
-  private arrangementEnabled: boolean = false
-  // Auto-pilot: when no voice is detected, enable arrangement so the
-  // organism has musical structure instead of a static loop. When voice
-  // returns, yield control back to voice-driven mode.
-  private autoPilotEnabled: boolean = true
-  private autoPilotArrangement: boolean = false
-  private lastVoiceActive: boolean = false
+  // Song Mode — ON by default (2026-07-11, "lock the loop").
+  //
+  // It used to be off: the Organism was "a steady beat machine; sections are
+  // opt-in." That pairing is no longer coherent. The rhythm section is now a
+  // LOCKED loop seeded per section, so with the arrangement off you get the same
+  // 4 bars forever — and nobody wants to rap over one loop for three minutes.
+  // The arrangement is what makes it a song rather than a metronome: it is the
+  // ONLY thing that changes the beat now, and it is where change belongs.
+  private arrangementEnabled: boolean = true
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -1389,23 +1389,11 @@ export class GeneratorOrchestrator {
     if (now - this.lastFrameTime < GeneratorOrchestrator.MIN_FRAME_INTERVAL_MS) return
     this.lastFrameTime = now
 
-    // ── Auto-pilot: voice-driven arrangement ────────────────────
-    // When no voice is detected, enable the arrangement templates so
-    // the organism cycles through intro→verse→build→drop with intentional
-    // energy curves instead of a static loop. When voice returns, yield
-    // control back so the mic drives the show.
-    if (this.autoPilotEnabled) {
-      if (!physics.voiceActive && !this.arrangementEnabled && !this.lastVoiceActive) {
-        this.setArrangementEnabled(true)
-        this.autoPilotArrangement = true
-        orgLog('autopilot:engage', { reason: 'no-voice' })
-      } else if (physics.voiceActive && this.autoPilotArrangement && this.lastVoiceActive) {
-        this.setArrangementEnabled(false)
-        this.autoPilotArrangement = false
-        orgLog('autopilot:disengage', { reason: 'voice-detected' })
-      }
-    }
-    this.lastVoiceActive = physics.voiceActive
+    // The old auto-pilot switched the ARRANGEMENT OFF as soon as it heard a
+    // voice, handing the show back to the mic. That is now exactly backwards:
+    // with a locked loop, "arrangement off" means the same 4 bars for as long as
+    // you rap — which is the one thing nobody wants. You need the song form MOST
+    // while performing over it. The arrangement now simply stays on.
 
     // ── Musical Director update ──────────────────────────────────
     // The director reads physics + organism state and updates the

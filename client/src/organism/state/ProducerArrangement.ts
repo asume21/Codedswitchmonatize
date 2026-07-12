@@ -49,116 +49,144 @@ export interface ProducerArrangementSlot {
 // structural form. Composer can also override by writing template id into
 // the plan (future).
 
+// ── Section dynamics (rewritten 2026-07-11, "lock the loop") ─────────
+//
+// NOTE ON `bars`: these are TEMPLATE bars, multiplied by SECTION_LENGTH_SCALE
+// (=4) below. `bars: 2` really plays 8 bars; `bars: 4` really plays 16. The
+// lengths are already right — do not "fix" them.
+//
+// What was wrong was the DYNAMICS. Every slot carried `drumDropout: false` and
+// an identical `texture: 0.4`, and the part multipliers all sat inside a narrow
+// 0.7-1.1 band — a ~2 dB spread, which is inaudible. So every section played
+// the same thing at the same volume, and the arrangement did nothing.
+//
+// The comment above admits why the dropouts were disabled: a hard dropout
+// "reads as playback failure" in a live demo. True — but the cost was that
+// NOTHING ever dropped out, and dropping a part is the single most powerful
+// arrangement move there is. The breakdown now genuinely kills the drums, with
+// chords/pads/melody carrying it loudly, immediately before the drop. That is
+// unmistakably musical, not broken.
+//
+// VOCAL SPACE: the user is a freestyle rapper. In a VERSE his voice IS the
+// melody, so the lead pulls back to ~0.35 and the chords to ~0.5 — drums and
+// bass carry it, and the center is left open. The HOOK is where the melody
+// comes back up and takes the tune over. That is the "center open for vocal"
+// sound profile expressed as arrangement instead of EQ.
+
 const TEMPLATE_CLASSIC: ProducerArrangementSlot[] = [
-  // Classic verse-chorus pop/hip-hop form. Drum intro, satisfying drop.
-  { name: 'intro',     bars: 2, drums: 0.28, bass: 0.85, melody: 0.95, chord: 0.95, texture: 0.4, energy: 0.35, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.85, bass: 0.95, melody: 0.85, chord: 0.75, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 2, drums: 0.95, bass: 0.95, melody: 1.00, chord: 0.80, texture: 0.4, energy: 0.82, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.25, bass: 0.45, melody: 0.85, chord: 0.95, texture: 0.4, energy: 0.45, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Classic verse-hook form.
+  { name: 'intro',     bars: 2, drums: 0.30, bass: 0.60, melody: 0.70, chord: 0.90, texture: 0.85, energy: 0.30, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.95, bass: 1.00, melody: 0.35, chord: 0.50, texture: 0.35, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 2, drums: 1.00, bass: 1.00, melody: 0.85, chord: 0.75, texture: 0.70, energy: 0.85, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // THE MOVE: the beat drops out. Pads and melody hold the room, and the drop
+  // that follows lands twice as hard for it.
+  { name: 'breakdown', bars: 2, drums: 0.00, bass: 0.50, melody: 0.95, chord: 1.05, texture: 1.00, energy: 0.40, drumDropout: true,  bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_DROPFIRST: ProducerArrangementSlot[] = [
   // Hook-first: the drop opens the song. Common in modern trap/club.
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.70, bass: 0.90, melody: 0.80, chord: 0.72, texture: 0.4, energy: 0.55, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.25, bass: 0.40, melody: 0.90, chord: 0.95, texture: 0.4, energy: 0.40, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 2, drums: 0.92, bass: 0.95, melody: 1.00, chord: 0.80, texture: 0.4, energy: 0.85, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.90, bass: 1.00, melody: 0.35, chord: 0.50, texture: 0.35, energy: 0.55, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 2, drums: 0.00, bass: 0.45, melody: 1.00, chord: 1.05, texture: 1.00, energy: 0.40, drumDropout: true,  bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 2, drums: 1.00, bass: 1.00, melody: 0.90, chord: 0.75, texture: 0.70, energy: 0.88, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_LOFI_LOOP: ProducerArrangementSlot[] = [
-  // Lo-fi loop — no big drops, just gentle ebb and flow. For chill sessions.
-  { name: 'intro',     bars: 2, drums: 0.24, bass: 0.70, melody: 0.85, chord: 0.95, texture: 0.4, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 6, drums: 0.70, bass: 0.85, melody: 0.80, chord: 0.80, texture: 0.4, energy: 0.50, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.35, bass: 0.55, melody: 0.95, chord: 0.95, texture: 0.4, energy: 0.40, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 6, drums: 0.78, bass: 0.90, melody: 0.85, chord: 0.78, texture: 0.4, energy: 0.58, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'outro',     bars: 2, drums: 0.40, bass: 0.55, melody: 0.75, chord: 0.85, texture: 0.4, energy: 0.30, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Lo-fi — gentle ebb and flow, no hard dropouts. The pads ARE the color here,
+  // so texture stays forward throughout.
+  { name: 'intro',     bars: 2, drums: 0.25, bass: 0.65, melody: 0.70, chord: 0.95, texture: 0.90, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 6, drums: 0.80, bass: 0.95, melody: 0.40, chord: 0.60, texture: 0.60, energy: 0.50, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 2, drums: 0.20, bass: 0.55, melody: 0.95, chord: 1.00, texture: 1.00, energy: 0.38, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 6, drums: 0.88, bass: 1.00, melody: 0.45, chord: 0.62, texture: 0.60, energy: 0.58, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'outro',     bars: 2, drums: 0.35, bass: 0.55, melody: 0.80, chord: 0.90, texture: 0.95, energy: 0.28, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_DJ_BUILD: ProducerArrangementSlot[] = [
   // DJ-style — long build into one massive drop, then breakdown and reprise.
-  { name: 'intro',     bars: 2, drums: 0.22, bass: 0.30, melody: 0.85, chord: 0.95, texture: 0.4, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 4, drums: 0.85, bass: 0.85, melody: 1.00, chord: 0.85, texture: 0.4, energy: 0.78, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 6, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.24, bass: 0.30, melody: 0.95, chord: 1.00, texture: 0.4, energy: 0.40, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'intro',     bars: 2, drums: 0.22, bass: 0.35, melody: 0.70, chord: 0.95, texture: 0.90, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 4, drums: 0.90, bass: 0.90, melody: 0.85, chord: 0.75, texture: 0.75, energy: 0.80, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 6, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 2, drums: 0.00, bass: 0.35, melody: 1.00, chord: 1.05, texture: 1.00, energy: 0.38, drumDropout: true,  bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_HOOK_HEAVY: ProducerArrangementSlot[] = [
-  // Hook-heavy — short verses with the chorus/drop hitting frequently.
-  { name: 'intro',     bars: 2, drums: 0.28, bass: 0.85, melody: 0.95, chord: 0.90, texture: 0.4, energy: 0.30, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 2, drums: 0.80, bass: 0.92, melody: 0.85, chord: 0.75, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 2, drums: 0.82, bass: 0.94, melody: 0.88, chord: 0.78, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Hook-heavy — the hook comes back often. Verses stay vocal-forward.
+  { name: 'intro',     bars: 2, drums: 0.30, bass: 0.70, melody: 0.70, chord: 0.90, texture: 0.85, energy: 0.30, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 2, drums: 0.92, bass: 1.00, melody: 0.35, chord: 0.50, texture: 0.35, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 2, drums: 0.95, bass: 1.00, melody: 0.38, chord: 0.52, texture: 0.35, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_STORYTELLING: ProducerArrangementSlot[] = [
-  // Storytelling — sparse hooks, long verses, voice-forward. Drums steady
-  // but melody recedes during the verses to give the rapper room.
-  { name: 'intro',     bars: 2, drums: 0.22, bass: 0.55, melody: 0.85, chord: 0.95, texture: 0.4, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 8, drums: 0.75, bass: 0.90, melody: 0.50, chord: 0.80, texture: 0.4, energy: 0.55, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 0.95, bass: 1.00, melody: 1.00, chord: 0.85, texture: 0.4, energy: 0.85, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 8, drums: 0.78, bass: 0.92, melody: 0.55, chord: 0.82, texture: 0.4, energy: 0.58, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'outro',     bars: 2, drums: 0.30, bass: 0.55, melody: 0.70, chord: 0.85, texture: 0.4, energy: 0.30, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Storytelling — long verses, voice-forward. The melody gets out of the way
+  // almost entirely during verses; the hook is where it speaks.
+  { name: 'intro',     bars: 2, drums: 0.22, bass: 0.55, melody: 0.65, chord: 0.95, texture: 0.90, energy: 0.25, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 8, drums: 0.85, bass: 0.95, melody: 0.30, chord: 0.50, texture: 0.35, energy: 0.55, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.05, chord: 1.00, texture: 0.85, energy: 0.90, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 8, drums: 0.88, bass: 0.98, melody: 0.32, chord: 0.52, texture: 0.35, energy: 0.58, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'outro',     bars: 2, drums: 0.30, bass: 0.55, melody: 0.75, chord: 0.90, texture: 0.95, energy: 0.28, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_CYPHER_FLOW: ProducerArrangementSlot[] = [
-  // Cypher flow — just drums + bass loop forever. No drop, no breakdown.
-  // The rapper IS the arrangement. Melody/chord stay quiet throughout.
-  { name: 'verse',     bars: 4, drums: 0.90, bass: 0.95, melody: 0.30, chord: 0.45, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.92, bass: 0.97, melody: 0.32, chord: 0.45, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.94, bass: 0.97, melody: 0.30, chord: 0.45, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Cypher flow — drums + bass, and that is the whole beat. No drop, no
+  // breakdown. The RAPPER is the arrangement. Everything else stays out of the
+  // way; the only movement is a slow lift in drum energy across the sections.
+  { name: 'verse',     bars: 4, drums: 0.90, bass: 0.95, melody: 0.25, chord: 0.40, texture: 0.25, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.95, bass: 1.00, melody: 0.28, chord: 0.42, texture: 0.25, energy: 0.64, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 1.00, bass: 1.02, melody: 0.25, chord: 0.40, texture: 0.25, energy: 0.68, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_SLOW_BURN: ProducerArrangementSlot[] = [
-  // Slow burn — extra-long intro, gradual build, payoff lands hard at the end.
-  { name: 'intro',     bars: 4, drums: 0.20, bass: 0.40, melody: 0.80, chord: 0.95, texture: 0.4, energy: 0.20, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.60, bass: 0.80, melody: 0.85, chord: 0.85, texture: 0.4, energy: 0.50, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'build',     bars: 4, drums: 0.85, bass: 0.92, melody: 1.00, chord: 0.85, texture: 0.4, energy: 0.78, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 6, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Slow burn — long intro, gradual build, payoff lands hard and stays.
+  { name: 'intro',     bars: 4, drums: 0.20, bass: 0.40, melody: 0.65, chord: 0.95, texture: 0.95, energy: 0.20, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.70, bass: 0.90, melody: 0.40, chord: 0.60, texture: 0.50, energy: 0.50, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'build',     bars: 4, drums: 0.92, bass: 0.95, melody: 0.85, chord: 0.80, texture: 0.75, energy: 0.80, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 6, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_TRAP_TAG: ProducerArrangementSlot[] = [
-  // Trap tag-team — two short verses before a big drop, mimicking a
-  // feature/collab structure (Verse 1 → Verse 2 → Hook).
-  { name: 'intro',     bars: 2, drums: 0.28, bass: 0.85, melody: 0.95, chord: 0.92, texture: 0.4, energy: 0.32, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.85, bass: 0.95, melody: 0.75, chord: 0.78, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.88, bass: 0.97, melody: 0.78, chord: 0.78, texture: 0.4, energy: 0.65, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 2, drums: 0.25, bass: 0.45, melody: 0.90, chord: 0.95, texture: 0.4, energy: 0.42, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Trap tag-team — two verses before the hook, mimicking a feature/collab.
+  { name: 'intro',     bars: 2, drums: 0.28, bass: 0.75, melody: 0.70, chord: 0.90, texture: 0.85, energy: 0.32, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.92, bass: 1.00, melody: 0.35, chord: 0.50, texture: 0.35, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.95, bass: 1.02, melody: 0.38, chord: 0.52, texture: 0.35, energy: 0.66, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 2, drums: 0.00, bass: 0.45, melody: 0.95, chord: 1.05, texture: 1.00, energy: 0.42, drumDropout: true,  bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_BRIDGE_HEAVY: ProducerArrangementSlot[] = [
-  // Bridge-heavy — long developmental section in the middle. Classic
-  // pop/rock form where the bridge reframes the song before the final hook.
-  { name: 'intro',     bars: 2, drums: 0.26, bass: 0.80, melody: 0.95, chord: 0.95, texture: 0.4, energy: 0.32, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.80, bass: 0.92, melody: 0.85, chord: 0.78, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'breakdown', bars: 6, drums: 0.40, bass: 0.65, melody: 1.00, chord: 1.00, texture: 0.4, energy: 0.55, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.92, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Bridge-heavy — a long developmental middle that reframes the song. The
+  // bridge pulls the BASS out rather than the drums, so it lifts instead of
+  // stopping: same trick, different hole.
+  { name: 'intro',     bars: 2, drums: 0.26, bass: 0.70, melody: 0.70, chord: 0.95, texture: 0.90, energy: 0.32, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.90, bass: 1.00, melody: 0.35, chord: 0.52, texture: 0.35, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'breakdown', bars: 6, drums: 0.55, bass: 0.00, melody: 1.05, chord: 1.05, texture: 1.00, energy: 0.55, drumDropout: false, bassDropout: true,  melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_BACK_AND_FORTH: ProducerArrangementSlot[] = [
-  // Back-and-forth — ping-pong between verse and drop, no breakdown.
-  // Keeps energy high but trades textures rapidly.
-  { name: 'verse',     bars: 2, drums: 0.78, bass: 0.92, melody: 0.85, chord: 0.78, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 2, drums: 0.80, bass: 0.94, melody: 0.88, chord: 0.78, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.00, melody: 1.05, chord: 0.85, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 2, drums: 0.82, bass: 0.94, melody: 0.88, chord: 0.78, texture: 0.4, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.00, melody: 1.10, chord: 0.90, texture: 0.4, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Back-and-forth — ping-pong between verse and hook. Energy stays high; the
+  // contrast is vocal-space vs melody-space rather than loud vs quiet.
+  { name: 'verse',     bars: 2, drums: 0.90, bass: 1.00, melody: 0.35, chord: 0.50, texture: 0.35, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 2, drums: 0.92, bass: 1.00, melody: 0.38, chord: 0.52, texture: 0.35, energy: 0.62, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop',      bars: 4, drums: 1.00, bass: 1.05, melody: 1.10, chord: 1.00, texture: 0.90, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 2, drums: 0.95, bass: 1.02, melody: 0.38, chord: 0.52, texture: 0.35, energy: 0.64, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'drop2',     bars: 4, drums: 1.00, bass: 1.05, melody: 1.15, chord: 1.00, texture: 0.95, energy: 1.00, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 const TEMPLATE_MINIMAL_JAM: ProducerArrangementSlot[] = [
-  // Minimal jam — one section that loops, perfect for sustained freestyling
-  // or beat-driven practice. Drums + bass + sparse chord/melody, no drama.
-  { name: 'verse',     bars: 4, drums: 0.85, bass: 0.95, melody: 0.65, chord: 0.70, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
-  { name: 'verse',     bars: 4, drums: 0.85, bass: 0.95, melody: 0.65, chord: 0.70, texture: 0.4, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  // Minimal jam — one steady loop for sustained freestyling. No drama by
+  // design: this is the practice form, and interruptions are the enemy.
+  { name: 'verse',     bars: 4, drums: 0.90, bass: 1.00, melody: 0.45, chord: 0.60, texture: 0.40, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
+  { name: 'verse',     bars: 4, drums: 0.90, bass: 1.00, melody: 0.45, chord: 0.60, texture: 0.40, energy: 0.60, drumDropout: false, bassDropout: false, melodyDropout: false },
 ]
 
 export interface ArrangementTemplate {

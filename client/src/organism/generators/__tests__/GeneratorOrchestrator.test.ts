@@ -261,7 +261,12 @@ describe('GeneratorOrchestrator', () => {
     expect(textureSpy.mock.calls[0][0]).toBeGreaterThan(0)
   })
 
-  it('disabling progressive intro restores texture with the rest of the band', () => {
+  it('disabling progressive intro restores texture with the rest of the band (jam mode)', () => {
+    // Only meaningful in JAM mode. With the arrangement running (now the default),
+    // the section slots own the part multipliers — snapping them all back to 1.0
+    // here would fight the arrangement, and the next bar tick would overwrite it
+    // anyway. The restore is deliberately guarded on `!arrangementEnabled`.
+    orchestrator.setArrangementEnabled(false)
     const textureSpy = vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier')
 
     orchestrator.setProgressiveIntroEnabled(false)
