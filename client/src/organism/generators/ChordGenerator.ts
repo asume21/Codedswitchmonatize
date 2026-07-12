@@ -16,6 +16,7 @@ import type { OrganismState } from '../state/types'
 import { OState }             from '../state/types'
 import { type ChordEvent } from './patterns/ChordProgressionBank'
 import { getConductor } from '../conductor/Conductor'
+import { voiceChordHit } from './melody/chordFiguration'
 import { createSoundfontSampler, createMultisampleSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
@@ -90,6 +91,8 @@ export class ChordGenerator extends GeneratorBase {
 
   // ── Freeplay (spec 2026-07-02) ── comp plans instead of a fixed technique.
   private freeplayEnabled = true
+  /** Monotonic per-hit counter — drives the guitar's down/up strum alternation. */
+  private figurationHit = 0
 
   // Kick onset slots from the current drum pattern (absolute 16ths), pushed by
   // the orchestrator after every drum rebuild — same channel the bass uses.
@@ -327,8 +330,17 @@ export class ChordGenerator extends GeneratorBase {
     // FX chain: synth → chorus → dry bus → output
     //                           → reverb send → reverb → HP → output
     this.chorus = new Tone.Chorus({ frequency: 0.8, delayTime: 4, depth: 0.5, wet: 0.35 })
-    this.dryBus = new Tone.Gain(0.75)
-    this.reverbSend = new Tone.Gain(0.12)
+    // DEPTH (2026-07-12) — reverb is not an effect, it is DISTANCE. Every part
+    // sat at the same distance, so they all competed on one plane and the mix
+    // read as flat and cluttered. The band is now staged front-to-back:
+    //   drums / bass  — dry, in your face (no send at all)
+    //   melody        — a touch of air
+    //   chords        — set back behind the rhythm section   ← this
+    //   pads          — furthest back, holding the room (TextureGenerator)
+    // Loud/quiet is volume; near/far is the third dimension, and it is how parts
+    // stack without fighting.
+    this.dryBus = new Tone.Gain(0.72)
+    this.reverbSend = new Tone.Gain(0.24)
     this.reverb = new Tone.Reverb({ decay: 2.0, wet: 1.0 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
@@ -741,27 +753,37 @@ export class ChordGenerator extends GeneratorBase {
           voice.triggerAttackRelease(n.note, n.duration, Math.max(0, time + n.timeOffset + pocketOffset), noteVel)
         }
       } else {
-        // Humanised block-chord path: micro-strum note arrivals (lowest to highest)
-        // and apply velocity variation so it sounds like a human pianist.
-        const sortedNotes = [...playableNotes].sort((a, b) => {
-          try {
-            return Tone.Frequency(a).toMidi() - Tone.Frequency(b).toMidi()
-          } catch {
-            return 0
-          }
+        // FIGURATION — voice this hit the way the INSTRUMENT would play it.
+        //
+        // This path used to run one identical gesture for everything: fan the
+        // notes bottom-to-top over 12-24ms, always upward, always every note. A
+        // guitar, a grand piano, a string section and a brass section all got
+        // that same move, which is why they sounded like samples of instruments
+        // rather than players. The 20-technique idiom library existed but was
+        // unreachable (gated on !freeplayEnabled) because running its scheduler
+        // under freeplay gave the chord layer two competing rhythmic brains.
+        //
+        // chordFiguration resolves that: it only decides HOW the notes of ONE
+        // hit are spread — never WHEN a hit happens. Freeplay keeps owning the
+        // rhythm, so there is no second rhythm engine and the anti-loop phrasing
+        // is untouched. Guitar rakes (alternating down/up), piano lands two hands
+        // and occasionally rolls, strings bloom together, brass stabs.
+        const figured = voiceChordHit(playableNotes, {
+          family: this.currentPerformer?.family,
+          hitIndex: this.figurationHit++,
+          rng: Math.random,
+          midiOf: (n) => { try { return Tone.Frequency(n).toMidi() } catch { return 0 } },
         })
 
-        sortedNotes.forEach((note, index) => {
-          // Stagger: 12ms to 24ms delay per note, rolling upward
-          const strumDelay = index * (0.012 + Math.random() * 0.008)
-          // Velocity spread: scale base velocity, random fluctuation +/- 0.08,
-          // and accent the bass/root note (index === 0) for solidity.
-          const randomShift = (Math.random() - 0.5) * 0.16
-          const baseScale = index === 0 ? 1.05 : 0.92
-          const noteVel = Math.min(1.0, Math.max(0.1, vel * baseScale + randomShift))
-
-          voice.triggerAttackRelease(note, event.dur, Math.max(0, time + strumDelay + pocketOffset), noteVel)
-        })
+        for (const f of figured) {
+          const noteVel = Math.min(1.0, Math.max(0.1, vel * f.velocityScale))
+          voice.triggerAttackRelease(
+            f.note,
+            event.dur,
+            Math.max(0, time + f.timeOffset + pocketOffset),
+            noteVel,
+          )
+        }
       }
     }, quantizedEvents)
 

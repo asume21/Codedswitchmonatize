@@ -83,7 +83,9 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // +3 (was +8): melody was the hottest channel, making the beat midrange-
       // heavy (mid 32%, centroid ~3 kHz) and un-trap-like. In hip-hop the lead is
       // an accent over drums+808, not the loudest element. Pulled back to sit under.
-      name: 'melody', pan: 0.15, gainDb: 3,
+      // Sits opposite the chords (see CENTER DEFENSE there) so the middle of the
+      // image stays clear for the vocal.
+      name: 'melody', pan: 0.34, gainDb: 3,
       compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
@@ -106,7 +108,12 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // MEASURED 2026-07-12: soloed chords were -43 dB against drums at -21 —
       // ~22 dB below the band. The user's core insight is that the CHORDS ARE
       // THE HOOK, and they have never actually been audible. +3 -> +10.
-      name: 'chord', pan: -0.16, gainDb: 10,
+      // CENTER DEFENSE (2026-07-12): pan was -0.16 — barely off-centre, sitting
+      // exactly where the vocal goes. The user's sound profile is "centre open
+      // for the vocal", and nothing in the engine defended it. The two harmonic
+      // parts now sit clearly to either side (chord left, melody right), leaving
+      // a real hole in the middle for the voice. Kick and bass stay hard centre.
+      name: 'chord', pan: -0.38, gainDb: 10,
       compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
       compReleaseMs: 250, compKneeDb: 8,
       eq: { highpassHz: 150, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -1 },  // fuller keys with the low-mid boxiness still scooped

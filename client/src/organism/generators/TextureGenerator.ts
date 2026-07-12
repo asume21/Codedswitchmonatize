@@ -130,7 +130,10 @@ export class TextureGenerator extends GeneratorBase {
     // heaviest always-on node in the generator stack and the AI-ear localized
     // crackle to "reverb tails"; 1.8s keeps a lush bed while roughly halving
     // this node's audio-thread cost. Re-applied 2026-07-11 after revert 7a2767cd.
-    this.padReverb  = new Tone.Reverb({ decay: 1.8, wet: 0.3 })
+    // DEPTH — the pads are the FURTHEST thing back (see ChordGenerator's staging
+    // note). A long, wet bed reads as the room the band is playing in, which is
+    // exactly the job of a pad: hold the space, don't compete for the front.
+    this.padReverb  = new Tone.Reverb({ decay: 3.2, wet: 0.5 })
     this.padGain    = new Tone.Gain(0)
     this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)
