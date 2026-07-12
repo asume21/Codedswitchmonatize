@@ -341,10 +341,19 @@ export class TextureGenerator extends GeneratorBase {
       this.reverb.wet.rampTo(layer.reverbWet, 2.0)
     }
 
-    // Synth-pad/keys gain — the audible voice. Pads sit well above the
-    // subliminal noise bed, scaled by the same activity level + the texture
-    // volume slider, and capped so they support rather than dominate the mix.
-    const padTarget = Math.min(1.0, this.activityLevel * 3.5)
+    // Synth-pad/keys gain — the audible voice, and the user's signature colour.
+    //
+    // The pad is scaled by activityLevel, which has ALREADY been multiplied by
+    // the role ceiling (~0.28 for a support role) — so a Flow target of 0.55
+    // arrives here as ~0.16, and x3.5 only recovered it to 0.55. Stacked with
+    // the arrangement multiplier and a -9 dB channel cut, the measured result
+    // was a soloed pad at -59 dB: inaudible (2026-07-12 capture bench).
+    //
+    // Divide the role ceiling back out: the ceiling should decide how the pad
+    // BEHAVES relative to the band, not silence it outright. Floor at 0.35 so a
+    // zero/near-zero ceiling can't reintroduce the bug.
+    const ceiling = Math.max(0.35, this.roleCeiling())
+    const padTarget = Math.min(1.0, (this.activityLevel / ceiling) * 1.6)
       * this.arrangementMultiplier * this.padVolumeMultiplier
     if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
       this.lastPadGain = padTarget

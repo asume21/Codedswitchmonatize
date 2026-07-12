@@ -89,7 +89,13 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
     },
     texture: {
-      name: 'texture', pan: 0, gainDb: -9,
+      // MEASURED 2026-07-12: soloed pads were -59 dB against drums at -21 — the
+      // pad bed, which is meant to BE the harmonic colour, was ~35 dB below the
+      // band and effectively inaudible. It loses level three times over (role
+      // ceiling -> activity, pad gain, then this channel), so the -9 dB cut here
+      // was the last straw. Lifted to +2. Re-measure with the fire-beats bench
+      // (soloed texture RMS) if you touch this.
+      name: 'texture', pan: 0, gainDb: 2,
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
       eq: { highpassHz: 160, midHz: 450, midGain: -2, midQ: 1.0, highShelfHz: 7000, highShelfGain: -1 },  // warm pad bed; keep mud controlled without stripping the body
@@ -97,7 +103,10 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
     chord: {
       // Harmony/keys carry the hook; keep them forward enough to be the idea,
       // while the high-pass and master headroom stop them from crowding the 808.
-      name: 'chord', pan: -0.16, gainDb: 3,
+      // MEASURED 2026-07-12: soloed chords were -43 dB against drums at -21 —
+      // ~22 dB below the band. The user's core insight is that the CHORDS ARE
+      // THE HOOK, and they have never actually been audible. +3 -> +10.
+      name: 'chord', pan: -0.16, gainDb: 10,
       compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
       compReleaseMs: 250, compKneeDb: 8,
       eq: { highpassHz: 150, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -1 },  // fuller keys with the low-mid boxiness still scooped

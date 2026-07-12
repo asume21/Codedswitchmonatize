@@ -29,6 +29,14 @@ import { OrganismMode, type PhysicsState } from '../../organism/physics/types'
 import type { HipHopSubGenre } from '../../organism/state/MusicalState'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
+import { DEFAULT_MIX_CONFIG } from '../../organism/mix/types'
+
+// A fader at 1.0 must land on the channel's CONFIGURED gain. Derive it from the
+// config — a retyped constant here silently overrides DEFAULT_MIX_CONFIG at
+// runtime (setChannelGainDb writes the Tone node, not the config object), which
+// is how the chords ended up ~22 dB below the band with nobody able to see it.
+const MELODY_BASE_DB = DEFAULT_MIX_CONFIG.channels.melody.gainDb
+const CHORD_BASE_DB  = DEFAULT_MIX_CONFIG.channels.chord.gainDb
 import type { SessionDNA }      from '../../organism/session/types'
 import type { TranscriptionState } from './FreestyleTranscriber'
 import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
@@ -3576,16 +3584,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setMelodyVolumeState(v)
       // Drive the melody CHANNEL gain — it governs BOTH the synth melody and the
       // real-instrument loop player, which now route through this channel. The
-      // +8 dB offset preserves the channel's configured presence level at v=1
-      // (matches DEFAULT_MIX_CONFIG.channels.melody.gainDb). Replaces the old
-      // generator-only volume multiplier, which never touched the loop player —
-      // that mismatch was why the melody fader appeared dead.
-      mixRef.current?.setChannelGainDb('melody', v <= 0 ? -60 : 8 + 20 * Math.log10(v))
+      // The offset is the channel's CONFIGURED level, so a fader at v=1 lands
+      // exactly on DEFAULT_MIX_CONFIG. It used to be hardcoded (+8) and had
+      // already drifted from the config (+3): setChannelGainDb writes the Tone
+      // node WITHOUT updating the config object, so the hardcoded base silently
+      // won while the config still *reported* its own value — every probe agreed
+      // with the config while the audio disagreed. Read the config; never retype it.
+      mixRef.current?.setChannelGainDb('melody', v <= 0 ? -60 : MELODY_BASE_DB + 20 * Math.log10(v))
       orchestrRef.current?.setMelodyEnabled(v > 0)
     },
     setChordVolume: (v: number) => {
       setChordVolumeState(v)
-      mixRef.current?.setChannelGainDb('chord', 3 + 20 * Math.log10(Math.max(0.001, v)))
+      mixRef.current?.setChannelGainDb('chord', CHORD_BASE_DB + 20 * Math.log10(Math.max(0.001, v)))
       orchestrRef.current?.setChordEnabled(v > 0)
     },
     setTextureVolume: (v: number) => {
