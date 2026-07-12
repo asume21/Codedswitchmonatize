@@ -267,17 +267,23 @@ export async function registerRoutes(app: Express, storage: IStorage) {
     const baseUrl = `${proto}://${host}`;
     const now = new Date().toISOString();
 
-    // Only include publicly crawlable pages — must stay in sync with robots.txt Disallow rules
+    // Only pages a logged-OUT crawler can actually render. Two rules, both learned
+    // the hard way (GSC 2026-07-11: 7 indexed vs 33 not indexed):
+    //   1. No ProtectedRoute pages. Googlebot hits the login wall, sees no content,
+    //      and files the URL under "Crawled - currently not indexed". That is how
+    //      /studio, /social-hub, /vulnerability-scanner and /sample-library got here.
+    //   2. No redirects. /subscribe 302s to /pricing, which lands the URL in the
+    //      "Page with redirect" bucket. List the destination, not the alias.
+    // Must also stay in sync with robots.txt Disallow rules.
     const urls: Array<{ loc: string; changefreq?: string; priority?: string }> = [
       { loc: "/", changefreq: "daily", priority: "1.0" },
-      { loc: "/studio", changefreq: "weekly", priority: "0.9" },
+      { loc: "/organism", changefreq: "weekly", priority: "0.9" },
+      { loc: "/pricing", changefreq: "monthly", priority: "0.8" },
+      { loc: "/developers", changefreq: "weekly", priority: "0.7" },
+      { loc: "/blog", changefreq: "weekly", priority: "0.7" },
       { loc: "/signup", changefreq: "monthly", priority: "0.7" },
       { loc: "/login", changefreq: "monthly", priority: "0.6" },
-      { loc: "/subscribe", changefreq: "monthly", priority: "0.8" },
-      { loc: "/social-hub", changefreq: "daily", priority: "0.7" },
-      { loc: "/blog", changefreq: "weekly", priority: "0.7" },
-      { loc: "/vulnerability-scanner", changefreq: "monthly", priority: "0.6" },
-      { loc: "/sample-library", changefreq: "weekly", priority: "0.6" },
+      { loc: "/sitemap", changefreq: "monthly", priority: "0.5" },
     ];
 
     const body = `<?xml version="1.0" encoding="UTF-8"?>

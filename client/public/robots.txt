@@ -5,7 +5,9 @@ Allow: /
 # Sitemaps
 Sitemap: https://www.codedswitch.com/sitemap.xml
 
-# Disallow API, auth-gated, and internal routes
+# Disallow API, auth-gated, and internal routes.
+# `$` anchors the rule to an exact path — without it, `Disallow: /developer`
+# also prefix-matches the PUBLIC /developers funnel and hides it from search.
 Disallow: /api/
 Disallow: /admin/
 Disallow: /dashboard
@@ -14,6 +16,5 @@ Disallow: /billing
 Disallow: /buy-credits
 Disallow: /credits
 Disallow: /profile
-Disallow: /developer
-Disallow: /organism
+Disallow: /developer$
 Disallow: /activate

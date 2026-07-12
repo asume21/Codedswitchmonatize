@@ -3,7 +3,17 @@ import { useLocation } from "wouter";
 
 const BASE = "https://www.codedswitch.com";
 
-/** Pages that require authentication — tell Google not to index them */
+/**
+ * Pages that require authentication — tell Google not to index them.
+ *
+ * Exact-match only (Set.has), so "/developer" here does NOT cover the public
+ * "/developers" funnel. Keep it that way.
+ *
+ * "/organism" is deliberately absent: it is the public, no-login guest demo and
+ * our strongest search landing page. Anything listed here must ALSO stay out of
+ * robots.txt's Disallow list — a blocked page is never fetched, so Google never
+ * sees the noindex below and the tag is silently useless.
+ */
 const NO_INDEX_PATHS = new Set([
   "/dashboard",
   "/settings",
@@ -14,7 +24,6 @@ const NO_INDEX_PATHS = new Set([
   "/credits/cancel",
   "/profile",
   "/developer",
-  "/organism",
 ]);
 
 /**
