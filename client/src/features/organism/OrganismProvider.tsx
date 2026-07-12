@@ -516,6 +516,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // grooveLock(false) restores the old constant re-roll. Toggle while
       // playing to hear the difference.
       w.grooveLock = (on: boolean) => orchestr.setGrooveLock(on)
+      // Level tuning MUST be done with the arrangement off, or every capture
+      // lands in a different SECTION with different per-part gains and the
+      // measurement is meaningless (this produced a "+11 dB" melody reading
+      // after its gain was LOWERED). The bench pins this false.
+      w.songMode = (on: boolean) => orchestr.setArrangementEnabled(on)
     }
 
     // 3. Wire in correct order:

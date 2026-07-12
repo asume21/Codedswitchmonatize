@@ -119,6 +119,24 @@ async function main() {
     }
     await page.waitForTimeout(6000) // let the band build up
 
+    // Pin the arrangement OFF (jam mode) unless SONG_MODE=1. With song mode on,
+    // each stem is captured in whatever SECTION happens to be playing, and every
+    // section applies different per-part gain multipliers — so two runs measure
+    // two different arrangements and the levels are not comparable. (This is not
+    // hypothetical: it produced a "+11 dB louder" melody reading immediately
+    // after that channel's gain was LOWERED by 5 dB.) Jam mode holds the part
+    // multipliers at ~1 so a stem's RMS actually reflects the mix.
+    if (process.env.SONG_MODE !== '1') {
+      const off = await page.evaluate(() => {
+        const fn = window.songMode
+        if (typeof fn !== 'function') return 'missing'
+        fn(false)
+        return 'off'
+      })
+      log('song mode →', off)
+      await page.waitForTimeout(2000)
+    }
+
     const ready = await page.evaluate(() => ({
       debug: !!window.__audioDebug,
       solo:  typeof window.soloChannel === 'function',
