@@ -2,9 +2,35 @@
 // Freeplay comping: WHEN and HOW to hit — never WHAT pitches (the Conductor's
 // voicing owns the notes; ChordGenerator maps this plan onto it).
 
-import type { FreeplayContext } from './types'
+import type { FreeplayContext, CompGesture } from './types'
 import { getSectionMotif, varyMotif, type RhythmMotif } from './motif'
-import { swungTime } from './utils'
+import { swungTime, mulberry32, getSessionSalt } from './utils'
+import { getSongCell } from './songCell'
+
+// ── Animator gestures (2026-07-09 reference study) ──────────────────
+// Six reference beats shared one architecture — a pad BED plus a keys
+// ANIMATOR — and differed almost only in the animator's gesture. This is
+// that vocabulary. Gesture reference map:
+//   stabs         ref #2: short rhythmic stabs ARE the rhythm (motif path)
+//   sustain       ref #1: legato bed holding under a separate hook
+//   roll          ref #3: chords flowing/re-attacking mid-bar, voice-led
+//   phrase-end    ref #4: quiet bed + stab burst only at the 4-bar turnaround
+//   alternate     ref #5: stabs every OTHER bar, pad between
+//   call-response ref #6: keys answer in the back half of each bar
+//
+// Picked from the stable motifSeed (hash of section+subGenre), NOT the
+// per-rebuild rng, so a section keeps its comping identity (churn was the
+// conductor-part2 lesson); rotation comes from section changes and new
+// sessions. Callers may override via ctx.compGesture for explicit control.
+export function pickCompGesture(motifSeed: number): CompGesture {
+  const r = mulberry32(motifSeed + getSessionSalt() * 7)()
+  if (r < 0.30) return 'stabs'
+  if (r < 0.45) return 'sustain'
+  if (r < 0.60) return 'roll'
+  if (r < 0.75) return 'phrase-end'
+  if (r < 0.875) return 'alternate'
+  return 'call-response'
+}
 
 export interface CompEvent {
   time: string
@@ -51,17 +77,12 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     }))
   }
 
-  const key = `chord:${ctx.sectionName}:${ctx.subGenre}`
-  const count = (compCounters.get(key) ?? 0) + 1
-  compCounters.set(key, count)
+  const gesture = ctx.compGesture ?? pickCompGesture(ctx.motifSeed)
 
-  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), [0])
-
-  // Band awareness: the drum pattern's kick slots (pushed by the orchestrator,
-  // same channel the bass uses). A keys player comps in the pockets BETWEEN
-  // the kicks — doubling a syncopated kick just thickens it into mud. The
-  // downbeat is exempt: chord + kick arriving together on beat 1 is the
-  // head-nod, not a collision.
+  // Band awareness (shared by every gesture). Kick slots come from the drum
+  // pattern (same channel the bass uses): a keys player comps in the pockets
+  // BETWEEN the kicks — doubling a syncopated kick just thickens it into mud.
+  // Downbeat is exempt: chord + kick on beat 1 is the head-nod, not a clash.
   const kickSet = new Set(ctx.kickTimes16ths.map(s => ((Math.floor(s) % 16) + 16) % 16))
   const collides = (slot: number) => slot !== 0 && kickSet.has(slot)
 
@@ -71,8 +92,78 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const leadBusy = new Set((ctx.leadBusy16ths ?? []).map(s => ((Math.floor(s) % 16) + 16) % 16))
   const leadRoom = (slot: number) => slot === 0 || !leadBusy.has(slot)
 
+  // Bed-like gestures don't need the motif machinery at all.
+  if (gesture === 'sustain') {
+    // Legato bed: whole-bar holds, breathing velocity. The hook lives
+    // elsewhere (melody motif / texture pluck), so the keys stay smooth.
+    return Array.from({ length: bars }, (_, bar) => ({
+      time: swungTime(bar, 0, ctx.swing),
+      dur: '1m',
+      vel: bar % 2 === 0 ? 0.55 : 0.48,
+    }))
+  }
+
+  if (gesture === 'roll') {
+    // Rolling movement: re-attack at the half-bar so chords flow into each
+    // other instead of freezing (voice-leading between chords comes free
+    // from the Conductor's voicing engine at the next harmony change).
+    const events: CompEvent[] = []
+    for (let bar = 0; bar < bars; bar++) {
+      events.push({ time: swungTime(bar, 0, ctx.swing), dur: '2n', vel: bar === 0 ? 0.56 : 0.5 })
+      events.push({ time: swungTime(bar, 8, ctx.swing), dur: '2n', vel: 0.46 })
+    }
+    return events
+  }
+
+  if (gesture === 'phrase-end') {
+    // Quiet whole-bar bed all phrase, then a small stab burst into the
+    // turnaround — ref-#4's bell-motif placement, voiced as the chord. The
+    // burst still obeys the shared rules: back-half slots that dodge the
+    // backbeat (snare), the kick, and the lead.
+    const events: CompEvent[] = Array.from({ length: bars }, (_, bar) => ({
+      time: swungTime(bar, 0, ctx.swing),
+      dur: '1m',
+      vel: 0.45,
+    }))
+    const finalBar = bars - 1
+    const burstSlots = [9, 10, 11, 13, 14, 15]
+      .filter(s => !BACKBEAT.has(s) && !collides(s) && leadRoom(s))
+      .slice(0, 3)
+    let burstVel = 0.48
+    for (const s of burstSlots) {
+      events.push({ time: swungTime(finalBar, s, ctx.swing), dur: '8n', vel: clampVel(burstVel) })
+      burstVel += 0.04
+    }
+    return events
+  }
+
+  const key = `chord:${ctx.sectionName}:${ctx.subGenre}`
+  const count = (compCounters.get(key) ?? 0) + 1
+  compCounters.set(key, count)
+
+  // COHESION — the chords ANSWER the song cell. The comp speaks in the idea's
+  // GAPS (call and response): the band states the cell, the keys reply in the
+  // holes it leaves. Doubling the cell would be a unison and read as robotic;
+  // ignoring it — which is what a private `chord:<section>` motif did — is why
+  // nobody sounded like they were playing together.
+  //
+  // The comp keeps its own motif machinery (the gesture/mask logic downstream
+  // depends on its density contract) and is ANCHORED to the cell's gaps rather
+  // than replaced by them.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
+  const answerAnchors = [0, ...cell.gaps.filter(s => s !== 0 && s % 2 === 0).slice(0, 2)]
+  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), answerAnchors)
+
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
+    // 'alternate' (ref #5): odd bars are a whole-bar pad hold instead of
+    // stabs, so the keys speak every OTHER bar with air between. The stab
+    // bars still run the motif path below.
+    if (gesture === 'alternate' && bar % 2 === 1) {
+      events.push({ time: swungTime(bar, 0, ctx.swing), dur: '1m', vel: 0.46 })
+      continue
+    }
+
     const role = bars <= 1
       ? (count % 3 === 0 ? 'develop' : 'statement')
       : bars === 2
@@ -87,7 +178,24 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       : varyMotif(motif, ctx.rng)
     const kickFree = mask.slots.filter(s => !BACKBEAT.has(s) && !collides(s))
     const roomy = kickFree.filter(leadRoom)
-    const pool = roomy.length > 0 ? roomy : kickFree
+    let pool = roomy.length > 0 ? roomy : kickFree
+
+    // 'call-response' (ref #6): the keys "answer" in the back half of the bar.
+    // Keep the downbeat anchor, then restrict the rest to slots >= 8 so the
+    // comp reads as a response to the front-of-bar drums rather than doubling
+    // them. If the motif landed nothing in the back half, synthesize one
+    // answer there (dodging kick/backbeat/lead) — falling back to the motif's
+    // front-half slots would defeat the whole gesture.
+    if (gesture === 'call-response') {
+      const anchor = pool.includes(0) ? [0] : []
+      const backHalf = pool.filter(s => s >= 8)
+      if (backHalf.length > 0) {
+        pool = [...anchor, ...backHalf]
+      } else {
+        const answer = [10, 8, 14, 9, 11, 13].find(s => !collides(s) && !BACKBEAT.has(s) && leadRoom(s))
+        pool = [...anchor, ...(answer !== undefined ? [answer] : [])]
+      }
+    }
     const baseLimit = ctx.energy > 0.7 ? 4 : 3
     const limit = role === 'echo' ? Math.max(1, baseLimit - 1)
       : role === 'answer' ? Math.max(2, baseLimit - 1)
@@ -124,7 +232,9 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
 
     // Development/answer bars usually add the mid-bar push (same voicing — safe).
     // The push also dodges the kick: try the and-of-2 first, then neighbours.
-    if ((role === 'develop' || role === 'answer') && bars > 1 && ctx.rng() < (role === 'develop' ? 0.85 : 0.65)) {
+    // Skipped for 'call-response', whose whole character is answering in the
+    // BACK half — a front-of-bar push (slot 6) would break that.
+    if (gesture !== 'call-response' && (role === 'develop' || role === 'answer') && bars > 1 && ctx.rng() < (role === 'develop' ? 0.85 : 0.65)) {
       const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
         .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(s))
       if (pushSlot !== undefined) {

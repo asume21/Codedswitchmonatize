@@ -72,10 +72,6 @@ export class BassGenerator extends GeneratorBase {
   private chordIntervals: number[] = [0, 3, 7]
   private kickAnchors: number[] = []
   private groovePocket: number[] = Array(16).fill(0)
-  private freeplayPhraseCounter = 0
-
-  /** Zeroed on every organism start so a pinned freeplay seed replays exactly. */
-  resetFreeplayCounter(): void { this.freeplayPhraseCounter = 0 }
   setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
 
   private unsubscribeConductor: (() => void) | null = null
@@ -307,6 +303,13 @@ export class BassGenerator extends GeneratorBase {
     return this.bassRootFromMidi(getConductor().currentVoicing().bass)
   }
 
+  // The root this phrase RESOLVES INTO. The orchestrator advances the chord on
+  // the last bar of every 4-bar phrase, so this is where the harmony is headed —
+  // it tells the improviser whether there is a chord change worth walking into.
+  private nextBassRoot(): number {
+    return this.bassRootFromMidi(getConductor().nextVoicing().bass)
+  }
+
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     if (this._loopMode) return
     this.currentPocket = physics.pocket
@@ -509,13 +512,16 @@ export class BassGenerator extends GeneratorBase {
           attack:  0.002,
           decay:   1.0,
           sustain: 0.05,
-          release: 1.8,
+          // 1.8s release rang "flubby" once the 808 dropped into the true sub
+          // octave (36-65Hz fundamentals decay slower perceptually) and its
+          // tail smeared into the next kick. Tightened after the sub-octave fix.
+          release: 1.1,
         },
         filterEnvelope: {
           attack: 0.002,
           decay:  0.35,
           sustain: 0.0,
-          release: 0.6,
+          release: 0.45,
           baseFrequency: 60,
           octaves: 3.0,
         },
@@ -715,9 +721,20 @@ export class BassGenerator extends GeneratorBase {
       const sub  = parseFloat(parts[2] ?? '0')
       const sixteenthPos = Math.floor(beat * 4 + sub) % 16
       const scheduledTime = time + LAY_BACK_SEC + applyGroovePocket(0, sixteenthPos, this.groovePocket)
-      const playableNote = this.currentPerformer
+      let playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
+
+      // 808 register correction: the shared bass register (MIDI 33-48,
+      // 55-130Hz) sits an octave above where real 808s live, so 808 styles
+      // produced almost no energy in the 20-80Hz sub band (measured 1.8% vs
+      // ~32% in reference beats) — and the sine sub layer is off for 808s by
+      // design. Drop 808 notes one octave, floored at D1 (36.7Hz), so the
+      // fundamental lands in the true sub range.
+      if (this.use808Active) {
+        const midi = Tone.Frequency(playableNote).toMidi()
+        if (midi >= 38) playableNote = Tone.Frequency(midi - 12, 'midi').toNote()
+      }
 
       const noteFreq = Tone.Frequency(playableNote).toFrequency()
 
@@ -802,6 +819,7 @@ export class BassGenerator extends GeneratorBase {
       const seed = hashString(`bass:${this.currentSectionName}:${this.currentSubGenre ?? 'none'}`)
       return buildFreeplayBassNotes({
         rootMidi: this.rootMidi,
+        nextRootMidi: this.nextBassRoot(),
         chordIntervals: this.chordIntervals,
         bars: 4,
         swing: getBassSwing(),
@@ -811,7 +829,14 @@ export class BassGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayPhraseCounter++),
+        // LOCKED LOOP (2026-07-11): the seed is a pure function of the SECTION —
+        // no per-rebuild counter. Rebuilds fire constantly (every chord change,
+        // every state transition), and an incrementing counter meant each one
+        // re-rolled the bassline into different notes. That was the drift: a beat
+        // that sounds right, then quietly rewrites itself out from under you.
+        // Same section => byte-identical line, every cycle. The SECTION is the
+        // unit of change, not the bar.
+        rng: mulberry32(seed + getSessionSalt()),
       })
     }
 

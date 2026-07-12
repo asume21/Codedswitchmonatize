@@ -7,6 +7,7 @@ import {
   MixConfig,
   MixMeterReading,
   MeterCallback,
+  MixRole,
   DEFAULT_MIX_CONFIG,
 }                                    from './types'
 import type { GeneratorOrchestrator } from '../generators/GeneratorOrchestrator'
@@ -36,6 +37,8 @@ export class MixEngine {
 
   private meterCallbacks: Set<MeterCallback> = new Set()
   private meterInterval:  ReturnType<typeof setInterval> | null = null
+
+  private _soloedRole: MixRole | null = null
 
   constructor(config: Partial<MixConfig> = {}) {
     this.config = { ...DEFAULT_MIX_CONFIG, ...config }
@@ -213,6 +216,30 @@ export class MixEngine {
 
   setBandSilenced(silenced: boolean): void {
     this.bandMaster.gain.rampTo(silenced ? 0 : 1, 0.05)
+  }
+
+  /**
+   * Isolate one generator role by muting the other four, so a capture on the
+   * master bus records that role alone (through the real master chain). Pass
+   * null to un-solo and restore the full mix. Powers the fire-beats capture
+   * bench and, later, the Solo Spotlight performance control.
+   */
+  soloChannel(role: MixRole | null): void {
+    this._soloedRole = role
+    for (const strip of [
+      this.drumChannel,
+      this.bassChannel,
+      this.melodyChannel,
+      this.textureChannel,
+      this.chordChannel,
+    ]) {
+      strip.setSoloMuted(role !== null && strip.name !== role)
+    }
+  }
+
+  /** The role currently soloed, or null if the full mix is playing. */
+  getSoloedRole(): MixRole | null {
+    return this._soloedRole
   }
 
   setParallelCompression(thresholdDb: number, ratio: number, attackMs: number, releaseMs: number): void {

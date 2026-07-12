@@ -26,8 +26,9 @@ page.on('request', (req) => {
     const postData = req.postDataBuffer()
     if (postData) {
       log('Intercepted audio upload, size:', postData.length)
-      fs.writeFileSync('C:\\Users\\ralsu\\.gemini\\antigravity\\brain\\e4967933-cc7f-4968-b675-48fc106a5235\\scratch\\capture.webm', postData)
-      log('Saved intercepted raw audio to scratch/capture.webm')
+      fs.mkdirSync('marketing/output', { recursive: true })
+      fs.writeFileSync('marketing/output/organism-capture.webm', postData)
+      log('Saved intercepted raw audio to marketing/output/organism-capture.webm')
     }
   }
 })

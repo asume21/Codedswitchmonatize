@@ -215,6 +215,7 @@ export interface OrganismContextValue {
   bassVolume:         number   // 0–2, default 1
   melodyVolume:       number   // 0–2, default 1
   chordVolume:        number   // 0–2, default 1
+  textureVolume:      number   // 0–2, default 1
   melodyFocusEnabled: boolean
   setHatDensity:      (v: number) => void
   setKickVelocity:    (v: number) => void
@@ -222,6 +223,7 @@ export interface OrganismContextValue {
   setBassVolume:      (v: number) => void
   setMelodyVolume:    (v: number) => void
   setChordVolume:     (v: number) => void
+  setTextureVolume:   (v: number) => void
   setMelodyFocusEnabled: (enabled: boolean) => void
 
   // Texture toggle — off by default for hip-hop; enable for ambient/lo-fi genres

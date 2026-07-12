@@ -249,6 +249,47 @@ describe('GeneratorOrchestrator', () => {
     expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalled()
   })
 
+  it('default progressive intro keeps the texture pad audible', async () => {
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'
+    const textureSpy = vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier')
+
+    ;(orchestrator as any).running = true
+    ;(orchestrator as any).applyArrangement()
+
+    expect(textureSpy).toHaveBeenCalledWith(expect.any(Number))
+    expect(textureSpy.mock.calls[0][0]).toBeGreaterThan(0)
+  })
+
+  it('disabling progressive intro restores texture with the rest of the band (jam mode)', () => {
+    // Only meaningful in JAM mode. With the arrangement running (now the default),
+    // the section slots own the part multipliers — snapping them all back to 1.0
+    // here would fight the arrangement, and the next bar tick would overwrite it
+    // anyway. The restore is deliberately guarded on `!arrangementEnabled`.
+    orchestrator.setArrangementEnabled(false)
+    const textureSpy = vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier')
+
+    orchestrator.setProgressiveIntroEnabled(false)
+
+    expect(textureSpy).toHaveBeenCalledWith(1)
+  })
+
+  it('jam arrangement defaults drums and bass to lead roles', async () => {
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'
+    const drumRoleSpy = vi.spyOn((orchestrator as any).drum, 'setRole')
+    const bassRoleSpy = vi.spyOn((orchestrator as any).bass, 'setRole')
+    const chordRoleSpy = vi.spyOn((orchestrator as any).chord, 'setRole')
+
+    ;(orchestrator as any).running = true
+    orchestrator.setArrangementEnabled(true)
+    ;(orchestrator as any).applyArrangement()
+
+    expect(drumRoleSpy).toHaveBeenLastCalledWith('lead')
+    expect(bassRoleSpy).toHaveBeenLastCalledWith('lead')
+    expect(chordRoleSpy).toHaveBeenLastCalledWith('support')
+  })
+
   it('refreshInstrumentVoices re-applies bass, chord, and melody voices', () => {
     const bassSpy = vi.spyOn((orchestrator as any).bass, 'refreshVoice').mockImplementation(() => {})
     const chordSpy = vi.spyOn((orchestrator as any).chord, 'refreshVoice').mockImplementation(() => {})

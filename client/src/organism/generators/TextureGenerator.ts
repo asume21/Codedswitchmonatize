@@ -71,12 +71,24 @@ export class TextureGenerator extends GeneratorBase {
   private padSampler: LoadableSampler
   private padReverb:  Tone.Reverb
   private padGain:    Tone.Gain
+  // Stereo widener — the reference study's "pad wide, hook center" rule. The
+  // bed spreads across the field so the center stays clear for the chord
+  // animator + lead. Mid-side matrix: cheap DSP, safe to add to the pad chain.
+  private padWidener: Tone.StereoWidener
   private padEventId: number | null = null
   private textureVolumeMultiplier: number = 1.0
   private padVolumeMultiplier: number = 1.0
   private lastPadGain: number = 0
   private activeVoiceKey: string | null = null
   private currentModeKey: string = 'glow'
+
+  // Section-aware bed character (set by onSectionChange). The pad is the BED,
+  // not the animator — so section-awareness shapes how it SITS (velocity, hold
+  // length), never a rhythmic gesture. intro/breakdown: the pad leads (fuller,
+  // longer washes); verse: tucked under the chord animator; build: swelling.
+  private sectionPadVelocity: number = 0.52
+  private sectionPadHoldBars: number = 1
+  private padLoopBar: number = 0
 
   // Ramp dedup — skip scheduling redundant ramps when values haven't changed
   private lastOutputGain:    number = 0
@@ -114,12 +126,21 @@ export class TextureGenerator extends GeneratorBase {
     // old stretched one-shot, this uses the same sample-backed sources as the
     // other generators: real multisamples when the catalog is ready, otherwise
     // the self-hosted soundfonts.
-    this.padReverb  = new Tone.Reverb({ decay: 3.5, wet: 0.4 })
+    // Convolution reverb cost scales with IR length. The 3.5s tail was the
+    // heaviest always-on node in the generator stack and the AI-ear localized
+    // crackle to "reverb tails"; 1.8s keeps a lush bed while roughly halving
+    // this node's audio-thread cost. Re-applied 2026-07-11 after revert 7a2767cd.
+    // DEPTH — the pads are the FURTHEST thing back (see ChordGenerator's staging
+    // note). A long, wet bed reads as the room the band is playing in, which is
+    // exactly the job of a pad: hold the space, don't compete for the front.
+    this.padReverb  = new Tone.Reverb({ decay: 3.2, wet: 0.5 })
     this.padGain    = new Tone.Gain(0)
+    this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)
     this.padSampler.connect(this.padReverb)
     this.padReverb.connect(this.padGain)
-    this.padGain.connect(this.output)
+    this.padGain.connect(this.padWidener)
+    this.padWidener.connect(this.output)
 
     // Do NOT start noise here — defer until organism leaves Dormant
     // this.noiseSource.start()
@@ -131,9 +152,15 @@ export class TextureGenerator extends GeneratorBase {
   // band's harmony. Scheduled on the Transport so it stays grid-locked.
   private startPadLoop(): void {
     if (this.padEventId !== null) return
+    this.padLoopBar = 0
     this.padEventId = Tone.getTransport().scheduleRepeat((time) => {
       if (this._loopMode || !this.enabled) return
       if (this.padSampler.isLoaded !== true) return
+      const bar = this.padLoopBar++
+      // Multi-bar holds: on a 2-bar wash, re-attack only on even bars and let
+      // the sustained voicing ring through the odd bar (no releaseAll then).
+      const hold = Math.max(1, this.sectionPadHoldBars)
+      if (bar % hold !== 0) return
       const inner = getConductor().currentVoicing().inner
       if (!inner.length) return
       const lifted = inner.map((m) => Math.min(84, m + 12))
@@ -144,9 +171,36 @@ export class TextureGenerator extends GeneratorBase {
       const notes = [...new Set(voiced)].map((m) => Tone.Frequency(m, 'midi').toNote())
       try {
         this.padSampler.releaseAll(time)
-        this.padSampler.triggerAttackRelease(notes, '1m', time, 0.52)
+        this.padSampler.triggerAttackRelease(notes, `${hold}m`, time, this.sectionPadVelocity)
       } catch { /* sampler not ready / retrigger race — skip this bar */ }
     }, '1m', '0:0:0')
+  }
+
+  /**
+   * Section-aware bed character. The pad is the BED under the chord animator,
+   * so this shapes how it SITS — velocity and wash length — not rhythm.
+   *   intro / breakdown → the pad leads: fuller, 2-bar washes
+   *   verse            → tucked under the animator: softer, 1-bar
+   *   build            → swelling forward
+   *   drop / hook      → present but not competing with the busy animator
+   * Called from the orchestrator's section-change stagger (after chord).
+   */
+  onSectionChange(sectionName: string): void {
+    const n = sectionName.toLowerCase()
+    if (n.includes('intro') || n.includes('break')) {
+      this.sectionPadVelocity = 0.72
+      this.sectionPadHoldBars = 2
+    } else if (n.includes('build')) {
+      this.sectionPadVelocity = 0.68
+      this.sectionPadHoldBars = 1
+    } else if (n.includes('drop') || n.includes('hook') || n.includes('chorus')) {
+      this.sectionPadVelocity = 0.62
+      this.sectionPadHoldBars = 1
+    } else {
+      // verse / default — present but under the lead
+      this.sectionPadVelocity = 0.56
+      this.sectionPadHoldBars = 1
+    }
   }
 
   private stopPadLoop(): void {
@@ -290,10 +344,19 @@ export class TextureGenerator extends GeneratorBase {
       this.reverb.wet.rampTo(layer.reverbWet, 2.0)
     }
 
-    // Synth-pad/keys gain — the audible voice. Pads sit well above the
-    // subliminal noise bed, scaled by the same activity level + the texture
-    // volume slider, and capped so they support rather than dominate the mix.
-    const padTarget = Math.min(0.82, this.activityLevel * 3.1)
+    // Synth-pad/keys gain — the audible voice, and the user's signature colour.
+    //
+    // The pad is scaled by activityLevel, which has ALREADY been multiplied by
+    // the role ceiling (~0.28 for a support role) — so a Flow target of 0.55
+    // arrives here as ~0.16, and x3.5 only recovered it to 0.55. Stacked with
+    // the arrangement multiplier and a -9 dB channel cut, the measured result
+    // was a soloed pad at -59 dB: inaudible (2026-07-12 capture bench).
+    //
+    // Divide the role ceiling back out: the ceiling should decide how the pad
+    // BEHAVES relative to the band, not silence it outright. Floor at 0.35 so a
+    // zero/near-zero ceiling can't reintroduce the bug.
+    const ceiling = Math.max(0.35, this.roleCeiling())
+    const padTarget = Math.min(1.0, (this.activityLevel / ceiling) * 1.6)
       * this.arrangementMultiplier * this.padVolumeMultiplier
     if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
       this.lastPadGain = padTarget
@@ -363,9 +426,9 @@ export class TextureGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:    return 0
-      case OState.Awakening:  return 0.05 * organism.awakeningProgress
-      case OState.Breathing:  return 0.15 * organism.breathingWarmth
-      case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
+      case OState.Awakening:  return 0.10 * organism.awakeningProgress
+      case OState.Breathing:  return 0.35 * organism.breathingWarmth
+      case OState.Flow:       return 0.55 + (0.10 * organism.flowDepth)
     }
   }
 
@@ -379,6 +442,7 @@ export class TextureGenerator extends GeneratorBase {
     this.padSampler.dispose()
     this.padReverb.dispose()
     this.padGain.dispose()
+    this.padWidener.dispose()
     try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
     try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
     this.noiseSource.dispose()

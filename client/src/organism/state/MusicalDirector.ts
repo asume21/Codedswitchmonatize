@@ -148,12 +148,12 @@ export class MusicalDirector {
       : 0
 
     // ── Sub-genre classification ──────────────────────────────────
-    // STORY MODE: If groove is locked or we're in Flow state, freeze the
-    // sub-genre entirely so the core rhythm doesn't shift mid-performance.
-    // Audit 2026-04-30 fix: previous condition `&& subGenre !== 'chill'`
-    // let chill drift away from chill mid-lock — clearly not the intent.
+    // Freeze sub-genre when: groove is locked, in Flow state, OR no voice
+    // input. The mode classifier processes silence as random audio data,
+    // producing erratic mode→sub-genre switches that fight the user's
+    // preset selection. Without a live mic, the sub-genre stays put.
     const isFlow = organism.current === OState.Flow
-    const shouldSkipGenreShift = this.isGrooveLocked || isFlow
+    const shouldSkipGenreShift = this.isGrooveLocked || isFlow || !physics.voiceActive
 
     if (this.subGenreLockBars <= 0 && !shouldSkipGenreShift) {
       const newSubGenre = classifySubGenre(physics.mode, this.state.energy, physics.density)

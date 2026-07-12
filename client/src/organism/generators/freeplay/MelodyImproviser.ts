@@ -4,6 +4,7 @@
 import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
 import { getSectionMotif, varyMotif } from './motif'
+import { getSongCell } from './songCell'
 import { jitterVel, midiToNote, swungTime } from './utils'
 import {
   contourOffset,
@@ -193,14 +194,40 @@ function slotsForBar(
   return capSlots(baseSlots, behavior, kind)
 }
 
-function durationFromGap(slots: number, family: string | undefined): string {
+function durationFromGap(slots: number, family: string | undefined, articulation: 'normal' | 'staccato' | 'legato' = 'normal'): string {
   const sustained = family === 'bowed' || family === 'wind' || family === 'brass'
-  if (slots >= 8) return sustained ? '4n' : '2n'
-  if (slots >= 6) return '4n.'
-  if (slots >= 4) return '4n'
-  if (slots >= 3) return '8n.'
-  if (slots >= 2) return '8n'
-  return '16n'
+  // Base duration from gap, then articulation shapes it.
+  let base: string
+  if (slots >= 8) base = sustained ? '4n' : '2n'
+  else if (slots >= 6) base = '4n.'
+  else if (slots >= 4) base = '4n'
+  else if (slots >= 3) base = '8n.'
+  else if (slots >= 2) base = '8n'
+  else base = '16n'
+
+  // Articulation: staccato shortens, legato holds through.
+  if (articulation === 'staccato') {
+    if (base === '2n') return '4n'
+    if (base === '4n.') return '4n'
+    if (base === '4n') return '8n'
+    if (base === '8n.') return '8n'
+    if (base === '8n') return '16n'
+    return '32n'
+  }
+  if (articulation === 'legato') {
+    if (base === '4n') return '2n'
+    if (base === '8n') return '4n'
+    if (base === '16n') return '8n'
+    return base
+  }
+  return base
+}
+
+function pickArticulation(rng: () => number): 'normal' | 'staccato' | 'legato' {
+  const roll = rng()
+  if (roll < 0.25) return 'staccato'
+  if (roll < 0.40) return 'legato'
+  return 'normal'
 }
 
 function degreeToMidi(ctx: MelodyFreeplayContext, degree: number): number {
@@ -325,15 +352,31 @@ function renderEvents(
   const ordered = [...bySlot.values()].sort((a, b) => a.absSlot - b.absSlot)
   const notes: ScheduledNote[] = []
 
-  for (let i = 0; i < ordered.length; i++) {
-    const event = ordered[i]
-    const next = ordered[i + 1]
+  // Phrase breathing: a real melody has space between statements — silence is a
+  // note too. But the rest has to be part of the IDEA, not a per-note coin flip:
+  // rolling each note independently silenced different notes in bar 0 and bar 1,
+  // which destroyed the call-and-response repeat the phrase is built on (bar 1
+  // must answer bar 0). So the rests are drawn ONCE as a slot mask and applied
+  // to every bar — the same holes land in the same places, and the space becomes
+  // rhythm. Quarter-note slots are never rested; the skeleton has to survive.
+  const restChance = ctx.behavior === 'hint' ? 0.35 : ctx.behavior === 'respond' ? 0.22 : 0.18
+  const restedSlots = new Set<number>()
+  for (let slot = 0; slot < 16; slot++) {
+    if (slot % 4 === 0) continue
+    if (ctx.rng() < restChance) restedSlots.add(slot)
+  }
+  const filtered = ordered.filter(event => !restedSlots.has(mod(event.absSlot, 16)))
+
+  for (let i = 0; i < filtered.length; i++) {
+    const event = filtered[i]
+    const next = filtered[i + 1]
     const gap = Math.max(1, (next?.absSlot ?? totalSlots) - event.absSlot)
     const bar = Math.floor(event.absSlot / 16)
     const slot = mod(event.absSlot, 16)
+    const articulation = pickArticulation(ctx.rng)
     notes.push({
       pitch: midiToNote(degreeToMidi(ctx, event.degree)),
-      duration: durationFromGap(gap, ctx.performerFamily),
+      duration: durationFromGap(gap, ctx.performerFamily, articulation),
       velocity: event.velocity,
       time: swungTime(bar, slot, ctx.swing),
     })
@@ -350,13 +393,19 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
   const chordDegrees = chordDegreesFor(ctx)
   const preferredDegrees = preferredDegreesFor(ctx, chordDegrees)
   const idea = pitchIdeaFor(ctx, chordDegrees, preferredDegrees)
+  // COHESION — the lead phrases FROM the song cell rather than from a private
+  // `melody:<section>` motif that no other player could hear. The cell's slots
+  // are the idea's landing points, so the melody's own motif is seeded with them
+  // as anchors: it is free to embellish around them (that is what a soloist
+  // does), but it starts where the band is.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
   const motif = getSectionMotif(
     `melody:${ctx.sectionName}:${ctx.subGenre}`,
     ctx.rng,
     behavior === 'lead' ? Math.min(0.9, Math.max(0.55, ctx.density))
       : behavior === 'respond' ? Math.min(0.65, Math.max(0.35, ctx.density))
       : Math.min(0.25, ctx.density),
-    [0],
+    cell.accents,
   )
   const baseSlots = capSlots(motif.slots, behavior, kind)
   const events: RawMelodyEvent[] = []

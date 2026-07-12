@@ -22,6 +22,7 @@ import { orgLog } from '../../lib/perf/organismLog'
 import type { InstrumentPerformerId } from '../performers'
 import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
+import { planPreDropMoment, planDropEntryBoost } from './freeplay/ArrangementMoments'
 import { planAnswer, planInstrumentalAnswer, melodyIsQuiet, type DuetCue } from '../conductor/duet'
 import type { PerformerState } from '../audio/types'
 import { loadRealInstruments } from '../instruments/realInstruments'
@@ -109,7 +110,16 @@ export class GeneratorOrchestrator {
   private drumFreeplay = true
   private currentSectionName = 'intro'
   private sectionDensityLevel = 0.7
-  private freeplayDrumCounter = 0
+
+  // Groove lock (2026-07-11 fire-beats) — when true (default), the core groove
+  // COMMITS and LOOPS within a section instead of re-rolling a fresh variation
+  // every mutation tick. Re-rolling was the "never a groove / mess": the ear
+  // never locked before the pattern swapped. This is the minimum-freedom end of
+  // the "improvisation-freedom" control in the playable-instrument spec.
+  // Section changes still bring new material. Unlock for constant variation.
+  private grooveLock = true
+  setGrooveLock(on: boolean): void { this.grooveLock = on }
+  getGrooveLock(): boolean { return this.grooveLock }
 
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = true
@@ -130,8 +140,21 @@ export class GeneratorOrchestrator {
   // Total cycle: 32 bars, then repeats.
 
   private get arrangementTotalBars(): number { return getProducerArrangementTotalBars() }
-  // Song Mode switch — OFF by default (switches-not-modes design): the
-  // Organism is a steady beat machine; sections/builds/drops are opt-in.
+  // Song Mode — turned ON in start() (2026-07-11, "lock the loop").
+  //
+  // It used to be off: the Organism was "a steady beat machine; sections are
+  // opt-in." That pairing is no longer coherent. The rhythm section is now a
+  // LOCKED loop seeded per section, so with the arrangement off you get the same
+  // 4 bars forever — and nobody wants to rap over one loop for three minutes.
+  // The arrangement is what makes it a song rather than a metronome: it is the
+  // ONLY thing that changes the beat now, and it is where change belongs.
+  //
+  // This field MUST initialise to false and be switched on via
+  // setArrangementEnabled(true) in start(). The MusicalDirector keeps its OWN
+  // arrangement flag, and only the setter forwards to it — and the setter
+  // early-returns when the value already matches. So defaulting this to `true`
+  // silently leaves the director in jam mode forever (section stays 'none' and
+  // no arrangement ever runs). Verified live via window.__orgDebug().
   private arrangementEnabled: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
@@ -147,22 +170,22 @@ export class GeneratorOrchestrator {
   // ── Progressive Intro ─────────────────────────────────────────────
   // Musician-style instrument stacking: instead of every generator entering
   // at bar 1, they layer in over the first 6 bars so the listener hears the
-  // "idea" first (melody solo), then harmony, then bass, then drums.
+  // "idea" first (melody + keys/pads), then harmony, then bass, then drums.
   // Only applies when arrangementEnabled === false (jam mode).
   private progressiveIntroEnabled: boolean = true
   private introStartBar: number = -1
 
   private static readonly INTRO_STACK: ReadonlyArray<{
-    atBar: number; drum: number; bass: number; chord: number; melody: number
+    atBar: number; drum: number; bass: number; chord: number; melody: number; texture: number
   }> = [
-    // Bar 0-1: melody + chords play alone — the idea, the seed
-    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0 },
+    // Bar 0-1: melody + chords + pad bed play alone — the idea, the seed
+    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0, texture: 0.45 },
     // Bar 2-3: bass enters — the foundation grounds the melody
-    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0 },
+    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0, texture: 0.45 },
     // Bar 4-5: drums enter softly — the pulse begins
-    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0 },
+    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
     // Bar 6+: full groove — everything playing and building
-    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0 },
+    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
   ]
 
   // AI Director overrides — keyed by section name, applied next time that section starts
@@ -328,8 +351,7 @@ export class GeneratorOrchestrator {
 
       if (!planStyleRebuiltDrums && !this.melodyOnlyMode && this.arrangementEnabled && this.drumEnabled) {
         const state = this.director.getState()
-        const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
-        this.drum.loadGeneratedPattern(pattern.hits, true)
+        this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
       }
     })
   }
@@ -366,10 +388,11 @@ export class GeneratorOrchestrator {
         this.lastPhysics = snap
       }
 
-      // Notify director FIRST so it sets sub-genre + groove before generators rebuild
+      // Notify director FIRST — it picks sub-genre, fires onSubGenreChange which
+      // rebuilds drums via buildDrumHits (freeplay) and auto-shares kick anchors
+      // + pocket with bass/chords/melody.  drum.onStateTransition only handles
+      // Dormant teardown now; pattern building is fully owned by the orchestrator.
       this.director.onStateTransition(event.to, snap)
-
-      // Drums first (most audible if late)
       this.drum.onStateTransition(event.to, snap)
       this.texture.onStateTransition(event.to, snap)
       // Stagger bass/melody/chord so Part rebuilds don't collide on the audio thread
@@ -462,10 +485,19 @@ export class GeneratorOrchestrator {
     const freeplaySeed = rerollSessionSalt()
     clearMotifs()
     clearCompCounters()
-    this.freeplayDrumCounter = 0
-    this.chord.resetFreeplayCounter()
-    this.bass.resetFreeplayCounter()
+    // Only the melody still counts phrases — it's the soloist, and it develops
+    // (statement / answer / variation / climb). Drums, bass and chords no longer
+    // hold a rebuild counter at all: their seed is a pure function of the section
+    // so the rhythm section is a LOCKED, byte-identical loop. See BassGenerator.
     this.melody.resetFreeplayCounter()
+
+    // Song Mode on. This MUST go through the setter — it is what forwards the
+    // flag to the MusicalDirector, which owns the section clock. Without it the
+    // director stays in jam mode, `section` reads 'none' forever, and no
+    // arrangement runs at all (the locked loop would then repeat for the whole
+    // take). See the field declaration for why the initialiser can't just be true.
+    this.setArrangementEnabled(true)
+
     console.info(
       `[Organism] freeplay seed ${freeplaySeed} — run setFreeplaySeed(${freeplaySeed}) in the console then restart to replay this beat; setFreeplaySeed(null) returns to random`,
     )
@@ -616,27 +648,34 @@ export class GeneratorOrchestrator {
   regenerateAll(): void {
     if (!this.lastPhysics) return
     const physics = this.lastPhysics
-    const state = this.lastOrganism?.current ?? OState.Breathing
+    const orgState = this.lastOrganism?.current ?? OState.Breathing
     const live = Tone.getTransport().state === 'started'
 
+    // Drums use buildDrumHits (freeplay) so the pattern source is consistent
+    // with start() and onSubGenreChange.  buildDrumHits auto-shares kick
+    // anchors + pocket with bass/chords/melody.
+    const dirState = this.director.getState()
+    this.drum.loadGeneratedPattern(
+      this.buildDrumHits(dirState.subGenre as HipHopSubGenre, dirState.drums.variantIndex),
+      true,
+    )
+
     if (live) {
-      this.drum.onStateTransition(state, physics)
-      globalThis.setTimeout(() => this.bass.onStateTransition(state, physics), 80)
-      globalThis.setTimeout(() => this.melody.onStateTransition(state, physics), 160)
-      globalThis.setTimeout(() => this.texture.onStateTransition(state, physics), 220)
+      globalThis.setTimeout(() => this.bass.onStateTransition(orgState, physics), 80)
+      globalThis.setTimeout(() => this.melody.onStateTransition(orgState, physics), 160)
+      globalThis.setTimeout(() => this.texture.onStateTransition(orgState, physics), 220)
       globalThis.setTimeout(() => {
         this.syncLeadBusyToChords()
-        this.chord.onStateTransition(state, physics)
+        this.chord.onStateTransition(orgState, physics)
       }, 280)
       return
     }
 
-    this.drum.onStateTransition(state, physics)
-    this.bass.onStateTransition(state, physics)
-    this.melody.onStateTransition(state, physics)
-    this.texture.onStateTransition(state, physics)
+    this.bass.onStateTransition(orgState, physics)
+    this.melody.onStateTransition(orgState, physics)
+    this.texture.onStateTransition(orgState, physics)
     this.syncLeadBusyToChords()
-    this.chord.onStateTransition(state, physics)
+    this.chord.onStateTransition(orgState, physics)
   }
 
   /** Band-awareness relay: the melody's occupied slots → the chords, so the
@@ -967,7 +1006,10 @@ export class GeneratorOrchestrator {
     if (this.drumEnabled === enabled) return
     this.drumEnabled = enabled
     this.drum.setEnabled(enabled)
-    if (enabled) this.replayStateToGenerator(this.drum)
+    if (enabled) {
+      const state = this.director.getState()
+      this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
+    }
     this.updateSoloStates()
   }
 
@@ -1099,6 +1141,7 @@ export class GeneratorOrchestrator {
       this.bass.applyArrangementMultiplier(1.0)
       this.chord.applyArrangementMultiplier(1.0)
       this.melody.applyArrangementMultiplier(1.0)
+      this.texture.applyArrangementMultiplier(this.textureEnabled ? 1.0 : 0)
     }
   }
 
@@ -1361,6 +1404,12 @@ export class GeneratorOrchestrator {
     if (now - this.lastFrameTime < GeneratorOrchestrator.MIN_FRAME_INTERVAL_MS) return
     this.lastFrameTime = now
 
+    // The old auto-pilot switched the ARRANGEMENT OFF as soon as it heard a
+    // voice, handing the show back to the mic. That is now exactly backwards:
+    // with a locked loop, "arrangement off" means the same 4 bars for as long as
+    // you rap — which is the one thing nobody wants. You need the song form MOST
+    // while performing over it. The arrangement now simply stays on.
+
     // ── Musical Director update ──────────────────────────────────
     // The director reads physics + organism state and updates the
     // unified MusicalState. If it returns true, patterns need rebuilding.
@@ -1436,14 +1485,12 @@ export class GeneratorOrchestrator {
     // near-straight at 0.20 while everything else dragged at 0.38, which is
     // why the generators sounded like they weren't playing together.)
 
-    // Lock transport BPM to subGenre's range. SUBGENRE_BPM was defined but
-    // never called, leaving Tone.js at its default 120 BPM (house tempo).
-    // Skip if we are forcing subgenre explicitly or in loop pack mode.
-    if (!this.isForcingSubGenre && !this._loopPack) {
-      const [bpmMin, bpmMax] = SUBGENRE_BPM[subGenre] ?? [85, 100]
-      const targetBpm = Math.round(bpmMin + Math.random() * (bpmMax - bpmMin))
-      this.setBpm(targetBpm)
-    }
+    // BPM is NOT changed on sub-genre switch (2026-07-11 fire-beats).
+    // The mode classifier drives sub-genre changes from physics, and each
+    // sub-genre has a different BPM range — so auto-BPM was jumping 80+ BPM
+    // in seconds (drill 140→trap 160→phonk 145→drill 140). BPM is set once
+    // at start() or by explicit preset/user action and stays stable.
+    // Sub-genre affects STYLE only: swing, pattern vocabulary, scale, kit.
 
     const swing = swingForSubGenre(subGenre)
     setBassSwingFromSubGenre(subGenre)
@@ -1483,6 +1530,13 @@ export class GeneratorOrchestrator {
 
     const state = this.director.getState()
     if (this.drumFreeplay) {
+      // Groove lock: commit the core groove and LET IT LOOP. Regenerating a
+      // fresh pattern every mutation tick was the "never a groove / mess" — the
+      // committed 4-bar loop never got to repeat long enough to lock. When
+      // locked (default), skip the re-roll; the loop keeps playing and section
+      // changes still evolve it. Unlock (setGrooveLock(false)) for the old
+      // constant-variation behaviour.
+      if (this.grooveLock) return
       // Freeplay regenerates a fresh variation each mutation tick — that IS
       // the mutation (same skeleton + motif, new hats/ghosts/fill roll).
       this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex))
@@ -1522,7 +1576,12 @@ export class GeneratorOrchestrator {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayDrumCounter++),
+        // LOCKED LOOP (2026-07-11) — see BassGenerator. buildDrumHits() is called
+        // from six places (sub-genre change, regenerateAll, re-enable, mutation
+        // tick...). With a counter in the seed, every one of those re-rolled the
+        // pocket — which quietly defeated grooveLock. Now the pattern is a pure
+        // function of the section, so the beat is the SAME beat all section long.
+        rng: mulberry32(seed + getSessionSalt()),
       })
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
@@ -1719,7 +1778,7 @@ export class GeneratorOrchestrator {
    * enters. Skipped in melodyOnlyMode (freestyle) where flourishes would compete
    * with vocal performance, and skipped if the drum kit is soloed off.
    */
-  private fireSectionFx(sectionName: string, _bpm: number): void {
+  private fireSectionFx(sectionName: string, _bpm: number, impactVelocity?: number): void {
     if (this.melodyOnlyMode) return
     if (!this.arrangementEnabled) return
 
@@ -1735,7 +1794,7 @@ export class GeneratorOrchestrator {
         // simultaneously with the first kick of the drop.
         if (this.drumEnabled) {
           const impactTime = Tone.now() + 0.01
-          const vel = sectionName === 'drop' ? 0.98 : 0.88
+          const vel = impactVelocity ?? (sectionName === 'drop' ? 0.98 : 0.88)
           this.drum.triggerImpact(impactTime, vel)
         }
         break
@@ -1776,6 +1835,7 @@ export class GeneratorOrchestrator {
         this.bass.applyArrangementMultiplier(stage.bass)
         this.chord.applyArrangementMultiplier(stage.chord)
         this.melody.applyArrangementMultiplier(stage.melody)
+        this.texture.applyArrangementMultiplier(this.textureEnabled ? stage.texture : 0)
       }
       return
     }
@@ -1805,41 +1865,54 @@ export class GeneratorOrchestrator {
     // every section end dropped the bass out every few seconds once sections
     // are short, which read as "jumping mid-play." Gating it to drops keeps
     // the dramatic pre-drop snare break and lets ordinary section changes
-    // cross-fade smoothly at the bar line instead.
+    // cross-fade smoothly at the bar line instead. The decision logic lives
+    // in the pure planner (ArrangementMoments.ts) so it stays unit-testable;
+    // this block only executes the returned plan.
     if (sectionBar === section.bars - 1 && this.lastScheduledBreakBar !== barNumber) {
-      this.lastScheduledBreakBar = barNumber
       const nextBarNumber = barNumber + 1
-      const nextSlotInfo = getProducerArrangementSlot(nextBarNumber)
-      const nextSection = nextSlotInfo.slot
+      const nextSection = getProducerArrangementSlot(nextBarNumber).slot
 
-      const enteringDrop = nextSection.energy >= 0.9 && nextSection.energy > section.energy + 0.05
-      if (enteringDrop) {
-      const breakStartId = transport.scheduleOnce((time) => {
-        // Bass drops out briefly — the classic hip-hop "snare break" moment.
-        // Melody and chords do NOT mute: wiping them caused a jarring complete
-        // dropout that interrupted the listener's sense of a continuous melody.
-        // The hi-hat roll fill covers the transition; the melodic instruments
-        // cross-fade into the next section's levels at the bar boundary instead.
-        this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
-        this.bass.output.gain.linearRampToValueAtTime(0, time + 0.02)
-        this.bass.applyArrangementMultiplier(0)
+      const moment = planPreDropMoment({
+        current: section,
+        next: nextSection,
+        sectionBar,
+        barNumber,
+        cycleBar,
+        arrangementEnabled: this.arrangementEnabled,
+        melodyOnlyMode: this.melodyOnlyMode,
+        drumEnabled: this.drumEnabled,
+      })
 
-        // Trigger hi-hat roll fill
-        this.drum.triggerBarEndBreakFill(time)
-      }, `${barNumber}:2:0`)
+      if (moment.shouldFire && moment.breakStartTime && moment.breakEndTime) {
+        this.lastScheduledBreakBar = barNumber
+        const breakStartId = transport.scheduleOnce((time) => {
+          // Bass drops out briefly — the classic hip-hop "snare break" moment.
+          // Melody and chords do NOT hard-mute: wiping them caused a jarring
+          // complete dropout that read as playback failure. On build-like
+          // sections the planner tucks them slightly (negative space makes the
+          // drop feel bigger); otherwise they hold at current-section levels
+          // and cross-fade into the next section at the bar boundary.
+          this.bass.output.gain.setValueAtTime(this.bass.output.gain.value, time)
+          this.bass.output.gain.linearRampToValueAtTime(moment.bassDuck, time + 0.02)
+          this.bass.applyArrangementMultiplier(moment.bassDuck)
+          this.melody.applyArrangementMultiplier(moment.melodyDuck)
+          this.chord.applyArrangementMultiplier(moment.chordDuck)
 
-      const breakEndId = transport.scheduleOnce((time) => {
-        // Clear the hi-hat roll fill
-        this.drum.clearBarEndBreakFill()
+          if (moment.triggerFill) this.drum.triggerBarEndBreakFill(time)
+        }, moment.breakStartTime)
 
-        // Restore multipliers to next section's values (all instruments)
-        this.bass.applyArrangementMultiplier(nextSection.bass)
-        this.melody.applyArrangementMultiplier(nextSection.melody)
-        this.chord.applyArrangementMultiplier(nextSection.chord)
-        this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
-      }, `${nextBarNumber}:0:0`)
+        const breakEndId = transport.scheduleOnce(() => {
+          // Clear the hi-hat roll fill
+          this.drum.clearBarEndBreakFill()
 
-      this.scheduledBreakEventIds.push(breakStartId, breakEndId)
+          // Restore multipliers to next section's values (all instruments)
+          this.bass.applyArrangementMultiplier(nextSection.bass)
+          this.melody.applyArrangementMultiplier(nextSection.melody)
+          this.chord.applyArrangementMultiplier(nextSection.chord)
+          this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
+        }, moment.breakEndTime)
+
+        this.scheduledBreakEventIds.push(breakStartId, breakEndId)
       }
     }
 
@@ -1920,11 +1993,11 @@ export class GeneratorOrchestrator {
     this.chord.applyArrangementMultiplier(section.chord)
 
     // Composer roles: who plays / how forward this section. Absent orchestration
-    // (old plans / jam mode) defaults every instrument to 'support' so behavior
-    // matches today minus the full-time-everyone problem.
+    // (old plans / jam mode) should still behave like a hip-hop beat machine:
+    // drums and bass lead, melodic parts support.
     const orch = section.orchestration
-    this.drum.setRole(orch?.drums ?? 'support')
-    this.bass.setRole(orch?.bass ?? 'support')
+    this.drum.setRole(orch?.drums ?? 'lead')
+    this.bass.setRole(orch?.bass ?? 'lead')
     this.melody.setRole(orch?.melody ?? 'support')
     this.chord.setRole(orch?.chord ?? 'support')
     this.texture.setRole(orch?.texture ?? 'support')
@@ -1998,12 +2071,31 @@ export class GeneratorOrchestrator {
           this.chord.onSectionChange(section.name)
         }
       }, 160)
+      // Texture (the pad BED) shapes how it sits per section — staggered after
+      // chord so the three Part-affecting rebuilds don't collide on the thread.
+      setTimeout(() => this.texture.onSectionChange(section.name), 240)
 
       // ── Arrangement primitives ──────────────────────────────────
       // Producer-style flourishes that turn the loop into a song.
       // Routed through the existing drum/texture channels so they inherit
       // the channel-strip EQ + compressor + the new MasterBus chain.
-      this.fireSectionFx(section.name, transport.bpm.value)
+      //
+      // Drop-entry boost: one bar of extra kick punch + hat excitement so the
+      // drop lands harder than the pre-drop break that set it up. Multipliers
+      // stack on top of the user/base values (never replace them) and settle
+      // back after `settleBars`. The per-bar hat-arc recompute above naturally
+      // resets hats next bar; the scheduled settle covers the kick.
+      const boost = planDropEntryBoost(section, sectionBar)
+      if (boost.shouldBoost && this.drumEnabled) {
+        this.drum.setKickVelocityMultiplier(Math.min(1.5, this.kickVelocityMultiplier * boost.kickMultiplier))
+        this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier * boost.hatMultiplier)
+        const settleId = transport.scheduleOnce(() => {
+          this.drum.setKickVelocityMultiplier(this.kickVelocityMultiplier)
+          this.drum.setHatDensityMultiplier(this.hatDensityMultiplier * this.hatArcMultiplier)
+        }, `${barNumber + boost.settleBars}:0:0`)
+        this.scheduledBreakEventIds.push(settleId)
+      }
+      this.fireSectionFx(section.name, transport.bpm.value, boost.shouldBoost ? boost.impactVelocity : undefined)
 
       window.dispatchEvent(new CustomEvent('organism:section-change', {
         detail: {

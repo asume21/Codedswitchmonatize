@@ -91,16 +91,28 @@ describe('BassImproviser', () => {
     }
   })
 
-  it('trap freeplay leans into a moving 808 line instead of only root hits', () => {
-    const notes = buildFreeplayBassNotes(ctx({
-      subGenre: 'trap',
-      density: 0.7,
-      rng: mulberry32(7),
-    }))
-    const noteToMidi = new Map<string, number>()
-    for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
-    const pitchClasses = new Set(notes.map((n) => noteToMidi.get(n.pitch)! % 12))
-    expect(pitchClasses.size).toBeGreaterThanOrEqual(3)
+  it('is a bassLINE, not a melody — at most 2 pitch classes per phrase', () => {
+    // Fire-beats (2026-07-11): a hip-hop bassline is 2-3 notes that SING and
+    // repeat. The previous "moving 808 line" walked third/seventh/fifth and
+    // read as a busy tech-house bass. Simple and repetitive is the target.
+    for (const sectionName of ['verse', 'hook', 'drop', 'bridge']) {
+      const notes = buildFreeplayBassNotes(ctx({ subGenre: 'trap', density: 0.7, sectionName, rng: mulberry32(7) }))
+      const noteToMidi = new Map<string, number>()
+      for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
+      const pitchClasses = new Set(notes.map((n) => noteToMidi.get(n.pitch)! % 12))
+      expect(pitchClasses.size, sectionName).toBeLessThanOrEqual(2)
+    }
+  })
+
+  it('never plays more than 3 onsets in a bar — the bass leaves room', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      clearMotifs()
+      const notes = buildFreeplayBassNotes(ctx({ rng: mulberry32(seed), density: 1.0, sectionName: 'hook', subGenre: 'trap' }))
+      for (let bar = 0; bar < 4; bar++) {
+        const inBar = notes.filter(n => n.time.startsWith(`${bar}:`))
+        expect(inBar.length, `bar ${bar}, seed ${seed}`).toBeLessThanOrEqual(3)
+      }
+    }
   })
 
   it('intro stays sparser than hook/drop sections', () => {
@@ -109,18 +121,90 @@ describe('BassImproviser', () => {
     expect(drop.length).toBeGreaterThan(intro.length)
   })
 
-  it('drop uses a longer bass line instead of only short hits', () => {
+  it('drop sustains the 808 rather than firing short hits', () => {
     const drop = buildFreeplayBassNotes(ctx({ sectionName: 'drop', subGenre: 'trap', density: 0.8 }))
-    expect(drop.some((n) => n.duration === '2n' || n.duration === '2n.')).toBe(true)
-    expect(new Set(drop.map((n) => n.pitch)).size).toBeGreaterThan(3)
+    // Every onset RINGS — a drop 808 holds, it does not stutter. The exact value
+    // depends on the song cell's spacing (the bass lands on the shared idea, so
+    // the gaps are no longer a fixed [0, 8]); what matters is that nothing is
+    // shorter than an eighth.
+    expect(drop.every((n) => n.duration === '2n' || n.duration === '4n' || n.duration === '8n')).toBe(true)
+    expect(drop.some((n) => n.duration === '2n' || n.duration === '4n')).toBe(true)
+    // The drop's weight is register, not note count.
+    expect(new Set(drop.map((n) => n.pitch)).size).toBeLessThanOrEqual(2)
   })
 
-  it('starts on the root and ends on the fifth', () => {
+  it('starts on the root', () => {
     const notes = buildFreeplayBassNotes(ctx())
     const noteToMidi = new Map<string, number>()
     for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
     expect(noteToMidi.get(notes[0].pitch)! % 12).toBe(0)
-    expect(noteToMidi.get(notes[notes.length - 1].pitch)! % 12).toBe(7)
+  })
+
+  it('the phrase end is decided by HARMONY, not by a dice roll', () => {
+    // The old design rolled the phrase ending (rest / turnaround / plain) from
+    // the rng, so the same chord could end three different ways for no musical
+    // reason. Now the ending is a consequence of what the harmony does: it
+    // rests when the chord holds, and walks when the chord moves — identical
+    // across every seed.
+    const endingFor = (seed: number, nextRootMidi?: number) =>
+      buildFreeplayBassNotes(ctx({ rng: mulberry32(seed), nextRootMidi }))
+        .filter(n => n.time.startsWith('3:'))
+        .map(n => n.time)
+
+    for (let seed = 1; seed < 25; seed++) {
+      clearMotifs()
+      // Chord holds → the turnaround breathes (nothing on the final beat).
+      expect(endingFor(seed, 36), `static, seed ${seed}`).toEqual(endingFor(1, 36))
+      // Chord moves → every seed walks the same four steps into the new root.
+      expect(endingFor(seed, 43), `moving, seed ${seed}`).toEqual(endingFor(1, 43))
+    }
+  })
+
+  // ── Hits vs line: driven by chord MOVEMENT ────────────────────────
+  // A bassline exists to connect chord changes. Harmony holding → hits.
+  // Harmony moving → walk into the next root.
+
+  const midiOf = (pitch: string) => {
+    const noteToMidi = new Map<string, number>()
+    for (let m = 0; m < 90; m++) if (!noteToMidi.has(midiToNote(m))) noteToMidi.set(midiToNote(m), m)
+    return noteToMidi.get(pitch)!
+  }
+  const finalBar = (notes: { time: string }[]) => notes.filter(n => n.time.startsWith('3:'))
+
+  it('harmony HOLDING (next root == root) → the bass hits, it does not walk', () => {
+    const notes = buildFreeplayBassNotes(ctx({ sectionName: 'verse', nextRootMidi: 36 }))
+    // verse hit pattern is [0, 8]; the final bar keeps both and adds no walk.
+    expect(finalBar(notes).length).toBeLessThanOrEqual(2)
+    const pitchClasses = new Set(notes.map(n => midiOf(n.pitch) % 12))
+    expect(pitchClasses.size).toBe(1)   // root only — nothing to connect
+  })
+
+  it('harmony MOVING → the final bar walks into the next root', () => {
+    // C2 (36) → Ab (44 in bass register): descending... 44 > 36, so ascending.
+    const notes = buildFreeplayBassNotes(ctx({ subGenre: 'boom-bap', nextRootMidi: 44 }))
+    const last = finalBar(notes)
+    expect(last.length).toBe(4)                       // root, fifth, third, approach
+    // The walk lands on the chromatic leading tone into the new root.
+    expect(midiOf(last[last.length - 1].pitch)).toBe(43)   // 44 - 1, approached from below
+  })
+
+  it('trap MOVING → the 808 holds, then slides onto the next root', () => {
+    const notes = buildFreeplayBassNotes(ctx({ subGenre: 'trap', nextRootMidi: 41 }))
+    const last = finalBar(notes)
+    expect(last.length).toBe(2)
+    expect(last[0].duration).toBe('2n')               // the 808 holds
+    expect(midiOf(last[1].pitch)).toBe(41)            // glides ONTO the next root
+  })
+
+  it('the walk uses the chord\'s real third — major chord, no minor clash', () => {
+    const notes = buildFreeplayBassNotes(ctx({
+      subGenre: 'boom-bap',
+      chordIntervals: [0, 4, 7, 11],   // C major 7
+      nextRootMidi: 41,
+    }))
+    for (const n of finalBar(notes)) {
+      expect(midiOf(n.pitch) % 12).not.toBe(3)   // minor third forbidden over C major
+    }
   })
 
   it('is deterministic for the same seed', () => {

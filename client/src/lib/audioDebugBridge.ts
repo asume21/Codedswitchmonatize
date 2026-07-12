@@ -178,8 +178,28 @@ async function resolveWebEarApiKey(): Promise<string | null> {
   }
 }
 
+// Give up after this many consecutive failures. A 401 means the key is INVALID —
+// retrying it can never succeed, and the old loop retried forever. Each cycle
+// also cleared resolvedApiKey, so every attempt fired a SECOND request to
+// re-resolve the key. The result was a request storm against /api/webear/connect
+// that hammered the main thread and starved the audio scheduler — heard as
+// crackling and dropouts. A dead relay must fail quietly; it is a debug tool and
+// must never cost the user their audio.
+const MAX_RECONNECT_ATTEMPTS = 5
+let consecutiveFailures = 0
+
 function scheduleReconnect() {
   if (reconnectTimer !== null) return
+
+  if (consecutiveFailures >= MAX_RECONNECT_ATTEMPTS) {
+    if (status.state !== 'no-auth') {
+      setWebEarStatus('no-auth', 'WebEar relay unavailable (bad or missing API key) — bridge stopped')
+      log(`Giving up after ${consecutiveFailures} failed attempts. Call window.__audioDebug.reconnect() to retry.`)
+    }
+    return
+  }
+  consecutiveFailures++
+
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null
     void connectSSE()
@@ -200,6 +220,7 @@ function requestReconnect(reason: string): void {
   isConnected = false
   resolvedApiKey = null
   reconnectDelayMs = 1000
+  consecutiveFailures = 0   // an EXPLICIT reconnect is the user asking again — grant a fresh budget
   void connectSSE()
 }
 
@@ -332,6 +353,7 @@ async function connectSSE() {
   sseSource.addEventListener('connected', () => {
     isConnected = true
     reconnectDelayMs = 3000
+    consecutiveFailures = 0   // a real connection clears the give-up budget
     setWebEarStatus('connected', 'WebEar is connected to this browser audio output')
     log('Connected to webear relay ✓')
   })

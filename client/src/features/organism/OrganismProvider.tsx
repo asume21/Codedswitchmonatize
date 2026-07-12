@@ -29,6 +29,14 @@ import { OrganismMode, type PhysicsState } from '../../organism/physics/types'
 import type { HipHopSubGenre } from '../../organism/state/MusicalState'
 import type { OrganismState }   from '../../organism/state/types'
 import type { MixMeterReading } from '../../organism/mix/types'
+import { DEFAULT_MIX_CONFIG } from '../../organism/mix/types'
+
+// A fader at 1.0 must land on the channel's CONFIGURED gain. Derive it from the
+// config — a retyped constant here silently overrides DEFAULT_MIX_CONFIG at
+// runtime (setChannelGainDb writes the Tone node, not the config object), which
+// is how the chords ended up ~22 dB below the band with nobody able to see it.
+const MELODY_BASE_DB = DEFAULT_MIX_CONFIG.channels.melody.gainDb
+const CHORD_BASE_DB  = DEFAULT_MIX_CONFIG.channels.chord.gainDb
 import type { SessionDNA }      from '../../organism/session/types'
 import type { TranscriptionState } from './FreestyleTranscriber'
 import { LiveFreestyleTranscriber } from './LiveFreestyleTranscriber'
@@ -307,6 +315,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [bassVolume,       setBassVolumeState]  = useState(1.25)
   const [melodyVolume,     setMelodyVolumeState]= useState(1.55)
   const [chordVolume,      setChordVolumeState] = useState(1.0)
+  const [textureVolume,    setTextureVolumeState] = useState(1.0)
+  const textureVolumeRef = useRef(1.0)
   const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
   const [textureEnabled,   setTextureEnabledState] = useState(true)
   const textureEnabledRef = useRef(true)
@@ -495,6 +505,24 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     mixRef.current       = mix
     captureRef.current   = capture
 
+    // Dev-only: expose channel isolation for the fire-beats capture bench and
+    // console tuning. Mirrors window.setFreeplaySeed (freeplay/utils.ts). Lets
+    // `window.soloChannel('drum')` record one role at a time on the master tap.
+    if (import.meta.env.DEV) {
+      const w = window as unknown as Record<string, unknown>
+      w.soloChannel   = (role: string | null) => mix.soloChannel(role as never)
+      w.__organismMix = mix
+      // Fire-beats A/B: grooveLock(true) commits+loops the core groove;
+      // grooveLock(false) restores the old constant re-roll. Toggle while
+      // playing to hear the difference.
+      w.grooveLock = (on: boolean) => orchestr.setGrooveLock(on)
+      // Level tuning MUST be done with the arrangement off, or every capture
+      // lands in a different SECTION with different per-part gains and the
+      // measurement is meaningless (this produced a "+11 dB" melody reading
+      // after its gain was LOWERED). The bench pins this false.
+      w.songMode = (on: boolean) => orchestr.setArrangementEnabled(on)
+    }
+
     // 3. Wire in correct order:
     //    input → physics → state machine
     //    physics + state machine → generators
@@ -506,8 +534,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // The audio/physics engine receives every frame, but React does not. The
     // command center subscribes to this context, so frequent updates make hover
     // states blink and steal time from the audio thread.
+    //
+    // DevTools profiling (2026-07-09) traced the crackle/cutout to THIS update:
+    // each one re-renders the ~2.6k-line OrganismCommandCenter tree at ~120ms.
+    // At 250ms that's ~4×/sec × 120ms ≈ half the main thread, which starves the
+    // Tone.js note scheduler → channels drop to silence → crackle+cutout (worst
+    // when the tab is focused; unmounting the tree by leaving the tab clears it).
+    // 500ms halves the re-render frequency for immediate relief; the real fix is
+    // memoizing the heavy viz subtrees / moving synthesis to an AudioWorklet.
+    // Re-applied 2026-07-11 after revert 7a2767cd — the user's foreground-crackle/
+    // background-clean repro (no DevTools throttle) confirms the starvation is real.
     let lastPhysicsUIUpdate = 0
-    const ORGANISM_UI_INTERVAL_MS = 250
+    const ORGANISM_UI_INTERVAL_MS = 500
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 
@@ -763,6 +801,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       stemLayerRef.current = null
       controllerRef.current = null
       orchestr.dispose()   // dispose() frees all generator audio nodes; reset() only stops them
+      if (import.meta.env.DEV) {
+        const w = window as unknown as Record<string, unknown>
+        delete w.soloChannel
+        delete w.__organismMix
+        delete w.grooveLock
+      }
       mix.dispose()
       capture.reset()
       transcriber.reset()
@@ -3520,6 +3564,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     bassVolume,
     melodyVolume,
     chordVolume,
+    textureVolume,
     melodyFocusEnabled,
     setHatDensity: (v: number) => {
       setHatDensityState(v)
@@ -3544,17 +3589,25 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setMelodyVolumeState(v)
       // Drive the melody CHANNEL gain — it governs BOTH the synth melody and the
       // real-instrument loop player, which now route through this channel. The
-      // +8 dB offset preserves the channel's configured presence level at v=1
-      // (matches DEFAULT_MIX_CONFIG.channels.melody.gainDb). Replaces the old
-      // generator-only volume multiplier, which never touched the loop player —
-      // that mismatch was why the melody fader appeared dead.
-      mixRef.current?.setChannelGainDb('melody', v <= 0 ? -60 : 8 + 20 * Math.log10(v))
+      // The offset is the channel's CONFIGURED level, so a fader at v=1 lands
+      // exactly on DEFAULT_MIX_CONFIG. It used to be hardcoded (+8) and had
+      // already drifted from the config (+3): setChannelGainDb writes the Tone
+      // node WITHOUT updating the config object, so the hardcoded base silently
+      // won while the config still *reported* its own value — every probe agreed
+      // with the config while the audio disagreed. Read the config; never retype it.
+      mixRef.current?.setChannelGainDb('melody', v <= 0 ? -60 : MELODY_BASE_DB + 20 * Math.log10(v))
       orchestrRef.current?.setMelodyEnabled(v > 0)
     },
     setChordVolume: (v: number) => {
       setChordVolumeState(v)
-      mixRef.current?.setChannelGainDb('chord', 3 + 20 * Math.log10(Math.max(0.001, v)))
+      mixRef.current?.setChannelGainDb('chord', CHORD_BASE_DB + 20 * Math.log10(Math.max(0.001, v)))
       orchestrRef.current?.setChordEnabled(v > 0)
+    },
+    setTextureVolume: (v: number) => {
+      setTextureVolumeState(v)
+      textureVolumeRef.current = v
+      orchestrRef.current?.setTextureVolumeMultiplier(v)
+      orchestrRef.current?.setTextureEnabled(v > 0)
     },
     setMelodyFocusEnabled: (enabled: boolean) => {
       setMelodyFocusEnabledState(enabled)
@@ -3656,7 +3709,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsTotal,
     recordingBarsElapsed,
     latchMode, isPatternLocked,
-    hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
+    hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, textureVolume, melodyFocusEnabled, textureEnabled,
     reactToVoiceEnabled, songModeEnabled, loopsModeEnabled, isLoopsLoading,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,

@@ -57,8 +57,8 @@ describe('slotFromPlanSection', () => {
     expect(high.chord).toBeLessThan(low.chord)
   })
 
-  it('keeps texture off by default (gated separately by the orchestrator)', () => {
-    expect(slotFromPlanSection(section()).texture).toBe(0)
+  it('keeps texture audible by default so generated pads reach the mix', () => {
+    expect(slotFromPlanSection(section()).texture).toBeGreaterThan(0)
   })
 
   it('never hard-drops a channel — audition mode reads silence as failure', () => {

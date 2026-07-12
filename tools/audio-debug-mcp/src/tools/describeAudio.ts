@@ -1,5 +1,31 @@
 import { z } from 'zod'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { writeFile, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { waitForCapture } from '../client.js'
+
+const execFileAsync = promisify(execFile)
+
+/** OpenAI's audio input only accepts wav/mp3; captures arrive as webm/opus.
+ *  Transcode via ffmpeg (system PATH) using temp files. */
+async function transcodeWebmToWav(webm: Buffer): Promise<Buffer> {
+  const stem = join(tmpdir(), `audio-debug-${randomUUID()}`)
+  const inPath = `${stem}.webm`
+  const outPath = `${stem}.wav`
+  try {
+    await writeFile(inPath, webm)
+    // 44.1kHz mono — this is music, not speech; keep full bandwidth so the
+    // model can judge hats, air, and artifacts like crackle.
+    await execFileAsync('ffmpeg', ['-y', '-i', inPath, '-ar', '44100', '-ac', '1', outPath])
+    return await readFile(outPath)
+  } finally {
+    await rm(inPath, { force: true }).catch(() => {})
+    await rm(outPath, { force: true }).catch(() => {})
+  }
+}
 
 export const describeAudioSchema = {
   capture_id: z.string().describe('The capture ID returned by capture_audio'),
@@ -44,22 +70,30 @@ export async function describeAudioHandler(args: { capture_id: string; question?
     args.question ? `\nSpecific question to answer: ${args.question}` : '',
   ].join('\n')
 
-  try {
-    if (geminiKey) {
+  // Try Gemini first, but a dead/rotated Gemini key must not take the whole
+  // feature down when a working OpenAI key is available — fall through.
+  const errors: string[] = []
+  if (geminiKey) {
+    try {
       return await describeWithGemini(buffer, basePrompt, geminiKey)
-    } else if (openaiKey) {
-      return await describeWithOpenAI(buffer, basePrompt, openaiKey)
+    } catch (err: unknown) {
+      errors.push(`Gemini: ${err instanceof Error ? err.message : String(err)}`)
     }
-  } catch (err: unknown) {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `AI description failed: ${err instanceof Error ? err.message : String(err)}`,
-      }],
+  }
+  if (openaiKey) {
+    try {
+      return await describeWithOpenAI(buffer, basePrompt, openaiKey)
+    } catch (err: unknown) {
+      errors.push(`OpenAI: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
-  return { content: [{ type: 'text' as const, text: 'No AI provider available.' }] }
+  return {
+    content: [{
+      type: 'text' as const,
+      text: `AI description failed for all providers:\n${errors.join('\n')}`,
+    }],
+  }
 }
 
 async function describeWithGemini(audioBuffer: Buffer, prompt: string, apiKey: string) {
@@ -103,18 +137,22 @@ async function describeWithGemini(audioBuffer: Buffer, prompt: string, apiKey: s
 }
 
 async function describeWithOpenAI(audioBuffer: Buffer, prompt: string, apiKey: string) {
-  // GPT-4o audio input — encode as base64 audio/webm
-  const base64 = audioBuffer.toString('base64')
+  // GPT audio input only accepts wav/mp3 — transcode the webm capture first.
+  const wav = await transcodeWebmToWav(audioBuffer)
+  const base64 = wav.toString('base64')
 
   const body = {
-    model: 'gpt-4o-audio-preview',
+    model: 'gpt-audio',
+    modalities: ['text'],
     messages: [{
       role:    'user',
       content: [
-        { type: 'text', text: prompt },
+        // The newer audio models are agent-tuned and sometimes answer with a
+        // fake tool-call JSON — demand plain prose explicitly.
+        { type: 'text', text: `${prompt}\n\nRespond in plain English prose only. Do not output JSON or tool calls.` },
         {
           type:       'input_audio',
-          input_audio: { data: base64, format: 'webm' },
+          input_audio: { data: base64, format: 'wav' },
         },
       ],
     }],

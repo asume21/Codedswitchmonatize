@@ -98,6 +98,38 @@ describe('MixEngine', () => {
     expect(mockPanRampTo).toHaveBeenCalledWith(0.3, 0.1)
   })
 
+  it('soloChannel("drum") mutes the other four and keeps drum audible', () => {
+    engine.soloChannel('drum')
+
+    expect(engine.drumChannel.muted).toBe(false)
+    expect(engine.bassChannel.muted).toBe(true)
+    expect(engine.melodyChannel.muted).toBe(true)
+    expect(engine.textureChannel.muted).toBe(true)
+    expect(engine.chordChannel.muted).toBe(true)
+    expect(engine.getSoloedRole()).toBe('drum')
+  })
+
+  it('soloChannel(null) restores every channel', () => {
+    engine.soloChannel('bass')
+    engine.soloChannel(null)
+
+    expect(engine.drumChannel.muted).toBe(false)
+    expect(engine.bassChannel.muted).toBe(false)
+    expect(engine.melodyChannel.muted).toBe(false)
+    expect(engine.textureChannel.muted).toBe(false)
+    expect(engine.chordChannel.muted).toBe(false)
+    expect(engine.getSoloedRole()).toBeNull()
+  })
+
+  it('soloing a second channel un-mutes the first', () => {
+    engine.soloChannel('drum')
+    engine.soloChannel('melody')
+
+    expect(engine.drumChannel.muted).toBe(true)
+    expect(engine.melodyChannel.muted).toBe(false)
+    expect(engine.getSoloedRole()).toBe('melody')
+  })
+
   it('dispose() stops metering and disposes all nodes', () => {
     engine.startMetering()
     const cb = vi.fn()

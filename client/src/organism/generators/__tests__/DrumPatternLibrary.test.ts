@@ -26,10 +26,12 @@ describe('DrumPatternLibrary', () => {
     expect(second).toEqual(first)
   })
 
-  it('keeps generated hits grid-locked without runtime micro-shifts', () => {
+  it('adds deterministic micro-timing so generated hits do not feel grid-locked', () => {
     const hits = buildSubGenrePattern('trap', 0).hits
+    const repeated = buildSubGenrePattern('trap', 0).hits
 
-    expect(hits.every(hit => hit.microShift == null)).toBe(true)
+    expect(hits.some(hit => hit.microShift != null && Math.abs(hit.microShift) > 0)).toBe(true)
+    expect(hits.map(hit => hit.microShift)).toEqual(repeated.map(hit => hit.microShift))
   })
 
   it('anchors foundation grooves with kick and snare responsibilities', () => {

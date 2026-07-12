@@ -188,3 +188,41 @@ No database table needed in V1 — manifests are static JSON files. A future adm
 3. Toggle OFF → generators resume composing, no audio glitch
 4. User can record the output (existing record flow unchanged)
 5. No crash when a genre has no pack yet (silent fallback to generate mode)
+
+---
+
+## Future Direction: Live Band + Loops Hybrid (2026-07-09, PARKED until fire beats lands)
+
+Captured from a session discussion so the idea isn't lost. **Not active work.**
+
+### The priority, stated plainly
+
+**The generators are the main fire source. Full stop.** The user's position:
+the live band CAN produce fire beats on its own, and that's the north star
+(see the fire-beats arrangement-moments work, PR #38). Loops are never the
+answer to "the generators don't sound good enough" — that gets fixed in the
+generators themselves.
+
+### What the hybrid IS (when its time comes)
+
+A blend mode, not a replacement: loops as *supporting texture* under a live
+band that leads. Example: a pack's texture/perc loop runs as a bed while the
+live drum, bass, melody, and chord generators compose on top — one clock
+(TransportContext), one harmonic brain (Conductor), one arrangement.
+
+Most seams already exist:
+- `applyLoopSceneForSection()` already swaps loop scenes on section change
+  inside the same arrangement tick the band follows.
+- Freeze mode already proves the live/static blend (frozen groove + evolving
+  melody).
+- ArrangementPlan is the single artifact both paths read.
+
+Main missing piece: loop channels responding to `applyArrangementMultiplier`
+and the pre-drop break ducks the way generator channels do, so arrangement
+moments (pre-drop break, drop-entry boost) hit loops and band together.
+
+### Sequencing
+
+1. Fire beats via generators (ACTIVE — arrangement moments, PR #38).
+2. Validate by ear; fix the freeze→unfreeze drift decay.
+3. Only then: hybrid blend mode, extending THIS spec — do not write a new one.

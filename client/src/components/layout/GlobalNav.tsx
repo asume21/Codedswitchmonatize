@@ -26,7 +26,7 @@ const MORE_NAV = [
   { icon: Mic2, label: 'Voice Convert', path: '/voice-convert', featured: false },
   { icon: Shield, label: 'Security', path: '/vulnerability-scanner', featured: false },
   { icon: BookOpen, label: 'Blog', path: '/blog', featured: false },
-  { icon: Key, label: 'Developer API', path: '/developer', featured: false },
+  { icon: Key, label: 'Developer API', path: '/developer', featured: true },
 ];
 
 // Combined list for full menus (dropdown, floating)
