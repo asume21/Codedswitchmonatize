@@ -53,6 +53,7 @@ import {
   type PhraseCharacter,
 } from './melody/performerExpression'
 import { applyVoiceLeading } from './melody/voiceLeading'
+import { applySoloistEmbellishments } from './melody/soloistEmbellishments'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -872,8 +873,17 @@ export class MelodyGenerator extends GeneratorBase {
       ? Math.max(32, selectedLength)
       : selectedLength
     let notes          = this.generatePhrase(phraseLength, physics)
-    if (this.isSoloMode) {
-      notes = this.applySoloistEmbellishments(notes, physics)
+    if (this.isSoloMode && this.currentScale.length > 0) {
+      // Solo = a riff you can rap over, decorated sparingly (see module docs).
+      const snapped = (midi: number, dir: 'up' | 'down'): string => {
+        const s = snapNoteToScale(midi, this.rootPitchClass, this.currentScale, this.pitchOffsetSemitones, dir)
+        return typeof s === 'number' ? midiToNote(s) : s
+      }
+      notes = applySoloistEmbellishments(notes, {
+        stepAbove: (midi) => snapped(midi + 2, 'up'),
+        stepBelow: (midi) => snapped(midi - 2, 'down'),
+        legatoFamily: this.isBowedString() || this.isGuitar(),
+      })
     }
 
     // Pro-instruments Slice 4: EVERY lead family gets the shared breathe/arc/
@@ -1501,112 +1511,6 @@ export class MelodyGenerator extends GeneratorBase {
    *  Tone.now()) the most recently triggered note ends. 0 = hasn't played yet. */
   getLastNoteEndSec(): number {
     return this.lastNoteEndSec
-  }
-
-  private applySoloistEmbellishments(notes: ScheduledNote[], physics: PhysicsState): ScheduledNote[] {
-    const embellished: ScheduledNote[] = []
-    const scale = this.currentScale
-    if (scale.length === 0) return notes
-
-    for (let i = 0; i < notes.length; i++) {
-      const n = notes[i]
-      const midi = noteToMidi(String(n.pitch))
-      if (midi === null) {
-        embellished.push(n)
-        continue
-      }
-
-      // Check duration in 16ths
-      let dur16ths = 1
-      if (n.duration.endsWith('m')) {
-        dur16ths = parseFloat(n.duration) * 16
-      } else {
-        const denom = parseFloat(n.duration.replace('n', '').replace('.', '')) || 4
-        const dotMultiplier = n.duration.endsWith('.') ? 1.5 : 1.0
-        dur16ths = (16 / denom) * dotMultiplier
-      }
-
-      const parts = n.time.split(':')
-      const bar = parseInt(parts[0] ?? '0', 10)
-      const beat = parseInt(parts[1] ?? '0', 10)
-      const sub = parseFloat(parts[2] ?? '0')
-
-      // 1. Trills: for long notes (>= 4 sixteenths), 50% probability
-      const hash = Math.sin(bar * 7.1 + beat * 3.2 + sub) * 1000
-      const randVal = hash - Math.floor(hash)
-      
-      if (dur16ths >= 4 && randVal < 0.5) {
-        // Alternate main note and note above
-        const upperMidi = snapNoteToScale(midi + 2, this.rootPitchClass, scale, this.pitchOffsetSemitones, 'up')
-        const upperPitch = typeof upperMidi === 'number' ? midiToNote(upperMidi) : upperMidi
-        
-        for (let j = 0; j < dur16ths; j++) {
-          const isUpper = j % 2 === 1
-          const stepSub = sub + j
-          const stepBar = bar + Math.floor((beat + Math.floor(stepSub / 4)) / 4)
-          const stepBeat = (beat + Math.floor(stepSub / 4)) % 4
-          const stepSubGrid = stepSub % 4
-          const stepTime = `${stepBar}:${stepBeat}:${stepSubGrid.toFixed(2)}`
-          
-          embellished.push({
-            pitch: isUpper ? upperPitch : n.pitch,
-            duration: '16n',
-            velocity: n.velocity * (isUpper ? 0.85 : 1.0),
-            time: stepTime
-          })
-        }
-        continue
-      }
-
-      // 2. Grace notes: for medium-to-long notes, 70% probability
-      if (dur16ths >= 2 && randVal >= 0.3) {
-        const lowerMidi = snapNoteToScale(midi - 2, this.rootPitchClass, scale, this.pitchOffsetSemitones, 'down')
-        const lowerPitch = typeof lowerMidi === 'number' ? midiToNote(lowerMidi) : lowerMidi
-        
-        // Grace note on original time, dur 32n
-        embellished.push({
-          pitch: lowerPitch,
-          duration: '32n',
-          velocity: n.velocity * 0.7,
-          time: n.time
-        })
-        
-        // Shift main note late by 32n (0.5 of a sixteenth)
-        const mainSub = sub + 0.5
-        const mainBar = bar + Math.floor((beat + Math.floor(mainSub / 4)) / 4)
-        const mainBeat = (beat + Math.floor(mainSub / 4)) % 4
-        const mainSubGrid = mainSub % 4
-        const mainTime = `${mainBar}:${mainBeat}:${mainSubGrid.toFixed(2)}`
-        
-        embellished.push({
-          pitch: n.pitch,
-          duration: n.duration,
-          velocity: n.velocity,
-          time: mainTime
-        })
-        continue
-      }
-
-      // Default: keep original note
-      embellished.push(n)
-    }
-
-    // Apply legato overlaps for adjacent close notes
-    if (this.isBowedString() || this.isGuitar()) {
-      for (let i = 0; i < embellished.length - 1; i++) {
-        const curr = embellished[i]
-        const next = embellished[i + 1]
-        const currMidi = noteToMidi(String(curr.pitch))
-        const nextMidi = noteToMidi(String(next.pitch))
-        if (currMidi !== null && nextMidi !== null && Math.abs(currMidi - nextMidi) <= 2) {
-          if (curr.duration.endsWith('n')) {
-            curr.duration = curr.duration + '.'
-          }
-        }
-      }
-    }
-
-    return embellished
   }
 
   dispose(): void {
