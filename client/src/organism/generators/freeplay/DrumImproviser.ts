@@ -8,6 +8,7 @@
 import { DrumInstrument, type DrumHit } from '../types'
 import type { FreeplayContext } from './types'
 import { swungTime, jitterVel } from './utils'
+import { getSongCell } from './songCell'
 
 /** Immutable per-genre backbone (16th slots 0..15). Slot 4 = beat 2, 12 = beat 4.
  *  `kicks` is the bar-A pattern; `kicksB` answers it on odd bars — hip-hop kick
@@ -59,12 +60,19 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
     protectedSlots.add(s); protectedSlots.add(s - 1); protectedSlots.add(s + 1)
   }
 
-  // Fire-beats pocket (2026-07-11): the skeleton IS the groove. Extra kicks,
-  // ghost snares, and 16th-note hat infill were improvisational layers that
-  // buried the core pocket — the beat had "no rhythm" because the ear couldn't
-  // find the backbone under all the clutter. A head-nod beat is kick/snare/hats
-  // locked tight. Fills on the last bar provide the only variation.
-  const kickMotif: number[] = []
+  // The skeleton IS the groove (fire-beats 2026-07-11): random extra kicks,
+  // ghost snares and 16th hat infill buried the backbone, so they stay gone.
+  //
+  // COHESION (2026-07-12): but the drums must still ACCENT the song cell — the
+  // one idea the whole band is playing. These are not random extra kicks; they
+  // are the drums stating the section's rhythm. Max 2, never on a quarter note
+  // (a beat-3 kick turns boom-bap into house), never near the skeleton's own
+  // hits. That keeps the pocket locked while making the kick agree with what the
+  // bass is landing on and the chords are answering.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
+  const kickMotif: number[] = cell.accents
+    .filter(s => s !== 0 && s % 4 !== 0 && !protectedSlots.has(s))
+    .slice(0, 2)
   const hatInfill = new Set<number>()
 
   // 0-2 open-hat accents per bar, drawn once per phrase so the placement is an

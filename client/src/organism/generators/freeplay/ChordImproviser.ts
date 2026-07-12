@@ -5,6 +5,7 @@
 import type { FreeplayContext, CompGesture } from './types'
 import { getSectionMotif, varyMotif, type RhythmMotif } from './motif'
 import { swungTime, mulberry32, getSessionSalt } from './utils'
+import { getSongCell } from './songCell'
 
 // ── Animator gestures (2026-07-09 reference study) ──────────────────
 // Six reference beats shared one architecture — a pad BED plus a keys
@@ -140,7 +141,18 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const count = (compCounters.get(key) ?? 0) + 1
   compCounters.set(key, count)
 
-  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), [0])
+  // COHESION — the chords ANSWER the song cell. The comp speaks in the idea's
+  // GAPS (call and response): the band states the cell, the keys reply in the
+  // holes it leaves. Doubling the cell would be a unison and read as robotic;
+  // ignoring it — which is what a private `chord:<section>` motif did — is why
+  // nobody sounded like they were playing together.
+  //
+  // The comp keeps its own motif machinery (the gesture/mask logic downstream
+  // depends on its density contract) and is ANCHORED to the cell's gaps rather
+  // than replaced by them.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
+  const answerAnchors = [0, ...cell.gaps.filter(s => s !== 0 && s % 2 === 0).slice(0, 2)]
+  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), answerAnchors)
 
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {

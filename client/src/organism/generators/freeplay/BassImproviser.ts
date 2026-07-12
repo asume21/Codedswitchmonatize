@@ -4,6 +4,7 @@
 import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
 import { midiToNote, swungTime, jitterVel } from './utils'
+import { getSongCell } from './songCell'
 
 /** Same register rule as BassGenerator.bassRootFromMidi (33..48, pitch class kept). */
 function clampToBassRegister(midi: number): number {
@@ -82,6 +83,16 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
       ? [0, 12]                    // root, octave
       : [0, 0]                     // root, root (verse/bridge)
 
+  // COHESION — land on the SONG CELL, not on a pattern of our own invention.
+  // The fixed patterns above ignored what every other player was doing, which is
+  // a large part of why the band had no cohesion. Keep the downbeat (the bass
+  // must anchor), then take the rest of this section's onsets FROM the shared
+  // idea, capped at the section's onset budget so the bass still breathes.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
+  const budget = hitPatterns[kind].length
+  const fromCell = cell.slots.filter(s => s !== 0).slice(0, Math.max(0, budget - 1))
+  const hitSlots = [0, ...fromCell].sort((a, b) => a - b)
+
   // Real chord quality — the setBassChordQuality lesson: never assume minor.
   const third = ctx.chordIntervals.includes(4) && !ctx.chordIntervals.includes(3) ? 4 : 3
 
@@ -126,7 +137,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
 
     // Harmony holding. On the final bar of a static phrase, drop the last beat
     // so the loop turnaround breathes and the return downbeat lands harder.
-    const barSlots = isFinalBar ? hitPatterns[kind].filter(s => s < 12) : hitPatterns[kind]
+    const barSlots = isFinalBar ? hitSlots.filter(s => s < 12) : hitSlots
 
     barSlots.forEach((slot, i) => {
       const isDownbeat = slot === 0

@@ -4,6 +4,7 @@
 import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
 import { getSectionMotif, varyMotif } from './motif'
+import { getSongCell } from './songCell'
 import { jitterVel, midiToNote, swungTime } from './utils'
 import {
   contourOffset,
@@ -392,13 +393,19 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
   const chordDegrees = chordDegreesFor(ctx)
   const preferredDegrees = preferredDegreesFor(ctx, chordDegrees)
   const idea = pitchIdeaFor(ctx, chordDegrees, preferredDegrees)
+  // COHESION — the lead phrases FROM the song cell rather than from a private
+  // `melody:<section>` motif that no other player could hear. The cell's slots
+  // are the idea's landing points, so the melody's own motif is seeded with them
+  // as anchors: it is free to embellish around them (that is what a soloist
+  // does), but it starts where the band is.
+  const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
   const motif = getSectionMotif(
     `melody:${ctx.sectionName}:${ctx.subGenre}`,
     ctx.rng,
     behavior === 'lead' ? Math.min(0.9, Math.max(0.55, ctx.density))
       : behavior === 'respond' ? Math.min(0.65, Math.max(0.35, ctx.density))
       : Math.min(0.25, ctx.density),
-    [0],
+    cell.accents,
   )
   const baseSlots = capSlots(motif.slots, behavior, kind)
   const events: RawMelodyEvent[] = []
