@@ -185,17 +185,17 @@ export class TextureGenerator extends GeneratorBase {
   onSectionChange(sectionName: string): void {
     const n = sectionName.toLowerCase()
     if (n.includes('intro') || n.includes('break')) {
-      this.sectionPadVelocity = 0.6
+      this.sectionPadVelocity = 0.72
       this.sectionPadHoldBars = 2
     } else if (n.includes('build')) {
-      this.sectionPadVelocity = 0.58
+      this.sectionPadVelocity = 0.68
       this.sectionPadHoldBars = 1
     } else if (n.includes('drop') || n.includes('hook') || n.includes('chorus')) {
-      this.sectionPadVelocity = 0.5
+      this.sectionPadVelocity = 0.62
       this.sectionPadHoldBars = 1
     } else {
-      // verse / default — tuck under the chord animator
-      this.sectionPadVelocity = 0.46
+      // verse / default — present but under the lead
+      this.sectionPadVelocity = 0.56
       this.sectionPadHoldBars = 1
     }
   }
@@ -344,7 +344,7 @@ export class TextureGenerator extends GeneratorBase {
     // Synth-pad/keys gain — the audible voice. Pads sit well above the
     // subliminal noise bed, scaled by the same activity level + the texture
     // volume slider, and capped so they support rather than dominate the mix.
-    const padTarget = Math.min(0.82, this.activityLevel * 3.1)
+    const padTarget = Math.min(1.0, this.activityLevel * 3.5)
       * this.arrangementMultiplier * this.padVolumeMultiplier
     if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
       this.lastPadGain = padTarget
@@ -414,9 +414,9 @@ export class TextureGenerator extends GeneratorBase {
   private computeTargetLevel(organism: OrganismState): number {
     switch (organism.current) {
       case OState.Dormant:    return 0
-      case OState.Awakening:  return 0.05 * organism.awakeningProgress
-      case OState.Breathing:  return 0.15 * organism.breathingWarmth
-      case OState.Flow:       return 0.20 + (0.08 * organism.flowDepth)
+      case OState.Awakening:  return 0.10 * organism.awakeningProgress
+      case OState.Breathing:  return 0.35 * organism.breathingWarmth
+      case OState.Flow:       return 0.55 + (0.10 * organism.flowDepth)
     }
   }
 

@@ -1059,6 +1059,7 @@ export default function RecordingBooth() {
                     { label: 'Bass',   value: organism.bassVolume,   set: organism.setBassVolume,   color: '#4ade80' },
                     { label: 'Melody', value: organism.melodyVolume, set: organism.setMelodyVolume, color: '#38bdf8' },
                     { label: 'Chords', value: organism.chordVolume,  set: organism.setChordVolume,  color: '#a78bfa' },
+                    { label: 'Pads',   value: organism.textureVolume, set: organism.setTextureVolume, color: '#fbbf24' },
                   ] as const).map(({ label, value, set, color }) => (
                     <div key={label} className="flex items-center gap-2">
                       <span className="text-[10px] font-black uppercase tracking-wider w-12 shrink-0" style={{ color }}>{label}</span>

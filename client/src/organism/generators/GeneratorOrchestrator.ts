@@ -144,6 +144,12 @@ export class GeneratorOrchestrator {
   // Song Mode switch — OFF by default (switches-not-modes design): the
   // Organism is a steady beat machine; sections/builds/drops are opt-in.
   private arrangementEnabled: boolean = false
+  // Auto-pilot: when no voice is detected, enable arrangement so the
+  // organism has musical structure instead of a static loop. When voice
+  // returns, yield control back to voice-driven mode.
+  private autoPilotEnabled: boolean = true
+  private autoPilotArrangement: boolean = false
+  private lastVoiceActive: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -339,8 +345,7 @@ export class GeneratorOrchestrator {
 
       if (!planStyleRebuiltDrums && !this.melodyOnlyMode && this.arrangementEnabled && this.drumEnabled) {
         const state = this.director.getState()
-        const pattern = buildSubGenrePattern(state.subGenre, state.drums.variantIndex)
-        this.drum.loadGeneratedPattern(pattern.hits, true)
+        this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
       }
     })
   }
@@ -377,10 +382,11 @@ export class GeneratorOrchestrator {
         this.lastPhysics = snap
       }
 
-      // Notify director FIRST so it sets sub-genre + groove before generators rebuild
+      // Notify director FIRST — it picks sub-genre, fires onSubGenreChange which
+      // rebuilds drums via buildDrumHits (freeplay) and auto-shares kick anchors
+      // + pocket with bass/chords/melody.  drum.onStateTransition only handles
+      // Dormant teardown now; pattern building is fully owned by the orchestrator.
       this.director.onStateTransition(event.to, snap)
-
-      // Drums first (most audible if late)
       this.drum.onStateTransition(event.to, snap)
       this.texture.onStateTransition(event.to, snap)
       // Stagger bass/melody/chord so Part rebuilds don't collide on the audio thread
@@ -627,27 +633,34 @@ export class GeneratorOrchestrator {
   regenerateAll(): void {
     if (!this.lastPhysics) return
     const physics = this.lastPhysics
-    const state = this.lastOrganism?.current ?? OState.Breathing
+    const orgState = this.lastOrganism?.current ?? OState.Breathing
     const live = Tone.getTransport().state === 'started'
 
+    // Drums use buildDrumHits (freeplay) so the pattern source is consistent
+    // with start() and onSubGenreChange.  buildDrumHits auto-shares kick
+    // anchors + pocket with bass/chords/melody.
+    const dirState = this.director.getState()
+    this.drum.loadGeneratedPattern(
+      this.buildDrumHits(dirState.subGenre as HipHopSubGenre, dirState.drums.variantIndex),
+      true,
+    )
+
     if (live) {
-      this.drum.onStateTransition(state, physics)
-      globalThis.setTimeout(() => this.bass.onStateTransition(state, physics), 80)
-      globalThis.setTimeout(() => this.melody.onStateTransition(state, physics), 160)
-      globalThis.setTimeout(() => this.texture.onStateTransition(state, physics), 220)
+      globalThis.setTimeout(() => this.bass.onStateTransition(orgState, physics), 80)
+      globalThis.setTimeout(() => this.melody.onStateTransition(orgState, physics), 160)
+      globalThis.setTimeout(() => this.texture.onStateTransition(orgState, physics), 220)
       globalThis.setTimeout(() => {
         this.syncLeadBusyToChords()
-        this.chord.onStateTransition(state, physics)
+        this.chord.onStateTransition(orgState, physics)
       }, 280)
       return
     }
 
-    this.drum.onStateTransition(state, physics)
-    this.bass.onStateTransition(state, physics)
-    this.melody.onStateTransition(state, physics)
-    this.texture.onStateTransition(state, physics)
+    this.bass.onStateTransition(orgState, physics)
+    this.melody.onStateTransition(orgState, physics)
+    this.texture.onStateTransition(orgState, physics)
     this.syncLeadBusyToChords()
-    this.chord.onStateTransition(state, physics)
+    this.chord.onStateTransition(orgState, physics)
   }
 
   /** Band-awareness relay: the melody's occupied slots → the chords, so the
@@ -978,7 +991,10 @@ export class GeneratorOrchestrator {
     if (this.drumEnabled === enabled) return
     this.drumEnabled = enabled
     this.drum.setEnabled(enabled)
-    if (enabled) this.replayStateToGenerator(this.drum)
+    if (enabled) {
+      const state = this.director.getState()
+      this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
+    }
     this.updateSoloStates()
   }
 
@@ -1373,6 +1389,24 @@ export class GeneratorOrchestrator {
     if (now - this.lastFrameTime < GeneratorOrchestrator.MIN_FRAME_INTERVAL_MS) return
     this.lastFrameTime = now
 
+    // ── Auto-pilot: voice-driven arrangement ────────────────────
+    // When no voice is detected, enable the arrangement templates so
+    // the organism cycles through intro→verse→build→drop with intentional
+    // energy curves instead of a static loop. When voice returns, yield
+    // control back so the mic drives the show.
+    if (this.autoPilotEnabled) {
+      if (!physics.voiceActive && !this.arrangementEnabled && !this.lastVoiceActive) {
+        this.setArrangementEnabled(true)
+        this.autoPilotArrangement = true
+        orgLog('autopilot:engage', { reason: 'no-voice' })
+      } else if (physics.voiceActive && this.autoPilotArrangement && this.lastVoiceActive) {
+        this.setArrangementEnabled(false)
+        this.autoPilotArrangement = false
+        orgLog('autopilot:disengage', { reason: 'voice-detected' })
+      }
+    }
+    this.lastVoiceActive = physics.voiceActive
+
     // ── Musical Director update ──────────────────────────────────
     // The director reads physics + organism state and updates the
     // unified MusicalState. If it returns true, patterns need rebuilding.
@@ -1448,14 +1482,12 @@ export class GeneratorOrchestrator {
     // near-straight at 0.20 while everything else dragged at 0.38, which is
     // why the generators sounded like they weren't playing together.)
 
-    // Lock transport BPM to subGenre's range. SUBGENRE_BPM was defined but
-    // never called, leaving Tone.js at its default 120 BPM (house tempo).
-    // Skip if we are forcing subgenre explicitly or in loop pack mode.
-    if (!this.isForcingSubGenre && !this._loopPack) {
-      const [bpmMin, bpmMax] = SUBGENRE_BPM[subGenre] ?? [85, 100]
-      const targetBpm = Math.round(bpmMin + Math.random() * (bpmMax - bpmMin))
-      this.setBpm(targetBpm)
-    }
+    // BPM is NOT changed on sub-genre switch (2026-07-11 fire-beats).
+    // The mode classifier drives sub-genre changes from physics, and each
+    // sub-genre has a different BPM range — so auto-BPM was jumping 80+ BPM
+    // in seconds (drill 140→trap 160→phonk 145→drill 140). BPM is set once
+    // at start() or by explicit preset/user action and stays stable.
+    // Sub-genre affects STYLE only: swing, pattern vocabulary, scale, kit.
 
     const swing = swingForSubGenre(subGenre)
     setBassSwingFromSubGenre(subGenre)

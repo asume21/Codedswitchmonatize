@@ -1,11 +1,12 @@
 // client/src/organism/generators/freeplay/DrumImproviser.ts
 // Freeplay drums: the sub-genre SKELETON (kick/snare anchors) is authored and
-// immutable — boom-bap stays boom-bap. Everything AROUND it (extra kicks, hat
-// density, ghosts, rolls, fills) is improvised from energy/density + motif.
+// immutable — boom-bap stays boom-bap. The skeleton IS the groove: extra kicks,
+// ghost snares and 16th hat infill were removed (2026-07-11 fire-beats) because
+// they buried the backbone the ear needs to lock onto. Improvisation is now
+// limited to open-hat accents and the phrase-end fill.
 
 import { DrumInstrument, type DrumHit } from '../types'
 import type { FreeplayContext } from './types'
-import { getSectionMotif } from './motif'
 import { swungTime, jitterVel } from './utils'
 
 /** Immutable per-genre backbone (16th slots 0..15). Slot 4 = beat 2, 12 = beat 4.
@@ -58,33 +59,13 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
     protectedSlots.add(s); protectedSlots.add(s - 1); protectedSlots.add(s + 1)
   }
 
-  // ONE extra-kick motif per section — repeats every bar (A-A-A-A for kicks;
-  // the development lives in hats/ghosts/fill, keeping the floor rock solid).
-  // Extra kicks are SYNCOPATION ONLY: never on the quarter notes (0/4/8/12) —
-  // adding beat-3 kicks turned boom-bap into four-on-the-floor house (measured
-  // by ear + WebEar describe, 2026-07-02). Max 2 per bar keeps the floor hip-hop.
-  const kickMotif = getSectionMotif(
-    `drums:${ctx.sectionName}:${ctx.subGenre}`,
-    ctx.rng,
-    Math.min(ctx.density, 0.4),
-    [],
-  ).slots
-    .filter(s => !protectedSlots.has(s) && s % 4 !== 0)
-    .slice(0, 2)
-
-  // Hat 16th infill is MOTIF-driven, not a per-slot coin flip: a committed set
-  // of off-16th slots per section so the infill is a repeating idea the ear can
-  // lock onto, with a small rng sparkle on top.
-  // Cap the 16th infill to 2 hits (2026-07-11 "too many drums"): the 8th-note
-  // hats are the backbone; a couple of committed 16ths add motion without
-  // turning the pocket into a busy rattle. Simpler pocket = more space to hear
-  // the bass and feel the lock.
-  const hatInfill = new Set(
-    getSectionMotif(`hats:${ctx.sectionName}:${ctx.subGenre}`, ctx.rng, ctx.density, [])
-      .slots.map(s => (s + 1) % 16)      // shift motif onto the off-16ths
-      .filter(s => s % 2 === 1)
-      .slice(0, 2),
-  )
+  // Fire-beats pocket (2026-07-11): the skeleton IS the groove. Extra kicks,
+  // ghost snares, and 16th-note hat infill were improvisational layers that
+  // buried the core pocket — the beat had "no rhythm" because the ear couldn't
+  // find the backbone under all the clutter. A head-nod beat is kick/snare/hats
+  // locked tight. Fills on the last bar provide the only variation.
+  const kickMotif: number[] = []
+  const hatInfill = new Set<number>()
 
   // 0-2 open-hat accents per bar, drawn once per phrase so the placement is an
   // idea, not noise. Kept off slots where the closed 8th grid would double them.

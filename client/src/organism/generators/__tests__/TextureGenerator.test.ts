@@ -69,7 +69,7 @@ describe('TextureGenerator', () => {
     expect(report.activityLevel).toBeLessThan(0.1)
   })
 
-  it('FLOW with flowDepth=1.0 → activity converges toward 0.28', () => {
+  it('FLOW with flowDepth=1.0 → activity converges toward 0.65', () => {
     const physics = makePhysics()
     gen.setRole('lead')   // measure the pure reactive curve (ceiling 1.0)
     const organism = makeOrganism({
@@ -82,12 +82,13 @@ describe('TextureGenerator', () => {
     }
 
     const report = gen.getActivityReport(Date.now())
-    // Target: 0.20 + 0.08 * 1.0 = 0.28
-    expect(report.activityLevel).toBeGreaterThan(0.20)
-    expect(report.activityLevel).toBeLessThan(0.35)
+    // Target: 0.55 + 0.10 * 1.0 = 0.65. Pads are the harmonic COLOR, not a
+    // subliminal bed (2026-07-11 fire-beats) — the old 0.28 left them inaudible.
+    expect(report.activityLevel).toBeGreaterThan(0.55)
+    expect(report.activityLevel).toBeLessThan(0.72)
   })
 
-  it('setThinning(true) → target level reduced to 40%', () => {
+  it('setThinning(true) → target level cut to 40%', () => {
     const physics = makePhysics()
     const organism = makeOrganism({
       current: OState.Flow,
@@ -101,9 +102,9 @@ describe('TextureGenerator', () => {
     }
 
     const report = gen.getActivityReport(Date.now())
-    // Target: 0.28 * 0.4 = 0.112
-    expect(report.activityLevel).toBeLessThan(0.15)
-    expect(report.activityLevel).toBeGreaterThan(0.05)
+    // 0.65 target × 0.4 thinning, scaled by the default (non-lead) role ceiling.
+    expect(report.activityLevel).toBeLessThan(0.20)
+    expect(report.activityLevel).toBeGreaterThan(0.08)
   })
 
   it('mode change → filter frequency morphs toward new mode target', () => {

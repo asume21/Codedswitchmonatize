@@ -2,6 +2,9 @@
  *  INFORMS; the improviser writes the notes. */
 export interface FreeplayContext {
   rootMidi: number            // bass-register chord root (conductor voicing)
+  nextRootMidi?: number       // bass-register root the phrase RESOLVES INTO (conductor lookahead).
+                              // Same as rootMidi (or absent) = the harmony is holding, so there is
+                              // nothing for a bassline to connect — the bass hits instead of walking.
   chordIntervals: number[]    // the chord's real intervals (3rd/7th quality)
   bars: number                // phrase length (4 = one chord cycle)
   swing: number               // swingForSubGenre value — the ONE swing source

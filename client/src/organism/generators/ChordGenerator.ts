@@ -541,7 +541,7 @@ export class ChordGenerator extends GeneratorBase {
       case OState.Dormant:   return 0
       case OState.Awakening: return 0.05 * organism.awakeningProgress
       case OState.Breathing: return 0.45 * organism.breathingWarmth
-      case OState.Flow:      return 0.55 + (0.25 * organism.flowDepth)
+      case OState.Flow:      return 0.65 + (0.25 * organism.flowDepth)
     }
   }
 

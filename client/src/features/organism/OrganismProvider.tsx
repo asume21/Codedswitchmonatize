@@ -307,6 +307,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [bassVolume,       setBassVolumeState]  = useState(1.25)
   const [melodyVolume,     setMelodyVolumeState]= useState(1.55)
   const [chordVolume,      setChordVolumeState] = useState(1.0)
+  const [textureVolume,    setTextureVolumeState] = useState(1.0)
+  const textureVolumeRef = useRef(1.0)
   const [melodyFocusEnabled, setMelodyFocusEnabledState] = useState(false)
   const [textureEnabled,   setTextureEnabledState] = useState(true)
   const textureEnabledRef = useRef(true)
@@ -3549,6 +3551,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     bassVolume,
     melodyVolume,
     chordVolume,
+    textureVolume,
     melodyFocusEnabled,
     setHatDensity: (v: number) => {
       setHatDensityState(v)
@@ -3584,6 +3587,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       setChordVolumeState(v)
       mixRef.current?.setChannelGainDb('chord', 3 + 20 * Math.log10(Math.max(0.001, v)))
       orchestrRef.current?.setChordEnabled(v > 0)
+    },
+    setTextureVolume: (v: number) => {
+      setTextureVolumeState(v)
+      textureVolumeRef.current = v
+      orchestrRef.current?.setTextureVolumeMultiplier(v)
+      orchestrRef.current?.setTextureEnabled(v > 0)
     },
     setMelodyFocusEnabled: (enabled: boolean) => {
       setMelodyFocusEnabledState(enabled)
@@ -3685,7 +3694,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsTotal,
     recordingBarsElapsed,
     latchMode, isPatternLocked,
-    hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, melodyFocusEnabled, textureEnabled,
+    hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, textureVolume, melodyFocusEnabled, textureEnabled,
     reactToVoiceEnabled, songModeEnabled, loopsModeEnabled, isLoopsLoading,
     instrumentAssignments, setOrganismInstrument,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,

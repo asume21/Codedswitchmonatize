@@ -307,6 +307,13 @@ export class BassGenerator extends GeneratorBase {
     return this.bassRootFromMidi(getConductor().currentVoicing().bass)
   }
 
+  // The root this phrase RESOLVES INTO. The orchestrator advances the chord on
+  // the last bar of every 4-bar phrase, so this is where the harmony is headed —
+  // it tells the improviser whether there is a chord change worth walking into.
+  private nextBassRoot(): number {
+    return this.bassRootFromMidi(getConductor().nextVoicing().bass)
+  }
+
   processFrame(physics: PhysicsState, organism: OrganismState): void {
     if (this._loopMode) return
     this.currentPocket = physics.pocket
@@ -816,6 +823,7 @@ export class BassGenerator extends GeneratorBase {
       const seed = hashString(`bass:${this.currentSectionName}:${this.currentSubGenre ?? 'none'}`)
       return buildFreeplayBassNotes({
         rootMidi: this.rootMidi,
+        nextRootMidi: this.nextBassRoot(),
         chordIntervals: this.chordIntervals,
         bars: 4,
         swing: getBassSwing(),

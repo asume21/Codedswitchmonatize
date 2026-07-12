@@ -254,35 +254,16 @@ export class DrumGenerator extends GeneratorBase {
     this.hatShuffleMaxPct = Math.max(minPct, maxPct)
   }
 
-  onStateTransition(to: OState, physics: PhysicsState): void {
+  onStateTransition(to: OState, _physics: PhysicsState): void {
     if (!this.enabled) return
     if (to === OState.Dormant) {
       this.stopPart()
       this.activityLevel = 0
       return
     }
-
-    // Apply the same rebuild throttle as loadGeneratedPattern — state transitions
-    // and processFrame can both trigger rebuilds in the same cycle window.
-    const now = performance.now()
-    if (now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
-
-    if (to === OState.Awakening) {
-      this.stopPart()
-      this.currentPhysicsMode = physics.mode
-      const kit     = getDrumKit(physics.mode)
-      const pattern = buildDrumPattern(kit, physics.mode)
-      this.rebuildPart(pattern.hits)
-      return
-    }
-
-    // Breathing or Flow → rebuild pattern from current mode
-    // Skip if pattern is locked — user has frozen the groove
-    if (this.patternLocked) return
-    this.currentPhysicsMode = physics.mode
-    const kit     = getDrumKit(physics.mode)
-    const pattern = buildDrumPattern(kit, physics.mode)
-    this.rebuildPart(pattern.hits)
+    // Pattern building is owned by GeneratorOrchestrator (buildDrumHits →
+    // loadGeneratedPattern) so the freeplay improviser, not the static authored
+    // library, is always the source.  This method only handles Dormant teardown.
   }
 
   reset(): void {
