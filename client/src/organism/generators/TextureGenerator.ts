@@ -28,12 +28,24 @@ type TextureVoiceSpec = {
   volume: number
 }
 
+// The bed voice must SUSTAIN. An el-piano (tried for heat/gravel/smoke) decays
+// to silence within seconds of its once-per-bar attack, so the soloed texture
+// stem measured -55 dB RMS (2026-07-15 bench) no matter how the gain math was
+// lifted — the two earlier "raise the pad bed" fixes failed because the voice,
+// not the level, was the bug. Rhodes color belongs to the ChordGenerator's
+// animator; the pad's one job is to hold the space, so every mode gets a
+// sustaining string bed (the mode filter + reverb still differentiate them).
+// MEASURED (2026-07-16 in-page meter): the raw VSCO2 string sampler at
+// velocity 0.56 / volume -4 sustains at only -38..-45 dB — Versilian samples
+// are recorded at natural orchestral dynamics, unnormalized. +12 here is
+// makeup gain toward a ~-30 dB soloed bed, not a taste choice. If you swap
+// the instrument, re-measure with the fire-beats bench before trusting it.
 const TEXTURE_VOICE_BY_MODE: Record<string, TextureVoiceSpec> = {
-  heat:   { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.01, release: 2.8, volume: -6 },
-  gravel: { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.01, release: 2.8, volume: -6 },
-  smoke:  { key: 'rhodes',  kind: 'real',      instrumentId: 'SK_ElPiano01',        attack: 0.02, release: 3.0, volume: -6 },
-  glow:   { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.18, release: 3.6, volume: -4 },
-  ice:    { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.22, release: 4.0, volume: -4 },
+  heat:   { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.14, release: 3.0, volume: 12 },
+  gravel: { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.14, release: 3.0, volume: 12 },
+  smoke:  { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.16, release: 3.2, volume: 12 },
+  glow:   { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.18, release: 3.6, volume: 12 },
+  ice:    { key: 'strings', kind: 'real',      instrumentId: 'VSCO2_StringSection', attack: 0.22, release: 4.0, volume: 12 },
 }
 
 const TEXTURE_VOICE_FALLBACK: Record<string, TextureVoiceSpec> = {
@@ -199,6 +211,24 @@ export class TextureGenerator extends GeneratorBase {
     }
   }
 
+  /** DIAGNOSTIC (read-only) — pad-voice state for __orgDebug's gainReport.
+   *  Answers "why is the texture channel silent" without a debugger attached:
+   *  loaded=false → the sampler fetch never resolved (auth/404 class);
+   *  loopActive=false → startPadLoop was never scheduled;
+   *  padGain≈0 → the level math zeroed the bed. */
+  getPadDebug(): Record<string, unknown> {
+    return {
+      voice:      this.activeVoiceKey,
+      loaded:     this.padSampler.isLoaded === true,
+      loopActive: this.padEventId !== null,
+      loopMode:   this._loopMode,
+      padGain:    Number(this.padGain.gain.value.toFixed(4)),
+      bedGain:    Number(this.gain.gain.value.toFixed(4)),
+      velocity:   this.sectionPadVelocity,
+      holdBars:   this.sectionPadHoldBars,
+    }
+  }
+
   private stopPadLoop(): void {
     if (this.padEventId !== null) {
       try { Tone.getTransport().clear(this.padEventId) } catch { /* */ }
@@ -352,7 +382,11 @@ export class TextureGenerator extends GeneratorBase {
     // BEHAVES relative to the band, not silence it outright. Floor at 0.35 so a
     // zero/near-zero ceiling can't reintroduce the bug.
     const ceiling = Math.max(0.35, this.roleCeiling())
-    const padTarget = Math.min(1.0, (this.activityLevel / ceiling) * 1.6)
+    // 2.2 (was 1.6): with the bed's activity target ~0.156 in Flow, 1.6 left
+    // padGain at ~0.19 (-14.6 dB) — stacked on the quiet VSCO2 source (see
+    // TEXTURE_VOICE_BY_MODE note) the soloed bed measured -55 dB. Part of the
+    // measured makeup toward a ~-30 dB soloed bed.
+    const padTarget = Math.min(1.0, (this.activityLevel / ceiling) * 2.2)
       * this.arrangementMultiplier * this.padVolumeMultiplier
     if (Math.abs(padTarget - this.lastPadGain) > 0.008) {
       this.lastPadGain = padTarget
