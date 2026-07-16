@@ -5,10 +5,6 @@ import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
 import type { DrumHit }       from './types'
-import {
-  getDrumKit,
-  buildDrumPattern,
-}                              from './patterns/DrumPatternLibrary'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
 import type { PhysicsState }   from '../physics/types'

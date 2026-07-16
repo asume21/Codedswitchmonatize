@@ -162,7 +162,10 @@ function storeAudioBlob(id: string, entry: BlobEntry): void {
 }
 
 async function persistAudioBlob(id: string, entry: BlobEntry): Promise<void> {
-  const expiresAt = new Date(entry.expiresAt);
+  // ISO string, not a Date object: drizzle's sql-template param serializer over
+  // postgres-js throws ERR_INVALID_ARG_TYPE on Date instances (lands in a
+  // Buffer path expecting a string). Postgres casts the ISO string to timestamp.
+  const expiresAt = new Date(entry.expiresAt).toISOString();
   const audioBase64 = entry.buffer.toString('base64');
   await db.execute(sql`
     INSERT INTO webear_captures (
