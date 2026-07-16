@@ -15,7 +15,7 @@
  * DEV-only: returns null in production builds.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface GenVitals { on: boolean; lvl: number; out: number }
 interface DebugSnapshot {
@@ -53,8 +53,15 @@ export function OrganismDebugOverlay() {
   const [snap, setSnap] = useState<DebugSnapshot | null>(null)
   const [open, setOpen] = useState(true)
 
+  const lastSnapRef = useRef(0)
+
   useEffect(() => {
-    const handler = (e: Event) => setSnap((e as CustomEvent).detail as DebugSnapshot)
+    const handler = (e: Event) => {
+      const now = performance.now()
+      if (now - lastSnapRef.current < 500) return
+      lastSnapRef.current = now
+      setSnap((e as CustomEvent).detail as DebugSnapshot)
+    }
     window.addEventListener('organism:debug', handler)
     return () => window.removeEventListener('organism:debug', handler)
   }, [])

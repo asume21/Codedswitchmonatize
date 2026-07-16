@@ -1,3 +1,4 @@
+import React, { memo } from 'react'
 import { useOrganism, useOrganismPhysics } from './OrganismContext'
 import { OrganismMode }   from '../../organism/physics/types'
 import { OState }         from '../../organism/state/types'
@@ -133,7 +134,7 @@ function PhysicsBar({ label, value, max = 1 }: {
   )
 }
 
-export function OrganismVisualizer() {
+function OrganismVisualizerImpl() {
   const { isRunning }                              = useOrganism()
   const { physicsState, organismState, meterReading } = useOrganismPhysics()
 
@@ -186,11 +187,11 @@ export function OrganismVisualizer() {
 
       {/* Physics vitals */}
       <div style={{ marginBottom: 16 }}>
-        <PhysicsBar label="Bounce"   value={physicsState.bounce} />
-        <PhysicsBar label="Swing"    value={physicsState.swing}   max={0.75} />
-        <PhysicsBar label="Pocket"   value={physicsState.pocket} />
-        <PhysicsBar label="Presence" value={physicsState.presence} />
-        <PhysicsBar label="Density"  value={physicsState.density} />
+        <MemoPhysicsBar label="Bounce"   value={physicsState.bounce} />
+        <MemoPhysicsBar label="Swing"    value={physicsState.swing}   max={0.75} />
+        <MemoPhysicsBar label="Pocket"   value={physicsState.pocket} />
+        <MemoPhysicsBar label="Presence" value={physicsState.presence} />
+        <MemoPhysicsBar label="Density"  value={physicsState.density} />
       </div>
 
       {/* Flow progress */}
@@ -243,7 +244,7 @@ export function OrganismVisualizer() {
             {CHANNEL_ORDER.map((name) => {
               const channel = meterReading.channels[name]
               return (
-                <LevelMeter
+                <MemoLevelMeter
                   key={name}
                   label={CHANNEL_LABELS[name] ?? name}
                   db={channel?.rmsDb ?? -Infinity}
@@ -252,9 +253,13 @@ export function OrganismVisualizer() {
               )
             })}
           </div>
-          <LevelMeter label="master" db={meterReading.masterRmsDb} />
+          <MemoLevelMeter label="master" db={meterReading.masterRmsDb} />
         </div>
       )}
     </div>
   )
 }
+
+const MemoLevelMeter = memo(LevelMeter)
+const MemoPhysicsBar = memo(PhysicsBar)
+export const OrganismVisualizer = memo(OrganismVisualizerImpl)

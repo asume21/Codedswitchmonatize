@@ -536,16 +536,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // states blink and steal time from the audio thread.
     //
     // DevTools profiling (2026-07-09) traced the crackle/cutout to THIS update:
-    // each one re-renders the ~2.6k-line OrganismCommandCenter tree at ~120ms.
-    // At 250ms that's ~4×/sec × 120ms ≈ half the main thread, which starves the
-    // Tone.js note scheduler → channels drop to silence → crackle+cutout (worst
-    // when the tab is focused; unmounting the tree by leaving the tab clears it).
-    // 500ms halves the re-render frequency for immediate relief; the real fix is
-    // memoizing the heavy viz subtrees / moving synthesis to an AudioWorklet.
-    // Re-applied 2026-07-11 after revert 7a2767cd — the user's foreground-crackle/
-    // background-clean repro (no DevTools throttle) confirms the starvation is real.
+    // each one re-renders the ~2.7k-line OrganismCommandCenter tree at ~120ms.
+    // At 500ms that's ~2×/sec × 120ms ≈ 24% of the main thread, which starves
+    // the Tone.js note scheduler → channels drop to silence → crackle+cutout
+    // (worst when the tab is focused; unmounting the tree by leaving the tab
+    // clears it). 1000ms drops to ~12% — the UI updates once per second which
+    // is still responsive for meters and state badges while giving the audio
+    // scheduler the headroom it needs.
     let lastPhysicsUIUpdate = 0
-    const ORGANISM_UI_INTERVAL_MS = 500
+    const ORGANISM_UI_INTERVAL_MS = 1000
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 
@@ -1406,8 +1405,6 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     }
 
     window.dispatchEvent(new CustomEvent('organism:stopped'))
-  // stopRecording is stable ([] deps) so no dep entry needed — closure captures it by ref.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputSource])
 
   const captureSession = useCallback(async (): Promise<SessionDNA | null> => {

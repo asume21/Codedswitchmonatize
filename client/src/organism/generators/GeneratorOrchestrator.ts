@@ -70,11 +70,11 @@ export class GeneratorOrchestrator {
   private unsubOrganism:    (() => void) | null = null
   private unsubTransition:  (() => void) | null = null
 
-  // Frame throttle — physics fires at ~43fps (every ~23ms) but generators
-  // only need updates every ~60ms. Processing every frame floods the audio
+  // Frame throttle — physics fires at ~30fps (every ~33ms) but generators
+  // only need updates every ~70ms. Processing every frame floods the audio
   // scheduler with overlapping gain ramps that cause crackling.
   private lastFrameTime: number = 0
-  private static readonly MIN_FRAME_INTERVAL_MS = 55  // ~18fps — plenty for musical reactivity
+  private static readonly MIN_FRAME_INTERVAL_MS = 70  // ~14fps — musical changes don't need video-frame rates
 
   // Mix multiplier state (Section 05)
   // Public setters own the user's base slider values. Reactive automation,
@@ -1397,7 +1397,7 @@ export class GeneratorOrchestrator {
   private onFrame(physics: PhysicsState, organism: OrganismState | null): void {
     if (!organism) return
 
-    // Throttle: physics fires at ~43fps but generators only need ~18fps.
+    // Throttle: physics fires at ~30fps but generators only need ~14fps.
     // Processing every frame creates 215 gain ramp evaluations/sec across 5
     // generators, flooding the Web Audio scheduler and causing crackling.
     const now = performance.now()

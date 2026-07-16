@@ -341,7 +341,7 @@ export class ChordGenerator extends GeneratorBase {
     // stack without fighting.
     this.dryBus = new Tone.Gain(0.72)
     this.reverbSend = new Tone.Gain(0.24)
-    this.reverb = new Tone.Reverb({ decay: 2.0, wet: 1.0 })
+    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 1.0 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
     this.synth.connect(this.chorus)
@@ -368,11 +368,11 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private buildDefaultSynth(): Tone.PolySynth {
-    // 8 voices ran out under rolled-chord technique (4-note chord × 1.5s release
-    // × overlap into next chord = up to 16 simultaneous voices). Raised to 16 so
-    // sustained pads + rolled chords stop dropping notes mid-arpeggio.
+    // 10 voices: 4-note chord × 1.5s release × overlap into next chord = up to
+    // 12 simultaneous voices in the worst case. 10 is enough for rolled chords
+    // without the 32-operator CPU cost of 16-voice polyphony.
     return new Tone.PolySynth(Tone.FMSynth, {
-      maxPolyphony: 16,
+      maxPolyphony: 10,
       harmonicity: 2,
       modulationIndex: 0.8,
       oscillator:    { type: 'sine' },

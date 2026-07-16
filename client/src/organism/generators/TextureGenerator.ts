@@ -126,14 +126,10 @@ export class TextureGenerator extends GeneratorBase {
     // old stretched one-shot, this uses the same sample-backed sources as the
     // other generators: real multisamples when the catalog is ready, otherwise
     // the self-hosted soundfonts.
-    // Convolution reverb cost scales with IR length. The 3.5s tail was the
-    // heaviest always-on node in the generator stack and the AI-ear localized
-    // crackle to "reverb tails"; 1.8s keeps a lush bed while roughly halving
-    // this node's audio-thread cost. Re-applied 2026-07-11 after revert 7a2767cd.
-    // DEPTH — the pads are the FURTHEST thing back (see ChordGenerator's staging
-    // note). A long, wet bed reads as the room the band is playing in, which is
-    // exactly the job of a pad: hold the space, don't compete for the front.
-    this.padReverb  = new Tone.Reverb({ decay: 3.2, wet: 0.5 })
+    // Convolution reverb cost scales with IR length. 2.0s keeps the pad bed
+    // lush and distant while cutting ~40% of the audio-thread cost vs the
+    // previous 3.2s tail — the heaviest always-on node in the generator stack.
+    this.padReverb  = new Tone.Reverb({ decay: 2.0, wet: 0.4 })
     this.padGain    = new Tone.Gain(0)
     this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)

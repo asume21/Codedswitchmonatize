@@ -329,6 +329,7 @@ export function OrganismCommandCenter() {
     bassVolume,   setBassVolume,
     melodyVolume, setMelodyVolume,
     chordVolume,  setChordVolume,
+    textureVolume, setTextureVolume,
     melodyFocusEnabled, setMelodyFocusEnabled,
     instrumentAssignments, setOrganismInstrument,
     reactToVoiceEnabled, setReactToVoiceEnabled,
@@ -2499,6 +2500,19 @@ export function OrganismCommandCenter() {
                 soloed={soloRole === 'chord'}
                 onSolo={() => handleSolo('chord')}
               />
+              {/* Texture / Pads — volume-only, no instrument picker */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: C.text2 }}>Pads / Keys</span>
+                  <span style={{ fontSize: 10, color: C.text3 }}>{textureVolume.toFixed(2)}×</span>
+                </div>
+                <input
+                  type="range" min={0} max={2} step={0.05}
+                  value={textureVolume}
+                  onChange={e => setTextureVolume(Number(e.currentTarget.value))}
+                  style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
+                />
+              </div>
             </div>
           </div>
 
