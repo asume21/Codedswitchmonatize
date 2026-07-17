@@ -397,6 +397,104 @@ describe('GeneratorOrchestrator — loop pack', () => {
   })
 })
 
+// ── Hybrid: per-row source switches (switches, not modes) ────────────
+// Band leads, chosen rows run pack loops as beds. Loops Mode is just all
+// five rows on 'loop'; the hybrid is any mix. See the loop-pack spec's
+// Hybrid Implementation section.
+
+describe('GeneratorOrchestrator — hybrid row switches', () => {
+  function mockLoopPlumbing(orch: GeneratorOrchestrator) {
+    const spies: Record<string, { loadLoop: any; setLoopMode: any }> = {}
+    for (const g of ['drum', 'bass', 'melody', 'chord', 'texture']) {
+      spies[g] = {
+        loadLoop:    vi.spyOn((orch as any)[g], 'loadLoop').mockResolvedValue(undefined),
+        setLoopMode: vi.spyOn((orch as any)[g], 'setLoopMode').mockImplementation(() => {}),
+      }
+    }
+    return spies
+  }
+
+  it('loadLoopPack with loopRows flips ONLY those rows to loop mode', async () => {
+    const orch = new GeneratorOrchestrator()
+    const spies = mockLoopPlumbing(orch)
+
+    await orch.loadLoopPack(makeTestPack(), ['texture'])
+
+    expect(spies.texture.setLoopMode).toHaveBeenCalledWith(true, 95)
+    for (const g of ['drum', 'bass', 'melody', 'chord']) {
+      expect(spies[g].setLoopMode).not.toHaveBeenCalled()
+    }
+    expect(orch.getRowSources()).toEqual({
+      drums: 'band', bass: 'band', melody: 'band', chords: 'band', texture: 'loop',
+    })
+    // Baseline clips still load for every row so a later flip is instant.
+    for (const g of ['drum', 'bass', 'melody', 'chord', 'texture']) {
+      expect(spies[g].loadLoop).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('setRowSource flips a single row live after a hybrid load', async () => {
+    const orch = new GeneratorOrchestrator()
+    const spies = mockLoopPlumbing(orch)
+    await orch.loadLoopPack(makeTestPack(), ['texture'])
+
+    expect(orch.setRowSource('drums', 'loop')).toBe(true)
+    expect(spies.drum.setLoopMode).toHaveBeenCalledWith(true, 95)
+    expect(orch.getRowSources().drums).toBe('loop')
+
+    expect(orch.setRowSource('drums', 'band')).toBe(true)
+    expect(spies.drum.setLoopMode).toHaveBeenLastCalledWith(false)
+    expect(orch.getRowSources().drums).toBe('band')
+  })
+
+  it('setRowSource("loop") refuses when no pack is loaded', () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    expect(orch.setRowSource('texture', 'loop')).toBe(false)
+    expect(orch.getRowSources().texture).toBe('band')
+  })
+
+  it('restores the pre-lock BPM when the last loop row flips back to band', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    useStudioStore.getState().setBpm(144)
+
+    await orch.loadLoopPack(makeTestPack(), ['texture'])
+    expect(useStudioStore.getState().bpm).toBe(95)
+
+    orch.setRowSource('texture', 'band')
+    expect(useStudioStore.getState().bpm).toBe(144)
+  })
+
+  it('applyScene only touches rows sourced to loop', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    const pack = makeTestPack()
+    await orch.loadLoopPack(pack, ['texture'])
+
+    const commitSpies: Record<string, any> = {}
+    const muteSpies: Record<string, any> = {}
+    for (const g of ['drum', 'bass', 'melody', 'chord', 'texture']) {
+      vi.spyOn((orch as any)[g], 'preloadNextLoop').mockResolvedValue(undefined)
+      commitSpies[g] = vi.spyOn((orch as any)[g], 'commitNextLoopAt').mockImplementation(() => {})
+      muteSpies[g]   = vi.spyOn((orch as any)[g], 'setLoopMute').mockImplementation(() => {})
+    }
+
+    await orch.applyScene(pack, {
+      drums: 'd1', bass: 'b1', melody: null, chords: null, texture: 't1',
+    })
+
+    // texture (loop row): scene owns it. Loading a pack records clip[0] as the
+    // current scene, so an identical clip id is unchanged — mute state still set.
+    expect(muteSpies.texture).toHaveBeenCalledWith(false)
+    // band rows: the live generator owns them — the scene must not touch them.
+    for (const g of ['drum', 'bass', 'melody', 'chord']) {
+      expect(commitSpies[g]).not.toHaveBeenCalled()
+      expect(muteSpies[g]).not.toHaveBeenCalled()
+    }
+  })
+})
+
 // ── Preset swap: clean cut (no stacking) ─────────────────────────────
 // A live preset swap must silence the OUTGOING preset's parts immediately
 // rather than letting them ride the section-change handoff (which keeps them

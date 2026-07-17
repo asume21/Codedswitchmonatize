@@ -2150,7 +2150,7 @@ export class GeneratorOrchestrator {
    * type — V1 selection), lock the Transport BPM to the pack's tempo, and
    * flip all five generators into loop-playback mode.
    */
-  async loadLoopPack(pack: LoopPack): Promise<void> {
+  async loadLoopPack(pack: LoopPack, loopRows?: LoopInstrument[]): Promise<void> {
     // 1. Gather all clips in the pack and warm up the buffer cache in parallel
     const clips: LoopClip[] = []
     const rows: LoopInstrument[] = ['drums', 'bass', 'melody', 'chords', 'texture']
@@ -2160,6 +2160,12 @@ export class GeneratorOrchestrator {
       }
     }
     await Promise.all(clips.map(clip => GeneratorBase.getOrCreateBuffer(clip.url).catch(() => null)))
+
+    // Hybrid (switches, not modes): `loopRows` limits which rows flip to loop
+    // playback — the rest keep their live generators composing on top. Omitted
+    // = all five rows loop (the original Loops Mode, unchanged). Buffers and
+    // baseline clips still load for EVERY row so a later flip is instant.
+    const flipRows: LoopInstrument[] = loopRows ?? rows
 
     // 2. Load the baseline first clips into active player slots
     await Promise.all([
@@ -2187,10 +2193,18 @@ export class GeneratorOrchestrator {
     this._preLockBpm = useStudioStore.getState().bpm ?? Tone.getTransport().bpm.value
     // Lock BPM to the pack — store.setBpm writes Transport too, so no direct
     // transport write is needed (and a direct write would desync the store).
+    // Locked whenever ANY row loops: WAV clips can't follow tempo.
     useStudioStore.getState().setBpm(pack.bpm)
-    // Flip all generators to loop playback
-    ;[this.drum, this.bass, this.melody, this.chord, this.texture]
-      .forEach(g => g.setLoopMode(true, pack.bpm))
+    // Flip the requested rows to loop playback; the rest stay live (band).
+    this._loopPack = pack
+    for (const r of rows) {
+      if (flipRows.includes(r)) {
+        this.generatorFor(r).setLoopMode(true, pack.bpm)
+        this._rowSources[r] = 'loop'
+      } else {
+        this._rowSources[r] = 'band'
+      }
+    }
 
     // Record what's now playing (clip[0] per row) as the baseline scene, so a
     // subsequent AI arrangement (setLoopArrangement → applyScene) only SWAPS the
@@ -2214,6 +2228,7 @@ export class GeneratorOrchestrator {
     this._currentScene = null
     this._loopPack = null
     this._loopScenes = null
+    this._rowSources = { drums: 'band', bass: 'band', melody: 'band', chords: 'band', texture: 'band' }
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.unloadLoopPlayback())
 
@@ -2274,6 +2289,56 @@ export class GeneratorOrchestrator {
     }
   }
 
+  // ── Hybrid: per-row source switches (switches, not modes) ────────────────
+  // 'band' = the live generator composes; 'loop' = the pack clip plays.
+  // Loops Mode is just all five on 'loop'; any mix is the hybrid. See
+  // docs/superpowers/specs/2026-06-24-loop-pack-system-design.md (Hybrid
+  // Implementation section).
+  private _rowSources: Record<LoopInstrument, 'band' | 'loop'> = {
+    drums: 'band', bass: 'band', melody: 'band', chords: 'band', texture: 'band',
+  }
+
+  getRowSources(): Readonly<Record<LoopInstrument, 'band' | 'loop'>> {
+    return { ...this._rowSources }
+  }
+
+  /**
+   * Flip ONE row between the live generator and its pack loop, live, without
+   * touching the other rows. Returns false when asked for 'loop' with no pack
+   * loaded (nothing to play). BPM stays locked to the pack while ≥1 row loops
+   * (WAV clips can't follow tempo) and restores when the last one flips back.
+   */
+  setRowSource(row: LoopInstrument, source: 'band' | 'loop'): boolean {
+    if (this._rowSources[row] === source) return true
+    const gen = this.generatorFor(row)
+
+    if (source === 'loop') {
+      const pack = this._loopPack
+      if (!pack) return false
+      // First row to loop locks the tempo to the pack.
+      if (!Object.values(this._rowSources).includes('loop')) {
+        this._preLockBpm = useStudioStore.getState().bpm ?? Tone.getTransport().bpm.value
+        useStudioStore.getState().setBpm(pack.bpm)
+      }
+      gen.setLoopMode(true, pack.bpm)
+      this._rowSources[row] = 'loop'
+      return true
+    }
+
+    // → band: stop the loop player, rebuild this generator's live parts.
+    gen.setLoopMode(false)
+    this._rowSources[row] = 'band'
+    if (this.lastPhysics && this.lastOrganism) {
+      setTimeout(() => this.replayStateToGenerator(gen), 60)
+    }
+    // Last loop row gone → give the tempo back to the session.
+    if (!Object.values(this._rowSources).includes('loop') && this._preLockBpm !== null) {
+      useStudioStore.getState().setBpm(this._preLockBpm)
+      this._preLockBpm = null
+    }
+    return true
+  }
+
   /** The scene currently playing, so applyScene only swaps rows that changed. */
   private _currentScene: LoopScene | null = null
 
@@ -2295,7 +2360,11 @@ export class GeneratorOrchestrator {
    */
   async applyScene(pack: LoopPack, scene: LoopScene): Promise<void> {
     const prev = this._currentScene
-    const rows = Object.keys(scene) as LoopInstrument[]
+    // Hybrid guard: the scene arranger only owns rows sourced to 'loop'. A
+    // 'band' row's generator owns its own part — swapping or muting its loop
+    // player would either double it or silence nothing.
+    const rows = (Object.keys(scene) as LoopInstrument[])
+      .filter((r) => this._rowSources[r] === 'loop')
     const changed = rows.filter((r) => (!prev || prev[r] !== scene[r]) && scene[r] != null)
 
     // Preload only the rows whose clip changed — current loops keep playing.

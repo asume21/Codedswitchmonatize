@@ -334,7 +334,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [isLoopsLoading, setIsLoopsLoading] = useState(false)
   const loopsLoadGenerationRef = useRef(0)
 
-  const loadLoops = useCallback(async (enabled: boolean, preset: QuickStartPreset | null) => {
+  // Hybrid (switches, not modes): which source each row plays — 'band' (live
+  // generator) or 'loop' (pack clip). Mirrors GeneratorOrchestrator.rowSources.
+  const [loopRowSources, setLoopRowSourcesState] = useState<Record<string, 'band' | 'loop'>>({
+    drums: 'band', bass: 'band', melody: 'band', chords: 'band', texture: 'band',
+  })
+  const syncLoopRowSources = useCallback(() => {
+    const o = orchestrRef.current
+    if (o) setLoopRowSourcesState({ ...o.getRowSources() })
+  }, [])
+
+  const loadLoops = useCallback(async (
+    enabled: boolean,
+    preset: QuickStartPreset | null,
+    loopRows?: Array<'drums' | 'bass' | 'melody' | 'chords' | 'texture'>,
+  ) => {
     setLoopsModeEnabledState(enabled)
     loopsModeEnabledRef.current = enabled
     const orchestr = orchestrRef.current
@@ -362,7 +376,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         // Check if this load task has been cancelled/staled
         if (gen !== loopsLoadGenerationRef.current) return
 
-        await orchestr.loadLoopPack(pack)
+        await orchestr.loadLoopPack(pack, loopRows)
+        syncLoopRowSources()
 
         // Ask the AI music mind (loopMind) to arrange the loops across the
         // song's sections, then install the per-section scene plan so the band
@@ -406,8 +421,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     } else {
       setIsLoopsLoading(false)
       orchestr.clearLoopPack()
+      syncLoopRowSources()
     }
-  }, [])
+  }, [syncLoopRowSources])
   const [instrumentAssignments, setInstrumentAssignments] = useState<OrganismInstrumentAssignments>({
     lead: null,
     bass: null,
@@ -3646,6 +3662,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     loopsModeEnabled,
     isLoopsLoading,
     setLoopsModeEnabled: (enabled: boolean) => loadLoops(enabled, currentPresetRef.current),
+
+    // Hybrid: band leads, chosen rows run pack loops as beds. The quick
+    // toggle flips texture → loop and keeps drums/bass/melody/chords live
+    // (feedback rule: generators are THE fire source; loops = texture only).
+    loopRowSources,
+    setHybridModeEnabled: (enabled: boolean) =>
+      loadLoops(enabled, currentPresetRef.current, enabled ? ['texture'] : undefined),
+    setLoopRowSource: (row: 'drums' | 'bass' | 'melody' | 'chords' | 'texture', source: 'band' | 'loop') => {
+      const ok = orchestrRef.current?.setRowSource(row, source) ?? false
+      syncLoopRowSources()
+      return ok
+    },
 
     // Instrument picker
     instrumentAssignments,

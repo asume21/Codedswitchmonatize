@@ -242,6 +242,11 @@ export interface OrganismContextValue {
   loopsModeEnabled:       boolean
   setLoopsModeEnabled:    (enabled: boolean) => void
   isLoopsLoading:         boolean
+  // Hybrid (switches, not modes): per-row source — 'band' = live generator,
+  // 'loop' = pack clip. Loops Mode is all five on 'loop'; any mix = hybrid.
+  loopRowSources:         Record<string, 'band' | 'loop'>
+  setHybridModeEnabled:   (enabled: boolean) => void
+  setLoopRowSource:       (row: 'drums' | 'bass' | 'melody' | 'chords' | 'texture', source: 'band' | 'loop') => boolean
 
   // Instrument picker — null means Auto, otherwise locks that generator role.
   instrumentAssignments: OrganismInstrumentAssignments

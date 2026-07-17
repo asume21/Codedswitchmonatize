@@ -223,6 +223,53 @@ moments (pre-drop break, drop-entry boost) hit loops and band together.
 
 ### Sequencing
 
-1. Fire beats via generators (ACTIVE — arrangement moments, PR #38).
-2. Validate by ear; fix the freeze→unfreeze drift decay.
-3. Only then: hybrid blend mode, extending THIS spec — do not write a new one.
+1. Fire beats via generators (ACTIVE — arrangement moments, PR #38). ✅
+2. Validate by ear; fix the freeze→unfreeze drift decay. ✅ (song cell 0ba70d82, pad source fix 586fa611)
+3. Only then: hybrid blend mode, extending THIS spec — do not write a new one. ← **ACTIVE 2026-07-16 (below)**
+
+---
+
+## Hybrid Implementation: Switches, Not Modes (2026-07-16, ACTIVE)
+
+The groove-work design note applies here verbatim: **switches, not modes.**
+There is no third "Hybrid Mode" toggle — each of the five rows gets a SOURCE
+switch: `band` (live generator composes) or `loop` (pack clip plays). What we
+call "Loops Mode" is just all five switches on `loop`; the hybrid is any mix.
+
+### Defaults (from the standing feedback rule)
+
+Generators are THE fire source; loops are supporting texture only. The Hybrid
+quick-toggle therefore flips **texture → loop** and leaves drums/bass/melody/
+chords on `band`. The user can flip any row live from the Command Center.
+
+### Mechanics
+
+- `GeneratorOrchestrator.rowSources: Record<LoopInstrument, 'band'|'loop'>`,
+  default all `band`. `setRowSource(row, source)` flips ONE generator's
+  `setLoopMode`, guarded on a loaded pack for `loop`.
+- `loadLoopPack(pack, rows?)` — optional `rows` limits which rows flip to
+  `loop` on load (default: all five = existing Loops Mode, unchanged).
+  Buffers still warm for the whole pack so later flips are instant.
+- **BPM lock**: Transport locks to `pack.bpm` while ≥1 row is `loop`
+  (WAV clips can't follow tempo); restores the pre-lock BPM when the last
+  loop row flips back to `band`.
+- **Key**: Conductor key is harmonized to `pack.key` on pack load (already
+  shipped) — so live rows compose in the loop's key. One harmonic brain.
+- **Arrangement**: `loopGain` already follows the arrangement multiplier
+  (GeneratorBase), so section dynamics and moments hit loop rows and band
+  rows together. `applyLoopSceneForSection` must only swap rows whose
+  source is `loop` — a `band` row's generator owns its own part.
+- Flipping a row back to `band` replays the last organism state to that one
+  generator (same replayStateToGenerator path clearLoopPack uses) so its
+  Parts rebuild on the grid.
+
+### Success criteria
+
+1. Hybrid quick-toggle: texture bed loops under the live band within 2s,
+   no BPM/key clash, one clock.
+2. Any row flips band↔loop live without stopping the others (players stay
+   phase-locked; band rows keep composing).
+3. Arrangement moments (pre-drop cut, drop boost) audibly shape loop rows
+   and band rows together.
+4. Loops Mode (all-loop) and Generate Mode (all-band) behave exactly as
+   before — they are just switch presets now.

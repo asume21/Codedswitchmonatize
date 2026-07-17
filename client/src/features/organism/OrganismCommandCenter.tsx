@@ -335,6 +335,7 @@ export function OrganismCommandCenter() {
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
     loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
+    loopRowSources, setHybridModeEnabled, setLoopRowSource,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -2303,9 +2304,23 @@ export function OrganismCommandCenter() {
             }}>
               <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
               <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
-              {(!activePreset || activePreset.loopPackId) && (
-                <PillToggle active={loopsModeEnabled}   label="Loops"         onToggle={toggleLoopsMode}     color={C.purple} loading={isLoopsLoading} />
-              )}
+              {(!activePreset || activePreset.loopPackId) && (() => {
+                const rowVals = Object.values(loopRowSources)
+                const allLoop = loopsModeEnabled && rowVals.length > 0 && rowVals.every(s => s === 'loop')
+                const hybridOn = loopsModeEnabled && !allLoop && rowVals.includes('loop')
+                return (
+                  <>
+                    {/* Full loop playback (all five rows on pack clips) */}
+                    <PillToggle active={allLoop} label="Loops"
+                      onToggle={() => setLoopsModeEnabled(!allLoop)}
+                      color={C.purple} loading={isLoopsLoading} />
+                    {/* Hybrid: band leads, texture loop runs as the bed */}
+                    <PillToggle active={hybridOn} label="Hybrid"
+                      onToggle={() => setHybridModeEnabled(!hybridOn)}
+                      color={C.purple} loading={isLoopsLoading} />
+                  </>
+                )
+              })()}
               <PillToggle active={cadenceLockEnabled}   label="Cadence Lock"  onToggle={toggleCadenceLock}   color={C.cyan} />
               <PillToggle active={callResponseEnabled}  label="Call + Response" onToggle={toggleCallResponse} color={C.purple} />
               <PillToggle active={dropDetectorEnabled}  label="Drop Detector" onToggle={toggleDropDetector}   color={C.amber} />
@@ -2313,6 +2328,29 @@ export function OrganismCommandCenter() {
               <PillToggle active={isStoryMode}          label="Story Mode"    onToggle={toggleStoryMode}                                     color={C.red} />
               <PillToggle active={melodyFocusEnabled}   label="Melody Focus"  onToggle={toggleMelodyFocus}   color={C.cyan} />
             </div>
+            {/* Per-row source switches (switches, not modes): each row plays
+                either its live generator (BAND) or the pack clip (LOOP). Only
+                meaningful while a pack is loaded. */}
+            {loopsModeEnabled && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 7 }}>
+                {([['drums', 'Drums'], ['bass', 'Bass'], ['melody', 'Melody'], ['chords', 'Chords'], ['texture', 'Keys/Pads']] as const).map(([row, lbl]) => {
+                  const isLoop = loopRowSources[row] === 'loop'
+                  return (
+                    <button key={row}
+                      onClick={() => setLoopRowSource(row, isLoop ? 'band' : 'loop')}
+                      title={isLoop ? `${lbl}: pack loop playing — click for live band` : `${lbl}: live band playing — click for pack loop`}
+                      style={{
+                        fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+                        background: isLoop ? 'rgba(168,85,247,0.18)' : 'transparent',
+                        border: `1px solid ${isLoop ? C.purple : C.border2}`,
+                        color: isLoop ? C.purple : C.text3,
+                      }}>
+                      {lbl}: {isLoop ? 'LOOP' : 'BAND'}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* ── Multi-take Producer Studio ──────────────────────────── */}
