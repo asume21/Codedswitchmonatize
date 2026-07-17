@@ -349,7 +349,7 @@ export default function DemoPage() {
             Open Studio →
           </a>
           <a
-            href="/docs/ai-perception"
+            href="/developers"
             className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-sm transition-colors"
           >
             Read Docs

@@ -124,7 +124,7 @@ export function UserAccountMenu() {
         <DropdownMenuSeparator className="bg-gray-700" />
         
         <DropdownMenuItem asChild className="text-gray-300 focus:text-white focus:bg-gray-700">
-          <Link href="/user-profile">
+          <Link href="/profile">
             <User className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </Link>

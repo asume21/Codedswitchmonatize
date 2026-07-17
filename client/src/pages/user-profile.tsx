@@ -107,7 +107,11 @@ export default function UserProfile() {
     isActive: false,
   };
 
-  const profile = profileData || defaultProfile;
+  // Merge over defaults instead of replacing them: /api/user/profile omits
+  // social-stat fields (totalViews, totalShares, rating), and a bare
+  // `profileData || defaultProfile` crashed the page on
+  // profile.totalViews.toLocaleString() the moment real data arrived.
+  const profile: UserProfile = { ...defaultProfile, ...(profileData ?? {}) };
   const credits = creditData?.balance || 0;
   const isAuthenticated = auth?.isAuthenticated || false;
 
