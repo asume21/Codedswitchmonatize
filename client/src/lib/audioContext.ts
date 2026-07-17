@@ -27,9 +27,16 @@ export function getAudioContext(): AudioContext {
     // 'playback' latencyHint tells the browser to use a bigger audio buffer
     // (~1024-2048 samples instead of ~128-256), which prevents audio glitches
     // when the main thread is busy processing mouse/keyboard UI events.
+    //
+    // NO forced sampleRate: we used to pin 44100, but the user's hardware runs
+    // at 48000 (measured 2026-07-16) — a pinned mismatched rate makes Chrome
+    // resample EVERY output quantum forever, extra work on exactly the audio
+    // thread whose missed deadlines ARE the crackle (glitch-scan proved the
+    // rendered signal is clean; the clicks are real-time output underruns).
+    // Matching the device rate removes that resampler. 44.1k WAV samples are
+    // resampled ONCE at decode time instead, which is free at runtime.
     sharedContext = new (window.AudioContext || (window as any).webkitAudioContext)({
       latencyHint: 'playback',
-      sampleRate: 44100,
     });
 
     // Force Tone.js to use OUR context (not its own default small-buffer one)
@@ -59,8 +66,59 @@ export function getAudioContext(): AudioContext {
 
     // Add error handling for audio context
     sharedContext.addEventListener('statechange', handleContextStateChange);
+
+    startAudioHealthMonitor(sharedContext);
   }
   return sharedContext;
+}
+
+// ── Audio-health monitor (dev diagnostics) ──────────────────────────────────
+// The crackle/cutout investigation proved the rendered signal is clean and the
+// clicks are REAL-TIME output underruns on the user's machine — which headless
+// probes can never see. This watches the one observable symptom: while the
+// context is running, the audio clock must advance 1:1 with the wall clock.
+// When the audio thread misses deadlines, currentTime falls behind in bursts.
+// Every stall is logged and tallied; `window.__audioHealth()` prints the
+// session summary so a listening session produces NUMBERS, not vibes.
+interface AudioStall { at: number; behindMs: number; outputLatencyMs: number }
+const audioStalls: AudioStall[] = [];
+
+function startAudioHealthMonitor(ctx: AudioContext): void {
+  let lastWall = performance.now();
+  let lastAudio = ctx.currentTime;
+
+  window.setInterval(() => {
+    const wall = performance.now();
+    const audio = ctx.currentTime;
+    if (ctx.state === 'running') {
+      const wallDelta = wall - lastWall;
+      const audioDelta = (audio - lastAudio) * 1000;
+      const behindMs = wallDelta - audioDelta;
+      // >35ms behind in a 500ms window = the audio thread visibly stalled
+      // (normal jitter is <5ms; one 128-sample quantum at 48k is ~2.7ms).
+      if (behindMs > 35) {
+        const stall: AudioStall = {
+          at: Math.round(wall),
+          behindMs: Math.round(behindMs),
+          outputLatencyMs: Math.round(((ctx as any).outputLatency ?? 0) * 1000),
+        };
+        audioStalls.push(stall);
+        console.warn(`🩺 [audio-health] output stall: audio clock fell ${stall.behindMs}ms behind wall clock (outputLatency ${stall.outputLatencyMs}ms)`);
+      }
+    }
+    lastWall = wall;
+    lastAudio = audio;
+  }, 500);
+
+  (window as any).__audioHealth = () => ({
+    sampleRate: ctx.sampleRate,
+    baseLatencyMs: Math.round((ctx.baseLatency ?? 0) * 1000),
+    outputLatencyMs: Math.round(((ctx as any).outputLatency ?? 0) * 1000),
+    state: ctx.state,
+    stallCount: audioStalls.length,
+    worstStallMs: audioStalls.reduce((m, s) => Math.max(m, s.behindMs), 0),
+    recentStalls: audioStalls.slice(-10),
+  });
 }
 
 function handleContextStateChange() {
