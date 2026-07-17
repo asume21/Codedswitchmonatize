@@ -30,6 +30,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.1",
     "@babel/core": "^7.28.4",
     "@babel/plugin-transform-react-jsx": "^7.27.1",
     "@babel/preset-env": "^7.28.3",

@@ -162,6 +162,10 @@ export class LocalAIService {
       model?: string;
       format?: 'json';
       temperature?: number;
+      /** Per-call abort budget. The 45s default fits offline seats (Composer);
+       *  live seats (Conductor consult) must pass something the client-side
+       *  section-boundary window can absorb. */
+      timeoutMs?: number;
     } = {}
   ): Promise<string> {
     const model = options.model || this.defaultModel;
@@ -199,7 +203,7 @@ export class LocalAIService {
             temperature: options.temperature || 0.7,
           }
         }),
-        signal: AbortSignal.timeout(45000) // 45 second timeout for chat
+        signal: AbortSignal.timeout(options.timeoutMs ?? 45000)
       });
 
       if (!response.ok) {

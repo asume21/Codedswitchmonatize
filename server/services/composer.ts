@@ -4,19 +4,21 @@
 // 140 BPM") into an `ArrangementPlan` — the single artifact both ACE-Step
 // (audio renderer) and the live engine's Conductor consume.
 //
-// Today this is Ollama with a JSON-format system prompt, falling back to a
-// deterministic plan when Ollama is unavailable or returns malformed JSON.
-// The slot is interchangeable: a future WebLLM-in-browser composer or a
-// Grok cloud composer plugs into the same Composer interface from
-// shared/arrangement.ts and the readers don't need to know which produced
-// the plan.
+// Brain relay (band-rack spec, Part B): the best available brain writes the
+// plan, and no brain is trusted — every link's output goes through the same
+// menu clamping + validateArrangementPlan, falling through on any failure.
 //
-// Fallback chain (mirrors server/routes/aceStep.ts:buildAceStepPrompt):
-//   Ollama JSON output → deterministic plan builder
-// Grok fallback is intentionally NOT here yet — adding it is a one-call
-// edit once the deterministic path proves reliable in prod.
+//   Claude (Anthropic API, claude-opus-4-8; the COMPOSER seat)
+//     → Ollama (local/Railway llama)
+//       → deterministic plan builder (always succeeds)
+//
+// Seat assignment: CLAUDE composes (one offline plan per session, seconds of
+// latency fine), OLLAMA conducts live (server/services/conductorBrain.ts).
+// COMPOSER_BRAIN=claude|ollama|deterministic pins a single link so each can
+// be tested in isolation; unset runs the full chain.
 
 import { randomUUID } from 'node:crypto'
+import Anthropic from '@anthropic-ai/sdk'
 import {
   validateArrangementPlan,
   type ArrangementPlan,
@@ -234,49 +236,30 @@ JSON shape:
 }
 
 /**
- * Ask Ollama for an ArrangementPlan via the JSON-format chat endpoint.
- * Validates against the shared schema and falls back to the deterministic
- * builder on any failure (network, parse, validation). Never throws — the
- * caller always gets a usable plan.
+ * Defensive validation shared by every brain link. Takes the raw JSON string
+ * a model produced, clamps template/style picks to the allowed menus, fills
+ * missing orchestration, and validates against the shared schema. Returns
+ * null on ANY problem so the relay falls through to the next link — no brain
+ * is trusted.
  */
-async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan> {
-  const scaffold = buildDeterministicPlan(input)
-  // Build the system prompt with the catalog of templates + styles the
-  // composer is allowed to pick from. When the UI hasn't locked anything,
-  // both catalogs are fully exposed; when locked, the menu shrinks to the
-  // allowed subset so Ollama can't pick outside the user's chosen range.
-  const allowedTemplateIds = input.allowedTemplateIds && input.allowedTemplateIds.length > 0
-    ? input.allowedTemplateIds
-    : ARRANGEMENT_TEMPLATE_CATALOG.map(t => t.id)
-  const allowedStyleIds = input.allowedStyleIds && input.allowedStyleIds.length > 0
-    ? input.allowedStyleIds
-    : STYLE_PRESETS.map(s => s.id)
-
-  const systemPrompt = buildComposerSystemPrompt({ allowedTemplateIds, allowedStyleIds })
-  const userMessage = [
-    input.prompt ? `User intent: ${input.prompt}` : '',
-    input.sectionCount ? `Target section count: ${input.sectionCount}` : '',
-    `Seed plan to refine (use this key/bpm/subGenre unless the user explicitly asked for different):`,
-    JSON.stringify(scaffold),
-  ].filter(Boolean).join('\n')
-
+function validateBrainPlan(
+  raw: string,
+  brainName: string,
+  scaffold: ArrangementPlan,
+  allowedTemplateIds: string[],
+  allowedStyleIds: string[],
+): ArrangementPlan | null {
   try {
-    const raw = await localAI.chat(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userMessage },
-      ],
-      { format: 'json', temperature: 0.55 },
-    )
-    const parsed = JSON.parse(raw)
+    // Models occasionally wrap JSON in markdown fences despite instructions.
+    const stripped = raw.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+    const parsed = JSON.parse(stripped)
     // Always assign a server-side ID even if the model emitted one — the
     // ID has to be unique across sessions, and we can't trust LLM output.
     parsed.id = scaffold.id
-    // Defensive validation: reject any templateId or section styleId not
-    // in the allowed pool. Ollama sometimes hallucinates ids that "sound
-    // right" — clamp to the menu it was given.
+    // Reject any templateId or section styleId not in the allowed pool —
+    // models sometimes hallucinate ids that "sound right".
     if (!parsed.templateId || !allowedTemplateIds.includes(parsed.templateId)) {
-      console.warn(`[composer] Ollama picked unknown templateId "${parsed.templateId}"; falling back to "${scaffold.templateId}"`)
+      console.warn(`[composer] ${brainName} picked unknown templateId "${parsed.templateId}"; falling back to "${scaffold.templateId}"`)
       parsed.templateId = scaffold.templateId
     }
     if (Array.isArray(parsed.sections)) {
@@ -284,7 +267,7 @@ async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan>
         const section = parsed.sections[i]
         if (section && typeof section === 'object' && (!section.style || !allowedStyleIds.includes(section.style))) {
           const fallbackStyle = scaffold.sections[i]?.style ?? allowedStyleIds[0]
-          console.warn(`[composer] Ollama picked unknown style "${section.style}" for section "${section.name}"; falling back to "${fallbackStyle}"`)
+          console.warn(`[composer] ${brainName} picked unknown style "${section.style}" for section "${section.name}"; falling back to "${fallbackStyle}"`)
           section.style = fallbackStyle
         }
         // A plan must never ship a section without orchestration — the live
@@ -296,27 +279,124 @@ async function composeWithOllama(input: ComposerInput): Promise<ArrangementPlan>
     }
     const problem = validateArrangementPlan(parsed)
     if (problem) {
-      console.warn(`[composer] Ollama plan rejected: ${problem}. Falling back to deterministic plan.`)
-      return scaffold
+      console.warn(`[composer] ${brainName} plan rejected: ${problem}.`)
+      return null
     }
-    console.log('[composer] Built ArrangementPlan with local Ollama')
+    console.log(`[composer] Built ArrangementPlan with ${brainName}`)
     return parsed as ArrangementPlan
   } catch (err) {
-    console.warn('[composer] Ollama compose failed; using deterministic plan:', err)
-    return scaffold
+    console.warn(`[composer] ${brainName} compose failed:`, (err as Error).message)
+    return null
+  }
+}
+
+/** Shared prompt inputs for one compose call. */
+function buildPromptContext(input: ComposerInput, scaffold: ArrangementPlan) {
+  // When the UI hasn't locked anything, both catalogs are fully exposed;
+  // when locked, the menu shrinks so no brain can pick outside the range.
+  const allowedTemplateIds = input.allowedTemplateIds && input.allowedTemplateIds.length > 0
+    ? input.allowedTemplateIds
+    : ARRANGEMENT_TEMPLATE_CATALOG.map(t => t.id)
+  const allowedStyleIds = input.allowedStyleIds && input.allowedStyleIds.length > 0
+    ? input.allowedStyleIds
+    : STYLE_PRESETS.map(s => s.id)
+  const systemPrompt = buildComposerSystemPrompt({ allowedTemplateIds, allowedStyleIds })
+  const userMessage = [
+    input.prompt ? `User intent: ${input.prompt}` : '',
+    input.sectionCount ? `Target section count: ${input.sectionCount}` : '',
+    `Seed plan to refine (use this key/bpm/subGenre unless the user explicitly asked for different):`,
+    JSON.stringify(scaffold),
+  ].filter(Boolean).join('\n')
+  return { allowedTemplateIds, allowedStyleIds, systemPrompt, userMessage }
+}
+
+// ── Brain links ──────────────────────────────────────────────────────
+
+// Lazy singleton — constructing the client without a key would throw at
+// import time and take the whole route module down with it.
+let anthropicClient: Anthropic | null = null
+function getAnthropic(): Anthropic | null {
+  if (!process.env.ANTHROPIC_API_KEY) return null
+  if (!anthropicClient) {
+    // The composer is an offline seat: one call per session start, seconds
+    // of latency acceptable — but don't let a hung request sit for the SDK's
+    // 10-minute default.
+    anthropicClient = new Anthropic({ timeout: 60_000, maxRetries: 1 })
+  }
+  return anthropicClient
+}
+
+/** Claude link — the composer seat. Returns null when unconfigured or on any failure. */
+async function composeWithClaude(
+  ctx: ReturnType<typeof buildPromptContext>,
+  scaffold: ArrangementPlan,
+): Promise<ArrangementPlan | null> {
+  const client = getAnthropic()
+  if (!client) return null
+  try {
+    const response = await client.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 16000,
+      thinking: { type: 'adaptive' },
+      system: ctx.systemPrompt,
+      messages: [{ role: 'user', content: ctx.userMessage }],
+    })
+    if (response.stop_reason === 'refusal') {
+      console.warn('[composer] Claude declined the request; falling through.')
+      return null
+    }
+    const text = response.content
+      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+      .map(b => b.text)
+      .join('')
+    return validateBrainPlan(text, 'Claude', scaffold, ctx.allowedTemplateIds, ctx.allowedStyleIds)
+  } catch (err) {
+    console.warn('[composer] Claude compose failed:', (err as Error).message)
+    return null
+  }
+}
+
+/** Ollama link. Returns null on any failure. */
+async function composeWithOllama(
+  ctx: ReturnType<typeof buildPromptContext>,
+  scaffold: ArrangementPlan,
+): Promise<ArrangementPlan | null> {
+  try {
+    const raw = await localAI.chat(
+      [
+        { role: 'system', content: ctx.systemPrompt },
+        { role: 'user',   content: ctx.userMessage },
+      ],
+      { format: 'json', temperature: 0.55 },
+    )
+    return validateBrainPlan(raw, 'Ollama', scaffold, ctx.allowedTemplateIds, ctx.allowedStyleIds)
+  } catch (err) {
+    console.warn('[composer] Ollama compose failed:', (err as Error).message)
+    return null
   }
 }
 
 // ── Public API ───────────────────────────────────────────────────────
 
-class OllamaComposer implements Composer {
+class RelayComposer implements Composer {
   async compose(input: ComposerInput): Promise<ArrangementPlan> {
-    return composeWithOllama(input)
+    const scaffold = buildDeterministicPlan(input)
+    const ctx = buildPromptContext(input, scaffold)
+    // COMPOSER_BRAIN pins one link for isolated dev testing; unset = full chain.
+    const pin = process.env.COMPOSER_BRAIN
+    if (pin === 'deterministic') return scaffold
+    if (pin !== 'ollama') {
+      const claudePlan = await composeWithClaude(ctx, scaffold)
+      if (claudePlan) return claudePlan
+      if (pin === 'claude') return scaffold
+    }
+    const ollamaPlan = await composeWithOllama(ctx, scaffold)
+    return ollamaPlan ?? scaffold
   }
 }
 
-/** Default composer — Ollama with deterministic fallback. */
-export const composer: Composer = new OllamaComposer()
+/** Default composer — Claude → Ollama → deterministic relay. */
+export const composer: Composer = new RelayComposer()
 
 /** Direct access to the deterministic builder, for tests and routes that
  *  want to bypass the LLM entirely (e.g. a "rebuild without LLM" button). */

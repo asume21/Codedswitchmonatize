@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth } from "../middleware/auth";
 import { getAIProviderStatus, makeAICall } from "../services/grok";
-import { aceEngine } from "../services/aceEngine";
+import { conductorBrain } from "../services/conductorBrain";
 import { generateChordProgression } from "../services/chordEngine";
 import { aiProviderManager } from "../services/aiProviderManager";
 import { db } from "../db";
@@ -78,7 +78,10 @@ export function createAIRoutes() {
         return res.status(400).json({ error: 'section or nextSection is required' })
       }
 
-      const aceResult = await aceEngine.generateNextSection({
+      // Ollama sits in the conductor seat: it refines the deterministic
+      // aceEngine directive when reachable; the aceEngine scaffold answers
+      // unchanged when it isn't. Never throws.
+      const aceResult = await conductorBrain.nextSectionDirective({
         currentSection: section,
         energy: body.energy ?? body.context?.energy,
         subGenre: body.subGenre ?? body.context?.subGenre,
