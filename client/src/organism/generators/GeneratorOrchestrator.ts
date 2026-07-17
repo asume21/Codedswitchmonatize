@@ -34,6 +34,7 @@ import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
 import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
+import { setSampleCell, cellFromOnsetGrid } from './freeplay/songCell'
 import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
 import { clearCompCounters } from './freeplay/ChordImproviser'
 
@@ -2225,6 +2226,7 @@ export class GeneratorOrchestrator {
    * their Tone.Parts / synth scheduling that was stopped when loops were enabled.
    */
   clearLoopPack(): void {
+    if (this._sampleLeadRow !== null) this.setSampleLead(null)
     this._currentScene = null
     this._loopPack = null
     this._loopScenes = null
@@ -2326,6 +2328,8 @@ export class GeneratorOrchestrator {
     }
 
     // → band: stop the loop player, rebuild this generator's live parts.
+    // If this row was the sample, the band stops following it too.
+    if (this._sampleLeadRow === row) this.setSampleLead(null)
     gen.setLoopMode(false)
     this._rowSources[row] = 'band'
     if (this.lastPhysics && this.lastOrganism) {
@@ -2337,6 +2341,79 @@ export class GeneratorOrchestrator {
       this._preLockBpm = null
     }
     return true
+  }
+
+  // ── Sample Leads: the band HEARS the loop ─────────────────────────────────
+  // The loop is the SAMPLE the beat is built around (hip-hop production
+  // model). Its analyzed musical DNA (clip.musical — key, chord-per-bar,
+  // onset grid) is fed to the band's existing brains: the Conductor plays the
+  // sample's harmony, the song cell becomes the sample's bounce, and every
+  // generator re-derives. See the loop-pack spec, "Sample Leads" section.
+
+  private _sampleLeadRow: LoopInstrument | null = null
+
+  getSampleLeadRow(): LoopInstrument | null { return this._sampleLeadRow }
+
+  /**
+   * Engage (row) or release (null) Sample Leads. Requires a loaded pack, the
+   * row sourced to 'loop', and an analyzed clip (clip.musical). Returns false
+   * when any of those are missing so the UI can say why.
+   */
+  setSampleLead(row: LoopInstrument | null): boolean {
+    const conductor = getConductor()
+
+    if (row === null) {
+      if (this._sampleLeadRow === null) return true
+      this._sampleLeadRow = null
+      setSampleCell(null)
+      conductor.unlockProgression()
+      conductor.pickNewProgression()
+      this.rebuildBandFromCell()
+      return true
+    }
+
+    const pack = this._loopPack
+    if (!pack || this._rowSources[row] !== 'loop') return false
+    const clipId = this._currentScene?.[row]
+    const pool = pack.loops[row] ?? []
+    const clip = pool.find((c) => c.id === clipId) ?? pool[0]
+    if (!clip?.musical) return false
+
+    // 1. Harmony: the sample's key + chords become THE progression, locked so
+    //    section changes can't replace them. Key first — setProgression
+    //    transposes into the current key, so this makes that a no-op.
+    if (clip.musical.keyGuess) {
+      conductor.setKey(clip.musical.keyGuess.replace(/m$/, ''))
+    }
+    if (clip.musical.chordPerBar.length) {
+      conductor.setProgression(clip.musical.chordPerBar)
+      conductor.lockProgression()
+    }
+
+    // 2. Rhythm: the sample's bounce becomes THE song cell for every player.
+    setSampleCell(cellFromOnsetGrid(clip.musical.onsetGrid))
+
+    // 3. Space: the sample is the hook — the band's melody steps back to
+    //    support (sparse, answers in the sample's gaps).
+    this.melody.setRole('support')
+
+    this._sampleLeadRow = row
+    this.rebuildBandFromCell()
+    return true
+  }
+
+  /** Clear motifs and rebuild every band-sourced generator so they re-derive
+   *  from the current song cell (sample or generated) immediately. */
+  private rebuildBandFromCell(): void {
+    clearMotifs()
+    const state = this.director.getState()
+    if (this._rowSources.drums === 'band') {
+      this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
+    }
+    if (this._rowSources.bass === 'band')    setTimeout(() => this.replayStateToGenerator(this.bass), 50)
+    if (this._rowSources.chords === 'band')  setTimeout(() => this.replayStateToGenerator(this.chord), 110)
+    if (this._rowSources.melody === 'band')  setTimeout(() => this.replayStateToGenerator(this.melody), 170)
+    if (this._rowSources.texture === 'band') setTimeout(() => this.replayStateToGenerator(this.texture), 80)
   }
 
   /** The scene currently playing, so applyScene only swaps rows that changed. */

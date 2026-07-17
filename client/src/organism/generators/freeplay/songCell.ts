@@ -44,6 +44,40 @@ function cellKey(sectionName: string, subGenre: string): string {
   return `songcell:${sectionName}:${subGenre}`
 }
 
+// ── Sample Leads override ───────────────────────────────────────────────────
+// When a loop is the SAMPLE the beat is built around, the loop's own onset
+// grid IS the section's rhythmic idea — every improviser derives from the
+// sample's bounce instead of an invented motif. Null = normal generated cells.
+let sampleCell: SongCell | null = null
+
+/** Install (or clear, with null) the sample's rhythm as THE song cell. */
+export function setSampleCell(cell: SongCell | null): void {
+  sampleCell = cell
+}
+
+export function getSampleCell(): SongCell | null {
+  return sampleCell
+}
+
+/** Build a SongCell from a loop's analyzed onsetGrid (16 strengths 0..1).
+ *  Slots = where the sample actually hits; accents = its strongest hits;
+ *  gaps = where an answering part can speak. */
+export function cellFromOnsetGrid(onsetGrid: number[]): SongCell {
+  const HIT_THRESHOLD = 0.35
+  const slots = onsetGrid
+    .map((v, i) => (v >= HIT_THRESHOLD ? i : -1))
+    .filter((i) => i >= 0)
+  if (!slots.includes(0)) slots.unshift(0) // the idea declares itself on the downbeat
+  const accents = [...slots]
+    .sort((a, b) => (onsetGrid[b] ?? 0) - (onsetGrid[a] ?? 0))
+    .slice(0, 3)
+    .sort((a, b) => a - b)
+  const occupied = new Set(slots)
+  const gaps: number[] = []
+  for (let s = 0; s < 16; s++) if (!occupied.has(s)) gaps.push(s)
+  return { slots: slots.sort((a, b) => a - b), accents, gaps }
+}
+
 /**
  * The section's rhythmic idea. Every freeplay improviser derives its part from
  * this, so the band states ONE thought instead of five.
@@ -57,6 +91,10 @@ export function getSongCell(
   rng: () => number,
   density: number,
 ): SongCell {
+  // Sample Leads: when a loop is the sample, its bounce IS the idea — for
+  // every section, for every player. No generated motif competes with it.
+  if (sampleCell) return sampleCell
+
   // Always anchor slot 0: the idea has to declare itself on the downbeat, or
   // the section has no centre of gravity.
   const motif: RhythmMotif = getSectionMotif(

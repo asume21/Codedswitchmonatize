@@ -495,6 +495,99 @@ describe('GeneratorOrchestrator — hybrid row switches', () => {
   })
 })
 
+// ── Sample Leads: the band HEARS the loop ────────────────────────────
+
+import { getSampleCell, setSampleCell, cellFromOnsetGrid } from '../freeplay/songCell'
+import { getConductor } from '../../conductor/Conductor'
+
+describe('GeneratorOrchestrator — sample leads', () => {
+  function makeMusicalPack(): LoopPack {
+    const pack = makeTestPack()
+    pack.loops.chords[0].musical = {
+      keyGuess: 'Am',
+      chordPerBar: ['Am', 'F', 'C', 'G'],
+      onsetGrid: [1, 0, 0, 0.6, 0, 0, 0.8, 0, 0.9, 0, 0, 0.5, 0, 0, 0.7, 0],
+      analyzedAt: new Date().toISOString(),
+    }
+    return pack
+  }
+
+  function mockPlumbing(orch: GeneratorOrchestrator) {
+    for (const g of ['drum', 'bass', 'melody', 'chord', 'texture']) {
+      vi.spyOn((orch as any)[g], 'loadLoop').mockResolvedValue(undefined)
+      vi.spyOn((orch as any)[g], 'setLoopMode').mockImplementation(() => {})
+    }
+    vi.spyOn((orch as any).drum, 'loadGeneratedPattern').mockImplementation(() => {})
+    vi.spyOn((orch as any).melody, 'setRole').mockImplementation(() => {})
+  }
+
+  beforeEach(() => { setSampleCell(null) })
+
+  it('cellFromOnsetGrid: slots from hits, accents from strongest, downbeat anchored', () => {
+    const cell = cellFromOnsetGrid([0, 0, 0, 0.6, 0, 0, 0.8, 0, 0.9, 0, 0, 0.5, 0, 0, 0.2, 0])
+    expect(cell.slots).toContain(0)          // anchored even though grid[0]=0
+    expect(cell.slots).toEqual([0, 3, 6, 8, 11])
+    expect(cell.accents).toEqual([3, 6, 8])  // three strongest, sorted
+    expect(cell.gaps).not.toContain(6)
+    expect(cell.gaps).toContain(14)          // 0.2 is below the hit threshold
+  })
+
+  it('setSampleLead feeds the loop DNA to conductor + song cell and marks melody support', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockPlumbing(orch)
+    const conductor = getConductor()
+    const keySpy  = vi.spyOn(conductor, 'setKey')
+    const progSpy = vi.spyOn(conductor, 'setProgression')
+    const lockSpy = vi.spyOn(conductor, 'lockProgression')
+
+    await orch.loadLoopPack(makeMusicalPack(), ['chords'])
+    expect(orch.setSampleLead('chords')).toBe(true)
+
+    expect(keySpy).toHaveBeenCalledWith('A')            // 'Am' → root 'A'
+    expect(progSpy).toHaveBeenCalledWith(['Am', 'F', 'C', 'G'])
+    expect(lockSpy).toHaveBeenCalled()
+    expect(getSampleCell()).not.toBeNull()
+    expect(getSampleCell()!.slots).toContain(6)
+    expect((orch as any).melody.setRole).toHaveBeenCalledWith('support')
+    expect(orch.getSampleLeadRow()).toBe('chords')
+  })
+
+  it('setSampleLead refuses rows without musical data or not sourced to loop', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockPlumbing(orch)
+    await orch.loadLoopPack(makeMusicalPack(), ['chords'])
+    expect(orch.setSampleLead('melody')).toBe(false)  // sourced to band
+    orch.setRowSource('bass', 'loop')
+    expect(orch.setSampleLead('bass')).toBe(false)    // no musical data
+    expect(getSampleCell()).toBeNull()
+  })
+
+  it('releasing sample lead clears the cell and unlocks the progression', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockPlumbing(orch)
+    const conductor = getConductor()
+    const unlockSpy = vi.spyOn(conductor, 'unlockProgression')
+    await orch.loadLoopPack(makeMusicalPack(), ['chords'])
+    orch.setSampleLead('chords')
+
+    expect(orch.setSampleLead(null)).toBe(true)
+    expect(getSampleCell()).toBeNull()
+    expect(unlockSpy).toHaveBeenCalled()
+    expect(orch.getSampleLeadRow()).toBeNull()
+  })
+
+  it('flipping the sample row back to band releases sample leads', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockPlumbing(orch)
+    await orch.loadLoopPack(makeMusicalPack(), ['chords'])
+    orch.setSampleLead('chords')
+
+    orch.setRowSource('chords', 'band')
+    expect(orch.getSampleLeadRow()).toBeNull()
+    expect(getSampleCell()).toBeNull()
+  })
+})
+
 // ── Preset swap: clean cut (no stacking) ─────────────────────────────
 // A live preset swap must silence the OUTGOING preset's parts immediately
 // rather than letting them ride the section-change handoff (which keeps them

@@ -23,6 +23,24 @@ export interface LoopProfile {
   profiledAt: string
 }
 
+/**
+ * The loop's musical DNA — what the band needs to play WITH the loop instead
+ * of over it (Sample Leads). Generated offline by
+ * `scripts/analyze-loop-musical.ts`; optional, so unanalyzed clips keep
+ * today's behavior. See the loop-pack spec's "Sample Leads" section.
+ */
+export interface LoopMusical {
+  /** Best-fit key, e.g. 'Am' or 'C'. Null when the clip is unpitched (drums). */
+  keyGuess:    string | null
+  /** One best-fit triad per bar, e.g. ['Dm','G','C','Am']. Empty when unpitched. */
+  chordPerBar: string[]
+  /** 16 values 0..1 — average onset strength per 16th-note slot across bars.
+   *  This is the loop's BOUNCE: the band's song cell derives from it. */
+  onsetGrid:   number[]
+  /** ISO timestamp. Presence ⇒ "already analyzed". */
+  analyzedAt:  string
+}
+
 export interface LoopClip {
   id:       string
   url:      string
@@ -30,6 +48,8 @@ export interface LoopClip {
   label?:   string
   /** WebEar profile — present once the loop has been listened to + measured. */
   profile?: LoopProfile
+  /** Musical DNA for Sample Leads — present once analyzed. */
+  musical?: LoopMusical
 }
 
 export interface LoopPack {

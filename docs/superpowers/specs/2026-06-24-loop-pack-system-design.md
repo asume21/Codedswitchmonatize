@@ -273,3 +273,70 @@ chords on `band`. The user can flip any row live from the Command Center.
    and band rows together.
 4. Loops Mode (all-loop) and Generate Mode (all-band) behave exactly as
    before — they are just switch presets now.
+
+---
+
+## Sample Leads: the Band HEARS the Loop (2026-07-17, ACTIVE)
+
+The row switches connected the wiring; this connects the MUSIC. User verdict
+on switches alone: "not even close." The missing piece is the hip-hop
+production model: **the loop is the SAMPLE the beat is built around.** The
+band must hear what's inside it — its key, its chords, its bounce — and play
+WITH it. This is the song-cell fix one level up: the cell cured five
+generators ignoring each other; this cures the band ignoring the sample.
+
+### Vision decisions (user, 2026-07-17)
+
+- End state: "one living thing" — loop and band indistinguishable from one band.
+- First domino: **band hears the loop** (composition-level lock, this section).
+- Who leads: **the loop is the sample/star**; the band derives from it.
+- Scope: pack loops first; "drop any sample in" is phase 4 on the same analyzer.
+
+### 1. Musical DNA — analyzed once at import (approach A)
+
+Extend the EXISTING per-clip profiling (LoopProfile / profile-loops.ts —
+do not build a parallel pipeline) with a `musical` block per clip:
+
+```ts
+interface LoopMusical {
+  keyGuess:    string | null   // 'Am'
+  chordPerBar: string[]        // ['Dm7','G7','Cmaj7','Am7'] — one per bar
+  onsetGrid:   number[]        // 16 values 0..1 — hit strength per 16th slot
+  analyzedAt:  string
+}
+```
+
+Server-side script (`scripts/analyze-loop-musical.ts`) decodes each WAV
+(same ffmpeg approach as profile-loops), then:
+- **onsetGrid**: envelope energy rise per 16th slot at the pack BPM
+- **chordPerBar**: pitch-class energy (Goertzel at semitone bins) per bar →
+  best-fit major/minor triad
+- **keyGuess**: aggregate chroma vs major/minor key profiles
+
+Deterministic, zero runtime cost, and the same analyzer runs at upload time
+in phase 4.
+
+### 2. Runtime: existing brains, new food
+
+`GeneratorOrchestrator.setSampleLeadClip(row | null)`:
+- **Conductor**: `setProgression(clip.musical.chordPerBar)` + key from
+  keyGuess — bass/chords voice-lead WITH the sample. (API already exists.)
+- **Song cell**: the loop's onsetGrid becomes the section's cell
+  (`setSampleCell` override in songCell.ts) — drums accent the sample's
+  rhythm, bass lands on its hits, chords comp in its GAPS.
+- **Roles**: melody drops to support (sparse, answers in the gaps) — the
+  "chords as the hook" flip with the sample as the hook.
+- Motifs cleared + patterns rebuilt so the band re-derives immediately.
+
+### 3. UI
+
+"🎤 Sample Leads" chip in the hybrid row-chip strip: picks the sample row
+(first loop row among chords → melody → texture) and engages the above.
+Off = loop plays but band composes independently (the old hybrid).
+
+### Phases to "one living thing"
+
+1. Band hears the loop (THIS).
+2. Loop obeys the groove — chop/retrigger with the band's pocket.
+3. The glue — loop through band channel strips/sidechain/master color.
+4. Any sample upload — same analyzer at upload time.

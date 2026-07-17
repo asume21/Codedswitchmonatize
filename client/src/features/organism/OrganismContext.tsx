@@ -247,6 +247,10 @@ export interface OrganismContextValue {
   loopRowSources:         Record<string, 'band' | 'loop'>
   setHybridModeEnabled:   (enabled: boolean) => void
   setLoopRowSource:       (row: 'drums' | 'bass' | 'melody' | 'chords' | 'texture', source: 'band' | 'loop') => boolean
+  // Sample Leads: the band builds the beat AROUND the loop (analyzed
+  // key/chords/bounce feed the Conductor + song cell). Null = off.
+  sampleLeadRow:          string | null
+  setSampleLeads:         (enabled: boolean) => boolean
 
   // Instrument picker — null means Auto, otherwise locks that generator role.
   instrumentAssignments: OrganismInstrumentAssignments

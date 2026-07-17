@@ -336,6 +336,7 @@ export function OrganismCommandCenter() {
     songModeEnabled, setSongModeEnabled,
     loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
     loopRowSources, setHybridModeEnabled, setLoopRowSource,
+    sampleLeadRow, setSampleLeads,
     // Feature toggles
     cadenceLockEnabled, setCadenceLockEnabled,
     callResponseEnabled, setCallResponseEnabled,
@@ -2333,6 +2334,20 @@ export function OrganismCommandCenter() {
                 meaningful while a pack is loaded. */}
             {loopsModeEnabled && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 7 }}>
+                {/* Sample Leads: the band hears the loop and builds around it */}
+                <button
+                  onClick={() => setSampleLeads(!sampleLeadRow)}
+                  title={sampleLeadRow
+                    ? `Band is building around the ${sampleLeadRow} loop — click to release`
+                    : 'Make the band build the beat AROUND the loop (its key, chords, and bounce)'}
+                  style={{
+                    fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer', fontWeight: 700,
+                    background: sampleLeadRow ? 'rgba(245,158,11,0.2)' : 'transparent',
+                    border: `1px solid ${sampleLeadRow ? C.amber : C.border2}`,
+                    color: sampleLeadRow ? C.amber : C.text3,
+                  }}>
+                  🎤 Sample Leads{sampleLeadRow ? `: ${sampleLeadRow.toUpperCase()}` : ''}
+                </button>
                 {([['drums', 'Drums'], ['bass', 'Bass'], ['melody', 'Melody'], ['chords', 'Chords'], ['texture', 'Keys/Pads']] as const).map(([row, lbl]) => {
                   const isLoop = loopRowSources[row] === 'loop'
                   return (

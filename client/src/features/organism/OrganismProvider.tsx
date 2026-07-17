@@ -339,9 +339,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [loopRowSources, setLoopRowSourcesState] = useState<Record<string, 'band' | 'loop'>>({
     drums: 'band', bass: 'band', melody: 'band', chords: 'band', texture: 'band',
   })
+  // Sample Leads: which loop row (if any) the band is building the beat around.
+  const [sampleLeadRow, setSampleLeadRowState] = useState<string | null>(null)
   const syncLoopRowSources = useCallback(() => {
     const o = orchestrRef.current
-    if (o) setLoopRowSourcesState({ ...o.getRowSources() })
+    if (o) {
+      setLoopRowSourcesState({ ...o.getRowSources() })
+      setSampleLeadRowState(o.getSampleLeadRow())
+    }
   }, [])
 
   const loadLoops = useCallback(async (
@@ -3671,6 +3676,29 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       loadLoops(enabled, currentPresetRef.current, enabled ? ['texture'] : undefined),
     setLoopRowSource: (row: 'drums' | 'bass' | 'melody' | 'chords' | 'texture', source: 'band' | 'loop') => {
       const ok = orchestrRef.current?.setRowSource(row, source) ?? false
+      syncLoopRowSources()
+      return ok
+    },
+
+    // Sample Leads: the band builds the beat AROUND the loop (its analyzed
+    // key/chords/bounce feed the Conductor + song cell). Picks the first
+    // musical loop row — chords, then melody, then texture, then bass.
+    sampleLeadRow,
+    setSampleLeads: (enabled: boolean) => {
+      const o = orchestrRef.current
+      if (!o) return false
+      if (!enabled) {
+        const ok = o.setSampleLead(null)
+        syncLoopRowSources()
+        return ok
+      }
+      const sources = o.getRowSources()
+      const candidates = (['chords', 'melody', 'texture', 'bass'] as const)
+        .filter(r => sources[r] === 'loop')
+      let ok = false
+      for (const r of candidates) {
+        if (o.setSampleLead(r)) { ok = true; break }
+      }
       syncLoopRowSources()
       return ok
     },
