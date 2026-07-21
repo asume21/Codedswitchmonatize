@@ -407,8 +407,12 @@ export default function FloatingAudioMonitor() {
   const buttonState = organismRecording ? 'recording' : organismRunning ? 'organism-live' : playingCount > 0 ? 'audio-playing' : 'idle';
 
   return (
+    // Sit ABOVE the global transport bar (fixed bottom-0, h-16 = 4rem). At the
+    // old bottom:1rem this floating button (z-200) landed inside the transport
+    // band and covered its right-side controls (volume / time-sig). 4.5rem
+    // clears the 4rem bar with a small gap.
     <div className="fixed z-[200] flex flex-col items-end gap-2"
-      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))', right: 'calc(1rem + env(safe-area-inset-right))' }}
+      style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))', right: 'calc(1rem + env(safe-area-inset-right))' }}
     >
       {/* Expanded panel */}
       {isExpanded && (

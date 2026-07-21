@@ -115,6 +115,20 @@ class GlobalAudioKillSwitch {
       } catch { /* ignore */ }
     });
 
+    // 8. Tell every subsystem that owns its own audio graph to stop ITSELF.
+    // The kill switch can't reach into a React player's scheduled buffer
+    // sources from out here (suspending the shared context only pauses them —
+    // they resume the moment any other code resumes the context). But each
+    // owner has an authoritative stop: MasterMultiTrackPlayer.stopPlayback()
+    // calls source.stop() on its looping nodes, Astutely/Organism halt their
+    // own playback. Broadcasting both stop dialects funnels all three of the
+    // app's stop channels through this single button. (Re-entrancy is guarded
+    // inside each listener.)
+    try {
+      window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+      window.dispatchEvent(new CustomEvent('stopAllTools'));
+    } catch { /* ignore */ }
+
     // Clear tracking sets
     this.audioElements.clear();
     this.oscillators.clear();

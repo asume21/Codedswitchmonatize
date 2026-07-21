@@ -20,7 +20,6 @@ import { packSynthesizer } from "@/lib/packAudioSynthesizer";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
 import { apiRequest } from "@/lib/queryClient";
-import { useAstutelyCore } from "@/contexts/AstutelyCoreContext";
 
 const PACK_HISTORY_KEY = "pack-generator-history";
 
@@ -217,7 +216,6 @@ function getSamplePlaybackUrl(sample: GeneratedPack['samples'][number]): string 
 }
 
 export default function PackGenerator() {
-  const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const [prompt, setPrompt] = useState("");
   const [packCount, setPackCount] = useState(4);
   const [generatedPacks, setGeneratedPacks] = useState<GeneratedPack[]>([]);
@@ -395,22 +393,13 @@ export default function PackGenerator() {
       saveHistory(packs);
       toast({ title: `Generated ${packs.length} packs` });
 
-      // Also generate real AI audio for the first pack
-      (async () => {
-        try {
-          const firstPack = packs[0];
-          toast({ title: '🎵 Generating Real Audio', description: `Creating professional ${firstPack?.genre || 'music'} audio via AI...` });
-          const audioResult = await generateRealAudio(firstPack?.genre || 'Electronic', { bpm: firstPack?.bpm || 120 });
-          try {
-            await playGeneratedAudio(audioResult.audioUrl);
-          } catch (playErr) {
-            console.warn('Auto-play blocked:', playErr);
-          }
-          toast({ title: '✅ Real Audio Ready!', description: `Generated via ${audioResult.provider} (${audioResult.duration}s)` });
-        } catch (audioErr) {
-          console.warn('Real audio generation failed, pack data still available:', audioErr);
-        }
-      })();
+      // NOTE (2026-07-20): removed the automatic second render + auto-play that
+      // used to fire here. It kicked off an unrequested ~30s generateRealAudio()
+      // then playGeneratedAudio() on every pack generation — audio nobody asked
+      // for, that started minutes later and was hard to stop. Previewing a pack
+      // is now an explicit user action (the per-pack play controls), never
+      // automatic. See generateRealAudio/playGeneratedAudio, still available for
+      // opt-in use.
     },
     onError: (error) => {
       toast({ variant: "destructive", title: "Generation failed", description: error.message });

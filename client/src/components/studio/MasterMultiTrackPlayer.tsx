@@ -526,6 +526,11 @@ export default function MasterMultiTrackPlayer() {
   const masterGainRef = useRef<GainNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isPlayingRef = useRef(false);
+  // Re-entrancy guard: stopPlayback() broadcasts 'globalAudio:stopAll', which
+  // this player also LISTENS for → stopPlayback would call itself forever.
+  // This flag lets the synchronous re-entry no-op while still always running
+  // stopTracks() on the first pass.
+  const isStoppingRef = useRef(false);
   const startTimeRef = useRef<number>(0);
   const pauseTimeRef = useRef<number>(0);
   const metronomeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1758,16 +1763,22 @@ export default function MasterMultiTrackPlayer() {
 
   // Stop and reset
   const stopPlayback = () => {
-    // Stop any other players globally too
-    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
-    stopTracks();
-    setIsPlaying(false);
-    isPlayingRef.current = false;
-    pauseTimeRef.current = 0;
-    setCurrentTime(0);
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+    if (isStoppingRef.current) return; // synchronous re-entry from our own broadcast → no-op
+    isStoppingRef.current = true;
+    try {
+      // Stop any other players globally too
+      window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+      stopTracks();
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+      pauseTimeRef.current = 0;
+      setCurrentTime(0);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    } finally {
+      isStoppingRef.current = false;
     }
   };
 
