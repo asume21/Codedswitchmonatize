@@ -314,7 +314,7 @@ function startMetering() {
     }
 
     meterListeners.forEach(fn => fn(meters));
-  }, 33); // ~30fps
+  }, 100); // TANK BUILD: 10fps (was 30fps) — AnalyserNode reads compete with audio scheduler
 }
 
 /**

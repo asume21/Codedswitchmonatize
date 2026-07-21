@@ -204,10 +204,18 @@ export class RealisticAudioEngine {
 
   constructor() {
     this.instrumentLibrary = INSTRUMENT_LIBRARY;
-    // Cleanup every 500ms (was 2000ms). At trap hi-hat density (~24 hits/bar at
-    // 140 BPM = 56 hits/sec across kit + samples), 2s let dozens of finished
-    // OscillatorNodes accumulate between sweeps — measurable CPU + GC pressure.
-    this.cleanupIntervalId = setInterval(() => this.cleanupFinishedNodes(), 500);
+    // TANK BUILD: cleanup every 2000ms using idle time. The old 500ms interval
+    // competed with Tone.js's audio scheduler on the main thread — at trap
+    // density (56+ hits/sec), iterating hundreds of nodes every 500ms caused
+    // the scheduler to miss deadlines → audio stalls. 2000ms + requestIdleCallback
+    // keeps the node count manageable without starving the audio thread.
+    this.cleanupIntervalId = setInterval(() => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => this.cleanupFinishedNodes(), { timeout: 3000 })
+      } else {
+        setTimeout(() => this.cleanupFinishedNodes(), 100)
+      }
+    }, 2000);
     // Pre-allocate noise buffers once so drum hits don't create them on every trigger
     this.initNoiseBuffers();
   }

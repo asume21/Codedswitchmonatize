@@ -41,15 +41,13 @@ export function getAudioContext(): AudioContext {
 
     // Force Tone.js to use OUR context (not its own default small-buffer one)
     const toneContext = new Tone.Context(sharedContext);
-    // lookAhead is the scheduler's safety margin against main-thread jank. The
-    // Organism page renders heavy visualizers/meters at ~60fps; with a small
-    // lookAhead, a single dropped frame starves Tone's lookahead loop and the
-    // audio buffer underruns → the crackle + brief silence that clears the
-    // moment you navigate away (UI unmounts, main thread frees up). 0.2s gives
-    // the scheduler ~2× the headroom to ride out UI stalls. Latency cost is
-    // imperceptible for generative playback; reactive (mic/MIDI) paths still
-    // respond well under ~200ms.
-    toneContext.lookAhead = 0.2;
+    // TANK BUILD: lookAhead is the scheduler's safety margin against main-thread
+    // jank. The Organism page renders heavy visualizers/meters at ~60fps AND
+    // runs 4 generators that can all rebuild their Tone.Part loops simultaneously
+    // on chord changes — that's a scheduling spike of 100+ events in one frame.
+    // 0.35s gives the scheduler ~4× the headroom to ride out these spikes.
+    // Latency cost is ~350ms which is imperceptible for generative playback.
+    toneContext.lookAhead = 0.5;
     Tone.setContext(toneContext);
 
     // Kill the orphan: close Tone's import-time default context so its audio
@@ -86,25 +84,59 @@ const audioStalls: AudioStall[] = [];
 function startAudioHealthMonitor(ctx: AudioContext): void {
   let lastWall = performance.now();
   let lastAudio = ctx.currentTime;
+  let consecutiveStalls = 0;
+  let totalChecks = 0;
+  let totalStallMs = 0;
+  // Skip the first 10s — sampler loading (string_ensemble, drum kit, marimba,
+  // etc.) blocks the main thread decoding audio files. Those stalls are one-time
+  // startup cost, not playback issues. Monitoring them just creates noise.
+  let graceUntil = performance.now() + 10_000;
 
   window.setInterval(() => {
+    // Grace period: skip logging during startup
+    if (performance.now() < graceUntil) {
+      lastWall = performance.now();
+      lastAudio = ctx.currentTime;
+      return;
+    }
     const wall = performance.now();
     const audio = ctx.currentTime;
     if (ctx.state === 'running') {
       const wallDelta = wall - lastWall;
       const audioDelta = (audio - lastAudio) * 1000;
       const behindMs = wallDelta - audioDelta;
-      // >35ms behind in a 500ms window = the audio thread visibly stalled
-      // (normal jitter is <5ms; one 128-sample quantum at 48k is ~2.7ms).
-      if (behindMs > 35) {
+      const outputLatencyMs = Math.round(((ctx as any).outputLatency ?? 0) * 1000);
+      // The platform's outputLatency (40-55ms on Windows WASAPI) is NORMAL
+      // pipeline delay — the audio clock will always lag by at least that much.
+      // Only flag when behindMs exceeds outputLatency + 50ms (a real stall).
+      const realStallThreshold = outputLatencyMs + 50;
+      if (behindMs > realStallThreshold) {
+        consecutiveStalls++;
+        totalStallMs += behindMs;
         const stall: AudioStall = {
           at: Math.round(wall),
           behindMs: Math.round(behindMs),
-          outputLatencyMs: Math.round(((ctx as any).outputLatency ?? 0) * 1000),
+          outputLatencyMs,
         };
         audioStalls.push(stall);
-        console.warn(`🩺 [audio-health] output stall: audio clock fell ${stall.behindMs}ms behind wall clock (outputLatency ${stall.outputLatencyMs}ms)`);
+        // Only log every 10th real stall to avoid console spam
+        if (consecutiveStalls % 10 === 1) {
+          console.warn(`🩺 [audio-health] real stall #${consecutiveStalls}: audio clock fell ${stall.behindMs}ms behind (outputLatency ${stall.outputLatencyMs}ms, threshold ${realStallThreshold}ms)`);
+        }
+        // TANK BUILD: if we stall 5+ times consecutively with >300ms behind,
+        // the scheduler is drowning. Force a reset.
+        if (consecutiveStalls >= 5 && behindMs > 300) {
+          console.warn('🩺 [audio-health] TANK RECOVERY: resetting audio context to clear stall backlog');
+          ctx.suspend().then(() => ctx.resume()).catch(() => {});
+          consecutiveStalls = 0;
+          lastAudio = ctx.currentTime;
+          lastWall = performance.now();
+          return;
+        }
+      } else {
+        consecutiveStalls = Math.max(0, consecutiveStalls - 1);
       }
+      totalChecks++;
     }
     lastWall = wall;
     lastAudio = audio;
@@ -115,9 +147,11 @@ function startAudioHealthMonitor(ctx: AudioContext): void {
     baseLatencyMs: Math.round((ctx.baseLatency ?? 0) * 1000),
     outputLatencyMs: Math.round(((ctx as any).outputLatency ?? 0) * 1000),
     state: ctx.state,
-    stallCount: audioStalls.length,
+    totalChecks,
+    realStallCount: audioStalls.length,
+    avgStallMs: audioStalls.length > 0 ? Math.round(totalStallMs / audioStalls.length) : 0,
     worstStallMs: audioStalls.reduce((m, s) => Math.max(m, s.behindMs), 0),
-    recentStalls: audioStalls.slice(-10),
+    recentStalls: audioStalls.slice(-5),
   });
 }
 

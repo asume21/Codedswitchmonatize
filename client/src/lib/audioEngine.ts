@@ -65,11 +65,10 @@ class AudioEngine {
   async initialize() {
     if (this.isInitialized) return;
     
-    // Use shared context for Tone.js
-    const sharedCtx = getAudioContext();
-    if (Tone.context.rawContext !== sharedCtx) {
-      Tone.setContext(new Tone.Context(sharedCtx));
-    }
+    // Use shared context for Tone.js — getAudioContext() already sets
+    // the global Tone context. Do NOT create a new Tone.Context here;
+    // duplicate contexts spawn competing scheduler loops → audio stalls.
+    getAudioContext();
 
     if (!this.targetNode) {
       this.volume.toDestination();

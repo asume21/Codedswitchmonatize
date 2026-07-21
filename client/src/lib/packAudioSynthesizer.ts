@@ -132,10 +132,9 @@ export class PackAudioSynthesizer {
   }
 
   async initialize() {
-    const sharedCtx = getAudioContext();
-    if (Tone.context.rawContext !== sharedCtx) {
-      Tone.setContext(new Tone.Context(sharedCtx));
-    }
+    // getAudioContext() already sets the global Tone context.
+    // Do NOT create a new Tone.Context — duplicate schedulers cause stalls.
+    getAudioContext();
     
     await Tone.start();
     
