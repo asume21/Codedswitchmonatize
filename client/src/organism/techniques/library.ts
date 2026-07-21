@@ -503,6 +503,180 @@ const WindTrill: PlayingTechnique = {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// SYNTH TECHNIQUES
+// ─────────────────────────────────────────────────────────────────────
+
+const SynthFilterSweep: PlayingTechnique = {
+  id: 'synth-filter-sweep',
+  name: 'Synth Filter Sweep',
+  family: ['synth'],
+  category: 'pad',
+  description: 'Slow filter sweep — evolving texture, electronic atmosphere',
+  schedule: (notes, ctx) => {
+    const baseVel = 0.35 + ctx.energy * 0.3
+    return notes.map(note => ({
+      timeOffset: 0,
+      note,
+      duration: ctx.chordDurationSec,
+      velocity: baseVel,
+    }))
+  },
+}
+
+const SynthArpSequence: PlayingTechnique = {
+  id: 'synth-arp-sequence',
+  name: 'Synth Arp Sequence',
+  family: ['synth'],
+  category: 'arp',
+  description: '16th-note arpeggiated sequence — electronic, driving',
+  schedule: (notes, ctx) => {
+    const sixteenthSec = 60 / ctx.tempo / 4
+    const pattern = [...notes, ...[...notes].reverse().slice(1, -1)]
+    const energyMult = 0.8 + ctx.energy * 0.4
+    return pattern.map((note, i) => ({
+      timeOffset: i * sixteenthSec,
+      note,
+      duration: '16n',
+      velocity: (0.5 + (i % 4 === 0 ? 0.1 : 0)) * energyMult,
+    }))
+  },
+}
+
+const SynthStab: PlayingTechnique = {
+  id: 'synth-stab',
+  name: 'Synth Stab',
+  family: ['synth'],
+  category: 'stab',
+  description: 'Short punchy synth hit — EDM drop, house stab',
+  schedule: (notes, ctx) => {
+    const energyMult = 0.8 + ctx.energy * 0.4
+    return notes.map(note => ({
+      timeOffset: 0,
+      note,
+      duration: '16n',
+      velocity: 0.7 * energyMult,
+    }))
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ORGAN TECHNIQUES
+// ─────────────────────────────────────────────────────────────────────
+
+const OrganDrawbarSwell: PlayingTechnique = {
+  id: 'organ-drawbar-swell',
+  name: 'Organ Drawbar Swell',
+  family: ['keyboard'],
+  category: 'pad',
+  description: 'Gradual organ swell with rotating drawbar feel — gospel/soul',
+  schedule: (notes, ctx) => {
+    const segDur = ctx.chordDurationSec / 3
+    const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
+    for (let seg = 0; seg < 3; seg++) {
+      for (const note of notes) {
+        events.push({
+          timeOffset: seg * segDur,
+          note,
+          duration: segDur,
+          velocity: (0.3 + seg * 0.12) * energyMult,
+        })
+      }
+    }
+    return events
+  },
+}
+
+const OrganPercussiveStab: PlayingTechnique = {
+  id: 'organ-percussive-stab',
+  name: 'Organ Percussive Stab',
+  family: ['keyboard'],
+  category: 'stab',
+  description: 'Short percussive organ hit with click — funk/gospel stab',
+  schedule: (notes, ctx) => {
+    const energyMult = 0.8 + ctx.energy * 0.4
+    return notes.map((note, i) => ({
+      timeOffset: i * 0.005,
+      note,
+      duration: '16n',
+      velocity: 0.62 * energyMult,
+    }))
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PERCUSSION TECHNIQUES
+// ─────────────────────────────────────────────────────────────────────
+
+const PercussionRoll: PlayingTechnique = {
+  id: 'percussion-roll',
+  name: 'Percussion Roll',
+  family: ['percussion'],
+  category: 'arp',
+  description: 'Rolling mallet pattern — marimba/vibraphone, classical/ambient',
+  schedule: (notes, ctx) => {
+    const thirtySecondSec = 60 / ctx.tempo / 8
+    const sorted = [...notes].sort()
+    const energyMult = 0.8 + ctx.energy * 0.4
+    return sorted.flatMap((note, i) =>
+      [0, 1].map(rep => ({
+        timeOffset: (i * 2 + rep) * thirtySecondSec,
+        note,
+        duration: '32n',
+        velocity: (0.45 + rep * 0.05) * energyMult,
+      }))
+    )
+  },
+}
+
+const PercussionMalletArp: PlayingTechnique = {
+  id: 'percussion-mallet-arp',
+  name: 'Percussion Mallet Arp',
+  family: ['percussion'],
+  category: 'arp',
+  description: 'Ascending/descending mallet arpeggio — crystalline, bright',
+  schedule: (notes, ctx) => {
+    const sixteenthSec = 60 / ctx.tempo / 4
+    const pattern = [...notes, ...[...notes].reverse().slice(1, -1)]
+    const energyMult = 0.8 + ctx.energy * 0.4
+    return pattern.map((note, i) => ({
+      timeOffset: i * sixteenthSec,
+      note,
+      duration: '8n',
+      velocity: (0.52 + (i === 0 ? 0.08 : 0)) * energyMult,
+    }))
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// VOICE TECHNIQUES
+// ─────────────────────────────────────────────────────────────────────
+
+const ChoirSwell: PlayingTechnique = {
+  id: 'choir-swell',
+  name: 'Choir Swell',
+  family: ['voice'],
+  category: 'pad',
+  description: 'Gradual choral crescendo — cinematic, ethereal, gospel',
+  schedule: (notes, ctx) => {
+    const segDur = ctx.chordDurationSec / 4
+    const events: ScheduledNote[] = []
+    const energyMult = 0.8 + ctx.energy * 0.4
+    for (let seg = 0; seg < 4; seg++) {
+      for (const note of notes) {
+        events.push({
+          timeOffset: seg * segDur,
+          note,
+          duration: segDur,
+          velocity: (0.22 + seg * 0.1) * energyMult,
+        })
+      }
+    }
+    return events
+  },
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // REGISTRY
 // ─────────────────────────────────────────────────────────────────────
 
@@ -536,6 +710,22 @@ export const ALL_TECHNIQUES: PlayingTechnique[] = [
   WindRun,
   WindStaccato,
   WindTrill,
+
+  // Synth
+  SynthFilterSweep,
+  SynthArpSequence,
+  SynthStab,
+
+  // Organ
+  OrganDrawbarSwell,
+  OrganPercussiveStab,
+
+  // Percussion
+  PercussionRoll,
+  PercussionMalletArp,
+
+  // Voice
+  ChoirSwell,
 ]
 
 export const TECHNIQUES_BY_ID: Map<string, PlayingTechnique> = new Map(

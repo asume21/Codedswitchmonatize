@@ -28,6 +28,10 @@ export const SKELETONS: Record<string, { kicks: number[]; kicksB: number[]; snar
   'reggaeton':   { kicks: [0, 4, 8, 12],  kicksB: [0, 4, 8, 12],  snares: [3, 7, 11, 14] }, // dembow
   'afrobeat':    { kicks: [0, 7],         kicksB: [0, 7, 10],     snares: [4, 12] },
   'chill':       { kicks: [0, 8],         kicksB: [0, 8],         snares: [4, 12] },
+  'r&b-soul':    { kicks: [0, 8],         kicksB: [0, 6, 10],     snares: [4, 12] },    // laid-back, ghost kicks on B
+  'funk':        { kicks: [0, 6, 10],     kicksB: [0, 7, 10],     snares: [4, 12] },    // tight syncopated pocket
+  'house':       { kicks: [0, 4, 8, 12],  kicksB: [0, 4, 8, 12],  snares: [4, 12] },    // four-on-the-floor
+  'dnb':         { kicks: [0, 6],         kicksB: [0, 6, 11],     snares: [8] },        // half-time snare, rolling kicks
 }
 
 const K = DrumInstrument.Kick

@@ -71,13 +71,12 @@ export class AutoGenerateSource implements InputSource {
   private noiseStep = 0.013
   private drift = 0
 
-  // ~30 fps (was 23ms/43fps). This setInterval drives physics + reactive style
-  // on the MAIN thread every tick — the same thread the Tone.js note scheduler
-  // runs on. At full rate, with the tab focused, it competes with the scheduler
-  // and starves note scheduling → crackle → cutout. 30fps is ample for the slow
-  // synthetic energy drift of auto/preset playback; live mic has its own path.
-  // Re-applied 2026-07-11 after revert 7a2767cd (foreground-crackle repro confirmed).
-  private static readonly FRAME_INTERVAL_MS = 33 // ~30 fps
+  // TANK BUILD: 10fps (was 30fps). This setInterval drives physics + reactive
+  // style on the MAIN thread — the same thread Tone.js uses for note scheduling.
+  // At 30fps it competes with the scheduler and starves note scheduling →
+  // crackle → audio stalls. 10fps (100ms) is ample for slow synthetic energy
+  // drift; the physics engine interpolates between frames anyway.
+  private static readonly FRAME_INTERVAL_MS = 100 // 10 fps
 
   constructor(config: Partial<AutoGenerateConfig> = {}) {
     this.bpm = config.bpm ?? 90

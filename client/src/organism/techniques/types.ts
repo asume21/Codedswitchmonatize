@@ -30,6 +30,7 @@ export type InstrumentFamily =
   | 'brass'       // trumpet, trombone, french horn
   | 'percussion'  // marimba, xylophone (when used melodically)
   | 'synth'       // FM / subtractive / pad
+  | 'voice'       // choir, vocal pads
 
 /** Musical context passed to technique schedulers. */
 export interface TechniqueContext {

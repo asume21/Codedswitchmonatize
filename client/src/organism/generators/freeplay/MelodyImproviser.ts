@@ -58,12 +58,55 @@ export function clearMelodyMotifs(): void {
 }
 
 const DEFAULT_MINOR = [0, 2, 3, 5, 7, 8, 10]
+const DEFAULT_MAJOR = [0, 2, 4, 5, 7, 9, 11]
+
+// ── Genre-specific scales — melody picks based on subGenre ───────────
+const GENRE_SCALES: Record<string, number[]> = {
+  classical:    [0, 2, 4, 5, 7, 9, 11],  // major (Ionian) — Bach, Mozart
+  jazz:         [0, 2, 3, 5, 7, 9, 10],  // dorian — jazzy minor
+  gospel:       [0, 2, 4, 5, 7, 9, 11],  // major — uplifting
+  funk:         [0, 3, 5, 7, 10],         // minor pentatonic — groove
+  house:        [0, 2, 3, 5, 7, 8, 10],  // natural minor — dark house
+  dnb:          [0, 2, 3, 5, 7, 8, 10],  // natural minor — rolling
+  pop:          [0, 2, 4, 5, 7, 9, 11],  // major — catchy
+  'k-pop':      [0, 2, 4, 5, 7, 9, 11],  // major — bright
+  'j-pop':      [0, 2, 4, 5, 7, 9, 11],  // major — anime bright
+  electronic:   [0, 2, 4, 5, 7, 9, 10],  // mixolydian — electronic edge
+}
+
+function scaleForGenre(subGenre: string): number[] {
+  return GENRE_SCALES[subGenre] ?? DEFAULT_MINOR
+}
 
 const PITCH_CONTOURS = [
   [0, 1, 2, 1, 3, 2, 1, 0],
   [0, 2, 1, 0, -1, 0, 1, 0],
   [0, 1, 0, 2, 3, 2, 0, -1],
   [0, -1, 0, 1, 2, 1, 0, 1],
+]
+
+// ── Classical contours — wider range, arpeggiated, baroque sequences ─
+const CLASSICAL_CONTOURS = [
+  [0, 2, 4, 2, 5, 4, 2, 0],     // arpeggiated rise and fall
+  [0, 1, 2, 3, 4, 3, 2, 1],     // scalar ascent/descent
+  [0, 4, 2, 5, 3, 6, 4, 2],     // wide interval leaps (Bach-style)
+  [0, -1, 1, 0, 2, 1, 3, 0],    // baroque ornament pattern
+]
+
+// ── Pop/electronic contours — catchy, hook-driven ────────────────────
+const POP_CONTOURS = [
+  [0, 0, 1, 0, 2, 1, 0, -1],    // repetitive hook
+  [0, 1, 2, 1, 0, -1, 0, 0],    // rise and settle
+  [0, 2, 0, 3, 0, 2, 0, 1],     // octave-jump hook
+  [0, 1, 0, -1, 0, 1, 2, 0],    // undulating pop line
+]
+
+// ── Electronic/violin contours — Lindsey Stirling style, fast arps ───
+const ELECTRONIC_CONTOURS = [
+  [0, 2, 4, 5, 7, 5, 4, 2],     // fast ascending arp
+  [0, 3, 7, 3, 0, 3, 7, 10],    // wide dramatic leaps
+  [0, 1, 3, 1, 4, 3, 1, 0],     // quick ornamented line
+  [0, 4, 2, 5, 4, 7, 5, 4],     // virtuosic run pattern
 ]
 
 type SectionKind = 'intro' | 'verse' | 'hook' | 'drop' | 'breakdown' | 'bridge'
@@ -111,7 +154,7 @@ function clamp01(n: number): number {
 }
 
 function chordDegreesFromIntervals(ctx: MelodyFreeplayContext): number[] {
-  const scale = ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR
+  const scale = ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)
   const chordRootPc = mod(ctx.rootMidi, 12)
   const chordPcs = new Set(ctx.chordIntervals.map(interval => mod(chordRootPc + interval, 12)))
   const degrees: number[] = []
@@ -130,6 +173,16 @@ function preferredDegreesFor(ctx: MelodyFreeplayContext, chordDegrees: number[])
   return ctx.preferredDegrees.length > 0 ? [...ctx.preferredDegrees] : [...chordDegrees]
 }
 
+function isClassical(subGenre: string): boolean {
+  return subGenre === 'classical' || subGenre === 'jazz' || subGenre === 'gospel'
+}
+function isElectronic(subGenre: string): boolean {
+  return subGenre === 'electronic' || subGenre === 'house' || subGenre === 'dnb' || subGenre === 'edm' || subGenre === 'techno'
+}
+function isPop(subGenre: string): boolean {
+  return subGenre === 'pop' || subGenre === 'k-pop' || subGenre === 'j-pop' || subGenre === 'r&b-soul' || subGenre === 'soul'
+}
+
 function pitchIdeaFor(ctx: MelodyFreeplayContext, chordDegrees: number[], preferredDegrees: number[]): PitchIdea {
   const kind = sectionKind(ctx.sectionName)
   const key = `melody-pitch:${kind}:${ctx.subGenre}:${ctx.motifSeed}`
@@ -138,7 +191,12 @@ function pitchIdeaFor(ctx: MelodyFreeplayContext, chordDegrees: number[], prefer
 
   const anchors = preferredDegrees.length > 0 ? preferredDegrees : chordDegrees
   const anchorDegree = anchors[Math.floor(ctx.rng() * anchors.length)] ?? chordDegrees[0] ?? 0
-  const contourBank = SECTION_CONTOURS[kind]
+
+  // Genre-specific contour selection
+  const contourBank = isClassical(ctx.subGenre) ? CLASSICAL_CONTOURS
+    : isElectronic(ctx.subGenre) ? ELECTRONIC_CONTOURS
+    : isPop(ctx.subGenre) ? POP_CONTOURS
+    : (SECTION_CONTOURS[kind] ?? PITCH_CONTOURS)
   const moves = contourBank[Math.floor(ctx.rng() * contourBank.length)] ?? contourBank[0]
   const idea: PitchIdea = {
     anchorDegree: kind === 'intro' || kind === 'breakdown'
@@ -156,16 +214,19 @@ function pitchIdeaFor(ctx: MelodyFreeplayContext, chordDegrees: number[], prefer
   return idea
 }
 
-function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: SectionKind): number[] {
+function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: SectionKind, subGenre?: string): number[] {
+  const classicalMult = isClassical(subGenre ?? '') ? 1.25 : 1.0
+  const electronicMult = isElectronic(subGenre ?? '') ? 1.15 : 1.0
+  const mult = Math.max(classicalMult, electronicMult)
   const sectionMax: Record<SectionKind, number> = {
-    intro: 2,
-    verse: behavior === 'lead' ? 5 : 4,
-    hook: behavior === 'lead' ? 6 : 4,
-    drop: behavior === 'lead' ? 6 : 4,
-    breakdown: 2,
-    bridge: 3,
+    intro: Math.round(2 * mult),
+    verse: Math.round((behavior === 'lead' ? 5 : 4) * mult),
+    hook: Math.round((behavior === 'lead' ? 6 : 4) * mult),
+    drop: Math.round((behavior === 'lead' ? 6 : 4) * mult),
+    breakdown: Math.round(2 * mult),
+    bridge: Math.round(3 * mult),
   }
-  const max = sectionMax[kind] ?? (behavior === 'lead' ? 5 : behavior === 'respond' ? 4 : 2)
+  const max = sectionMax[kind] ?? Math.round((behavior === 'lead' ? 5 : behavior === 'respond' ? 4 : 2) * mult)
   const filtered = behavior === 'hint'
     ? slots.filter(slot => slot === 0 || slot === 8 || slot === 12)
     : slots
@@ -180,18 +241,19 @@ function slotsForBar(
   behavior: MelodyFreeplayBehavior,
   kind: SectionKind,
   rng: () => number,
+  subGenre?: string,
 ): number[] {
   if (kind === 'intro' || kind === 'breakdown') {
-    return capSlots(baseSlots, behavior, kind)
+    return capSlots(baseSlots, behavior, kind, subGenre)
   }
-  if (behavior === 'hint') return capSlots(baseSlots, behavior, kind)
-  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior, kind)
+  if (behavior === 'hint') return capSlots(baseSlots, behavior, kind, subGenre)
+  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior, kind, subGenre)
   if (bars > 1 && bar === bars - 1) {
     const cadenceSlot = 12
     const setup = baseSlots.filter(slot => slot < cadenceSlot).slice(0, Math.max(1, baseSlots.length - 1))
     return [...new Set([...setup, cadenceSlot])].sort((a, b) => a - b)
   }
-  return capSlots(baseSlots, behavior, kind)
+  return capSlots(baseSlots, behavior, kind, subGenre)
 }
 
 function durationFromGap(slots: number, family: string | undefined, articulation: 'normal' | 'staccato' | 'legato' = 'normal'): string {
@@ -223,15 +285,25 @@ function durationFromGap(slots: number, family: string | undefined, articulation
   return base
 }
 
-function pickArticulation(rng: () => number): 'normal' | 'staccato' | 'legato' {
+function pickArticulation(rng: () => number, subGenre?: string): 'normal' | 'staccato' | 'legato' {
   const roll = rng()
+  if (isClassical(subGenre ?? '')) {
+    if (roll < 0.10) return 'staccato'
+    if (roll < 0.55) return 'legato'
+    return 'normal'
+  }
+  if (isElectronic(subGenre ?? '')) {
+    if (roll < 0.45) return 'staccato'
+    if (roll < 0.55) return 'legato'
+    return 'normal'
+  }
   if (roll < 0.25) return 'staccato'
   if (roll < 0.40) return 'legato'
   return 'normal'
 }
 
 function degreeToMidi(ctx: MelodyFreeplayContext, degree: number): number {
-  const scale = ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR
+  const scale = ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)
   const scaleLen = scale.length
   const octaveOffset = Math.floor(degree / scaleLen)
   const interval = scale[mod(degree, scaleLen)]
@@ -255,7 +327,16 @@ function velocityFor(ctx: MelodyFreeplayContext, absSlot: number): number {
   const strong = isStrongBeat(absSlot)
   const behaviorGain = behavior === 'lead' ? 1.05 : behavior === 'respond' ? 0.92 : 0.78
   const energyGain = 0.85 + clamp01(ctx.energy) * 0.22
-  const base = (strong ? 0.72 : sub === 0 ? 0.62 : 0.48) * behaviorGain * energyGain
+  let base = (strong ? 0.72 : sub === 0 ? 0.62 : 0.48) * behaviorGain * energyGain
+
+  // Classical: wider dynamic range (pp → ff), more expressive
+  if (isClassical(ctx.subGenre)) {
+    base = strong ? 0.55 + ctx.energy * 0.35 : 0.35 + ctx.energy * 0.25
+  }
+  // Electronic: punchier, more consistent
+  if (isElectronic(ctx.subGenre)) {
+    base = strong ? 0.78 : 0.62
+  }
 
   if (ctx.emotionalIntent === 'sad') return 0.4 + ctx.rng() * 0.2
   if (ctx.emotionalIntent === 'beautiful') return 0.45 + ctx.rng() * 0.25
@@ -274,7 +355,7 @@ function rawDegreeFor(
   melodicIndex: number,
 ): number {
   const behavior = ctx.behavior ?? 'lead'
-  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR).length
+  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)).length
   const phraseSlots = Math.max(1, ctx.length16ths ?? ctx.bars * 16)
   const pos = absSlot / phraseSlots
   const move = idea.moves[melodicIndex % idea.moves.length] ?? 0
@@ -315,7 +396,7 @@ function buildContourFallback(
   chordDegrees: number[],
   preferredDegrees: number[],
 ): ScheduledNote[] {
-  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR).length
+  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)).length
   const totalSlots = Math.max(1, ctx.length16ths ?? ctx.bars * 16)
   const pattern = [0, 1, 2, 4, 3, 2, 1, 0]
   const step = Math.max(2, Math.floor(totalSlots / pattern.length))
@@ -373,7 +454,7 @@ function renderEvents(
     const gap = Math.max(1, (next?.absSlot ?? totalSlots) - event.absSlot)
     const bar = Math.floor(event.absSlot / 16)
     const slot = mod(event.absSlot, 16)
-    const articulation = pickArticulation(ctx.rng)
+    const articulation = pickArticulation(ctx.rng, ctx.subGenre)
     notes.push({
       pitch: midiToNote(degreeToMidi(ctx, event.degree)),
       duration: durationFromGap(gap, ctx.performerFamily, articulation),
@@ -407,14 +488,14 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
       : Math.min(0.25, ctx.density),
     cell.accents,
   )
-  const baseSlots = capSlots(motif.slots, behavior, kind)
+  const baseSlots = capSlots(motif.slots, behavior, kind, ctx.subGenre)
   const events: RawMelodyEvent[] = []
   let melodicIndex = 0
   let previousDegree: number | null = null
-  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : DEFAULT_MINOR).length
+  const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)).length
 
   for (let bar = 0; bar < bars; bar++) {
-    const slots = slotsForBar(bar, bars, baseSlots, behavior, kind, ctx.rng)
+    const slots = slotsForBar(bar, bars, baseSlots, behavior, kind, ctx.rng, ctx.subGenre)
     for (const slot of slots) {
       const absSlot = bar * 16 + slot
       if (absSlot >= totalSlots) continue

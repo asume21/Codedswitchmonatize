@@ -15,10 +15,17 @@ export type InstrumentPerformerId =
   | 'clarinet'
   | 'sax'
   | 'trumpet'
+  | 'trombone'
+  | 'french-horn'
+  | 'oboe'
   | 'piano'
   | 'rhodes'
+  | 'organ'
   | 'strings'
+  | 'choir'
   | 'harp'
+  | 'marimba'
+  | 'vibraphone'
   | 'sitar'
 
 export interface InstrumentEnvelope {

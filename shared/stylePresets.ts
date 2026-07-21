@@ -400,6 +400,222 @@ export const STYLE_PRESETS: StylePreset[] = [
     fitsMood:           ['melancholic', 'dark', 'cool'],
     fitsEnergy:         { min: 0.35, max: 0.75 },
   },
+
+  // ── Classical Bach — piano arpeggios, walking bass, legato leads
+  {
+    id:                 'classical-bach',
+    label:              'Classical Bach',
+    drumPattern:        'chill',
+    chordTechnique:     'piano-alberti',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['warm', 'triumphant', 'cool'],
+    fitsEnergy:         { min: 0.3, max: 0.8 },
+  },
+
+  // ── Classical Mozart — bright, alberti bass, trill ornaments
+  {
+    id:                 'classical-mozart',
+    label:              'Classical Mozart',
+    drumPattern:        'chill',
+    chordTechnique:     'piano-alberti',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'trill-ornament',
+    fitsMood:           ['triumphant', 'warm', 'energetic'],
+    fitsEnergy:         { min: 0.4, max: 0.85 },
+  },
+
+  // ── Jazz trio — rolled chords, walking bass, grace flicks
+  {
+    id:                 'jazz-trio',
+    label:              'Jazz Trio',
+    drumPattern:        'chill',
+    chordTechnique:     'piano-rolled-chord',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'grace-flick',
+    fitsMood:           ['warm', 'cool'],
+    fitsEnergy:         { min: 0.3, max: 0.7 },
+  },
+
+  // ── Jazz late-night — sustained pads, walking bass, legato
+  {
+    id:                 'jazz-late-night',
+    label:              'Jazz Late Night',
+    drumPattern:        'chill',
+    chordTechnique:     'piano-sustained-pad',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['cool', 'warm', 'melancholic'],
+    fitsEnergy:         { min: 0.2, max: 0.55 },
+  },
+
+  // ── Funk tight — muted stabs, ghost bass, staccato leads
+  {
+    id:                 'funk-tight',
+    label:              'Funk Tight',
+    drumPattern:        'funk',
+    chordTechnique:     'guitar-muted-stab',
+    bassArticulation:   'bass-ghost-note',
+    melodyArticulation: 'staccato-pop',
+    fitsMood:           ['energetic', 'warm'],
+    fitsEnergy:         { min: 0.5, max: 0.9 },
+  },
+
+  // ── Funk slap — organ stabs, octave bass, double-tap leads
+  {
+    id:                 'funk-slap',
+    label:              'Funk Slap',
+    drumPattern:        'funk',
+    chordTechnique:     'organ-percussive-stab',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'double-tap',
+    fitsMood:           ['energetic', 'warm'],
+    fitsEnergy:         { min: 0.55, max: 1.0 },
+  },
+
+  // ── House deep — synth stabs, octave bass, staccato leads
+  {
+    id:                 'house-deep',
+    label:              'House Deep',
+    drumPattern:        'house',
+    chordTechnique:     'synth-stab',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'staccato-pop',
+    fitsMood:           ['energetic', 'dark', 'cool'],
+    fitsEnergy:         { min: 0.55, max: 0.95 },
+  },
+
+  // ── House piano — piano block chords, octave bass, legato leads
+  {
+    id:                 'house-piano',
+    label:              'House Piano',
+    drumPattern:        'house',
+    chordTechnique:     'piano-block-chord',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['energetic', 'warm', 'triumphant'],
+    fitsEnergy:         { min: 0.5, max: 0.9 },
+  },
+
+  // ── DnB rolling — arp sequences, octave bass, staccato leads
+  {
+    id:                 'dnb-rolling',
+    label:              'DnB Rolling',
+    drumPattern:        'dnb',
+    chordTechnique:     'synth-arp-sequence',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'staccato-pop',
+    fitsMood:           ['dark', 'energetic'],
+    fitsEnergy:         { min: 0.65, max: 1.0 },
+  },
+
+  // ── DnB liquid — sustained pads, slide bass, legato leads
+  {
+    id:                 'dnb-liquid',
+    label:              'DnB Liquid',
+    drumPattern:        'dnb',
+    chordTechnique:     'piano-sustained-pad',
+    bassArticulation:   'bass-slide-up',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['cool', 'warm', 'melancholic'],
+    fitsEnergy:         { min: 0.4, max: 0.75 },
+  },
+
+  // ── Gospel uplift — organ swell, walking bass, trill leads
+  {
+    id:                 'gospel-uplift',
+    label:              'Gospel Uplift',
+    drumPattern:        'bounce',
+    chordTechnique:     'organ-drawbar-swell',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'trill-ornament',
+    fitsMood:           ['triumphant', 'warm', 'energetic'],
+    fitsEnergy:         { min: 0.45, max: 0.9 },
+  },
+
+  // ── Gospel choir — choir swell, walking bass, legato leads
+  {
+    id:                 'gospel-choir',
+    label:              'Gospel Choir',
+    drumPattern:        'bounce',
+    chordTechnique:     'choir-swell',
+    bassArticulation:   'bass-walking-step',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['triumphant', 'warm'],
+    fitsEnergy:         { min: 0.35, max: 0.8 },
+  },
+
+  // ── Pop bright — block chords, simple bass, scoop leads
+  {
+    id:                 'pop-bright',
+    label:              'Pop Bright',
+    drumPattern:        'bounce',
+    chordTechnique:     'piano-block-chord',
+    bassArticulation:   'bass-pickup',
+    melodyArticulation: 'scoop-up',
+    fitsMood:           ['energetic', 'warm', 'triumphant'],
+    fitsEnergy:         { min: 0.5, max: 0.9 },
+  },
+
+  // ── Pop ballad — sustained pads, slide bass, legato leads
+  {
+    id:                 'pop-ballad',
+    label:              'Pop Ballad',
+    drumPattern:        'chill',
+    chordTechnique:     'piano-sustained-pad',
+    bassArticulation:   'bass-slide-up',
+    melodyArticulation: 'legato-slur',
+    fitsMood:           ['melancholic', 'warm'],
+    fitsEnergy:         { min: 0.2, max: 0.55 },
+  },
+
+  // ── Electronic Lindsey Stirling — fast arps, octave bass, double-tap violin
+  {
+    id:                 'electronic-violin',
+    label:              'Electronic Violin',
+    drumPattern:        'house',
+    chordTechnique:     'synth-arp-sequence',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'double-tap',
+    fitsMood:           ['energetic', 'triumphant', 'cool'],
+    fitsEnergy:         { min: 0.55, max: 1.0 },
+  },
+
+  // ── Electronic ambient — filter sweeps, dub bass, delayed leads
+  {
+    id:                 'electronic-ambient',
+    label:              'Electronic Ambient',
+    drumPattern:        'chill',
+    chordTechnique:     'synth-filter-sweep',
+    bassArticulation:   'bass-dub-sustain',
+    melodyArticulation: 'delayed-echo',
+    fitsMood:           ['cool', 'melancholic'],
+    fitsEnergy:         { min: 0.15, max: 0.5 },
+  },
+
+  // ── R&B soulful — rolled chords, ghost bass, grace flicks
+  {
+    id:                 'rnb-soulful',
+    label:              'R&B Soulful',
+    drumPattern:        'r&b-soul',
+    chordTechnique:     'piano-rolled-chord',
+    bassArticulation:   'bass-ghost-note',
+    melodyArticulation: 'grace-flick',
+    fitsMood:           ['warm', 'cool'],
+    fitsEnergy:         { min: 0.3, max: 0.65 },
+  },
+
+  // ── Reggaeton dancehall — block chords, octave bass, staccato leads
+  {
+    id:                 'reggaeton-dancehall',
+    label:              'Reggaeton Dancehall',
+    drumPattern:        'reggaeton',
+    chordTechnique:     'piano-block-chord',
+    bassArticulation:   'bass-octave-jump',
+    melodyArticulation: 'staccato-pop',
+    fitsMood:           ['energetic', 'warm'],
+    fitsEnergy:         { min: 0.55, max: 0.9 },
+  },
 ]
 
 // ─────────────────────────────────────────────────────────────────────

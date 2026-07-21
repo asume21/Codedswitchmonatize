@@ -15,6 +15,9 @@ function clampToBassRegister(midi: number): number {
 }
 
 const SUSTAINED_SUBGENRES = new Set(['trap', 'drill', 'phonk', 'dirty-south'])
+const WALKING_SUBGENRES = new Set(['jazz', 'classical', 'funk', 'gospel', 'boom-bap', 'lo-fi'])
+const HOUSE_SUBGENRES = new Set(['house', 'dnb', 'techno', 'edm'])
+const POP_SUBGENRES = new Set(['pop', 'r&b-soul', 'soul', 'k-pop', 'j-pop', 'afrobeat', 'reggaeton'])
 type SectionKind = 'intro' | 'verse' | 'hook' | 'drop' | 'breakdown' | 'bridge'
 
 function sectionKind(sectionName: string): SectionKind {
@@ -58,30 +61,55 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const root = clampToBassRegister(ctx.rootMidi)
   const kind = sectionKind(ctx.sectionName)
   const sustained = SUSTAINED_SUBGENRES.has(ctx.subGenre)
+  const walking = WALKING_SUBGENRES.has(ctx.subGenre)
+  const house = HOUSE_SUBGENRES.has(ctx.subGenre)
+  const pop = POP_SUBGENRES.has(ctx.subGenre)
   const notes: ScheduledNote[] = []
 
-  // Does the harmony actually move at the end of this phrase? Absent lookahead,
-  // or a chord that repeats its own root, means there is nothing to walk into.
   const nextRoot = ctx.nextRootMidi === undefined ? root : clampToBassRegister(ctx.nextRootMidi)
   const harmonyMoves = nextRoot !== root
   const ascending = nextRoot > root
 
-  // ── HITS: the chord is holding ────────────────────────────────────
-  // 1-3 onsets per bar. Simple, repetitive, and it sings — the Metro/Dilla
-  // pocket. Never kick-locked: doubling the kick makes the bass a drum.
-  const hitPatterns: Record<SectionKind, number[]> = {
+  // ── Genre-specific hit patterns ───────────────────────────────────
+  const hitPatterns: Record<SectionKind, number[]> = house ? {
+    intro:      [0, 8],
+    verse:      [0, 4, 8, 12],     // four-on-the-floor pumping
+    hook:       [0, 4, 8, 12],
+    drop:       [0, 4, 8, 12],
+    breakdown:  [0, 8],
+    bridge:     [0, 4, 8, 12],
+  } : walking ? {
     intro:      [0],
-    verse:      [0, 8],           // root on 1, root on 3
-    hook:       [0, 6, 12],       // root on 1, fifth on and-of-2, root on 4
-    drop:       [0, 8],           // root on 1, octave on 3
+    verse:      [0, 4, 8, 12],     // walking — every beat
+    hook:       [0, 4, 8, 12],
+    drop:       [0, 4, 8, 12],
+    breakdown:  [0, 8],
+    bridge:     [0, 4, 8, 12],
+  } : pop ? {
+    intro:      [0],
+    verse:      [0, 8],            // simple root-fifth
+    hook:       [0, 6, 12],
+    drop:       [0, 8],
+    breakdown:  [0],
+    bridge:     [0, 8],
+  } : {
+    intro:      [0],
+    verse:      [0, 8],
+    hook:       [0, 6, 12],
+    drop:       [0, 8],
     breakdown:  [0],
     bridge:     [0, 8],
   }
-  const hitContour: number[] = kind === 'hook'
-    ? [0, 7, 0]                    // root, fifth, root
-    : kind === 'drop'
-      ? [0, 12]                    // root, octave
-      : [0, 0]                     // root, root (verse/bridge)
+
+  const hitContour: number[] = house
+    ? [0, 12, 0, 12]               // root, octave, root, octave — pumping
+    : walking
+      ? [0, 7, 5, 7]               // root, fifth, third, fifth — walking contour
+      : kind === 'hook'
+        ? [0, 7, 0]
+        : kind === 'drop'
+          ? [0, 12]
+          : [0, 0]
 
   // COHESION — land on the SONG CELL, not on a pattern of our own invention.
   // The fixed patterns above ignored what every other player was doing, which is
@@ -102,7 +130,6 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     // ── LINE: the chord changes at this bar's end — walk into it ────
     if (isFinalBar && harmonyMoves) {
       if (sustained) {
-        // 808 idiom: hold the root, then slide up/down into the next root.
         notes.push({
           pitch: midiToNote(root),
           duration: '2n',
@@ -115,8 +142,50 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
           velocity: jitterVel(0.7, ctx.rng),
           time: swungTime(bar, 14, ctx.swing),
         })
+      } else if (walking) {
+        // Classical/jazz walking: stepwise approach with passing tones
+        const stepDir = ascending ? 2 : -2
+        const steps = [
+          { slot: 0,  midi: root },
+          { slot: 4,  midi: clampToBassRegister(root + stepDir) },
+          { slot: 8,  midi: clampToBassRegister(root + stepDir * 2) },
+          { slot: 12, midi: approachTone(nextRoot, ascending) },
+        ]
+        for (const { slot, midi } of steps) {
+          notes.push({
+            pitch: midiToNote(midi),
+            duration: '4n',
+            velocity: jitterVel(slot === 0 ? 0.85 : 0.65, ctx.rng),
+            time: swungTime(bar, slot, ctx.swing),
+          })
+        }
+      } else if (house) {
+        // House/DnB: octave pump into the change
+        notes.push({
+          pitch: midiToNote(root),
+          duration: '8n',
+          velocity: jitterVel(0.9, ctx.rng),
+          time: swungTime(bar, 0, ctx.swing),
+        })
+        notes.push({
+          pitch: midiToNote(clampToBassRegister(root + 12)),
+          duration: '8n',
+          velocity: jitterVel(0.8, ctx.rng),
+          time: swungTime(bar, 4, ctx.swing),
+        })
+        notes.push({
+          pitch: midiToNote(root),
+          duration: '8n',
+          velocity: jitterVel(0.85, ctx.rng),
+          time: swungTime(bar, 8, ctx.swing),
+        })
+        notes.push({
+          pitch: midiToNote(nextRoot),
+          duration: '8n',
+          velocity: jitterVel(0.75, ctx.rng),
+          time: swungTime(bar, 12, ctx.swing),
+        })
       } else {
-        // Walking line: root → fifth → third → leading tone → (next downbeat).
         const steps = [
           { slot: 0,  midi: root },
           { slot: 4,  midi: clampToBassRegister(root + 7) },

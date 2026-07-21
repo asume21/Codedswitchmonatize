@@ -179,6 +179,66 @@ const FULL_MATRIX: GenreMatrix = {
     drop2:     ['i', 'VII', 'VI', 'v'],
     outro:     ['i', 'VI', 'III', 'IV'],
   },
+
+  'funk': {
+    intro:     ['I7', 'IV7', 'I7', 'IV7'],
+    verse:     ['I7', 'I7', 'IV7', 'IV7'],
+    build:     ['I7', 'bVII7', 'IV7', 'V7'],
+    drop:      ['I7', 'IV7', 'bVII7', 'I7'],
+    breakdown: ['IV7', 'I7', 'bIII7', 'bVII7'],
+    drop2:     ['I7', 'bVII7', 'IV7', 'V7'],
+    outro:     ['I7', 'IV7', 'I7', 'I7'],
+  },
+
+  'jazz': {
+    intro:     ['ii7', 'V7', 'Imaj7', 'Imaj7'],
+    verse:     ['Imaj7', 'vi7', 'ii7', 'V7'],
+    build:     ['ii7', 'V7', 'iii7', 'VI7'],
+    drop:      ['Imaj7', 'bVII7', 'bIIImaj7', 'bVImaj7'],
+    breakdown: ['ii7', 'bII7', 'Imaj7', 'bVI7'],
+    drop2:     ['Imaj7', 'vi7', 'ii7', 'V7'],
+    outro:     ['Imaj7', 'bIImaj7', 'Imaj7', 'Imaj7'],
+  },
+
+  'house': {
+    intro:     ['i', 'bVI', 'bIII', 'bVII'],
+    verse:     ['i', 'bVI', 'bIII', 'bVII'],
+    build:     ['i', 'bVI', 'bVII', 'V7'],
+    drop:      ['i', 'bVI', 'bIII', 'bVII'],
+    breakdown: ['bVI', 'bIII', 'bVII', 'i'],
+    drop2:     ['i', 'bVI', 'bVII', 'V7'],
+    outro:     ['i', 'bVI', 'bIII', 'i'],
+  },
+
+  'dnb': {
+    intro:     ['i', 'bVI', 'bVII', 'i'],
+    verse:     ['i', 'iv', 'bVI', 'bVII'],
+    build:     ['i', 'bVI', 'bVII', 'V7'],
+    drop:      ['i', 'bVI', 'bIII', 'bVII'],
+    breakdown: ['bVI', 'bIII', 'bVII', 'i'],
+    drop2:     ['i', 'bVI', 'bVII', 'V7'],
+    outro:     ['i', 'bVI', 'i', 'bVI'],
+  },
+
+  'gospel': {
+    intro:     ['I', 'IV', 'I', 'V7'],
+    verse:     ['I', 'vi7', 'ii7', 'V7'],
+    build:     ['IV', 'V', 'iii', 'VI7'],
+    drop:      ['I', 'IV', 'bVII', 'I'],
+    breakdown: ['vi7', 'ii7', 'IV', 'V7sus4'],
+    drop2:     ['I', 'bVII', 'IV', 'I'],
+    outro:     ['I', 'IV', 'I', 'IV'],
+  },
+
+  'classical': {
+    intro:     ['I', 'IV', 'V', 'I'],
+    verse:     ['I', 'ii', 'V', 'I'],
+    build:     ['vi', 'iii', 'IV', 'V'],
+    drop:      ['I', 'V', 'vi', 'iii'],
+    breakdown: ['IV', 'I', 'ii', 'V7'],
+    drop2:     ['I', 'IV', 'V7', 'I'],
+    outro:     ['I', 'IV', 'V', 'I'],
+  },
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

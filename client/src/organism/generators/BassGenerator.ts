@@ -16,7 +16,7 @@ import {
   getBassSwing,
 }                              from './patterns/BassPatternLibrary'
 import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
-import { hashString, mulberry32, getSessionSalt } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
@@ -37,6 +37,7 @@ import {
 import type { ArticulationContext } from '../techniques/types'
 import {
   conformNoteToInstrument,
+  midiToNote,
   selectInstrumentPerformer,
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
@@ -650,7 +651,7 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private lastRebuildTime: number = -Infinity
-  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+  private static readonly MIN_REBUILD_INTERVAL_MS = 900
 
   private resolveBassBehavior(organismState: OState): BassBehavior {
     if (this.currentSubGenre) {
@@ -666,12 +667,14 @@ export class BassGenerator extends GeneratorBase {
     this.lastRebuildTime = now
 
     const notes = this.generateNotes(physics ?? ({ density: 0.5 } as any))
-    if (notes.length === 0) {
+    // TANK BUILD: cap at 24 notes — bass lines don't need more
+    const cappedNotes = notes.length > 24 ? notes.slice(0, 24) : notes
+    if (cappedNotes.length === 0) {
       this.stopPart()
       return true
     }
 
-    const events = notes.map(n => ({
+    const events = cappedNotes.map(n => ({
       time: quantizeGridTime(n.time),
       note: n.pitch,
       dur:  n.duration,
@@ -815,6 +818,9 @@ export class BassGenerator extends GeneratorBase {
       } catch { /* */ }
     }
 
+    // The bass stays improviser-driven by design: it HITS when harmony holds
+    // and WALKS when it moves (chord-movement driven), so it is not one of the
+    // Claude-composed score seats — no bassNotes path here on purpose.
     if (this.freeplayEnabled) {
       const seed = hashString(`bass:${this.currentSectionName}:${this.currentSubGenre ?? 'none'}`)
       return buildFreeplayBassNotes({

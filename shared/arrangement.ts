@@ -41,6 +41,130 @@ export interface SectionOrchestration {
   texture: InstrumentRole
 }
 
+// ── Note-level section score (Claude-composed performance) ──────────
+//
+// "Play like Beethoven" (2026-07-17): the rule-based improvisers cap the
+// playing quality — real musicianship needs a real composer writing the
+// actual notes. When a SectionScore is present the Melody/Chord generators
+// PERFORM it verbatim; when absent (deterministic plans, failed compose,
+// jam mode) the improvisers play as before. Scores are written by the
+// Claude composer link only and are sanitized server-side (pitches snapped
+// to the key scale, slots/velocities clamped) — no brain is trusted.
+
+/** One melody note on the 4-bar grid: slot 0..63 (16ths), midi pitch,
+ *  duration in slots, velocity 0..1. */
+export interface ScoreNote {
+  slot: number
+  midi: number
+  durSlots: number
+  vel: number
+}
+
+/** One chord-hook hit: the CURRENT voicing struck at slot, for durSlots. */
+export interface ChordHit {
+  slot: number
+  durSlots: number
+  vel: number
+}
+
+export interface SectionScore {
+  /** The lead phrase — a disciplined repeated motif with development. */
+  melody?: ScoreNote[]
+  /** The keys-hook rhythm — syncopated hits rendered with the live voicing. */
+  chordHits?: ChordHit[]
+  // NOTE: only the melody and chord-hook seats are Claude-composed. Bass is
+  // chord-movement driven (improviser) and drums are pattern-driven, by design
+  // — do not add bassNotes/drumHits here without also prompting + sanitizing
+  // them, or you recreate the dead wire we removed 2026-07-20.
+}
+
+export const SCORE_SLOTS = 64          // 4 bars × 16 sixteenths
+export const SCORE_MELODY_MAX = 48     // hard cap — more than this is noodling
+export const SCORE_CHORD_MAX = 24
+
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11]
+const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10]
+
+/** Pitch classes of the plan key's diatonic scale. Mode comes from the
+ *  progression: a lowercase tonic ('i') means minor. */
+export function scalePitchClasses(key: string, progression: string[]): Set<number> {
+  const keyPc = keyToPitchClass(key)
+  const first = progression[0] ?? 'I'
+  const minor = /^[b#]*[iv]+(?![A-Z])/.test(first) && first.replace(/^[b#]+/, '')[0] === first.replace(/^[b#]+/, '')[0].toLowerCase()
+  const scale = minor ? MINOR_SCALE : MAJOR_SCALE
+  return new Set(scale.map(s => (keyPc + s) % 12))
+}
+
+function snapToScale(midi: number, scalePcs: Set<number>): number {
+  for (let d = 0; d <= 6; d++) {
+    if (scalePcs.has((((midi - d) % 12) + 12) % 12)) return midi - d
+    if (scalePcs.has((((midi + d) % 12) + 12) % 12)) return midi + d
+  }
+  return midi
+}
+
+/**
+ * Sanitize one LLM-written SectionScore: clamp slots/durations/velocities,
+ * snap melody pitches into the key scale and a singable register, cap event
+ * counts. Returns null when nothing usable survives — caller drops the score
+ * and the improvisers play instead.
+ */
+export function sanitizeSectionScore(
+  raw: unknown,
+  key: string,
+  progression: string[],
+): SectionScore | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as { melody?: unknown; chordHits?: unknown }
+  const scalePcs = scalePitchClasses(key, progression)
+  const out: SectionScore = {}
+
+  if (Array.isArray(r.melody)) {
+    const seen = new Set<number>()
+    const melody: ScoreNote[] = []
+    for (const n of r.melody) {
+      if (!n || typeof n !== 'object') continue
+      const slot = Math.round(Number((n as ScoreNote).slot))
+      const midi = Math.round(Number((n as ScoreNote).midi))
+      const durSlots = Math.round(Number((n as ScoreNote).durSlots))
+      const vel = Number((n as ScoreNote).vel)
+      if (!Number.isFinite(slot) || slot < 0 || slot >= SCORE_SLOTS) continue
+      if (!Number.isFinite(midi) || seen.has(slot)) continue
+      seen.add(slot)
+      melody.push({
+        slot,
+        midi: snapToScale(Math.max(60, Math.min(91, midi)), scalePcs),
+        durSlots: Number.isFinite(durSlots) ? Math.max(1, Math.min(16, durSlots)) : 2,
+        vel: Number.isFinite(vel) ? Math.max(0.35, Math.min(1, vel)) : 0.7,
+      })
+      if (melody.length >= SCORE_MELODY_MAX) break
+    }
+    if (melody.length >= 4) out.melody = melody.sort((a, b) => a.slot - b.slot)
+  }
+
+  if (Array.isArray(r.chordHits)) {
+    const seen = new Set<number>()
+    const chordHits: ChordHit[] = []
+    for (const h of r.chordHits) {
+      if (!h || typeof h !== 'object') continue
+      const slot = Math.round(Number((h as ChordHit).slot))
+      const durSlots = Math.round(Number((h as ChordHit).durSlots))
+      const vel = Number((h as ChordHit).vel)
+      if (!Number.isFinite(slot) || slot < 0 || slot >= SCORE_SLOTS || seen.has(slot)) continue
+      seen.add(slot)
+      chordHits.push({
+        slot,
+        durSlots: Number.isFinite(durSlots) ? Math.max(1, Math.min(32, durSlots)) : 4,
+        vel: Number.isFinite(vel) ? Math.max(0.35, Math.min(0.9, vel)) : 0.6,
+      })
+      if (chordHits.length >= SCORE_CHORD_MAX) break
+    }
+    if (chordHits.length >= 2) out.chordHits = chordHits.sort((a, b) => a.slot - b.slot)
+  }
+
+  return out.melody || out.chordHits ? out : null
+}
+
 export interface ArrangementSection {
   name: ArrangementSectionName
   /** Length of the section in bars. */
@@ -67,6 +191,9 @@ export interface ArrangementSection {
   /** Who plays / how forward, per instrument, this section. Optional for
    *  back-compat; absent = every instrument 'support'. */
   orchestration?: SectionOrchestration
+  /** Note-level performance written by the Claude composer (sanitized
+   *  server-side). Absent = improvisers play. */
+  score?: SectionScore
 }
 
 export interface ArrangementPlan {

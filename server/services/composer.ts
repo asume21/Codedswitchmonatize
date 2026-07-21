@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto'
 import Anthropic from '@anthropic-ai/sdk'
 import {
   validateArrangementPlan,
+  sanitizeSectionScore,
   type ArrangementPlan,
   type ArrangementSection,
   type ArrangementSectionName,
@@ -81,14 +82,20 @@ const DEFAULT_SECTION_SKELETON: Array<{
 // the rhythm section to silence. (intro/breakdown drums were 'out' here, which
 // — on top of low density — left long empty stretches that read as "slow, full
 // of pauses, nothing filling the space.")
+// CHORDS ARE THE HOOK (2026-07-17 flip, per the user's reference study): most
+// modern beats use keys/pads/chords AS the melody+harmony — the chord loop IS
+// the hook, a separate lead melody is sparse or absent. The old map was
+// inverted (melody-led). Chord 'lead' also flips the ChordImproviser into
+// hook mode client-side; melody stays 'support' everywhere so it answers in
+// the gaps instead of noodling over the hook.
 const SECTION_ORCHESTRATION: Record<ArrangementSectionName, SectionOrchestration> = {
-  intro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
-  verse:     { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
-  build:     { drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support' },
-  drop:      { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
-  drop2:     { drums: 'lead',    bass: 'lead',    chord: 'support', melody: 'support', texture: 'support' },
-  breakdown: { drums: 'support', bass: 'support', chord: 'support', melody: 'lead',    texture: 'support' },
-  outro:     { drums: 'support', bass: 'support', chord: 'lead',    melody: 'support', texture: 'support' },
+  intro:     { drums: 'support', bass: 'support', chord: 'lead', melody: 'support', texture: 'support' },
+  verse:     { drums: 'support', bass: 'support', chord: 'lead', melody: 'support', texture: 'support' },
+  build:     { drums: 'support', bass: 'support', chord: 'lead', melody: 'support', texture: 'support' },
+  drop:      { drums: 'lead',    bass: 'lead',    chord: 'lead', melody: 'support', texture: 'support' },
+  drop2:     { drums: 'lead',    bass: 'lead',    chord: 'lead', melody: 'support', texture: 'support' },
+  breakdown: { drums: 'support', bass: 'support', chord: 'lead', melody: 'support', texture: 'support' },
+  outro:     { drums: 'support', bass: 'support', chord: 'lead', melody: 'support', texture: 'support' },
 }
 
 /** Orchestration for a section name, defaulting to all-'support' for any name
@@ -196,6 +203,9 @@ export function buildDeterministicPlan(input: ComposerInput): ArrangementPlan {
 function buildComposerSystemPrompt(opts: {
   allowedTemplateIds: string[]
   allowedStyleIds:    string[]
+  /** Ask the brain to WRITE THE NOTES (per-section melody + chord-hook
+   *  rhythm). Claude-only — small local models produce noise here. */
+  includeScores?: boolean
 }): string {
   const templateMenu = ARRANGEMENT_TEMPLATE_CATALOG
     .filter(t => opts.allowedTemplateIds.includes(t.id))
@@ -223,6 +233,17 @@ ${templateMenu}
 STYLES — pick ONE id for each section.style based on the section's energy and the song's mood. A style is a curated combination of (drum pattern + chord technique + bass articulation + melody articulation) that musically fits together:
 ${styleMenu}
 
+${opts.includeScores ? `
+WRITE THE NOTES — for EVERY section also emit a "score": the actual performance, composed like a real musician, not a pattern generator.
+- Grid: 4 bars of 16th-note slots, slot 0..63 (slot = bar*16 + sixteenth). The band loops this 4-bar score for the whole section.
+- "score.melody": the HOOK phrase, 8-24 notes. midi pitch (write in the plan's key; comfortable register 65-88), durSlots 1-8, vel 0.4-1.0. Compose a SHORT MEMORABLE MOTIF (2-4 notes) stated in bar 1, repeated with development (transposition within the key, rhythmic displacement, an answering phrase in bars 3-4). Syncopate — land notes on off-beats and let some notes breathe (rests are music). NEVER continuous streams of equal 16ths. Think: a riff someone could hum after one listen.
+- "score.chordHits": the keys-hook rhythm, 4-16 hits: slot, durSlots 1-32, vel 0.4-0.85. This is WHEN the chord voicing strikes — write a syncopated comping pattern with personality (pushes on the and-of-2, anticipations into bar boundaries, space in the back half). The engine supplies the voicing; you supply the rhythm.
+- Match each section's energy: intro/breakdown scores sparse and airy, drops dense and insistent. Vary velocity musically — accents on motif landings, ghosted approach notes.
+- Example section with score:
+  { "name": "verse", "bars": 8, "progression": ["i","VI","III","VII"], "energy": 0.6, "density": 0.55, "style": "...",
+    "score": { "melody": [ {"slot":0,"midi":76,"durSlots":3,"vel":0.85}, {"slot":6,"midi":79,"durSlots":2,"vel":0.7}, ... ],
+               "chordHits": [ {"slot":0,"durSlots":6,"vel":0.6}, {"slot":10,"durSlots":4,"vel":0.5}, ... ] } }
+` : ''}
 JSON shape:
 { "id": "string", "key": "C", "bpm": 90, "subGenre": "boom-bap", "mood": "nostalgic",
   "templateId": "classic",
@@ -275,6 +296,18 @@ function validateBrainPlan(
         if (section && typeof section === 'object' && !section.orchestration) {
           section.orchestration = fillOrchestration(section.name)
         }
+        // Note-level scores: sanitize (pitch-snap to key scale, clamp slots/
+        // velocities, cap counts) or drop. A dropped score just means the
+        // improvisers play that section — never a rejected plan.
+        if (section && typeof section === 'object' && section.score !== undefined) {
+          const sanitized = sanitizeSectionScore(
+            section.score,
+            typeof parsed.key === 'string' ? parsed.key : scaffold.key,
+            Array.isArray(section.progression) ? section.progression : [],
+          )
+          if (sanitized) section.score = sanitized
+          else delete section.score
+        }
       }
     }
     const problem = validateArrangementPlan(parsed)
@@ -301,13 +334,15 @@ function buildPromptContext(input: ComposerInput, scaffold: ArrangementPlan) {
     ? input.allowedStyleIds
     : STYLE_PRESETS.map(s => s.id)
   const systemPrompt = buildComposerSystemPrompt({ allowedTemplateIds, allowedStyleIds })
+  // Claude also writes the per-section note-level scores (melody + chord hook).
+  const systemPromptWithScores = buildComposerSystemPrompt({ allowedTemplateIds, allowedStyleIds, includeScores: true })
   const userMessage = [
     input.prompt ? `User intent: ${input.prompt}` : '',
     input.sectionCount ? `Target section count: ${input.sectionCount}` : '',
     `Seed plan to refine (use this key/bpm/subGenre unless the user explicitly asked for different):`,
     JSON.stringify(scaffold),
   ].filter(Boolean).join('\n')
-  return { allowedTemplateIds, allowedStyleIds, systemPrompt, userMessage }
+  return { allowedTemplateIds, allowedStyleIds, systemPrompt, systemPromptWithScores, userMessage }
 }
 
 // ── Brain links ──────────────────────────────────────────────────────
@@ -334,11 +369,17 @@ async function composeWithClaude(
   const client = getAnthropic()
   if (!client) return null
   try {
-    const response = await client.messages.create({
+    // Fast mode: the composer is latency-sensitive product-wise (the sooner
+    // the plan lands, the sooner the band plays the written score instead of
+    // jamming), so pay the fast-mode premium on this one small per-session
+    // call. `thinking` omitted = off on Opus 4.8 — the score prompt is
+    // prescriptive enough that thinking mostly added latency here.
+    const response = await client.beta.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 16000,
-      thinking: { type: 'adaptive' },
-      system: ctx.systemPrompt,
+      speed: 'fast',
+      betas: ['fast-mode-2026-02-01'],
+      system: ctx.systemPromptWithScores,
       messages: [{ role: 'user', content: ctx.userMessage }],
     })
     if (response.stop_reason === 'refusal') {
@@ -351,8 +392,27 @@ async function composeWithClaude(
       .join('')
     return validateBrainPlan(text, 'Claude', scaffold, ctx.allowedTemplateIds, ctx.allowedStyleIds)
   } catch (err) {
-    console.warn('[composer] Claude compose failed:', (err as Error).message)
-    return null
+    // Fast mode has its own rate limit / availability — never let a fast-mode
+    // failure cost us the Claude link. One standard-speed retry.
+    console.warn('[composer] Claude fast-mode compose failed, retrying standard:', (err as Error).message)
+    try {
+      const response = await client.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 16000,
+        thinking: { type: 'adaptive' },
+        system: ctx.systemPromptWithScores,
+        messages: [{ role: 'user', content: ctx.userMessage }],
+      })
+      if (response.stop_reason === 'refusal') return null
+      const text = response.content
+        .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+        .map(b => b.text)
+        .join('')
+      return validateBrainPlan(text, 'Claude', scaffold, ctx.allowedTemplateIds, ctx.allowedStyleIds)
+    } catch (err2) {
+      console.warn('[composer] Claude compose failed:', (err2 as Error).message)
+      return null
+    }
   }
 }
 
@@ -378,20 +438,63 @@ async function composeWithOllama(
 
 // ── Public API ───────────────────────────────────────────────────────
 
+// ── Plan cache (serve instantly, refresh behind) ─────────────────────
+// A Claude composition takes seconds-to-a-minute; a session start should not.
+// Cache the last LLM-written plan per musical intent and serve it IMMEDIATELY
+// while a fresh composition replaces it in the background — every start after
+// the first gets a real written score with zero wait. Deterministic plans are
+// never cached (they're instant anyway and would poison the cache).
+const PLAN_CACHE_TTL_MS = 6 * 60 * 60 * 1000
+const planCache = new Map<string, { plan: ArrangementPlan; at: number }>()
+const refreshInFlight = new Set<string>()
+
+function cacheKey(input: ComposerInput): string {
+  return [input.subGenre ?? '', input.mood ?? '', input.bpm ?? '', input.prompt ?? '',
+    (input.allowedStyleIds ?? []).join(','), (input.allowedTemplateIds ?? []).join(',')].join('|')
+}
+
+/** Deep-copy a cached plan with a fresh id so sessions never share plan ids. */
+function clonePlan(plan: ArrangementPlan): ArrangementPlan {
+  return { ...structuredClone(plan), id: randomUUID() }
+}
+
 class RelayComposer implements Composer {
-  async compose(input: ComposerInput): Promise<ArrangementPlan> {
+  private async composeUncached(input: ComposerInput): Promise<{ plan: ArrangementPlan; fromLLM: boolean }> {
     const scaffold = buildDeterministicPlan(input)
     const ctx = buildPromptContext(input, scaffold)
     // COMPOSER_BRAIN pins one link for isolated dev testing; unset = full chain.
     const pin = process.env.COMPOSER_BRAIN
-    if (pin === 'deterministic') return scaffold
+    if (pin === 'deterministic') return { plan: scaffold, fromLLM: false }
     if (pin !== 'ollama') {
       const claudePlan = await composeWithClaude(ctx, scaffold)
-      if (claudePlan) return claudePlan
-      if (pin === 'claude') return scaffold
+      if (claudePlan) return { plan: claudePlan, fromLLM: true }
+      if (pin === 'claude') return { plan: scaffold, fromLLM: false }
     }
     const ollamaPlan = await composeWithOllama(ctx, scaffold)
-    return ollamaPlan ?? scaffold
+    return ollamaPlan ? { plan: ollamaPlan, fromLLM: true } : { plan: scaffold, fromLLM: false }
+  }
+
+  async compose(input: ComposerInput): Promise<ArrangementPlan> {
+    const key = cacheKey(input)
+    const cached = planCache.get(key)
+    const fresh = cached && Date.now() - cached.at < PLAN_CACHE_TTL_MS
+
+    if (cached && fresh) {
+      // Serve instantly; refresh behind so the NEXT start gets a new take.
+      if (!refreshInFlight.has(key)) {
+        refreshInFlight.add(key)
+        void this.composeUncached(input)
+          .then(({ plan, fromLLM }) => { if (fromLLM) planCache.set(key, { plan, at: Date.now() }) })
+          .catch(() => { /* keep serving the cached plan */ })
+          .finally(() => refreshInFlight.delete(key))
+      }
+      console.log('[composer] served cached plan (background refresh kicked)')
+      return clonePlan(cached.plan)
+    }
+
+    const { plan, fromLLM } = await this.composeUncached(input)
+    if (fromLLM) planCache.set(key, { plan, at: Date.now() })
+    return plan
   }
 }
 

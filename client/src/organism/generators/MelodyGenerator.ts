@@ -42,7 +42,8 @@ import { assignMelodyVoice } from './melody/melodyVoice'
 import { selectMotifBankKey } from './melody/motifSelection'
 import { planGuitarArticulations, developGuitarPhrase } from './melody/guitarPerformance'
 import { buildFreeplayMelodyNotes, clearMelodyMotifs } from './freeplay/MelodyImproviser'
-import { extractBusySlots16ths, getSessionSalt, hashString, mulberry32 } from './freeplay/utils'
+import { extractBusySlots16ths, getSessionSalt, hashString, mulberry32, swungTime } from './freeplay/utils'
+import { slotsToDur } from './freeplay/score'
 import {
   getPerformerExpressionConfig,
   isSustainedPitch,
@@ -200,7 +201,7 @@ export class MelodyGenerator extends GeneratorBase {
 
   // Rebuild throttle — prevent rapid Part rebuilds from overlapping.
   private lastRebuildTime: number = -Infinity
-  private static readonly MIN_REBUILD_INTERVAL_MS = 600
+  private static readonly MIN_REBUILD_INTERVAL_MS = 900
   private static readonly LEAD_GAIN_BOOST_DB = 5
   // Refresh the phrase every N bars while playing. 8 bars lets a motif develop
   // and repeat before fresh material arrives — shorter values caused audible hard
@@ -932,6 +933,9 @@ export class MelodyGenerator extends GeneratorBase {
     // Computed AFTER dynamics so accent velocities drive the bend choice.
     const guitarArtIds = this.isGuitar() ? planGuitarArticulations(notes) : null
 
+    // TANK BUILD: hard cap at 32 notes per phrase — more than this floods
+    // the Tone.js scheduler when all 4 generators rebuild simultaneously.
+    if (notes.length > 32) notes = notes.slice(0, 32)
     if (notes.length === 0) return true
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
@@ -1185,6 +1189,26 @@ export class MelodyGenerator extends GeneratorBase {
     const melodicOctave = isBowedLead
       ? Math.min(octaves[1], Math.max(octaves[0], (performer?.preferredOctave ?? octave + 1) - 1))
       : octave
+
+    // CLAUDE-COMPOSED SCORE: when the plan section carries a written melody,
+    // PERFORM it — a composer wrote this phrase (motif, development, breath).
+    // The improviser below is the fallback, not the author. Pitches were
+    // sanitized server-side (snapped to the plan key's scale).
+    const sectionScore = getConductor().getSectionScore()
+    if (this.freeplayEnabled && sectionScore?.melody?.length) {
+      const written: ScheduledNote[] = []
+      for (const n of sectionScore.melody) {
+        if (n.slot >= length16ths && length16ths < 64) continue
+        const bar = Math.floor(n.slot / 16)
+        written.push({
+          time: swungTime(bar, n.slot % 16, this.currentSwing),
+          pitch: Tone.Frequency(n.midi + this.pitchOffsetSemitones, 'midi').toNote(),
+          duration: slotsToDur(n.durSlots),
+          velocity: n.vel * Math.max(0.6, Math.min(1, velocityEnergy + 0.25)),
+        })
+      }
+      if (written.length > 0) return written
+    }
 
     if (this.freeplayEnabled) {
       const conductor = getConductor()

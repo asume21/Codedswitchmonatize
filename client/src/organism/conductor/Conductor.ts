@@ -731,6 +731,14 @@ export class Conductor {
     return this.activeStyleId
   }
 
+  /** Note-level score for the ACTIVE plan section (Claude-composed melody +
+   *  chord-hook rhythm), or null in jam mode / when the composer wrote none.
+   *  Melody/Chord generators perform it verbatim when present. */
+  getSectionScore(): import('@shared/arrangement').SectionScore | null {
+    if (!this.activePlan) return null
+    return this.activePlan.sections[this.activeSectionIndex]?.score ?? null
+  }
+
   /**
    * Subscribe to style changes. Fires every time a new section loads with a
    * different style id than the previous one. Returns an unsubscribe fn.

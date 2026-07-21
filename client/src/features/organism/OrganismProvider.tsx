@@ -1669,9 +1669,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         detail: { quickStart: true, presetId, preset: preset.label },
       }))
 
-      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared
+      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared.
+      // PRESERVE the user's hybrid row switches: a bare reload defaulted to ALL
+      // rows looping, which is how "I turned on Hybrid (texture only) and later
+      // every row was on loop" happened — Hybrid piggybacks loopsModeEnabled,
+      // so any preset apply re-loaded the pack with loopRows=undefined.
       if (loopsModeEnabledRef.current) {
-        void loadLoops(true, preset)
+        const src = orchestr.getRowSources()
+        const rows = (Object.keys(src) as Array<'drums' | 'bass' | 'melody' | 'chords' | 'texture'>)
+          .filter(r => src[r] === 'loop')
+        void loadLoops(true, preset, rows.length > 0 ? rows : undefined)
       } else {
         orchestr.clearLoopPack()
       }
@@ -1836,9 +1843,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // listener and is idempotent, so re-dispatching just re-applies voicing.
       window.dispatchEvent(new CustomEvent('organism:started', { detail: { presetId } }))
 
-      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared
+      // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared.
+      // Same row-preserving reload as quickStart — see the comment there (the
+      // "all rows silently flipped to loop" hybrid bug).
       if (loopsModeEnabledRef.current) {
-        void loadLoops(true, preset)
+        const src = orchestr.getRowSources()
+        const rows = (Object.keys(src) as Array<'drums' | 'bass' | 'melody' | 'chords' | 'texture'>)
+          .filter(r => src[r] === 'loop')
+        void loadLoops(true, preset, rows.length > 0 ? rows : undefined)
       } else {
         orchestr.clearLoopPack()
       }

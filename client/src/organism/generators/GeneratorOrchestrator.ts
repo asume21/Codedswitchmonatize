@@ -1997,11 +1997,19 @@ export class GeneratorOrchestrator {
     // (old plans / jam mode) should still behave like a hip-hop beat machine:
     // drums and bass lead, melodic parts support.
     const orch = section.orchestration
+    // Chords-as-the-hook flip (2026-07-17): in jam mode (no plan orchestration)
+    // the CHORD seat leads — most modern beats use keys/pads/chords AS the
+    // hook, and the melody answers sparsely around it. Chord 'lead' also flips
+    // the ChordImproviser into hook mode (foreground gestures, presence).
     this.drum.setRole(orch?.drums ?? 'lead')
     this.bass.setRole(orch?.bass ?? 'lead')
     this.melody.setRole(orch?.melody ?? 'support')
-    this.chord.setRole(orch?.chord ?? 'support')
+    this.chord.setRole(orch?.chord ?? 'lead')
     this.texture.setRole(orch?.texture ?? 'support')
+    // When chords lead and melody doesn't, discipline the melody to sparse
+    // answering phrases ('hint') — a continuous lead line over a chord hook
+    // is exactly the old inverted arrangement.
+    const chordLeadsBand = (orch?.chord ?? 'lead') === 'lead' && (orch?.melody ?? 'support') !== 'lead'
 
     if (aiOverride) {
       this.hatArcMultiplier = aiOverride.hatDensity
@@ -2061,6 +2069,9 @@ export class GeneratorOrchestrator {
       setTimeout(() => {
         if (aiOverride?.melodyBehavior) {
           this.melody.onSectionChange(section.name, aiOverride.melodyBehavior as any)
+        } else if (chordLeadsBand) {
+          // Chord hook leads → melody answers sparsely instead of noodling.
+          this.melody.onSectionChange(section.name, 'hint' as MelodyBehavior)
         } else {
           this.melody.onSectionChange(section.name)
         }

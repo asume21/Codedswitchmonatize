@@ -332,7 +332,7 @@ export class DrumGenerator extends GeneratorBase {
   // The MusicalDirector can trigger rebuilds on sub-genre changes, mutations, AND
   // state transitions. Without a throttle, these can pile up in the same frame.
   private lastRebuildTime: number = 0
-  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+  private static readonly MIN_REBUILD_INTERVAL_MS = 900
 
   /** Load an AI-generated pattern externally (Gap 2 — generative patterns).
    *  Honors `this.enabled` so MusicalDirector sub-genre changes and pattern
@@ -343,7 +343,15 @@ export class DrumGenerator extends GeneratorBase {
     if (!force && now - this.lastRebuildTime < DrumGenerator.MIN_REBUILD_INTERVAL_MS) return
     this.lastRebuildTime = now
     this.rawHits = hits
-    this.rebuildPart(hits)
+    // TANK BUILD: forced rebuilds (sub-genre changes, state transitions) yield
+    // to the event loop so the Tone.js audio scheduler can process pending
+    // callbacks before we create a new Tone.Part. Without this yield, the
+    // synchronous Part creation + start() starves the scheduler → audio stall.
+    if (force) {
+      setTimeout(() => this.rebuildPart(hits), 0)
+    } else {
+      this.rebuildPart(hits)
+    }
   }
 
   setSectionDensity(density: number): void {

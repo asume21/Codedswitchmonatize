@@ -274,7 +274,7 @@ describe('GeneratorOrchestrator', () => {
     expect(textureSpy).toHaveBeenCalledWith(1)
   })
 
-  it('jam arrangement defaults drums and bass to lead roles', async () => {
+  it('jam arrangement defaults drums, bass, and the chord hook to lead roles', async () => {
     const tone = await import('tone')
     tone.getTransport().position = '0:0:0'
     const drumRoleSpy = vi.spyOn((orchestrator as any).drum, 'setRole')
@@ -287,7 +287,8 @@ describe('GeneratorOrchestrator', () => {
 
     expect(drumRoleSpy).toHaveBeenLastCalledWith('lead')
     expect(bassRoleSpy).toHaveBeenLastCalledWith('lead')
-    expect(chordRoleSpy).toHaveBeenLastCalledWith('support')
+    // Chords-as-the-hook flip: the chord seat leads in jam mode.
+    expect(chordRoleSpy).toHaveBeenLastCalledWith('lead')
   })
 
   it('refreshInstrumentVoices re-applies bass, chord, and melody voices', () => {

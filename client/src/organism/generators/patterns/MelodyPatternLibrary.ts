@@ -10,7 +10,8 @@ export const MODE_SCALES: Record<string, number[]> = {
   ice:    [0, 2, 3, 5, 7, 10, 11],        // natural minor + maj7 — jazzy lo-fi
   smoke:  [0, 3, 5, 6, 7, 10],            // blues scale — soulful boom-bap
   gravel: [0, 3, 5, 7, 10],               // minor pentatonic — drill, same as heat but lower octave
-  glow:   [0, 2, 4, 7, 9],                // major pentatonic — chill, warm
+  glow:      [0, 2, 4, 7, 9],                // major pentatonic — chill, warm
+  classical: [0, 2, 4, 5, 7, 9, 11],        // major scale (Ionian) — Bach, Mozart, full classical range
 }
 
 // Phrase lengths in 16th notes, indexed by behavior
@@ -32,7 +33,8 @@ export const MODE_OCTAVES: Record<string, [number, number]> = {
   ice:    [3, 4],     // lo-fi — warm mid, not piercing
   smoke:  [3, 3],     // boom-bap — soulful low-mid, below the voice
   gravel: [2, 3],     // drill — dark, low menacing
-  glow:   [3, 4],     // chill — warm mid
+  glow:      [3, 4],     // chill — warm mid
+  classical: [4, 6],     // classical — wide range for piano, violin, full keyboard span
 }
 
 /**

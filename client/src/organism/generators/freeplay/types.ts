@@ -17,6 +17,8 @@ export interface FreeplayContext {
   leadBusy16ths?: number[]    // per-bar slots 0..15 the melody occupies — comp dodges the lead (empty/absent = deaf)
   rng: () => number           // seeded — improvisers are deterministic per seed
   compGesture?: CompGesture   // chord comp gesture override; absent = derive from motifSeed
+  hookMode?: boolean          // chord role is 'lead': the comp IS the hook — foreground
+                              // gestures, velocity presence, owns the space (no lead-dodging)
 }
 
 // Chord comping "animator" gesture (2026-07-09 reference study). Defined here so

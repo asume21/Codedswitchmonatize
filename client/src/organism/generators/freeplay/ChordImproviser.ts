@@ -22,7 +22,31 @@ import { getSongCell } from './songCell'
 // per-rebuild rng, so a section keeps its comping identity (churn was the
 // conductor-part2 lesson); rotation comes from section changes and new
 // sessions. Callers may override via ctx.compGesture for explicit control.
-export function pickCompGesture(motifSeed: number): CompGesture {
+// ── Genre-specific gesture weights ───────────────────────────────────
+const GENRE_GESTURE_WEIGHTS: Record<string, Partial<Record<CompGesture, number>>> = {
+  classical:    { sustain: 0.35, roll: 0.35, stabs: 0.10, 'phrase-end': 0.10, 'call-response': 0.10 },
+  jazz:         { roll: 0.30, sustain: 0.25, stabs: 0.15, 'call-response': 0.15, alternate: 0.15 },
+  gospel:       { sustain: 0.30, roll: 0.25, stabs: 0.20, 'call-response': 0.15, 'phrase-end': 0.10 },
+  funk:         { stabs: 0.40, 'call-response': 0.25, alternate: 0.20, roll: 0.10, sustain: 0.05 },
+  house:        { stabs: 0.35, roll: 0.25, sustain: 0.20, alternate: 0.10, 'phrase-end': 0.10 },
+  dnb:          { stabs: 0.30, roll: 0.30, sustain: 0.20, 'phrase-end': 0.10, alternate: 0.10 },
+  pop:          { alternate: 0.30, sustain: 0.25, stabs: 0.20, roll: 0.15, 'call-response': 0.10 },
+  electronic:   { roll: 0.30, stabs: 0.25, sustain: 0.20, alternate: 0.15, 'phrase-end': 0.10 },
+}
+
+function pickWeightedGesture(motifSeed: number, weights: Partial<Record<CompGesture, number>>): CompGesture {
+  const r = mulberry32(motifSeed + getSessionSalt() * 7)()
+  let cumulative = 0
+  for (const [gesture, weight] of Object.entries(weights)) {
+    cumulative += weight
+    if (r < cumulative) return gesture as CompGesture
+  }
+  return 'stabs'
+}
+
+export function pickCompGesture(motifSeed: number, subGenre?: string): CompGesture {
+  const weights = GENRE_GESTURE_WEIGHTS[subGenre ?? '']
+  if (weights) return pickWeightedGesture(motifSeed, weights)
   const r = mulberry32(motifSeed + getSessionSalt() * 7)()
   if (r < 0.30) return 'stabs'
   if (r < 0.45) return 'sustain'
@@ -58,6 +82,22 @@ const PUSH_SLOT = 6
 
 const clampVel = (v: number) => Math.min(0.7, Math.max(0.3, v))
 
+// Hook mode (chords-as-the-hook flip, 2026-07-17): when the chord role is
+// 'lead' the comp IS the hook, so velocities get presence instead of the
+// support ceiling. Same shape, higher floor and ceiling.
+const clampHookVel = (v: number) => Math.min(0.85, Math.max(0.4, v + 0.12))
+
+// Bed-like gestures can't carry a hook. When the chords lead, remap them to a
+// foreground gesture — deterministically from the motifSeed so the section
+// keeps ONE identity (no churn).
+const HOOK_GESTURES: CompGesture[] = ['stabs', 'roll', 'call-response']
+function toHookGesture(gesture: CompGesture, motifSeed: number): CompGesture {
+  if (gesture === 'sustain' || gesture === 'phrase-end') {
+    return HOOK_GESTURES[Math.floor(mulberry32(motifSeed + 13)() * HOOK_GESTURES.length)]
+  }
+  return gesture
+}
+
 /**
  * Multi-bar comp plan (ctx.bars, aligned to the part loop):
  * - 1 bar: legacy A / A / A' / A across rebuilds
@@ -66,10 +106,13 @@ const clampVel = (v: number) => Math.min(0.7, Math.max(0.3, v))
  */
 export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const bars = Math.max(1, Math.floor(ctx.bars) || 1)
+  const hook = ctx.hookMode === true
+  const vel = hook ? clampHookVel : clampVel
 
   // Low energy: one pad per bar. Space is comping too — the re-attack each bar
-  // (slightly softer) keeps the pad breathing instead of freezing.
-  if (ctx.energy < 0.4) {
+  // (slightly softer) keeps the pad breathing instead of freezing. In hook mode
+  // the threshold drops: a hook has to speak even in laid-back sections.
+  if (ctx.energy < (hook ? 0.25 : 0.4)) {
     return Array.from({ length: bars }, (_, bar) => ({
       time: swungTime(bar, 0, ctx.swing),
       dur: '1m',
@@ -77,7 +120,8 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     }))
   }
 
-  const gesture = ctx.compGesture ?? pickCompGesture(ctx.motifSeed)
+  const rawGesture = ctx.compGesture ?? pickCompGesture(ctx.motifSeed, ctx.subGenre)
+  const gesture = hook ? toHookGesture(rawGesture, ctx.motifSeed) : rawGesture
 
   // Band awareness (shared by every gesture). Kick slots come from the drum
   // pattern (same channel the bass uses): a keys player comps in the pockets
@@ -89,8 +133,10 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   // Lead awareness: slots the melody occupies. Dodging the kick is a RULE
   // (doubling it is mud); dodging the lead is a PREFERENCE — if the melody is
   // everywhere, comp anyway rather than vanish. Downbeat exempt as ever.
+  // In hook mode the priority inverts: the comp OWNS the space and the melody
+  // (disciplined to sparse answers by the orchestrator) dodges around it.
   const leadBusy = new Set((ctx.leadBusy16ths ?? []).map(s => ((Math.floor(s) % 16) + 16) % 16))
-  const leadRoom = (slot: number) => slot === 0 || !leadBusy.has(slot)
+  const leadRoom = (slot: number) => hook || slot === 0 || !leadBusy.has(slot)
 
   // Bed-like gestures don't need the motif machinery at all.
   if (gesture === 'sustain') {
@@ -109,8 +155,8 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     // from the Conductor's voicing engine at the next harmony change).
     const events: CompEvent[] = []
     for (let bar = 0; bar < bars; bar++) {
-      events.push({ time: swungTime(bar, 0, ctx.swing), dur: '2n', vel: bar === 0 ? 0.56 : 0.5 })
-      events.push({ time: swungTime(bar, 8, ctx.swing), dur: '2n', vel: 0.46 })
+      events.push({ time: swungTime(bar, 0, ctx.swing), dur: '2n', vel: vel(bar === 0 ? 0.56 : 0.5) })
+      events.push({ time: swungTime(bar, 8, ctx.swing), dur: '2n', vel: vel(0.46) })
     }
     return events
   }
@@ -152,7 +198,9 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   // than replaced by them.
   const cell = getSongCell(ctx.sectionName, ctx.subGenre, ctx.rng, ctx.density)
   const answerAnchors = [0, ...cell.gaps.filter(s => s !== 0 && s % 2 === 0).slice(0, 2)]
-  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, 0.5), answerAnchors)
+  // Hook mode gets a denser motif ceiling — a support comp answers in gaps,
+  // a hook states a real riff.
+  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, hook ? 0.7 : 0.5), answerAnchors)
 
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
@@ -196,7 +244,9 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
         pool = [...anchor, ...(answer !== undefined ? [answer] : [])]
       }
     }
-    const baseLimit = ctx.energy > 0.7 ? 4 : 3
+    const classicalMult = ctx.subGenre === 'classical' || ctx.subGenre === 'jazz' ? 1.5 : 1.0
+    const houseMult = ctx.subGenre === 'house' || ctx.subGenre === 'dnb' || ctx.subGenre === 'electronic' ? 1.3 : 1.0
+    const baseLimit = Math.round((ctx.energy > 0.7 ? 4 : 3) * Math.max(classicalMult, houseMult))
     const limit = role === 'echo' ? Math.max(1, baseLimit - 1)
       : role === 'answer' ? Math.max(2, baseLimit - 1)
       : baseLimit
@@ -220,7 +270,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
           : slot === 0
             ? (isStatementBar ? '2n' : '4n')
             : (isAnswerBar ? '8n' : '4n'),
-        vel: clampVel(
+        vel: vel(
           (slot === 0 ? 0.6 : 0.48)
           - i * 0.02
           + (isDevBar ? 0.04 : 0)
@@ -238,7 +288,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
         .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(s))
       if (pushSlot !== undefined) {
-        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: role === 'develop' ? 0.52 : 0.48 })
+        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: vel(role === 'develop' ? 0.52 : 0.48) })
       }
     }
   }

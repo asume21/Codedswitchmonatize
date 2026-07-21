@@ -6,7 +6,8 @@
 
 import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
-import { hashString, mulberry32, getSessionSalt } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
+import { slotsToDur } from './freeplay/score'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -554,7 +555,7 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private lastRebuildTime: number = -Infinity
-  private static readonly MIN_REBUILD_INTERVAL_MS = 500
+  private static readonly MIN_REBUILD_INTERVAL_MS = 900
 
   private rebuildPart(): boolean {
     if (this._loopMode) return false
@@ -599,7 +600,22 @@ export class ChordGenerator extends GeneratorBase {
 
     const events: ChordPartEvent[] = []
 
-    if (this.freeplayEnabled) {
+    // CLAUDE-COMPOSED SCORE: when the plan section carries note-level chord
+    // hits, PERFORM them verbatim — a real composer wrote this rhythm. The
+    // improviser below is the fallback, not the author.
+    const sectionScore = conductor.getSectionScore()
+    if (this.freeplayEnabled && sectionScore?.chordHits?.length) {
+      for (const hit of sectionScore.chordHits) {
+        const bar = Math.floor(hit.slot / 16)
+        events.push({
+          time: swungTime(bar, hit.slot % 16, this.currentSwing),
+          notes: noteStrings,
+          dur: slotsToDur(hit.durSlots),
+          vel: hit.vel,
+          chordIdx: 0,
+        })
+      }
+    } else if (this.freeplayEnabled) {
       // Energy from the current behavior — the behavior resolver already maps
       // organism state to intensity, so reuse it instead of a second signal.
       const energy = this.currentBehavior === ChordBehavior.Pad ? 0.3
@@ -622,6 +638,10 @@ export class ChordGenerator extends GeneratorBase {
         motifSeed: seed,
         kickTimes16ths: this.kickAnchors,
         leadBusy16ths: this.leadBusySlots,
+        // Chords-as-the-hook flip: when the composer/orchestrator puts the
+        // chord seat in the lead role, the comp becomes the foreground hook
+        // (foreground gestures, velocity presence, owns the space).
+        hookMode: this.role === 'lead',
         // LOCKED LOOP (2026-07-11) — see BassGenerator. Seed is a pure function
         // of the section, so the comp is identical every cycle. Section changes
         // the seed; nothing else does.
@@ -668,7 +688,9 @@ export class ChordGenerator extends GeneratorBase {
     // keep their original 1-bar loop.
     const loopBars = this.freeplayEnabled ? 4 : 1
 
-    const quantizedEvents = events.map(event => ({
+    // TANK BUILD: cap at 20 chord events — more floods the scheduler
+    const cappedEvents = events.length > 20 ? events.slice(0, 20) : events
+    const quantizedEvents = cappedEvents.map(event => ({
       ...event,
       time: quantizeGridTime(event.time, loopBars),
     }))
