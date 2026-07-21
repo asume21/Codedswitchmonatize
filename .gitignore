@@ -1,5 +1,8 @@
 node_modules
 
+# Cog local build cache (Replicate packaging)
+cog/.cog/
+
 # Environment files (do not commit secrets)
 .env
 .mcp.json

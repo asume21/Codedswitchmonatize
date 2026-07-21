@@ -1,0 +1,32 @@
+# Cog configuration for ACE-Step v1.5 on Replicate
+# Build: cog build
+# Push:   cog push r8.im/your-username/ace-step
+# Docs:   https://github.com/replicate/cog
+#
+# Based on the RunPod Dockerfile at serverless/ace-step/Dockerfile
+
+build:
+  gpu: true
+  cuda: "12.8"
+  python_version: "3.11"
+  system_packages:
+    - ffmpeg
+    - git
+    - libsndfile1
+    - espeak-ng
+  python_packages:
+    - runpod>=1.7.9
+    - huggingface_hub[hf_transfer]>=0.25.0
+    - hf_transfer>=0.1.8
+    - soundfile>=0.12.1
+  run:
+    # Clone ACE-Step 1.5 from GitHub
+    - git clone --depth 1 --branch v0.1.7 https://github.com/ace-step/ACE-Step-1.5.git /ace-step
+    # Install nano-vllm from bundled local path (pip can't resolve uv sources)
+    - pip install /ace-step/acestep/third_parts/nano-vllm
+    # Install PyTorch with CUDA 12.8
+    - pip install "torch==2.10.0+cu128" "torchaudio==2.10.0+cu128" "torchvision==0.25.0+cu128" --index-url https://download.pytorch.org/whl/cu128
+    # Install ACE-Step package + remaining deps
+    - pip install /ace-step --extra-index-url https://download.pytorch.org/whl/cu128
+
+predict: "predict.py:Predictor"

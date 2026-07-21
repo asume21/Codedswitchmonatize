@@ -47,6 +47,9 @@ export interface AceStepJob {
 }
 
 export async function isWorkerReady(): Promise<boolean> {
+  const { isReplicateConfigured, isReplicateHealthy } = await import('./replicateService')
+  if (isReplicateConfigured()) return isReplicateHealthy()
+
   const { isServerlessConfigured, isServerlessEndpointHealthy } = await import('./runpodServerlessService')
   if (isServerlessConfigured()) return isServerlessEndpointHealthy()
 
@@ -61,6 +64,9 @@ export async function isWorkerReady(): Promise<boolean> {
 }
 
 export async function submitGeneration(req: AceStepRequest): Promise<string> {
+  const { isReplicateConfigured, submitReplicateGeneration } = await import('./replicateService')
+  if (isReplicateConfigured()) return submitReplicateGeneration(req)
+
   const { isServerlessConfigured, submitServerlessGeneration } = await import('./runpodServerlessService')
   if (isServerlessConfigured()) return submitServerlessGeneration(req)
 
@@ -100,6 +106,9 @@ export async function submitGeneration(req: AceStepRequest): Promise<string> {
 }
 
 export async function pollJob(jobId: string): Promise<AceStepJob> {
+  const { isReplicateConfigured, pollReplicateJob } = await import('./replicateService')
+  if (isReplicateConfigured()) return pollReplicateJob(jobId)
+
   const { isServerlessConfigured, pollServerlessJob } = await import('./runpodServerlessService')
   if (isServerlessConfigured()) return pollServerlessJob(jobId)
 
@@ -124,9 +133,10 @@ export async function pollJob(jobId: string): Promise<AceStepJob> {
 
 /** Submit and wait — supports RunPod Serverless or legacy pod/local worker. */
 export async function generateAndWait(req: AceStepRequest): Promise<AceStepJob> {
+  const { isReplicateConfigured } = await import('./replicateService')
   const { isServerlessConfigured } = await import('./runpodServerlessService')
   const { ensureWorkerReady, jobCompleted } = await import('./runpodService')
-  if (!isServerlessConfigured()) await ensureWorkerReady()
+  if (!isReplicateConfigured() && !isServerlessConfigured()) await ensureWorkerReady()
 
   const jobId = await submitGeneration(req)
   const deadline = Date.now() + POLL_TIMEOUT_MS
