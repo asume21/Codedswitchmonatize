@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { getConductor } from '../../organism/conductor/Conductor';
+import { useOrganism } from '../../features/organism/OrganismContext';
 import type { CodeFingerprint } from '../../../../shared/types/codeFingerprint';
 import type { ArrangementPlan } from '../../../../shared/arrangement';
 import { Code, Wand2, Play } from 'lucide-react';
@@ -24,6 +25,7 @@ function beat(x) { return x * 2; }`;
 
 export default function CodebeatStudio() {
   const { toast } = useToast();
+  const { start, isRunning } = useOrganism();
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [genre, setGenre] = useState('hiphop');
@@ -51,11 +53,16 @@ export default function CodebeatStudio() {
     }
   };
 
-  const playWithBand = () => {
+  const playWithBand = async () => {
     if (!plan) return;
     try {
-      const conductor = getConductor();
-      conductor.loadPlan(plan);
+      // Load the plan FIRST so the Conductor's key/subGenre/sections are set,
+      // then START the Organism — loadPlan only CONFIGURES the band; it does not
+      // start transport or the generators. Without start() the plan loads into a
+      // band that isn't playing (the "acts like it worked but nothing plays"
+      // bug). If the band is already running, loadPlan alone is enough.
+      getConductor().loadPlan(plan);
+      if (!isRunning) await start();
       toast({ title: '🎸 Playing with the band', description: 'The Organism is performing your code.' });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not start the band', description: err?.message });
