@@ -494,6 +494,15 @@ export class DrumGenerator extends GeneratorBase {
   }
 
   private rebuildPart(hits: DrumHit[]): void {
+    // Loop mode owns this row: the WAV loop is the drums. NEVER build the live
+    // part here or it doubles with the loop. Soloing (enable/disable churn) and
+    // section changes trigger rebuilds, and DrumGenerator otherwise had no
+    // loop-mode awareness — that was the "more than one drum" bug. Match the
+    // bass/chord generators, which stop their live part in loop mode.
+    if (this._loopMode) {
+      this.stopPart()
+      return
+    }
     this.applyKitPreset()
     
     // Section density thinning: sparse sections (intro, breakdown) keep the

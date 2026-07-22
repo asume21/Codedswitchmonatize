@@ -451,6 +451,10 @@ export class TextureGenerator extends GeneratorBase {
     // so the texture volume slider — and the orchestrator's mute via
     // applyVolumeMultiplier(0) — control the pads as well as the noise bed.
     this.padVolumeMultiplier = m
+    // ...and the loop too. When texture is sourced to a WAV loop (hybrid), the
+    // live pad/noise level didn't touch the loop, so "texture down" left the
+    // loop playing. Gate the loop by the same volume (clamped to 0..1).
+    this.applyLoopVolumeGate(Math.min(1, m))
   }
 
   private computeTargetLevel(organism: OrganismState): number {
