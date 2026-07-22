@@ -22,7 +22,7 @@ const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m 
 const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
 import { Resizable } from 'react-resizable';
 const LyricLab = React.lazy(() => import('./LyricLab'));
-const CodeToMusicStudioV2 = React.lazy(() => import('./CodeToMusicStudioV2'));
+const CodebeatStudio = React.lazy(() => import('./CodebeatStudio'));
 import VerticalPianoRoll from './VerticalPianoRoll';
 const ProfessionalMixer = React.lazy(() => import('./ProfessionalMixer'));
 const SongUploader = React.lazy(() => import('./SongUploader'));
@@ -4520,7 +4520,7 @@ export default function UnifiedStudioWorkspace() {
 
                     <TabsContent value="code-music" className="mt-2">
                       <React.Suspense fallback={<TabLoadingFallback />}>
-                        <CodeToMusicStudioV2 />
+                        <CodebeatStudio />
                       </React.Suspense>
                     </TabsContent>
                   </Tabs>
