@@ -1,5 +1,5 @@
 // client/src/components/studio/CodebeatStudio.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { getConductor } from '../../organism/conductor/Conductor';
-import { useOrganism } from '../../features/organism/OrganismContext';
+import { useOrganismSafe, useOrganismActivation } from '../../features/organism/GlobalOrganismWrapper';
 import type { CodeFingerprint } from '../../../../shared/types/codeFingerprint';
 import type { ArrangementPlan } from '../../../../shared/arrangement';
 import { Code, Wand2, Play } from 'lucide-react';
@@ -25,7 +25,11 @@ function beat(x) { return x * 2; }`;
 
 export default function CodebeatStudio() {
   const { toast } = useToast();
-  const { start, isRunning } = useOrganism();
+  // The heavy OrganismProvider is only mounted after activation, so the full
+  // context is null until then — read it safely, and use activate() to boot it.
+  const organism = useOrganismSafe();
+  const { activate } = useOrganismActivation();
+  const [pendingPlay, setPendingPlay] = useState(false);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [genre, setGenre] = useState('hiphop');
@@ -53,17 +57,39 @@ export default function CodebeatStudio() {
     }
   };
 
+  // Load the plan into the Conductor, then start the Organism if it isn't
+  // already playing. loadPlan only CONFIGURES the band (key/subGenre/sections);
+  // it does not start transport or the generators — that was why it "acted like
+  // it worked but nothing played." Load first so start() reads the plan's key.
+  const runPlan = async () => {
+    if (!plan || !organism) return;
+    getConductor().loadPlan(plan);
+    if (!organism.isRunning) await organism.start();
+    toast({ title: '🎸 Playing with the band', description: 'The Organism is performing your code.' });
+  };
+
+  // Cold path: once activate() mounts the OrganismProvider, `organism` flips
+  // from null to the live context on a later render — play then.
+  useEffect(() => {
+    if (pendingPlay && organism) {
+      setPendingPlay(false);
+      runPlan().catch((err) =>
+        toast({ variant: 'destructive', title: 'Could not start the band', description: err?.message }),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPlay, organism]);
+
   const playWithBand = async () => {
     if (!plan) return;
     try {
-      // Load the plan FIRST so the Conductor's key/subGenre/sections are set,
-      // then START the Organism — loadPlan only CONFIGURES the band; it does not
-      // start transport or the generators. Without start() the plan loads into a
-      // band that isn't playing (the "acts like it worked but nothing plays"
-      // bug). If the band is already running, loadPlan alone is enough.
-      getConductor().loadPlan(plan);
-      if (!isRunning) await start();
-      toast({ title: '🎸 Playing with the band', description: 'The Organism is performing your code.' });
+      if (organism) {
+        await runPlan();          // engine already booted → play now
+      } else {
+        activate();               // boot the audio engine; the effect plays once it mounts
+        setPendingPlay(true);
+        toast({ title: '⏳ Waking the band…', description: 'Booting the audio engine.' });
+      }
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Could not start the band', description: err?.message });
     }
