@@ -97,6 +97,32 @@ export function registerAudioDebugSource(source: AudioDebugTapSource): () => voi
 }
 
 /**
+ * Capture the live master mix — the SAME tap WebEar records — to a LOCAL audio
+ * blob (no upload). This is the reusable "commit to timeline" primitive: it
+ * turns whatever the band is playing right now into a durable audio blob a
+ * caller can drop on the timeline as an editable clip. Uses its own recorder so
+ * it never collides with the WebEar capture state. Returns null when the tap
+ * can't be built (audio not started / context suspended) or nothing was heard.
+ */
+export async function captureTapToBlob(durationMs = 4000): Promise<Blob | null> {
+  const tap = await ensureTap()
+  if (!tap) return null
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : 'audio/webm'
+  const chunks: Blob[] = []
+  const rec = new MediaRecorder(tap.stream, { mimeType })
+  rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+  await new Promise<void>((resolve) => {
+    rec.onstop = () => resolve()
+    rec.start(200)
+    setTimeout(() => { if (rec.state === 'recording') rec.stop() }, durationMs)
+  })
+  const blob = new Blob(chunks, { type: mimeType })
+  return blob.size > 0 ? blob : null
+}
+
+/**
  * Connect every currently-registered source to a freshly (re)built tap node.
  * Only called right after a new tapNode is created, so none of these sources
  * can already be connected to it — safe against the "false +6 dB double-tap"

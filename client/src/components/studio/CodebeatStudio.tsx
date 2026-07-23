@@ -9,9 +9,12 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { getConductor } from '../../organism/conductor/Conductor';
 import { useOrganismSafe, useOrganismActivation } from '../../features/organism/GlobalOrganismWrapper';
+import { useTrackStore } from '../../contexts/TrackStoreContext';
+import { captureTapToBlob } from '../../lib/audioDebugBridge';
+import type { TrackClip } from '@/types/studioTracks';
 import type { CodeFingerprint } from '../../../../shared/types/codeFingerprint';
 import type { ArrangementPlan } from '../../../../shared/arrangement';
-import { Code, Wand2, Play } from 'lucide-react';
+import { Code, Wand2, Play, Download } from 'lucide-react';
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'cpp', 'csharp', 'go', 'rust'];
 const GENRES = ['pop', 'rock', 'hiphop', 'edm', 'rnb', 'country', 'jazz', 'lofi'];
@@ -29,7 +32,9 @@ export default function CodebeatStudio() {
   // context is null until then — read it safely, and use activate() to boot it.
   const organism = useOrganismSafe();
   const { activate } = useOrganismActivation();
+  const { addTrack } = useTrackStore();
   const [pendingPlay, setPendingPlay] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [genre, setGenre] = useState('hiphop');
@@ -95,6 +100,51 @@ export default function CodebeatStudio() {
     }
   };
 
+  // Commit the beat to the timeline: record 4 bars of the live mix into a clip
+  // you can then edit, mix, export, or layer — so a Codebeat idea isn't lost the
+  // moment you stop listening. Requires the band to be playing (records the tap).
+  const sendToTimeline = async () => {
+    if (!plan) return;
+    if (!organism?.isRunning) {
+      toast({ variant: 'destructive', title: 'Start the band first', description: 'Hit "Play with the band", then capture what you hear.' });
+      return;
+    }
+    setCommitting(true);
+    try {
+      const barsMs = Math.round((16 * 60 / plan.bpm) * 1000); // 4 bars at the plan tempo
+      toast({ title: '⏺ Capturing 4 bars…', description: 'Recording the band into a clip.' });
+      const blob = await captureTapToBlob(barsMs);
+      if (!blob) {
+        toast({ variant: 'destructive', title: 'Captured silence', description: 'The band must be audibly playing to capture it.' });
+        return;
+      }
+      const clip: TrackClip = {
+        id: `codebeat-${Date.now()}`,
+        name: `Codebeat — ${plan.key} ${plan.subGenre}`,
+        kind: 'audio',
+        lengthBars: 4,
+        startBar: 0,
+        payload: {
+          type: 'audio',
+          audioUrl: URL.createObjectURL(blob),
+          duration: barsMs / 1000,
+          bpm: plan.bpm,
+          source: 'codebeat',
+          volume: 0.85,
+          pan: 0,
+          color: '#22d3ee',
+          notes: [],
+        },
+      };
+      addTrack(clip);
+      toast({ title: '✅ Added to timeline', description: 'Your code beat is now an editable clip in the Multi-Track.' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Capture failed', description: err?.message });
+    } finally {
+      setCommitting(false);
+    }
+  };
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
@@ -147,9 +197,14 @@ export default function CodebeatStudio() {
                   </div>
                 ))}
               </div>
-              <Button onClick={playWithBand} className="w-full">
-                <Play className="mr-2 h-4 w-4" /> Play with the band
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={playWithBand} className="flex-1">
+                  <Play className="mr-2 h-4 w-4" /> Play with the band
+                </Button>
+                <Button onClick={sendToTimeline} disabled={committing} variant="outline" className="flex-1">
+                  <Download className="mr-2 h-4 w-4" /> {committing ? 'Capturing…' : 'Send to timeline'}
+                </Button>
+              </div>
             </>
           )}
         </CardContent>
