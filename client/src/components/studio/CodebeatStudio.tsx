@@ -35,6 +35,17 @@ export default function CodebeatStudio() {
   const { addTrack } = useTrackStore();
   const [pendingPlay, setPendingPlay] = useState(false);
   const [committing, setCommitting] = useState(false);
+
+  // Boot the audio engine as soon as Codebeat opens. Activation mounts the
+  // OrganismProvider, which RE-MOUNTS this component (wiping local state) — so
+  // if we waited until "Play with the band" to activate, the first click would
+  // lose the freshly generated skeleton and never play. Doing it on mount means
+  // the re-mount happens up-front (nothing to lose yet); by the time the user
+  // generates and plays, the tree is already warm and Play works first try.
+  useEffect(() => {
+    activate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
   const [genre, setGenre] = useState('hiphop');
