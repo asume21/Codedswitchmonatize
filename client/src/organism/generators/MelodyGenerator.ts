@@ -1127,25 +1127,32 @@ export class MelodyGenerator extends GeneratorBase {
       this.lastPhraseCharacter = null
       return notes
     }
-    this.phraseCounter++
+    // LOCKED LOOP (2026-07-23): the performance expression is now a pure function
+    // of the SECTION, not an ever-incrementing phraseCounter. That counter (never
+    // reset) re-rolled character / register recast / velocity peak / breath on
+    // EVERY rebuild — and rebuilds fire constantly — so a melody loop that sounded
+    // right drifted away within ~2 seconds ("good then it misses"). This is the
+    // melody's version of the bass LOCKED LOOP fix (2026-07-11): same section =>
+    // byte-identical expression, every cycle. Variation lives BETWEEN sections.
+    const exprSeed = hashString(`melody-expr:${this.currentSectionName}:${this.rootPitchClass}`)
 
     const family = this.currentPerformer?.family
     const config = getPerformerExpressionConfig(family)
-    const character = phraseCharacterOf(this.phraseCounter)
+    const character = phraseCharacterOf(exprSeed)
     this.lastPhraseCharacter = character
 
     // DEVELOPMENT — recast register per character (no-op if this family doesn't recast).
     let shaped = developPhraseCharacter(notes, character, config.octaveRecastEnabled)
 
-    // Velocity ARC — crescendo toward a drifting peak, ease at the cadence. The peak
-    // drifts slightly per phrase (same "not identical every time" feel as before).
-    const peak = Math.min(0.85, config.peakPosition + 0.12 * ((this.phraseCounter % 3) / 2) - 0.08)
+    // Velocity ARC — crescendo toward a peak, ease at the cadence. Peak position is
+    // section-stable (was phraseCounter-drifting) so the loop repeats identically.
+    const peak = Math.min(0.85, config.peakPosition + 0.12 * ((exprSeed % 3) / 2) - 0.08)
     shaped = shapePerformanceDynamics(shaped, { peakPosition: peak, downbeatAccent: config.downbeatAccent })
 
     // BREATH — rest weak interior notes (never first/last). Density varies by
     // character (answer is airy, climb is driving) and by family (config.restDensityMultiplier).
     const dropMod = (character === 1 ? 3 : character === 3 ? 6 : 4) * config.restDensityMultiplier
-    this.seedRng(this.sessionSeed + this.phraseCounter)
+    this.seedRng(exprSeed)
     shaped = applyBreathAndRests(shaped, { dropMod, rng: () => this.nextRandom() })
 
     return shaped
