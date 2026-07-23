@@ -3968,8 +3968,11 @@ export default function UnifiedStudioWorkspace() {
         </div>
       </div>
 
-      {/* Transport Controls */}
-        <div className="w-full flex items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
+      {/* Transport Controls — HIDDEN 2026-07-23: fully duplicated the global
+          transport bar at the bottom (play/stop, record via the same
+          getTimelineRecorder, loop, tempo). Kept the bottom bar as the one
+          transport; this row is display:none so nothing else shifts. */}
+        <div className="hidden w-full items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
           <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
             <Button
               size="sm"
