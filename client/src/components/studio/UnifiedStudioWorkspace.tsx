@@ -659,6 +659,9 @@ export default function UnifiedStudioWorkspace() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
+  // Desktop menu bar (File/Edit/View/…) is tucked behind a ☰ button by default so
+  // MIX reads as a surface, not a DAW. Power users click ☰ to reveal it.
+  const [menuBarExpanded, setMenuBarExpanded] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'select' | 'draw' | 'erase'>('draw');
   const [zoom, setZoom] = useState(50);
   const [trackListWidth, setTrackListWidth] = useState(200);
@@ -3352,7 +3355,16 @@ export default function UnifiedStudioWorkspace() {
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
           <DesktopBridgeToggle />
-          <div className="flex space-x-0.5 flex-wrap md:flex-nowrap" ref={menuBarRef}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="astutely-button shrink-0"
+            title={menuBarExpanded ? 'Hide menus' : 'Show File / Edit / View menus'}
+            onClick={() => setMenuBarExpanded(v => !v)}
+          >
+            ☰
+          </Button>
+          <div className={cn("space-x-0.5 flex-wrap md:flex-nowrap", menuBarExpanded ? "flex" : "hidden")} ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (
