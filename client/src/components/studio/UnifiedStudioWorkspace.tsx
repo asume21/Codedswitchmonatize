@@ -4285,19 +4285,8 @@ export default function UnifiedStudioWorkspace() {
         </div>
       )}
 
-      {/* Global BPM Strip — always visible below tabs */}
-      <div className="flex items-center gap-3 px-3 py-1.5 bg-black/50 border-b border-cyan-500/20">
-        <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest shrink-0">BPM</span>
-        <Slider
-          value={[tempo]}
-          onValueChange={(value) => setTransportTempo(value[0])}
-          max={200}
-          min={40}
-          step={1}
-          className="flex-1 astutely-slider"
-        />
-        <span className="text-xs font-black text-cyan-300 w-12 text-right shrink-0">{Math.round(tempo)}</span>
-      </div>
+      {/* Global BPM Strip REMOVED 2026-07-23 — tempo is already shown/editable in
+          the transport row above and the global transport bar below. Third copy. */}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -4893,8 +4882,10 @@ export default function UnifiedStudioWorkspace() {
         </DialogContent>
       </Dialog>
 
-      {/* Floating Transport Bar - Surfaces in Piano Roll and Arrangement views */}
-      {(activeView === 'piano-roll' || activeView === 'arrangement') && (
+      {/* Floating Transport Bar — DISABLED 2026-07-23: it duplicated the canonical
+          full-width GlobalTransportBar (z-40) and rendered on top of it, overlapping
+          the timeline. One transport, one source of truth. */}
+      {false && (activeView === 'piano-roll' || activeView === 'arrangement') && (
         <div
           className="fixed z-50"
           style={{
