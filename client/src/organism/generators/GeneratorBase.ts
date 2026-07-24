@@ -156,7 +156,29 @@ export abstract class GeneratorBase {
    */
   setLoopMute(muted: boolean): void {
     this.loopMuted = muted
-    this.rampLoopGain(muted ? 0 : this.arrangementMultiplier)
+    this.rampLoopGain(this.loopGainTarget())
+  }
+
+  // Per-generator volume gate on the loop (0..1). Defaults to 1 so loop level is
+  // unchanged unless a generator's volume/enable control opts in via
+  // applyLoopVolumeGate. This is why turning a row's VOLUME down used to leave
+  // its loop playing — volume multipliers shaped the live path only, never the
+  // loop. See applyLoopVolumeGate.
+  protected _loopVolumeGate = 1
+
+  /** The loop gain the row should sit at right now: silenced when muted, else
+   *  the arrangement level scaled by the volume gate. Single source of truth so
+   *  mute / arrangement / volume can't fight each other. */
+  private loopGainTarget(): number {
+    return this.loopMuted ? 0 : this.arrangementMultiplier * this._loopVolumeGate
+  }
+
+  /** Scale this row's LOOP by a volume gate (0..1), matching what a volume
+   *  fader / disable does to the live path. Without this, a faded-down or
+   *  disabled row keeps looping (the "texture down but still playing" bug). */
+  protected applyLoopVolumeGate(gate: number): void {
+    this._loopVolumeGate = Math.max(0, Math.min(1, gate))
+    this.rampLoopGain(this.loopGainTarget())
   }
 
   /** Ramp loopGain to a target with an ~80ms glide (no click). Shared by the
@@ -208,7 +230,7 @@ export abstract class GeneratorBase {
    *  the arrangement/mute machinery shapes the loop like any other channel. */
   private ensureLoopGain(): Tone.Gain {
     if (!this.loopGain) {
-      this.loopGain = new Tone.Gain(this.loopMuted ? 0 : this.arrangementMultiplier).connect(this.output)
+      this.loopGain = new Tone.Gain(this.loopGainTarget()).connect(this.output)
       if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
         this._playerA = new Tone.Player().connect(this.loopGain)
         this._playerA.loop = true
@@ -428,8 +450,9 @@ export abstract class GeneratorBase {
   applyArrangementMultiplier(multiplier: number): void {
     this.arrangementMultiplier = Math.max(0, Math.min(1.5, multiplier))
     // A muted loop stays silent regardless of the section's arrangement level —
-    // the arranger's mute decision wins until it explicitly unmutes.
-    this.rampLoopGain(this.loopMuted ? 0 : this.arrangementMultiplier)
+    // the arranger's mute decision wins until it explicitly unmutes. Volume gate
+    // folded in via loopGainTarget() so arrangement + volume can't fight.
+    this.rampLoopGain(this.loopGainTarget())
   }
 
   /** DIAGNOSTIC (read-only): current arrangement multiplier, so __orgDebug can
