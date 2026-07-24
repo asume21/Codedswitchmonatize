@@ -87,6 +87,7 @@ const BlogPostPage = React.lazy(() => import("@/pages/blog/[slug]").catch(() => 
 const DeveloperPage = React.lazy(() => import("@/pages/developer").catch(() => ({ default: ChunkReloadFallback })));
 const DevelopersPage = React.lazy(() => import("@/pages/developers").catch(() => ({ default: ChunkReloadFallback })));
 const OrganismGuestPage = React.lazy(() => import("@/features/organism/OrganismGuestPage").catch(() => ({ default: ChunkReloadFallback })));
+const CodebeatLanding = React.lazy(() => import("@/pages/CodebeatLanding").catch(() => ({ default: ChunkReloadFallback })));
 const RecordingBoothPage = React.lazy(() => import("@/pages/recording-booth").catch(() => ({ default: ChunkReloadFallback })));
 const ProAudioLanding = React.lazy(() => import("@/pages/pro-audio").catch(() => ({ default: ChunkReloadFallback })));
 const MixStudioLanding = React.lazy(() => import("@/pages/mix-studio").catch(() => ({ default: ChunkReloadFallback })));
@@ -355,6 +356,7 @@ function App() {
                   follow-up. */}
               <Route path="/lyric-lab"><Redirect to="/studio/make" /></Route>
               <Route path="/organism"><OrganismGuestPage /></Route>
+              <Route path="/codebeat"><CodebeatLanding /></Route>
               <Route path="/recording-booth">
                 <ProtectedRoute><AppLayout><RecordingBoothPage /></AppLayout></ProtectedRoute>
               </Route>

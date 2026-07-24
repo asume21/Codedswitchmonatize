@@ -216,6 +216,7 @@ app.use((req, res, next) => {
     "/api/sample-profiles",   // DSP fingerprints for drum/bass WAVs — public read-only, no user data
     "/api/organism/kits",     // shared drum kits + 808 bass samples (static instruments, not user data). Raw fetch / Tone.Sampler media fetches can't attach a bearer token, so this MUST be public or the kit collapses to the synth fallback.
     "/api/ai-music/compose",  // deterministic song-arc plan — no user data; guests need this for the demo build
+    "/api/code-to-music",     // Codebeat public hook — deterministic, no AI, no user data; guests try it before signup
     "/api/ai/next-section",   // conductor consult (Ollama → aceEngine) — no user data; the /organism guest demo's AIDirector calls it every section
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/webeye/",           // WebEye browser capture relay

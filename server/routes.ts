@@ -2614,7 +2614,11 @@ Return ONLY valid JSON:
   // ============================================
   // CODE TO MUSIC ENDPOINT
   // ============================================
-  app.post("/api/code-to-music", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
+  // PUBLIC (no auth): Codebeat is the top-of-funnel hook — anyone can paste code
+  // and get a beat plan without signing up. Safe to open: it's fully deterministic
+  // (analyzeCodeStructure + composeArrangementFromCode, pure functions), calls no
+  // external AI, touches no user data. aiLimiter (30/15min/IP) guards against abuse.
+  app.post("/api/code-to-music", aiLimiter, async (req: Request, res: Response) => {
     try {
       const { code = '', language = 'javascript', genre = 'pop' } = req.body;
       console.log(`🎵 Codebeat: ${language} code → ArrangementPlan (genre: ${genre})`);
