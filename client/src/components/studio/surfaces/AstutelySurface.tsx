@@ -33,7 +33,7 @@ const AIVocalMelody = React.lazy(() => import('../AIVocalMelody'));
 const AIStemSeparation = React.lazy(() => import('../AIStemSeparation'));
 const AILoopGenerator = React.lazy(() => import('../AILoopGenerator'));
 const AIBassGenerator = React.lazy(() => import('../AIBassGenerator'));
-const CodeToMusicStudioV2 = React.lazy(() => import('../CodeToMusicStudioV2'));
+const CodebeatStudio = React.lazy(() => import('../CodebeatStudio'));
 const AudioToolsPage = React.lazy(() => import('../AudioToolsPage'));
 const AstutelyBrainPanel = React.lazy(() => import('../AstutelyBrainPanel'));
 
@@ -342,7 +342,7 @@ export default function AstutelySurface() {
 
               <TabsContent value="codebeat" className="m-0">
                 <Suspense fallback={<TabLoadingFallback />}>
-                  <CodeToMusicStudioV2 />
+                  <CodebeatStudio />
                 </Suspense>
               </TabsContent>
             </div>

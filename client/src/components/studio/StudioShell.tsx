@@ -24,7 +24,7 @@ const AstutelySurface = React.lazy(
 // CLAUDE.md: SHARE = Social Hub, LIBRARY = Sample Library). The shell is
 // already inside ProtectedRoute + the studio provider stack, so these page
 // components — which only need auth + react-query — render as-is.
-const SocialHub = React.lazy(() => import('@/pages/social-hub'));
+const ShareSurface = React.lazy(() => import('./surfaces/ShareSurface'));
 const SampleLibraryPage = React.lazy(() => import('@/pages/sample-library'));
 
 const SURFACES = ['make', 'mix', 'ai', 'library', 'share'] as const;
@@ -172,7 +172,7 @@ function SurfaceRouter({ surface }: { surface: Surface }) {
     case 'share':
       return (
         <Suspense fallback={<SurfaceLoading label="SHARE" />}>
-          <SocialHub />
+          <ShareSurface />
         </Suspense>
       );
     case 'library':

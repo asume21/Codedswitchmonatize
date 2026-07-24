@@ -22,7 +22,7 @@ const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m 
 const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
 import { Resizable } from 'react-resizable';
 const LyricLab = React.lazy(() => import('./LyricLab'));
-const CodeToMusicStudioV2 = React.lazy(() => import('./CodeToMusicStudioV2'));
+const CodebeatStudio = React.lazy(() => import('./CodebeatStudio'));
 import VerticalPianoRoll from './VerticalPianoRoll';
 const ProfessionalMixer = React.lazy(() => import('./ProfessionalMixer'));
 const SongUploader = React.lazy(() => import('./SongUploader'));
@@ -659,6 +659,9 @@ export default function UnifiedStudioWorkspace() {
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
   const [beatLabTab, setBeatLabTab] = useState<'pro' | 'bass-studio' | 'loop-library' | 'pack-generator'>('pro');
+  // Desktop menu bar (File/Edit/View/…) is tucked behind a ☰ button by default so
+  // MIX reads as a surface, not a DAW. Power users click ☰ to reveal it.
+  const [menuBarExpanded, setMenuBarExpanded] = useState(false);
   const [pianoRollTool, setPianoRollTool] = useState<'select' | 'draw' | 'erase'>('draw');
   const [zoom, setZoom] = useState(50);
   const [trackListWidth, setTrackListWidth] = useState(200);
@@ -3352,7 +3355,16 @@ export default function UnifiedStudioWorkspace() {
         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
           <DesktopBridgeToggle />
-          <div className="flex space-x-0.5 flex-wrap md:flex-nowrap" ref={menuBarRef}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="astutely-button shrink-0"
+            title={menuBarExpanded ? 'Hide menus' : 'Show File / Edit / View menus'}
+            onClick={() => setMenuBarExpanded(v => !v)}
+          >
+            ☰
+          </Button>
+          <div className={cn("space-x-0.5 flex-wrap md:flex-nowrap", menuBarExpanded ? "flex" : "hidden")} ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (
@@ -3956,8 +3968,11 @@ export default function UnifiedStudioWorkspace() {
         </div>
       </div>
 
-      {/* Transport Controls */}
-        <div className="w-full flex items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
+      {/* Transport Controls — HIDDEN 2026-07-23: fully duplicated the global
+          transport bar at the bottom (play/stop, record via the same
+          getTimelineRecorder, loop, tempo). Kept the bottom bar as the one
+          transport; this row is display:none so nothing else shifts. */}
+        <div className="hidden w-full items-center gap-3 mt-2 mb-3 relative z-0 py-1 overflow-x-auto overflow-y-visible whitespace-nowrap">
           <div className="flex items-center gap-2 bg-black/60 border border-cyan-500/40 rounded px-3 h-12 shrink-0 astutely-panel">
             <Button
               size="sm"
@@ -4285,19 +4300,8 @@ export default function UnifiedStudioWorkspace() {
         </div>
       )}
 
-      {/* Global BPM Strip — always visible below tabs */}
-      <div className="flex items-center gap-3 px-3 py-1.5 bg-black/50 border-b border-cyan-500/20">
-        <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest shrink-0">BPM</span>
-        <Slider
-          value={[tempo]}
-          onValueChange={(value) => setTransportTempo(value[0])}
-          max={200}
-          min={40}
-          step={1}
-          className="flex-1 astutely-slider"
-        />
-        <span className="text-xs font-black text-cyan-300 w-12 text-right shrink-0">{Math.round(tempo)}</span>
-      </div>
+      {/* Global BPM Strip REMOVED 2026-07-23 — tempo is already shown/editable in
+          the transport row above and the global transport bar below. Third copy. */}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -4520,7 +4524,7 @@ export default function UnifiedStudioWorkspace() {
 
                     <TabsContent value="code-music" className="mt-2">
                       <React.Suspense fallback={<TabLoadingFallback />}>
-                        <CodeToMusicStudioV2 />
+                        <CodebeatStudio />
                       </React.Suspense>
                     </TabsContent>
                   </Tabs>
@@ -4893,8 +4897,10 @@ export default function UnifiedStudioWorkspace() {
         </DialogContent>
       </Dialog>
 
-      {/* Floating Transport Bar - Surfaces in Piano Roll and Arrangement views */}
-      {(activeView === 'piano-roll' || activeView === 'arrangement') && (
+      {/* Floating Transport Bar — DISABLED 2026-07-23: it duplicated the canonical
+          full-width GlobalTransportBar (z-40) and rendered on top of it, overlapping
+          the timeline. One transport, one source of truth. */}
+      {false && (activeView === 'piano-roll' || activeView === 'arrangement') && (
         <div
           className="fixed z-50"
           style={{

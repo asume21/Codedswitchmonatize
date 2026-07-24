@@ -111,3 +111,9 @@ AI_HANDOFF.md
 
 # Crash-safe brainstorm/decision checkpoints (Stop-hook scratchpad)
 CHECKPOINT.md
+
+# Database backups — NEVER commit (contains all user data)
+codedswitch-backup-*.sql
+
+# Root-level PNGs = Playwright screenshots / audit artifacts (never commit)
+/*.png

@@ -49,7 +49,9 @@ import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
 import { getCreditService, CREDIT_COSTS } from "./services/credits";
-import { convertCodeToMusic, convertCodeToMusicEnhanced } from "./services/codeToMusic";
+import { analyzeCodeStructure } from "./services/codebeat/analyzeCodeStructure";
+import { composeArrangementFromCode } from "./services/codebeat/composeArrangementFromCode";
+import { validateArrangementPlan } from "../shared/arrangement";
 import { transcribeAudio } from "./services/transcriptionService";
 import { aiCache, withCache } from "./services/aiCache";
 import { getAIGenerationMetricsSnapshot, recordAIGenerationMetric } from "./services/aiRouteMetrics";
@@ -2614,26 +2616,20 @@ Return ONLY valid JSON:
   // ============================================
   app.post("/api/code-to-music", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { code, language = 'javascript', variation = 0, genre = 'pop', useAI = false } = req.body;
-      
-      console.log(`🎵 Code-to-Music: Converting ${language} code (genre: ${genre}, variation: ${variation}, AI: ${useAI})`);
+      const { code = '', language = 'javascript', genre = 'pop' } = req.body;
+      console.log(`🎵 Codebeat: ${language} code → ArrangementPlan (genre: ${genre})`);
 
-      // Use ENHANCED algorithm for richer, more musical output
-      const result = await convertCodeToMusicEnhanced({
-        code,
-        language,
-        variation,
-        genre,
-        useAI,
-      });
+      const fingerprint = analyzeCodeStructure(String(code), String(language));
+      const plan = composeArrangementFromCode(fingerprint, { genre: String(genre) });
 
-      if (!result.success) {
-        return sendError(res, 400, result.error || "Conversion failed");
+      const problem = validateArrangementPlan(plan);
+      if (problem) {
+        return sendError(res, 422, `Generated plan invalid: ${problem}`);
       }
 
-      res.json(result);
+      res.json({ success: true, plan, fingerprint });
     } catch (error: any) {
-      console.error("❌ Code-to-Music error:", error);
+      console.error("❌ Codebeat error:", error);
       sendError(res, 500, error?.message || "Failed to convert code to music");
     }
   });
