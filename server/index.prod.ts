@@ -277,6 +277,64 @@ app.use((req, res, next) => {
     );
   }
 
+  // ── Route-specific social preview cards ──
+  // Link crawlers (Discord, Twitter/X, iMessage, Slack) don't run JS, so the
+  // SPA's single index.html gives every deep link the same generic card. For
+  // shareable pages we swap in on-topic Open Graph tags at serve time. Codebeat
+  // is our top-of-funnel share target, so a pasted /codebeat link must sell the
+  // feature — not describe the whole studio.
+  const OG_OVERRIDES: Record<string, { title: string; description: string }> = {
+    "/codebeat": {
+      title: "Codebeat — Turn your code into a beat | CodedSwitch",
+      description:
+        "Paste any function and watch its real structure — loops, branches, names — become a song with a key, tempo, and a drop. Try it free, no signup.",
+    },
+  };
+
+  let cachedIndexHtml: string | null = null;
+  const readIndexHtml = (): string => {
+    if (cachedIndexHtml == null) {
+      cachedIndexHtml = fs.readFileSync(path.resolve(distPath, "index.html"), "utf8");
+    }
+    return cachedIndexHtml;
+  };
+
+  const applyOgOverride = (
+    html: string,
+    url: string,
+    o: { title: string; description: string },
+  ): string => {
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    const t = esc(o.title);
+    const d = esc(o.description);
+    const u = esc(url);
+    return html
+      .replace(/(<title>)[\s\S]*?(<\/title>)/, `$1${t}$2`)
+      .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${u}$2`)
+      .replace(/(<meta name="description" content=")[^"]*(")/, `$1${d}$2`)
+      .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${t}$2`)
+      .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${d}$2`)
+      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${u}$2`)
+      .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${t}$2`)
+      .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${d}$2`)
+      .replace(/(<meta name="twitter:url" content=")[^"]*(")/, `$1${u}$2`);
+  };
+
+  app.get("/codebeat", (req, res) => {
+    const canonicalBase = process.env.APP_URL || "https://www.codedswitch.com";
+    // Keep the shared ?s= seed on the canonical URL so the card + destination match.
+    const query = req.originalUrl.includes("?")
+      ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
+      : "";
+    const html = applyOgOverride(
+      readIndexHtml(),
+      `${canonicalBase}/codebeat${query}`,
+      OG_OVERRIDES["/codebeat"],
+    );
+    res.set("Content-Type", "text/html; charset=utf-8").send(html);
+  });
+
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist (SPA)

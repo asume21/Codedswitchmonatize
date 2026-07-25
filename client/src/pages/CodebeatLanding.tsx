@@ -2,10 +2,33 @@
 // Paste code → see it become a real song structure instantly → sign up to hear
 // it and make your own. Deliberately self-contained: no studio/Organism/TrackStore
 // providers, so it loads fast and can't break the way the in-studio version can.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import type { ArrangementPlan } from '../../../shared/arrangement';
 import type { CodeFingerprint } from '../../../shared/types/codeFingerprint';
+
+// A shared beat is nothing but its inputs — the composer is deterministic, so
+// the recipient regenerates the identical arrangement. Encode {language, genre,
+// code} as base64url in ?s= ; no DB, no stored state, the URL is the artifact.
+type ShareSeed = { language: string; genre: string; code: string };
+
+function encodeSeed(seed: ShareSeed): string {
+  const json = JSON.stringify(seed);
+  // btoa handles Latin-1 only; encodeURIComponent→unescape widens to UTF-8 so
+  // non-ASCII code (emoji in strings, accented identifiers) survives the round trip.
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeSeed(param: string): ShareSeed | null {
+  try {
+    const b64 = param.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(escape(atob(b64)));
+    const seed = JSON.parse(json);
+    if (typeof seed?.code === 'string') return seed;
+  } catch { /* malformed link — fall through to null */ }
+  return null;
+}
 
 const LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'cpp', 'csharp', 'go', 'rust'];
 const GENRES = ['hiphop', 'lofi', 'trap', 'edm', 'rock', 'rnb', 'jazz', 'pop'];
@@ -32,21 +55,69 @@ export default function CodebeatLanding() {
   const [error, setError] = useState<string | null>(null);
   const [plan, setPlan] = useState<ArrangementPlan | null>(null);
   const [fp, setFp] = useState<CodeFingerprint | null>(null);
+  const [shareState, setShareState] = useState<'idle' | 'copied'>('idle');
+  const seedRef = useRef<ShareSeed | null>(null);
 
-  const generate = async () => {
-    setBusy(true); setError(null);
+  const generate = async (override?: ShareSeed) => {
+    const lang = override?.language ?? language;
+    const gen = override?.genre ?? genre;
+    const src = (override?.code ?? code) || EXAMPLE;
+    setBusy(true); setError(null); setShareState('idle');
     try {
       const res = await fetch('/api/code-to-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code || EXAMPLE, language, genre }),
+        body: JSON.stringify({ code: src, language: lang, genre: gen }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || data.error || 'Something went wrong');
       setPlan(data.plan); setFp(data.fingerprint);
+      // Remember exactly what produced this result so Share reproduces it faithfully.
+      seedRef.current = { language: lang, genre: gen, code: src };
     } catch (e: any) {
       setError(e?.message || 'Could not reach the beat engine. Try again.');
     } finally { setBusy(false); }
+  };
+
+  // Opening a shared link: decode the seed, restore the inputs, and regenerate
+  // so the visitor sees the identical beat the sharer saw — the hook that proves
+  // "this is a real thing, not a canned demo."
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get('s');
+    if (!param) return;
+    const seed = decodeSeed(param);
+    if (!seed) return;
+    setCode(seed.code);
+    setLanguage(seed.language || 'javascript');
+    setGenre(seed.genre || 'hiphop');
+    generate(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const share = async () => {
+    const seed = seedRef.current;
+    if (!seed) return;
+    const url = `${window.location.origin}/codebeat?s=${encodeSeed(seed)}`;
+    const shareData = {
+      title: 'I turned my code into a beat',
+      text: 'Paste any function → hear it become a song. Made on CodedSwitch:',
+      url,
+    };
+    // Native share sheet on mobile; clipboard fallback everywhere else.
+    try {
+      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch { /* user dismissed the sheet — fall through to copy */ }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareState('copied');
+      setTimeout(() => setShareState('idle'), 2000);
+    } catch {
+      // Clipboard blocked (insecure context / permissions): show the URL to copy manually.
+      window.prompt('Copy your beat link:', url);
+    }
   };
 
   return (
@@ -90,7 +161,7 @@ export default function CodebeatLanding() {
               className="rounded-lg bg-black/40 border border-white/10 px-3 py-2 text-sm">
               {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
-            <button onClick={generate} disabled={busy}
+            <button onClick={() => generate()} disabled={busy}
               className="ml-auto rounded-lg bg-cyan-500 px-5 py-2 text-sm font-bold text-black hover:bg-cyan-400 disabled:opacity-60 transition">
               {busy ? 'Composing…' : '✦ Make my beat'}
             </button>
@@ -131,11 +202,18 @@ export default function CodebeatLanding() {
                 ))}
               </div>
               <div className="mt-auto pt-5">
-                <Link href="/signup">
-                  <a className="block w-full rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 text-black font-black text-center py-3 hover:brightness-110 transition">
-                    🎧 Hear it play — sign up free
-                  </a>
-                </Link>
+                <div className="flex gap-2">
+                  <Link href="/signup">
+                    <a className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-400 text-black font-black text-center py-3 hover:brightness-110 transition">
+                      🎧 Hear it play — sign up free
+                    </a>
+                  </Link>
+                  <button onClick={share}
+                    className="shrink-0 rounded-xl border border-cyan-500/40 px-4 py-3 text-sm font-bold text-cyan-200 hover:bg-cyan-500/10 transition"
+                    title="Copy a link that reproduces this exact beat">
+                    {shareState === 'copied' ? '✓ Link copied' : '↗ Share'}
+                  </button>
+                </div>
                 <p className="mt-2 text-center text-[11px] text-slate-500">Free account: hear the band play it, make unlimited beats, save & share.</p>
               </div>
             </>
