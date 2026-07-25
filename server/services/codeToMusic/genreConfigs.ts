@@ -98,6 +98,37 @@ export const GENRE_CONFIGS: Record<string, GenreConfig> = {
     tension: 4,
   },
 
+  trap: {
+    id: 'trap',
+    name: 'trap',
+    displayName: 'Trap',
+    icon: '🔊',
+    description: 'Dark 808s, rolling hi-hats, hard-hitting',
+    chords: ['Cm', 'Gm', 'Abmaj7', 'Ebmaj7'],
+    progressions: [
+      ['Cm', 'Abmaj7', 'Ebmaj7', 'Bb'],     // Dark minor anthem
+      ['Am', 'F', 'C', 'G'],                 // Melodic trap
+      ['Cm', 'Gm', 'Ab', 'Eb'],             // Natural minor loop
+      ['Fm', 'Cm', 'Db', 'Ab'],             // Deep/brooding
+      ['Gm', 'Dm', 'Eb', 'F'],              // Aggressive
+    ],
+    scales: ['minor', 'harmonicMinor', 'phrygian'],
+    moodMap: {
+      happy: ['Cm', 'Eb', 'Ab', 'Bb'],
+      sad: ['Cm', 'Gm', 'Fm', 'Cm'],
+      energetic: ['Cm', 'Ab', 'Eb', 'Bb'],
+      calm: ['Am7', 'Fmaj7', 'Cmaj7', 'G'],
+    },
+    bpm: 140,                                // notated 140; half-time feel ≈ 70
+    instruments: ['808_bass', 'hi_hats', 'snare', 'synth_lead', 'pad'],
+    style: 'dark',
+    drumPattern: 'trap',
+    rhythmicFeel: 'syncopated',
+    harmonicDensity: 'sparse',
+    melodicRange: 'narrow',
+    tension: 7,
+  },
+
   edm: {
     id: 'edm',
     name: 'edm',
