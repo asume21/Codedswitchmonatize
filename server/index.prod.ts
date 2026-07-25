@@ -283,11 +283,12 @@ app.use((req, res, next) => {
   // shareable pages we swap in on-topic Open Graph tags at serve time. Codebeat
   // is our top-of-funnel share target, so a pasted /codebeat link must sell the
   // feature — not describe the whole studio.
-  const OG_OVERRIDES: Record<string, { title: string; description: string }> = {
+  const OG_OVERRIDES: Record<string, { title: string; description: string; image: string }> = {
     "/codebeat": {
       title: "Codebeat — Turn your code into a beat | CodedSwitch",
       description:
         "Paste any function and watch its real structure — loops, branches, names — become a song with a key, tempo, and a drop. Try it free, no signup.",
+      image: "/codebeat-og.png",
     },
   };
 
@@ -302,6 +303,7 @@ app.use((req, res, next) => {
   const applyOgOverride = (
     html: string,
     url: string,
+    img: string,
     o: { title: string; description: string },
   ): string => {
     const esc = (s: string) =>
@@ -309,6 +311,7 @@ app.use((req, res, next) => {
     const t = esc(o.title);
     const d = esc(o.description);
     const u = esc(url);
+    const i = esc(img);
     return html
       .replace(/(<title>)[\s\S]*?(<\/title>)/, `$1${t}$2`)
       .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${u}$2`)
@@ -316,9 +319,11 @@ app.use((req, res, next) => {
       .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${t}$2`)
       .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${d}$2`)
       .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${u}$2`)
+      .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${i}$2`)
       .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${t}$2`)
       .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${d}$2`)
-      .replace(/(<meta name="twitter:url" content=")[^"]*(")/, `$1${u}$2`);
+      .replace(/(<meta name="twitter:url" content=")[^"]*(")/, `$1${u}$2`)
+      .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${i}$2`);
   };
 
   app.get("/codebeat", (req, res) => {
@@ -327,10 +332,13 @@ app.use((req, res, next) => {
     const query = req.originalUrl.includes("?")
       ? req.originalUrl.slice(req.originalUrl.indexOf("?"))
       : "";
+    const override = OG_OVERRIDES["/codebeat"];
+    // og:image must be an absolute URL for crawlers — relative paths don't render.
     const html = applyOgOverride(
       readIndexHtml(),
       `${canonicalBase}/codebeat${query}`,
-      OG_OVERRIDES["/codebeat"],
+      `${canonicalBase}${override.image}`,
+      override,
     );
     res.set("Content-Type", "text/html; charset=utf-8").send(html);
   });
