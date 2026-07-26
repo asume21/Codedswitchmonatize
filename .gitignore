@@ -117,3 +117,9 @@ codedswitch-backup-*.sql
 
 # Root-level PNGs = Playwright screenshots / audit artifacts (never commit)
 /*.png
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
