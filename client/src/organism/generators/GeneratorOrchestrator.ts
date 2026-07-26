@@ -2335,7 +2335,8 @@ export class GeneratorOrchestrator {
   /**
    * Flip ONE row between the live generator and its pack loop, live, without
    * touching the other rows. Returns false when asked for 'loop' with no pack
-   * loaded (nothing to play). BPM stays locked to the pack while ≥1 row loops
+   * loaded OR no clip for this row in the pack (nothing to play) — the live
+   * band keeps going in that case. BPM stays locked to the pack while ≥1 row loops
    * (WAV clips can't follow tempo) and restores when the last one flips back.
    */
   setRowSource(row: LoopInstrument, source: 'band' | 'loop'): boolean {
@@ -2345,6 +2346,11 @@ export class GeneratorOrchestrator {
     if (source === 'loop') {
       const pack = this._loopPack
       if (!pack) return false
+      // This pack has no clip for this row → refuse the flip and leave the live
+      // band playing. Without this guard, setLoopMode(true) would stop the live
+      // part (anti-doubling) but have no loop to replace it with → dead silence
+      // (the "flip bass to loop and the bass vanishes" bug).
+      if (!pack.loops[row]?.length) return false
       // First row to loop locks the tempo to the pack.
       if (!Object.values(this._rowSources).includes('loop')) {
         this._preLockBpm = useStudioStore.getState().bpm ?? Tone.getTransport().bpm.value

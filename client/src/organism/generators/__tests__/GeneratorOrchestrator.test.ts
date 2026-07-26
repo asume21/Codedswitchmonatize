@@ -455,6 +455,20 @@ describe('GeneratorOrchestrator — hybrid row switches', () => {
     expect(orch.getRowSources().texture).toBe('band')
   })
 
+  it('setRowSource("loop") refuses a row the pack has no clip for — live band keeps playing', async () => {
+    const orch = new GeneratorOrchestrator()
+    const spies = mockLoopPlumbing(orch)
+    // Pack with NO bass clip (the real-world "this pack has no bass loop" case).
+    const pack = makeTestPack()
+    pack.loops.bass = []
+    await orch.loadLoopPack(pack, ['texture'])
+
+    // Flip must be rejected, and the live bass must NOT be stopped into silence.
+    expect(orch.setRowSource('bass', 'loop')).toBe(false)
+    expect(orch.getRowSources().bass).toBe('band')
+    expect(spies.bass.setLoopMode).not.toHaveBeenCalledWith(true, expect.anything())
+  })
+
   it('restores the pre-lock BPM when the last loop row flips back to band', async () => {
     const orch = new GeneratorOrchestrator()
     mockLoopPlumbing(orch)
