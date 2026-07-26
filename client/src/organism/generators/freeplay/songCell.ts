@@ -27,7 +27,7 @@
 // the section (no per-rebuild counter), so it is stable for as long as the
 // section lasts — see the locked-loop work: the SECTION is the unit of change.
 
-import { getSectionMotif, type RhythmMotif } from './motif'
+import { getSectionMotif, clearMotifsByPrefix, type RhythmMotif } from './motif'
 
 export interface SongCell {
   /** The idea: 16th-note slots (0..15) the section's rhythm lives on. */
@@ -42,6 +42,32 @@ export interface SongCell {
  *  instrument, or you are back to five separate ideas. */
 function cellKey(sectionName: string, subGenre: string): string {
   return `songcell:${sectionName}:${subGenre}`
+}
+
+// ── The band's ONE authoritative style ──────────────────────────────────────
+// The cohesion bug: each generator built the cell key from its OWN subGenre
+// guess — bass fell back to 'boom-bap', others to 'hip-hop', while the conductor
+// was on 'chill'. Same section, THREE different cells, three unrelated ideas.
+// (Proven live: "section verse now has 3 DIFFERENT cell keys".)
+//
+// The orchestrator now publishes the single style the whole band is in (from the
+// conductor/director state). When set, getSongCell keys off THIS — not the
+// caller's argument — so all five generators physically cannot land on different
+// cells. A generator's local subGenre still shapes its OWN idiom; it just no
+// longer forks the shared idea.
+let authoritativeSubGenre: string | null = null
+
+/** Publish the band's current style. Pass '' or null to fall back to per-caller
+ *  subGenre (e.g. before the conductor has decided a style). When the style
+ *  actually changes, stale-style song cells are dropped so a cell built under
+ *  the old style (e.g. a boot-time 'boom-bap' cell) can't linger and split the
+ *  section once the real style lands. Stable within a locked section → no
+ *  mid-section clear. */
+export function setSongCellStyle(subGenre: string | null | undefined): void {
+  const next = subGenre && subGenre.length > 0 ? subGenre : null
+  if (next === authoritativeSubGenre) return
+  authoritativeSubGenre = next
+  clearMotifsByPrefix('songcell:')
 }
 
 // ── Sample Leads override ───────────────────────────────────────────────────
@@ -95,10 +121,14 @@ export function getSongCell(
   // every section, for every player. No generated motif competes with it.
   if (sampleCell) return sampleCell
 
+  // The band's ONE style wins over whatever this caller happened to pass, so
+  // every generator resolves to the SAME cell key for the section.
+  const style = authoritativeSubGenre ?? subGenre
+
   // Always anchor slot 0: the idea has to declare itself on the downbeat, or
   // the section has no centre of gravity.
   const motif: RhythmMotif = getSectionMotif(
-    cellKey(sectionName, subGenre),
+    cellKey(sectionName, style),
     rng,
     Math.min(0.6, Math.max(0.25, density)),   // a hook rhythm is a few strong hits, not a wall
     [0],

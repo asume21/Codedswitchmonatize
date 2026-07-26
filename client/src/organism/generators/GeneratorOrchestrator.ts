@@ -34,7 +34,7 @@ import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
 import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
-import { setSampleCell, cellFromOnsetGrid } from './freeplay/songCell'
+import { setSampleCell, cellFromOnsetGrid, setSongCellStyle } from './freeplay/songCell'
 import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
 import { clearCompCounters } from './freeplay/ChordImproviser'
 
@@ -213,6 +213,11 @@ export class GeneratorOrchestrator {
     this.texture = new TextureGenerator()
     this.chord   = new ChordGenerator()
     this.director = new MusicalDirector()
+
+    // Seed the song-cell style immediately so any cell built during boot (before
+    // start()) already shares one key — otherwise the opening section fragments
+    // (a bass cell on its 'boom-bap' fallback races the conductor's real style).
+    setSongCellStyle(this.director.getState().subGenre)
 
     const emitGeneratorEvent = (event: GeneratorEvent) => {
       this.generatorEventCallbacks.forEach(cb => cb(event))
@@ -464,6 +469,11 @@ export class GeneratorOrchestrator {
     // state would leave chord/melody swinging by their mode-table fallback
     // while drums swing by sub-genre (the "not playing together" mismatch).
     const startSubGenre = this.director.getState().subGenre
+
+    // Publish the band's style to the song cell BEFORE the first section's cells
+    // are built, or the opening section fragments (each generator falls back to
+    // its own subGenre guess while authoritative is still null).
+    setSongCellStyle(startSubGenre)
 
     // Set BPM to match the starting sub-genre only when no caller supplied a
     // concrete tempo. Quick-start/live presets must not be overwritten by the
@@ -1501,6 +1511,9 @@ export class GeneratorOrchestrator {
     // Tell the drum kit which genre we're in so it re-ranks voice pools
     // by DSP profile score (sub weight, punch, brightness) not hardcoded names.
     this.drum.setGenreTarget(subGenre)
+    // Jam mode (no arrangement): this is the band's style — publish it as the
+    // one authoritative song-cell key so all generators share one idea.
+    setSongCellStyle(subGenre)
 
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern
@@ -1926,6 +1939,10 @@ export class GeneratorOrchestrator {
 
     const conductor = getConductor()
     conductor.setSubGenre(scoreSubGenre)
+    // The whole band shares ONE song cell for this section — key it off the
+    // conductor's per-section style so bass/drums/chords/melody can't fork into
+    // different cells (the cohesion break: verse had 3 different cell keys).
+    setSongCellStyle(scoreSubGenre)
     // OrganismMode drives the bank picker's mood scoring. Fall back to
     // 'smoke' (neutral) if physics isn't seeded yet.
     const physicsMode = this.lastPhysics ? this.lastPhysics.mode.toString() : 'smoke'

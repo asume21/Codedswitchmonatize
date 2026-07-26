@@ -13,6 +13,15 @@ export function clearMotifs(): void {
   motifStore.clear()
 }
 
+/** Clear only committed motifs whose key starts with `prefix` (e.g. 'songcell:'
+ *  when the band's style changes, so stale-style cells can't linger and split
+ *  the section into different ideas). */
+export function clearMotifsByPrefix(prefix: string): void {
+  for (const key of motifStore.keys()) {
+    if (key.startsWith(prefix)) motifStore.delete(key)
+  }
+}
+
 /** Downbeat-first candidate order so motifs feel grounded, not random. */
 const WEIGHTED_SLOTS = [0, 8, 4, 12, 6, 14, 2, 10, 3, 7, 11, 15, 1, 5, 9, 13]
 
