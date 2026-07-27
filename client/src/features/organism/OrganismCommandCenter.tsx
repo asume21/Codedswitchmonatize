@@ -421,7 +421,7 @@ export function OrganismCommandCenter() {
   // ── Solo state ───────────────────────────────────────────────────────────
   type SoloRole = 'lead' | 'bass' | 'chord' | 'drums'
   const [soloRole, setSoloRole] = useState<SoloRole | null>(null)
-  const savedVolumesRef = useRef({ melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume })
+  const savedVolumesRef = useRef({ melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume, texture: textureVolume })
   const savedMelodyFocusRef = useRef(melodyFocusEnabled)
 
   const handleSolo = useCallback((role: SoloRole) => {
@@ -431,22 +431,27 @@ export function OrganismCommandCenter() {
       setBassVolume(savedVolumesRef.current.bass)
       setChordVolume(savedVolumesRef.current.chord)
       setDrumsVolume(savedVolumesRef.current.drums)
+      setTextureVolume(savedVolumesRef.current.texture)
       setMelodyFocusEnabled(savedMelodyFocusRef.current)
       setSoloRole(null)
     } else {
       // Save current, silence all except the soloed role
-      savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume }
+      savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume, texture: textureVolume }
       savedMelodyFocusRef.current = melodyFocusEnabled
       setSoloRole(role)
       setMelodyVolume(role === 'lead'  ? Math.max(melodyVolume, 1.0) : 0)
       setBassVolume(  role === 'bass'  ? Math.max(bassVolume,   1.0) : 0)
       setChordVolume( role === 'chord' ? Math.max(chordVolume,  1.0) : 0)
       setDrumsVolume( role === 'drums' ? Math.max(drumsVolume,  1.0) : 0)
+      // Texture (Pads/Keys) is not a soloable role, so ANY solo silences it —
+      // otherwise soloing e.g. melody left the pad/keys layer playing, sounding
+      // like a phantom second instrument under the lead.
+      setTextureVolume(0)
       setMelodyFocusEnabled(role === 'lead')
     }
-  }, [soloRole, melodyVolume, bassVolume, chordVolume, drumsVolume,
+  }, [soloRole, melodyVolume, bassVolume, chordVolume, drumsVolume, textureVolume,
       melodyFocusEnabled, setMelodyVolume, setBassVolume, setChordVolume,
-      setDrumsVolume, setMelodyFocusEnabled])
+      setDrumsVolume, setTextureVolume, setMelodyFocusEnabled])
 
   // ── Voice command state ──────────────────────────────────────────────────
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
