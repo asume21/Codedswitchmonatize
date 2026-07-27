@@ -7,7 +7,7 @@
 import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
 import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
-import { slotsToDur } from './freeplay/score'
+import { slotsToDur, compVoicingForHit } from './freeplay/score'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -647,10 +647,15 @@ export class ChordGenerator extends GeneratorBase {
         // the seed; nothing else does.
         rng: mulberry32(seed + getSessionSalt()),
       })
+      // Comp each hit as a DIFFERENT treatment of the Conductor's voicing so a
+      // held chord moves instead of stamping the identical block 8-15 times (the
+      // "robotic" sound). Voice-leading between chords is untouched — this only
+      // varies WITHIN the current chord's voiced tones.
+      let compHit = 0
       for (const ev of plan) {
         const notes = ev.useNextVoicing
           ? conductor.nextVoicing().inner.map((m) => Tone.Frequency(m, 'midi').toNote())
-          : noteStrings
+          : compVoicingForHit(midiNotes, compHit++).map((m) => Tone.Frequency(m, 'midi').toNote())
         events.push({ time: ev.time, notes, dur: ev.dur, vel: ev.vel, chordIdx: 0 })
       }
     } else {
