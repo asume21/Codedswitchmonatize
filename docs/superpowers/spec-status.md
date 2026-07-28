@@ -50,9 +50,12 @@ session** — the brainstorm IS the design for finishing this spec.
 
 ### 3. freeplay-generators (07-02) — 🎯 FINISH · fixes the sameness
 The seed/salt/motif system lives here. Root cause of "lo-fi always plays the same beat":
-`sessionSalt` only re-rolls on organism START (GeneratorOrchestrator.ts:496), so switching
-style and back regenerates an identical beat. **Left:** re-roll variety at the right moments
-+ expose it. Tightly coupled to #2 (the seed IS the lock/variety dial).
+`sessionSalt` only re-rolled on organism START (GeneratorOrchestrator.ts:496), so switching
+style and back regenerated an identical beat.
+**DONE (2026-07-28, commit 9ff407c9):** the style-change variety trigger — `setSongCellStyle`
+now re-rolls the salt on a genuine style change (no-ops when a seed is pinned). Covered by
+`songCell.variety.test.ts`. **Left:** the explicit user "Fresh" trigger (ships with the
+Lock/Evolve/Fresh slice of #2 — the seed IS the lock/variety dial).
 
 ### 4. conductor-directs-the-band (06-18) — 🎯 FINISH
 Part 1 (roles) shipped; Part 2 (kill mix-churn) active; Part 3 (voicing/duet) later.
