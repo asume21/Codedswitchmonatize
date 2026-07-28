@@ -28,6 +28,7 @@
 // section lasts — see the locked-loop work: the SECTION is the unit of change.
 
 import { getSectionMotif, clearMotifsByPrefix, type RhythmMotif } from './motif'
+import { rerollSessionSalt } from './utils'
 
 export interface SongCell {
   /** The idea: 16th-note slots (0..15) the section's rhythm lives on. */
@@ -68,6 +69,11 @@ export function setSongCellStyle(subGenre: string | null | undefined): void {
   if (next === authoritativeSubGenre) return
   authoritativeSubGenre = next
   clearMotifsByPrefix('songcell:')
+  // Variety: a genuine style change gets a fresh salt so returning to a style
+  // yields a NEW but still-cohesive beat instead of a byte-identical rebuild
+  // (the "every lo-fi sounds the same" sameness). rerollSessionSalt() no-ops
+  // when a seed is pinned, so a Locked/pinned beat stays reproducible.
+  rerollSessionSalt()
 }
 
 // ── Sample Leads override ───────────────────────────────────────────────────
