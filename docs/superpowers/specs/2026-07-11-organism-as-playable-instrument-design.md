@@ -87,3 +87,86 @@ directly into shipped features and prove the model before the full 48-pad surfac
 - The first control set + exact pad layout for pack #1.
 - How much each generator auto-decides vs the user must set (the "freedom" dial's default).
 - Whether dial-in controls or the pad surface is the foundation to build first.
+
+---
+
+## Addendum 2026-07-28 — Phrase lock/evolve: the concrete mechanism
+
+Resolves the open question "dial-in vs pad surface first" (answer: **phrase lock-loop +
+variety first**) and specifies how "per-generator phrase locking" actually works. Traced
+from code this session. Extends this spec; no new spec.
+
+### The problem (from the user, by ear)
+
+1. **Seams** — when a part loops, the wrap is audible; you can tell it's a loop.
+2. **Middle ground** — want per-part control between "lock and repeat forever" and "keep
+   evolving," not all-or-nothing.
+3. **Sameness (regression)** — pick lo-fi → a beat; switch to trap; back to lo-fi → nearly
+   the *same* beat. Every lo-fi sounds identical. "We can't have that."
+
+### Root cause of the sameness (confirmed in code)
+
+The band seeds RNG as `mulberry32(seed + getSessionSalt())`; `seed` is a deterministic hash
+of style+section, and the song cell is a pure function of (style, section, salt).
+`sessionSalt` re-rolls **only on organism start** (`GeneratorOrchestrator.ts:496` →
+`rerollSessionSalt()`). So within a run, switching style and back rebuilds the identical cell
+→ identical beat. The anti-drift discipline (one motif per section, no per-bar re-roll) and
+the sameness are the same mechanism — cohesion bought determinism.
+
+### The lock↔variety dial already exists
+
+The seed/salt system *is* the control, just unexposed and mis-triggered:
+
+- **Lock** = pin the seed (`setFreeplaySeed`) → reproducible, never drifts.
+- **Fresh** = re-roll the salt (`rerollSessionSalt`) → new but still cohesive.
+- **Evolve** = keep the committed motif, apply bounded variation (`varyMotif`).
+
+The shared song cell keeps all five cohesive regardless of the above. So this is **wiring +
+exposure, not a new engine** — which is why it belongs to *finishing* this spec.
+
+### Control model: Lock / Evolve / Fresh — per-role AND global
+
+Each of the 5 generators carries one state: **Lock**, **Evolve**, or **Fresh**. Global
+controls set all five at once (Lock-all / Fresh-all); a per-role setting **overrides** the
+global for that role (mixer solo/master model). State is owned by `GeneratorOrchestrator`
+(single source), one field per role, mirrored in `OrganismCommandCenter`.
+
+### How Lock produces a SEAMLESS loop (Approach A: commit-and-repeat)
+
+On Lock, freeze the role's current 1–2 bar phrase as committed MIDI and replay that exact
+phrase every cycle. Seamless because (a) identical notes each cycle and (b) note
+releases/tails are handled at the wrap (no cut/click). This generalizes **Story Mode** (drum
+groove lock) to all five roles and stays **live** — same instruments, still mixable, still
+re-lockable. Rejected: deterministic re-generation (fragile); audio-bounce loop (that's
+Phase 2).
+
+### Variety fix (independent, ship FIRST)
+
+Re-roll the salt at the right moments so returning to a style yields a fresh-but-cohesive
+take, not a copy: on a **deliberate style change** and on an explicit **Fresh** action.
+Never mid-locked-section (would break a Locked loop). This satisfies the audible-contract
+rule for the Fresh/style controls and is the smallest highest-impact slice.
+
+### Phase 2 — capture a Locked part to the loop library
+
+A Locked role's phrase is a stable perfect loop → offer **Record** to bounce it
+(`freezeBounce`) and save it as a clip. Requires the loop-pack **write path** — the loop-pack
+system is read-only today (`server/routes/loops.ts` is all GET; packs are static JSON). Scope
+as Phase 2; it reuses the Phase-1 Locked phrase directly. (See loop-pack spec.)
+
+### Units / boundaries (for the plan)
+
+- `freeplay/utils.ts` — salt-reroll triggers (variety fix).
+- `GeneratorBase` + each generator — extend the existing per-role loop mode (`setLoopMode`,
+  the `_loopMode` guards) to commit-and-repeat the committed phrase and honor Lock/Evolve/Fresh.
+- `GeneratorOrchestrator` — owns per-role + global Lock/Evolve/Fresh state.
+- `OrganismCommandCenter` — per-role + global control UI (extends existing controls; also
+  closes the texture solo/mute parity gap found this session).
+- Phase 2: loop-pack write path (`server/routes/loops.ts`) + `freezeBounce` wiring.
+
+### Build order
+
+1. **Variety fix** (salt reroll on style-change / Fresh) — kills the sameness, smallest slice.
+2. **Per-role + global Lock/Evolve/Fresh state + UI** (built on existing loop mode).
+3. **Seamless commit-and-repeat** for Lock (generalize Story Mode to all roles).
+4. **Phase 2** — capture Locked part → loop library (needs the write path).
