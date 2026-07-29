@@ -65,6 +65,22 @@ app.use(helmet({
   xssFilter: true,
 }));
 
+// Set LOCAL_OBJECTS_DIR early so every route resolves uploads to ONE root.
+// Mirrors server/index.ts:18-29 — prod was never setting it, so routes that read
+// `process.env.LOCAL_OBJECTS_DIR || <cwd>/objects` (server/routes/songs.ts:108,417,488
+// and friends) silently fell back to <cwd>/objects while inline handlers in
+// server/routes.ts picked /data/objects on any host that has /data. Same upload,
+// two storage roots, decided by which endpoint prefix you hit.
+// On Railway /data does not exist and cwd is /app, so this resolves to the mounted
+// volume at /app/objects — the current behaviour is preserved, not changed.
+const LOCAL_OBJECTS_DIR = fs.existsSync('/data')
+  ? '/data/objects'
+  : path.join(process.cwd(), 'objects');
+process.env.LOCAL_OBJECTS_DIR = LOCAL_OBJECTS_DIR;
+console.log('📁 LOCAL_OBJECTS_DIR set to:', LOCAL_OBJECTS_DIR);
+fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
+fs.mkdirSync(path.join(LOCAL_OBJECTS_DIR, 'converted'), { recursive: true });
+
 const dataRoot = path.resolve("data");
 ensureDataRoots(dataRoot);
 app.use("/data", express.static(dataRoot));
@@ -217,6 +233,12 @@ app.use((req, res, next) => {
     "/api/organism/kits",     // shared drum kits + 808 bass samples (static instruments, not user data). Raw fetch / Tone.Sampler media fetches can't attach a bearer token, so this MUST be public or the kit collapses to the synth fallback.
     "/api/ai-music/compose",  // deterministic song-arc plan — no user data; guests need this for the demo build
     "/api/code-to-music",     // Codebeat public hook — deterministic, no AI, no user data; guests try it before signup
+    "/api/demo",              // public AI Perception demo endpoint (audio analyze, no credits).
+                              // Was dev-only by accident: the guest demo worked on localhost and
+                              // 401'd in production. This list and the one in server/index.ts must
+                              // agree except where a difference is deliberate and commented
+                              // (/api/audio-debug is dev-only by design; /api/reference-beats and
+                              // /api/sample-profiles ride express.static mounts in dev).
     "/api/ai/next-section",   // conductor consult (Ollama → aceEngine) — no user data; the /organism guest demo's AIDirector calls it every section
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/webeye/",           // WebEye browser capture relay
@@ -283,12 +305,52 @@ app.use((req, res, next) => {
   // shareable pages we swap in on-topic Open Graph tags at serve time. Codebeat
   // is our top-of-funnel share target, so a pasted /codebeat link must sell the
   // feature — not describe the whole studio.
-  const OG_OVERRIDES: Record<string, { title: string; description: string; image: string }> = {
+  // Beyond social cards, these tags are the ONLY per-page signal Google reads
+  // before it runs any JavaScript. Without them every route served the identical
+  // homepage <title> + description, and near-duplicate pages get filed under
+  // "Crawled - currently not indexed" (GSC 2026-07-23: 8 pages in that bucket).
+  // Every public route in the /sitemap.xml list needs an entry here.
+  // `image` is optional — omit it to keep the default homepage card.
+  const DEFAULT_OG_IMAGE = "/og-image.jpg";
+  const OG_OVERRIDES: Record<string, { title: string; description: string; image?: string }> = {
     "/codebeat": {
       title: "Codebeat — Turn your code into a beat | CodedSwitch",
       description:
         "Paste any function and watch its real structure — loops, branches, names — become a song with a key, tempo, and a drop. Try it free, no signup.",
       image: "/codebeat-og.png",
+    },
+    "/organism": {
+      title: "The Organism — AI band that jams with you live | CodedSwitch",
+      description:
+        "A live AI band that listens and plays along in real time: drums, bass, keys and melody locking to your groove. Free 60-second demo, no signup needed.",
+    },
+    "/pricing": {
+      title: "Pricing — Plans & credits | CodedSwitch",
+      description:
+        "Simple plans for AI music production. Start free, then pay only for the credits you use across beat generation, stem separation, and full song rendering.",
+    },
+    "/developers": {
+      title: "Developers — Music generation API | CodedSwitch",
+      description:
+        "Build with the CodedSwitch API. Generate beats, melodies, and full arrangements programmatically, with credit-based pricing and straightforward REST endpoints.",
+    },
+    "/blog": {
+      title: "Blog — AI music production guides | CodedSwitch",
+      description:
+        "Tutorials and deep dives on AI music production: building beats, arranging songs, mixing, and getting the most out of the CodedSwitch studio.",
+    },
+    "/sitemap": {
+      title: "Sitemap — All pages | CodedSwitch",
+      description: "Browse every public page on CodedSwitch, from the studio and live AI band to pricing, developer docs, and guides.",
+    },
+    "/login": {
+      title: "Log in | CodedSwitch",
+      description: "Log in to your CodedSwitch account to open your studio, projects, and saved beats.",
+    },
+    "/signup": {
+      title: "Sign up free | CodedSwitch",
+      description:
+        "Create a free CodedSwitch account and start making AI-powered beats, melodies, and full songs in your browser. No card required.",
     },
   };
 
@@ -342,6 +404,25 @@ app.use((req, res, next) => {
     );
     res.set("Content-Type", "text/html; charset=utf-8").send(html);
   });
+
+  // Per-route metadata for the remaining public pages. Registered BEFORE
+  // express.static so these win over the generic dist/index.html — the static
+  // handler would otherwise answer first and serve the homepage's tags.
+  // /codebeat keeps its own handler above because it carries a ?s= share seed.
+  for (const routePath of Object.keys(OG_OVERRIDES)) {
+    if (routePath === "/codebeat") continue;
+    app.get(routePath, (_req, res) => {
+      const canonicalBase = process.env.APP_URL || "https://www.codedswitch.com";
+      const override = OG_OVERRIDES[routePath];
+      const html = applyOgOverride(
+        readIndexHtml(),
+        `${canonicalBase}${routePath}`,
+        `${canonicalBase}${override.image ?? DEFAULT_OG_IMAGE}`,
+        override,
+      );
+      res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    });
+  }
 
   app.use(express.static(distPath));
 
