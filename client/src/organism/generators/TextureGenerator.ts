@@ -428,6 +428,26 @@ export class TextureGenerator extends GeneratorBase {
     // Gain ramp to 0 provides silence; source is disposed in dispose().
   }
 
+  /**
+   * Full-STOP silence (call only when the whole engine stops, not on section
+   * transitions). reset() only ramps the gain to 0 and leaves the pink-noise +
+   * riser sources RUNNING — that's fine mid-song (stopping/restarting Tone.Noise
+   * reallocates its buffer and clicks), but after Stop the Transport is halted,
+   * so an unsynced continuous source can't be silenced by the clock: if the 0.5s
+   * gain ramp is ever interrupted or a stray frame re-raises the gain, the noise
+   * bed keeps sounding with every generator showing "off" (the ghost texture that
+   * only Kill All — i.e. dispose() — could stop). Here we actually STOP the
+   * sources and clear the started flags so the next start() re-inits them cleanly.
+   */
+  hardSilence(): void {
+    this.gain.gain.cancelScheduledValues(0)
+    this.gain.gain.value = 0
+    try { if (this.noiseStarted) this.noiseSource.stop() } catch { /* already stopped */ }
+    this.noiseStarted = false
+    try { if (this.riserStarted) this.riserNoise.stop() } catch { /* already stopped */ }
+    this.riserStarted = false
+  }
+
    /** Public so the orchestrator can hard-cut the keys/pad on a live preset swap
     *  (see GeneratorOrchestrator.cutActivePartsForSwap). Texture has no Tone.Part
     *  — its "part" is the sustained pad voicing. We release the held voicing

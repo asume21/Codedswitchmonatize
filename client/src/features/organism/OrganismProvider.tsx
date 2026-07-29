@@ -1401,6 +1401,11 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     inputRef.current?.stop()
     setV2Status(ORGANISM_V2_INITIAL_STATUS)
     stemLayerRef.current?.stop()
+    // Both loop layers must stop here. The ACE stem layer was already covered,
+    // but the melodic/texture loop player was not — so a hybrid row looping a
+    // melodic/texture layer kept ringing after Stop and only "Kill All" silenced
+    // it. Stop it alongside the stem layer so the two loop layers tear down together.
+    melodicLoopRef.current?.stop()
     mixRef.current?.setBandSilenced(false)
     orchestrRef.current?.setGrooveLocked(false)
     orchestrRef.current?.clearAIDirectives()

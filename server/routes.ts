@@ -793,50 +793,11 @@ Return ONLY valid JSON:
     console.warn('⚠️ Could not create loops directory:', err);
   }
 
-  // Helper to recursively find wav files
-  async function findWavFiles(dir: string, baseDir: string): Promise<{relativePath: string, name: string, category: string}[]> {
-    const results: {relativePath: string, name: string, category: string}[] = [];
-    if (!fs.existsSync(dir)) return results;
-    
-    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        const subResults = await findWavFiles(fullPath, baseDir);
-        results.push(...subResults);
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.wav') && !entry.name.startsWith('silence')) {
-        const relativePath = path.relative(baseDir, fullPath);
-        const category = path.dirname(relativePath) === '.' ? 'general' : path.dirname(relativePath);
-        results.push({
-          relativePath,
-          name: path.parse(entry.name).name,
-          category
-        });
-      }
-    }
-    return results;
-  }
-
-  // Loop Library endpoints - list and serve .wav files from loops folder (including subfolders)
-  app.get("/api/loops", publicApiLimiter, async (_req: Request, res: Response) => {
-    try {
-      const wavFiles = await findWavFiles(LOOPS_DIR, LOOPS_DIR);
-      console.log(`🎵 Loops scan: base=${LOOPS_DIR} found=${wavFiles.length}`);
-      
-      const loops = wavFiles.map((file, index) => ({
-        id: index.toString(),
-        name: file.name,
-        filename: file.relativePath,
-        category: file.category,
-        audioUrl: `/api/loops/${encodeURIComponent(file.relativePath)}/audio`,
-      }));
-
-      res.json({ loops });
-    } catch (error) {
-      console.error(`Failed to list loops from ${LOOPS_DIR}:`, error);
-      res.status(500).json({ success: false, message: "Failed to list loops" });
-    }
-  });
+  // findWavFiles() lived here to build the GET /api/loops catalog. That handler was
+  // unreachable (shadowed by app.use("/api/loops", createLoopRoutes()) registered
+  // earlier) and has been removed, leaving this helper with no caller but its own
+  // recursion. The live loop catalog is server/routes/loops.ts; the /audio route
+  // below is still reachable because the mounted router does not claim that path.
 
   app.get("/api/loops/:filename(*)/audio", publicApiLimiter, async (req: Request, res: Response) => {
     try {
@@ -893,28 +854,6 @@ Return ONLY valid JSON:
       message: "Use /api/credits/purchase-checkout to create a Stripe Checkout session.",
       checkoutEndpoint: "/api/credits/purchase-checkout",
     });
-  });
-
-  // Get user credits
-  app.get("/api/credits", async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return sendError(res, 401, "Authentication required");
-      }
-
-      const user = await storage.getUser(req.userId);
-      if (!user) {
-        return sendError(res, 404, "User not found");
-      }
-
-      res.json({
-        credits: user.credits || 10,
-        totalCreditsSpent: user.totalCreditsSpent || 0
-      });
-    } catch (error: any) {
-      console.error("Get credits error:", error);
-      sendError(res, 500, error.message || "Failed to get credits");
-    }
   });
 
   app.post("/api/beats/generate", requireAuth(), async (req: Request, res: Response) => {

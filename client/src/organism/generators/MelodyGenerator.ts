@@ -671,6 +671,12 @@ export class MelodyGenerator extends GeneratorBase {
   }
 
   processFrame(physics: PhysicsState, organism: OrganismState): void {
+    // Loop-mode guard (matches Drum/Bass/Chord/Texture generators). When the
+    // melody row is sourced to a WAV loop, the live melody must NOT keep
+    // scheduling — without this, setLoopMode() stops the current part once but
+    // the next phrase-refresh/section rebuild puts a live melody back ON TOP of
+    // the loop (the intermittent "band + loop play at the same time" doubling).
+    if (this._loopMode) return
     this.currentPresence = physics.presence
     this.voiceActive     = physics.voiceActive
     this.flowDepth       = organism.flowDepth

@@ -570,6 +570,10 @@ export class GeneratorOrchestrator {
     this.bass.reset()
     this.melody.reset()
     this.chord.reset()
+    // reset() only gain-ramps the texture's continuous pink-noise/riser bed to 0;
+    // on a full stop the source must actually be STOPPED or it can keep sounding
+    // after Transport halts (the ghost texture that previously needed Kill All).
+    this.texture.hardSilence()
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.stopLoopPlayback())
 
@@ -1513,7 +1517,17 @@ export class GeneratorOrchestrator {
     this.drum.setGenreTarget(subGenre)
     // Jam mode (no arrangement): this is the band's style — publish it as the
     // one authoritative song-cell key so all generators share one idea.
-    setSongCellStyle(subGenre)
+    //
+    // The guard makes that comment true. Unguarded, this also fired in song mode,
+    // where scoreSection() (see setSongCellStyle below, ~line 1949) is the real
+    // owner and publishes `aiOverride?.subGenre ?? musicalState.subGenre`. With an
+    // AIDirector directive live the two disagree — this writes the physics
+    // classifier's sub-genre, that writes the AI's — and since a DIFFERENT style
+    // re-rolls the salt, the whole band's cell key could change partway through a
+    // section that is supposed to be a locked loop.
+    if (!this.arrangementEnabled) {
+      setSongCellStyle(subGenre)
+    }
 
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern
