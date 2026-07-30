@@ -1237,7 +1237,14 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // re-enabled song structure on every start/swap.
     orchestr.setArrangementEnabled(songModeEnabledRef.current)
     orchestr.setGrooveLocked(true)
-    orchestr.setTextureVolumeMultiplier(textureEnabledRef.current ? 1 : 0)
+    // Respect the texture VOLUME, not just the enabled flag. Hardcoding 1 here
+    // meant there were two independent answers to "should texture be heard":
+    // textureEnabled (the on/off toggle) and textureVolume (what Solo zeroes,
+    // since solo is implemented as volume writes in OrganismCommandCenter). This
+    // runs at the end of every preset swap (line ~1800), so soloing Bass and then
+    // changing preset resurrected the pad at full level while the UI still showed
+    // Bass soloed — audible as a phantom second instrument under the solo.
+    orchestr.setTextureVolumeMultiplier(textureEnabledRef.current ? textureVolumeRef.current : 0)
     orchestr.setTextureEnabled(textureEnabledRef.current)
   }, [])
 

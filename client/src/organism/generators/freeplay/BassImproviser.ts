@@ -101,10 +101,20 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     bridge:     [0, 8],
   }
 
+  // Real chord quality — the setBassChordQuality lesson: never assume minor.
+  // Declared BEFORE hitContour on purpose: it used to live below, so the walking
+  // contour couldn't reach it and hardcoded 5 instead (see below).
+  const third = ctx.chordIntervals.includes(4) && !ctx.chordIntervals.includes(3) ? 4 : 3
+
   const hitContour: number[] = house
     ? [0, 12, 0, 12]               // root, octave, root, octave — pumping
     : walking
-      ? [0, 7, 5, 7]               // root, fifth, third, fifth — walking contour
+      // root, fifth, THIRD, fifth. This was hardcoded [0, 7, 5, 7] — but 5
+      // semitones is a FOURTH, not a third (minor 3rd = 3, major 3rd = 4), so
+      // every walking line put an F over a C chord: a non-chord tone that only
+      // makes sense as a passing note and just clashes when held. Use the chord's
+      // real third, same as the walk below already does.
+      ? [0, 7, third, 7]
       : kind === 'hook'
         ? [0, 7, 0]
         : kind === 'drop'
@@ -120,9 +130,6 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const budget = hitPatterns[kind].length
   const fromCell = cell.slots.filter(s => s !== 0).slice(0, Math.max(0, budget - 1))
   const hitSlots = [0, ...fromCell].sort((a, b) => a - b)
-
-  // Real chord quality — the setBassChordQuality lesson: never assume minor.
-  const third = ctx.chordIntervals.includes(4) && !ctx.chordIntervals.includes(3) ? 4 : 3
 
   for (let bar = 0; bar < ctx.bars; bar++) {
     const isFinalBar = bar === ctx.bars - 1
