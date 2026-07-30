@@ -37,7 +37,11 @@ describe('DrumImproviser', () => {
 
   it('kick programming is a 2-bar cycle — bar B answers bar A for most genres', () => {
     // Genres whose kick IS the genre identity keep A === B; the rest must differ.
-    const identical = ['jersey-club', 'reggaeton', 'chill']
+    // 'house' belongs in this list and was missing: four-on-the-floor means a kick
+    // on every beat of every bar, so bars A and B are IDENTICAL by definition.
+    // Making bar B "answer" bar A would stop it being house. The skeleton was
+    // right; this list had the gap.
+    const identical = ['jersey-club', 'reggaeton', 'chill', 'house']
     for (const [genre, sk] of Object.entries(SKELETONS)) {
       if (identical.includes(genre)) {
         expect(sk.kicksB, genre).toEqual(sk.kicks)

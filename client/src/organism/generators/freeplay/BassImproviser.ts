@@ -70,6 +70,21 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   const harmonyMoves = nextRoot !== root
   const ascending = nextRoot > root
 
+  // A walking genre only WALKS when there is somewhere to walk to. This is the
+  // contract stated on FreeplayContext.nextRootMidi: "Same as rootMidi (or absent)
+  // = the harmony is holding, so there is nothing for a bassline to connect — the
+  // bass hits instead of walking."
+  //
+  // Without this, boom-bap/jazz/funk/gospel/lo-fi took the walking pattern
+  // ([0,4,8,12], four notes a bar, root-fifth-third-fifth) even over a static
+  // chord: busy movement going nowhere, sitting in the low end where it crowds
+  // the vocal. Falling back to the simple pattern makes a held chord read as an
+  // anchor instead of an unresolved run.
+  //
+  // House is deliberately NOT included — four-on-the-floor pumping is the point of
+  // house bass and should keep pumping whether the harmony moves or not.
+  const walkingActive = walking && harmonyMoves
+
   // ── Genre-specific hit patterns ───────────────────────────────────
   const hitPatterns: Record<SectionKind, number[]> = house ? {
     intro:      [0, 8],
@@ -78,7 +93,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     drop:       [0, 4, 8, 12],
     breakdown:  [0, 8],
     bridge:     [0, 4, 8, 12],
-  } : walking ? {
+  } : walkingActive ? {
     intro:      [0],
     verse:      [0, 4, 8, 12],     // walking — every beat
     hook:       [0, 4, 8, 12],
@@ -108,7 +123,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
 
   const hitContour: number[] = house
     ? [0, 12, 0, 12]               // root, octave, root, octave — pumping
-    : walking
+    : walkingActive
       // root, fifth, THIRD, fifth. This was hardcoded [0, 7, 5, 7] — but 5
       // semitones is a FOURTH, not a third (minor 3rd = 3, major 3rd = 4), so
       // every walking line put an F over a C chord: a non-chord tone that only
