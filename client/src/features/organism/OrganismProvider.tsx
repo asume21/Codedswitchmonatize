@@ -2574,8 +2574,24 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
             setKickVelocityState(v)
             orch.setKickVelocityMultiplier(v)
           } else if (generator === 'texture') {
+            // Sync React state + the ref like the four branches above do. Writing
+            // only the orchestrator left textureVolumeRef stale, and
+            // applyStablePlaybackDefaults() (called on every preset swap, silent-start
+            // recovery and Record) restores FROM that ref — so a preset swap silently
+            // reverted this AI mix decision to the last value the UI slider happened
+            // to set, with no visible change in the UI.
+            setTextureVolumeState(v)
+            textureVolumeRef.current = v
             orch.setTextureVolumeMultiplier(v)
           } else if (generator === 'chord') {
+            // State sync for the same reason. NOTE: chord volume still has two
+            // disjoint mechanisms — the UI setter writes the mix channel's dB gain
+            // (setChordVolume, ~line 3643) while this AI path writes the
+            // orchestrator's multiplier. They are not reconciled, so the fader cannot
+            // undo a multiplier the AI lowered. Deliberately NOT writing the mix dB
+            // here too: that would attenuate chord twice. Needs a decision on which
+            // mechanism owns chord level.
+            setChordVolumeState(v)
             orch.setChordVolumeMultiplier(v)
           }
           break
