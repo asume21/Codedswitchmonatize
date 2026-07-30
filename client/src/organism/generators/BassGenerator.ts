@@ -11,7 +11,6 @@ import {
   getBassBehaviorFromSubGenre,
   setBassChordQuality,
   buildBassNotes,
-  shouldEnableSlide,
   getPortamentoTime,
   getBassSwing,
 }                              from './patterns/BassPatternLibrary'
@@ -808,13 +807,19 @@ export class BassGenerator extends GeneratorBase {
   }
 
   private generateNotes(physics: PhysicsState): ScheduledNote[] {
-    const slideActive = shouldEnableSlide(this.currentBehavior)
+    // getPortamentoTime IS the authority on who glides — it returns hand-tuned
+    // times for Slide808 (0.12), WestCoast (0.04) and Phonk (0.08), and 0 for
+    // everything else via its default branch. shouldEnableSlide only ever returned
+    // true for Slide808, so gating on it forced WestCoast's and Phonk's tuned
+    // values to zero: two behaviours had a slide time that was computed and thrown
+    // away, and a g-funk bass could never do the thing that defines g-funk bass.
+    // Trust the table; the zeros are already in it.
     const portTime = getPortamentoTime(this.currentBehavior)
     if (this.use808Active && this.real808Sampler?.isLoaded()) {
-      this.real808Sampler.setPortamento(slideActive ? portTime : 0)
+      this.real808Sampler.setPortamento(portTime)
     } else if (!this.isCurrentVoiceSampler) {
       try {
-        (this.synth as Tone.MonoSynth).portamento = slideActive ? portTime : 0
+        (this.synth as Tone.MonoSynth).portamento = portTime
       } catch { /* */ }
     }
 
