@@ -437,11 +437,14 @@ async function composeWithGemini(
   const key = process.env.GEMINI_API_KEY
   if (!key) return null
   try {
+    // Key goes in a HEADER, never the query string: fetch failures put the full
+    // URL in err.message, and the catch below logs that — a `?key=` URL would
+    // write the API key straight into the server log.
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: ctx.systemPromptWithScores }] },
           contents: [{ role: 'user', parts: [{ text: ctx.userMessage }] }],
