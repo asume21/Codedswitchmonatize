@@ -360,3 +360,71 @@ Deeper awareness still on the table (own design pass): melody↔chords
 call-and-response, fill-aware comping (all followers thin out under the bar-4
 drum fill), shared micro-timing pocket (bass/chords riding the drums' groove
 template offsets).
+
+## 12. Intentional bass expression (2026-07-29) — continues §11
+
+User's direction: *"these are the types of thing its missing to really achieve fire
+beats and they have to be **intentional**"* and *"i dont want random every note i
+want construction and substance with every note."*
+
+The distinction this section exists to enforce. Same gesture, two architectures:
+
+| | Cause | Reads as |
+|---|---|---|
+| **Mood-driven** (what we had) | `physics.mode` / `physics.pocket` drifted | weather — nothing decided it |
+| **Intentional** (target) | the phrase is turning over; the section is building | a decision |
+
+So: no per-note randomness, and no lick library picked by dice. Both were explicitly
+rejected, and `BassImproviser.ts:48` records that an earlier "motif bass" was pulled
+for sounding busy. Randomness stays drawn ONCE per phrase (§9), repetition WITHIN a
+section stays the point, variety lives BETWEEN sections.
+
+### 12.1 The device the user described
+
+*"a bass line hits and holds and then its as if someone took a slider and turned it
+up or down and the bass changes"* — that is the 808 slide: a held note whose PITCH
+glides to a new pitch with no re-attack. Already built (`shouldEnableSlide`,
+`getPortamentoTime`, `glideRate` 150ms), but it only ever fired on trap/drill chord
+changes.
+
+### 12.2 Shipped
+
+1. **Stopped discarding two tuned slide times.** `shouldEnableSlide()` returned true
+   only for `Slide808`, but `getPortamentoTime()` carries hand-tuned values for
+   `WestCoast` (0.04) and `Phonk` (0.08) and returns 0 by default for everyone else.
+   `BassGenerator.generateNotes` gated on the former (`slideActive ? portTime : 0`),
+   so a g-funk bass could never do the slide that defines g-funk bass.
+   `getPortamentoTime` is the authority — the gate is gone. (`f164febd`)
+   Note `state.bass.slideEnabled` (`MusicalState.ts:79`) is WRITE-ONLY — written by
+   `MusicalDirector.ts:247`, read nowhere. Dead state; nothing else gates the slide.
+
+2. **Turnaround pickup — the loop turns OVER instead of restarting.** §4.3 already
+   cleared slots 12-15 of the final holding bar so the turnaround breathes. That gap
+   now takes one 16th of the fifth BELOW the root, which portamento glides up into
+   the returning downbeat. The gesture is caused by the phrase ending — intentional,
+   not mood.
+   Three constraints it must respect, two of them found by tests that failed when
+   this was first added:
+   - the fifth (`root - 5`), never a chromatic approach tone — a leading tone
+     resolves into a NEW root, but a turnaround returns to the SAME one, so it would
+     clash and would break the chord-tone invariant;
+   - `barSlots.length < 3` — the bass onset cap exists so it LEAVES ROOM, and that
+     room is where the vocal sits. A flourish must never be the note that crowds it;
+   - not on a `drop` — there the 808 SUSTAINS. A drop lands by holding, not fidgeting.
+
+### 12.3 Still on the table
+
+- **Slide down on phrase release** — so a phrase breathes out instead of stopping.
+- **Tone follows the section, not the mood.** `getBassFilterCutoff(physics.mode,
+  physics.pocket)` is mood-driven; filter should open across a build and close at the
+  turnaround. `getBassFilterCutoffFromSubGenre()` already exists and has never been
+  called.
+- **Bass dodges the lead.** `ctx.leadBusy16ths` is delivered and unused by
+  `BassImproviser`; `ChordImproviser` already dodges. Same channel, never wired.
+- **Section energy.** `ctx.energy` is delivered and unused — no build across a
+  section.
+
+Corrected while writing this, so it is not "fixed" again later: the bass is NOT deaf
+to the kick. All four improvisers build onsets from the shared `getSongCell`, so
+bass/drums lock through the cell (`9a76dd1b`). `ctx.kickTimes16ths` is populated but
+unread — redundant plumbing, not a missed signal. §11's ✅ is correct.

@@ -232,6 +232,35 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
         time: swungTime(bar, slot, ctx.swing),
       })
     })
+
+    // ── TURNAROUND PICKUP: make the loop turn OVER instead of restarting ──
+    // The filter above already clears slots 12-15 of the final bar so the
+    // turnaround breathes. On 808 genres, fill the last 16th of that gap with the
+    // fifth BELOW the root. Two things follow from one note:
+    //   * portamento is live on these behaviours (Slide808 0.12 / Phonk 0.08), so
+    //     the synth GLIDES from it up into the returning downbeat — the "hits and
+    //     holds and then something slides" move, now caused by the phrase turning
+    //     over rather than only by a chord change.
+    //   * with portamento off it is still just a tasteful pickup, so this cannot
+    //     sound broken on a voice that does not glide.
+    // Deliberately the fifth (root - 5 is the same pitch class as root + 7), NOT a
+    // chromatic approach tone: a leading tone resolves into a NEW root, and here we
+    // are returning to the SAME one — it would clash, and it would break the
+    // chord-tone invariant.
+    // Two guards, both learned from tests that caught this addition:
+    //   * barSlots.length < 3 — the bass has a hard onset cap so it LEAVES ROOM
+    //     (that space is where the vocal sits). A turnaround flourish must never be
+    //     the note that crowds the bar.
+    //   * not on a drop — there the 808 is meant to SUSTAIN, and a short 16th
+    //     pickup is the opposite gesture. A drop lands by holding, not by fidgeting.
+    if (isFinalBar && sustained && kind !== 'drop' && barSlots.length < 3) {
+      notes.push({
+        pitch: midiToNote(clampToBassRegister(root - 5)),
+        duration: '16n',
+        velocity: jitterVel(0.55, ctx.rng),   // under the downbeat it feeds
+        time: swungTime(bar, 15, ctx.swing),
+      })
+    }
   }
 
   return notes
