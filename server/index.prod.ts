@@ -237,8 +237,12 @@ app.use((req, res, next) => {
                               // Was dev-only by accident: the guest demo worked on localhost and
                               // 401'd in production. This list and the one in server/index.ts must
                               // agree except where a difference is deliberate and commented
-                              // (/api/audio-debug is dev-only by design; /api/reference-beats and
-                              // /api/sample-profiles ride express.static mounts in dev).
+                              // (/api/audio-debug is dev-only by design — the route itself is
+                              // NODE_ENV-gated at mount time). NOTE: /api/reference-beats and
+                              // /api/sample-profiles appear only in THIS list, but that is
+                              // redundancy, not a real gap — both entrypoints mount
+                              // express.static for them (index.ts:150, index.prod.ts:108) BEFORE
+                              // requireAuthExcept runs, so the static handler answers either way.
     "/api/ai/next-section",   // conductor consult (Ollama → aceEngine) — no user data; the /organism guest demo's AIDirector calls it every section
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
     "/api/webeye/",           // WebEye browser capture relay

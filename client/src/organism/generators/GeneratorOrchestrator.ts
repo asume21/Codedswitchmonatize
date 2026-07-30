@@ -91,6 +91,10 @@ export class GeneratorOrchestrator {
   private melodyPitchOffset:      number = 0
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
+  // Chord was the only role WITHOUT a stored multiplier, so nothing could restore
+  // the user's chord level — setMelodyOnly(false) hardcoded 1.0 while its melody and
+  // texture neighbours read their stored values. Store it like the others.
+  private chordVolumeMultiplier:  number = 1.0
   // Part 2: the reactive*Multiplier and selfListenGainCorrection fields are gone.
   // The MixEngine owns the mix; generator volume = the user/base multiplier only.
 
@@ -1076,6 +1080,13 @@ export class GeneratorOrchestrator {
     this.texture.setEnabled(enabled)
     if (!enabled) {
       this.texture.applyVolumeMultiplier(0)
+    } else {
+      // applyVolumeMultiplier PERSISTS the value (TextureGenerator sets
+      // this.textureVolumeMultiplier = m), so the disable branch above writes 0 into
+      // the generator's own field. Without this restore, Texture off -> on left the
+      // pad/keys permanently silent at multiplier 0 while every UI control said it
+      // was on. Same shape as setMelodyOnly's restore path just above.
+      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
     }
   }
 
@@ -1123,7 +1134,9 @@ export class GeneratorOrchestrator {
       this.chord.applyArrangementMultiplier(1.0)
       if (this.textureEnabled) this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
       this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
-      this.chord.applyVolumeMultiplier(1.0)
+      // Was hardcoded 1.0 — it discarded whatever the user had set on the chord
+      // slider every time Melody-Only was switched off.
+      this.chord.applyVolumeMultiplier(this.chordVolumeMultiplier)
     }
     // Force applyArrangement to re-evaluate on next bar so multipliers
     // converge to the current section.
@@ -1295,7 +1308,8 @@ export class GeneratorOrchestrator {
   }
 
   setChordVolumeMultiplier(multiplier: number): void {
-    this.chord.applyVolumeMultiplier(Math.max(0, multiplier))
+    this.chordVolumeMultiplier = Math.max(0, multiplier)
+    this.chord.applyVolumeMultiplier(this.chordVolumeMultiplier)
   }
 
   /**

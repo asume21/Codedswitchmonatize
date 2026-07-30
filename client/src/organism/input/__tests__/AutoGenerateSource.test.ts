@@ -24,13 +24,21 @@ describe('AutoGenerateSource', () => {
     expect(source.isRunning()).toBe(true)
   })
 
+  // AutoGenerateSource.FRAME_INTERVAL_MS is 100 (10fps — "TANK BUILD", down from
+  // 30fps; see AutoGenerateSource.ts:74-79). It is a private static so it can't be
+  // imported; mirror it here ONCE instead of scattering bare numbers. Tests advanced
+  // 50ms against a 100ms interval and never crossed a single boundary, so no frame
+  // was ever emitted — two failed outright and two others passed vacuously by
+  // comparing zero frames to zero frames.
+  const FRAME_MS = 100
+  const FRAMES = (n: number) => FRAME_MS * n + 1   // +1 to land past the boundary
+
   it('emits frames to subscribers after start()', async () => {
     const frames: AnalysisFrame[] = []
     source.subscribe((frame) => frames.push(frame))
 
     await source.start()
-    // Advance past several frame intervals (~23ms each)
-    vi.advanceTimersByTime(100)
+    vi.advanceTimersByTime(FRAMES(3))
 
     expect(frames.length).toBeGreaterThan(0)
   })
@@ -40,7 +48,7 @@ describe('AutoGenerateSource', () => {
     source.subscribe((frame) => { lastFrame = frame })
 
     await source.start()
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(FRAMES(3))
 
     expect(lastFrame).not.toBeNull()
     const f = lastFrame!
@@ -58,7 +66,7 @@ describe('AutoGenerateSource', () => {
     source.subscribe((frame) => frames.push(frame))
 
     await source.start()
-    vi.advanceTimersByTime(100)
+    vi.advanceTimersByTime(FRAMES(3))
 
     expect(frames.length).toBeGreaterThan(0)
     expect(frames.every(frame => frame.voiceActive === false)).toBe(true)
@@ -68,7 +76,7 @@ describe('AutoGenerateSource', () => {
 
   it('getLastFrame() returns last emitted frame', async () => {
     await source.start()
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(FRAMES(3))
 
     const frame = source.getLastFrame()
     expect(frame).not.toBeNull()
@@ -80,11 +88,15 @@ describe('AutoGenerateSource', () => {
     source.subscribe((frame) => frames.push(frame))
 
     await source.start()
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(FRAMES(3))
     const countBefore = frames.length
+    // Guard the guard: without this the test proved nothing — it used to advance
+    // less than one interval, so countBefore was 0 and the assertion below was
+    // 0 === 0, which would hold even if emission were completely broken.
+    expect(countBefore).toBeGreaterThan(0)
 
     source.stop()
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(FRAMES(3))
 
     expect(frames.length).toBe(countBefore)
     expect(source.isRunning()).toBe(false)
@@ -95,12 +107,13 @@ describe('AutoGenerateSource', () => {
     const unsub = source.subscribe((frame) => frames.push(frame))
 
     await source.start()
-    vi.advanceTimersByTime(50)
+    vi.advanceTimersByTime(FRAMES(3))
+    expect(frames.length).toBeGreaterThan(0)   // else the check below is vacuous
 
     unsub()
     const countAfterUnsub = frames.length
 
-    vi.advanceTimersByTime(100)
+    vi.advanceTimersByTime(FRAMES(3))
     expect(frames.length).toBe(countAfterUnsub)
   })
 
