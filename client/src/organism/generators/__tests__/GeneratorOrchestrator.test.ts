@@ -379,7 +379,7 @@ describe('GeneratorOrchestrator — loop pack', () => {
     expect(useStudioStore.getState().bpm).toBe(144)
   })
 
-  it('emits generator note events when a generated drum pattern is loaded', () => {
+  it('emits generator note events when a generated drum pattern is loaded', async () => {
     const orch = new GeneratorOrchestrator()
     const events: import('../../session/types').GeneratorEvent[] = []
     orch.onGeneratorEvent((event) => events.push(event))
@@ -388,6 +388,9 @@ describe('GeneratorOrchestrator — loop pack', () => {
       { instrument: 'kick' as any, time: '0:0:0', velocity: 0.8 },
       { instrument: 'snare' as any, time: '0:1:0', velocity: 0.7 },
     ], true)
+    // force=true defers the rebuild through setTimeout(0) (the TANK BUILD yield
+    // in DrumGenerator.loadGeneratedPattern) — let it run before asserting.
+    await new Promise<void>(resolve => setTimeout(resolve, 0))
 
     expect(events).toHaveLength(2)
     expect(events[0]).toMatchObject({
