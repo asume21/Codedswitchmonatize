@@ -6,6 +6,8 @@
  * records telemetry over a duration window, and posts the JSON blob back.
  */
 
+import { peekAudioContext } from './audioContext'
+
 declare global {
   interface Window {
     __websenseStatus?: WebSenseBridgeStatus
@@ -236,14 +238,17 @@ async function collectTelemetry(durationMs: number): Promise<TelemetryData> {
       let audioLatency = 0
 
       try {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
-        if (AudioContextClass) {
-          // Look for any existing audio contexts
-          const dummy = new AudioContextClass()
-          audioCtxState = dummy.state
-          audioSR = dummy.sampleRate
-          audioLatency = dummy.baseLatency || 0
-          void dummy.close()
+        // peek, not get: this is a telemetry probe. getAudioContext() would
+        // CREATE the shared context (and install a Tone.Context over it) on a page
+        // where audio never started — measuring the system would bring it into
+        // existence, and report 'running' for a page with no audio.
+        // No context yet means audio never started — leave the 'no-context'
+        // default rather than inventing a second sentinel for the same state.
+        const audioContext = peekAudioContext()
+        if (audioContext) {
+          audioCtxState = audioContext.state
+          audioSR = audioContext.sampleRate
+          audioLatency = audioContext.baseLatency || 0
         }
       } catch (e) {
         log(`Web Audio state query failed: ${e}`)

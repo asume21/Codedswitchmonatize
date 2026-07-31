@@ -62,6 +62,7 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     forceSubGenre = vi.fn()
     regenerateAll = vi.fn()
     setArrangementEnabled = vi.fn()
+    setVoiceReactive = vi.fn()
     isArrangementEnabled = vi.fn().mockReturnValue(true)
     getMusicalState = vi.fn().mockReturnValue(null)
     onChordChange = vi.fn().mockReturnValue(noop)

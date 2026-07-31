@@ -507,11 +507,23 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
     }
   }
 
+  // CADENCE — the phrase lands on the FIFTH (see the "starts on the root and
+  // cadences on the fifth" test; that is deliberate, not incidental).
+  //
+  // This was a hardcoded `degree: 4`, which is the fifth ONLY in a 7-note scale.
+  // On the pentatonic modes it is not: minor pentatonic is [0,3,5,7,10], so index
+  // 4 is the b7 (10) and heat/gravel phrases ended on an unresolved tension
+  // instead of landing. Ask the active scale which degree actually IS the fifth
+  // rather than assuming its position.
+  const cadenceScale = ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)
+  const fifthDegree = cadenceScale.indexOf(7)
   const cadenceDur = behavior === 'hint' ? 2 : 4
   const cadenceSlot = Math.max(0, totalSlots - cadenceDur)
   events.push({
     absSlot: cadenceSlot,
-    degree: 4,
+    // No 7 in the scale at all (an exotic mode) — fall back to the chord root,
+    // which always resolves, rather than to a blind index.
+    degree: fifthDegree >= 0 ? fifthDegree : (chordDegrees[0] ?? 0),
     velocity: velocityFor(ctx, cadenceSlot),
   })
 

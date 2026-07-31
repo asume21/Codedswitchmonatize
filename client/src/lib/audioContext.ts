@@ -13,6 +13,21 @@ let sharedContext: AudioContext | null = null;
 let contextResumeAttempts = 0;
 const MAX_RESUME_ATTEMPTS = 3;
 
+/**
+ * Read the shared context WITHOUT creating it. Returns null if audio has never
+ * started on this page.
+ *
+ * For observers (telemetry, debug overlays, health checks) that want to report on
+ * the audio stack without instantiating it. getAudioContext() is not a passive
+ * read — it constructs an AudioContext, installs a Tone.Context over it and
+ * disposes Tone's orphan context — so calling it from a probe would spin the whole
+ * audio stack up as a side effect of measuring it, and report 'running' on a page
+ * that had no audio at all.
+ */
+export function peekAudioContext(): AudioContext | null {
+  return sharedContext;
+}
+
 export function getAudioContext(): AudioContext {
   if (!sharedContext) {
     // Tone.js eagerly creates its OWN default context at module import —

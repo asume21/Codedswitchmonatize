@@ -416,6 +416,63 @@ async function composeWithClaude(
   }
 }
 
+/**
+ * Gemini link. Returns null on any failure.
+ *
+ * Free tier, and the key was already in .env unused — the chain only ever tried
+ * Anthropic and Ollama, so with no Anthropic credits and no local Ollama every
+ * compose silently fell through to the deterministic scaffold.
+ *
+ * Model is 'gemini-flash-latest', NOT a pinned version, on purpose: a pinned
+ * 'gemini-2.0-flash' is exactly what broke here — Google retired it and the call
+ * started 404ing while the key stayed perfectly valid. The alias tracks whatever
+ * current flash is.
+ */
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest'
+
+async function composeWithGemini(
+  ctx: ReturnType<typeof buildPromptContext>,
+  scaffold: ArrangementPlan,
+): Promise<ArrangementPlan | null> {
+  const key = process.env.GEMINI_API_KEY
+  if (!key) return null
+  try {
+    // Key goes in a HEADER, never the query string: fetch failures put the full
+    // URL in err.message, and the catch below logs that — a `?key=` URL would
+    // write the API key straight into the server log.
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: ctx.systemPromptWithScores }] },
+          contents: [{ role: 'user', parts: [{ text: ctx.userMessage }] }],
+          generationConfig: { maxOutputTokens: 16000, responseMimeType: 'application/json' },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    )
+    if (!res.ok) {
+      console.warn(`[composer] Gemini compose failed: HTTP ${res.status} ${(await res.text()).slice(0, 180)}`)
+      return null
+    }
+    const data = await res.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>
+    }
+    const cand = data.candidates?.[0]
+    const text = (cand?.content?.parts ?? []).map(p => p.text ?? '').join('')
+    if (!text) {
+      console.warn(`[composer] Gemini returned no text (finishReason=${cand?.finishReason ?? 'unknown'})`)
+      return null
+    }
+    return validateBrainPlan(text, 'Gemini', scaffold, ctx.allowedTemplateIds, ctx.allowedStyleIds)
+  } catch (err) {
+    console.warn('[composer] Gemini compose failed:', (err as Error).message)
+    return null
+  }
+}
+
 /** Ollama link. Returns null on any failure. */
 async function composeWithOllama(
   ctx: ReturnType<typeof buildPromptContext>,
@@ -458,20 +515,77 @@ function clonePlan(plan: ArrangementPlan): ArrangementPlan {
   return { ...structuredClone(plan), id: randomUUID() }
 }
 
+// ── Brain registry ───────────────────────────────────────────────────
+// The old chain was a hardcoded sequence: try Claude (twice — fast mode, then
+// standard), then Ollama, then give up. It re-learned on EVERY request that the
+// Anthropic key is out of credits and that no Ollama is installed, so each section
+// burned three failed network calls before falling through, and the warnings
+// scrolled past while the music kept playing on the deterministic scaffold.
+//
+// Instead: declare the brains once, skip any that isn't configured, and when one
+// fails mark it cold for a cooldown so it is not retried on every bar. A dead API
+// key stops costing anything after the first attempt, and recovery is automatic
+// once the cooldown lapses (buy credits, start Ollama — no restart needed).
+type BrainName = 'claude' | 'gemini' | 'ollama'
+
+interface Brain {
+  name: BrainName
+  /** Cheap local check — is this brain even configured? No network. */
+  configured(): boolean
+  compose(
+    ctx: ReturnType<typeof buildPromptContext>,
+    scaffold: ArrangementPlan,
+  ): Promise<ArrangementPlan | null>
+}
+
+// Order = preference. Claude first when it has credits (best musical writer),
+// Gemini as the free everyday brain, Ollama last (local, only if installed).
+const BRAINS: Brain[] = [
+  { name: 'claude', configured: () => !!process.env.ANTHROPIC_API_KEY, compose: composeWithClaude },
+  { name: 'gemini', configured: () => !!process.env.GEMINI_API_KEY,    compose: composeWithGemini },
+  { name: 'ollama', configured: () => true,                            compose: composeWithOllama },
+]
+
+const BRAIN_COOLDOWN_MS = 10 * 60 * 1000
+const brainColdUntil = new Map<BrainName, number>()
+
+function brainIsCold(name: BrainName): boolean {
+  const until = brainColdUntil.get(name)
+  if (until == null) return false
+  if (Date.now() >= until) { brainColdUntil.delete(name); return false }
+  return true
+}
+
 class RelayComposer implements Composer {
   private async composeUncached(input: ComposerInput): Promise<{ plan: ArrangementPlan; fromLLM: boolean }> {
     const scaffold = buildDeterministicPlan(input)
     const ctx = buildPromptContext(input, scaffold)
-    // COMPOSER_BRAIN pins one link for isolated dev testing; unset = full chain.
+    // COMPOSER_BRAIN pins one brain for isolated dev testing; unset = full chain.
     const pin = process.env.COMPOSER_BRAIN
     if (pin === 'deterministic') return { plan: scaffold, fromLLM: false }
-    if (pin !== 'ollama') {
-      const claudePlan = await composeWithClaude(ctx, scaffold)
-      if (claudePlan) return { plan: claudePlan, fromLLM: true }
-      if (pin === 'claude') return { plan: scaffold, fromLLM: false }
+
+    const candidates = pin
+      ? BRAINS.filter(b => b.name === pin)
+      : BRAINS.filter(b => b.configured() && !brainIsCold(b.name))
+
+    if (candidates.length === 0) {
+      // Say so ONCE per cooldown window rather than silently sounding worse — a
+      // deterministic scaffold is a real musical downgrade, not a no-op.
+      console.warn('[composer] no brain available (all unconfigured or cooling) — deterministic scaffold')
+      return { plan: scaffold, fromLLM: false }
     }
-    const ollamaPlan = await composeWithOllama(ctx, scaffold)
-    return ollamaPlan ? { plan: ollamaPlan, fromLLM: true } : { plan: scaffold, fromLLM: false }
+
+    for (const brain of candidates) {
+      const plan = await brain.compose(ctx, scaffold)
+      if (plan) {
+        brainColdUntil.delete(brain.name)
+        console.log(`[composer] plan written by ${brain.name}`)
+        return { plan, fromLLM: true }
+      }
+      brainColdUntil.set(brain.name, Date.now() + BRAIN_COOLDOWN_MS)
+      console.warn(`[composer] ${brain.name} unavailable — cooling for ${BRAIN_COOLDOWN_MS / 60000}min`)
+    }
+    return { plan: scaffold, fromLLM: false }
   }
 
   async compose(input: ComposerInput): Promise<ArrangementPlan> {

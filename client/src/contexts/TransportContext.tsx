@@ -276,6 +276,30 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   const clearLoop = useCallback(() => { storeClearLoop(); }, [storeClearLoop]);
   const setTimeSignature = useCallback((sig: Partial<TimeSignature>) => { storeSetTs(sig); }, [storeSetTs]);
 
+  // Kill All Audio is a second entry point into "everything stops".
+  // stop() above funnels through it correctly, but the nav's Stop All button and
+  // the global Ctrl+Shift+K listener call killAllAudio() DIRECTLY — that path
+  // halts Tone.Transport (globalAudioKillSwitch.ts:99-107, via window.__toneRef)
+  // without ever telling this provider. Audio really stopped, but the store still
+  // said isPlaying, the RAF kept ticking the playhead, and the next Play went into
+  // a half-torn-down state.
+  //
+  // The kill switch already broadcasts 'globalAudio:stopAll' for exactly this kind
+  // of subsystem hand-off, so listen on that channel rather than adding another.
+  // Owner-side teardown ONLY — deliberately does not call killAllAudio() back, or
+  // stop() -> killAllAudio() -> here -> killAllAudio() would loop.
+  useEffect(() => {
+    const syncStoppedState = () => {
+      playEpochRef.current++;   // bail out any in-flight play() awaiting the ctx
+      clearRaf();
+      storeStop();
+      pianoRollScheduler.stop();
+      arrangementScheduler.stop();
+    };
+    window.addEventListener('globalAudio:stopAll', syncStoppedState);
+    return () => window.removeEventListener('globalAudio:stopAll', syncStoppedState);
+  }, [clearRaf, storeStop]);
+
   // Register as the single owner of Tone.Transport while this provider is
   // mounted. Other modules (GeneratorOrchestrator) call requestTransportStart()
   // through the controller and end up here. See lib/transportController.ts and

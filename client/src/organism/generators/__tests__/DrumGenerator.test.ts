@@ -14,6 +14,15 @@ import { DrumGenerator } from '../DrumGenerator'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
+/**
+ * loadGeneratedPattern(hits, force=true) defers rebuildPart through
+ * setTimeout(0) on purpose — the "TANK BUILD" yield that lets Tone's scheduler
+ * drain before a new Part is created (DrumGenerator.ts:346-354). Anything
+ * asserting on the REBUILT pattern after a forced load must let that macrotask
+ * run first, or it reads the state from before the rebuild.
+ */
+const flushForcedRebuild = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
 function makePhysics(overrides: Partial<PhysicsState> = {}): PhysicsState {
   return {
     bounce: 0.5, swing: 0.5, pocket: 0, presence: 0, density: 0.3,
@@ -151,7 +160,7 @@ describe('DrumGenerator', () => {
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
   })
 
-  it('keeps snare backbeats when section density is sparse', () => {
+  it('keeps snare backbeats when section density is sparse', async () => {
     const events: import('../../session/types').GeneratorEvent[] = []
     gen.setGeneratorEventSink(event => events.push(event))
     gen.setSectionDensity(0.25)
@@ -162,13 +171,14 @@ describe('DrumGenerator', () => {
       { instrument: DrumInstrument.Hat, time: '0:2:0', velocity: 0.5 },
       { instrument: DrumInstrument.Perc, time: '0:3:0', velocity: 0.4 },
     ], true)
+    await flushForcedRebuild()
 
     // With Bug 9 fixed, hats/perc are filtered out entirely in the sparse tier (< 0.45),
     // keeping only Kick and Snare.
     expect(events.map(event => event.pitch)).toEqual([36, 38])
   })
 
-  it('keeps default runtime pocket tight instead of dragging the kit late', () => {
+  it('keeps default runtime pocket tight instead of dragging the kit late', async () => {
     const mockRandom = vi.spyOn(Math, 'random').mockReturnValue(0.5)
     try {
       gen.loadGeneratedPattern([
@@ -176,6 +186,7 @@ describe('DrumGenerator', () => {
         { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
         { instrument: DrumInstrument.Hat, time: '0:0:1', velocity: 0.5 },
       ], true)
+      await flushForcedRebuild()
 
       const partMock = Tone.Part as unknown as {
         mock: {
@@ -249,7 +260,7 @@ describe('DrumGenerator', () => {
     expect(gen.swingAmount).toBe(0.05)
   })
 
-  it('applies genre-aware velocity profiles to hits', () => {
+  it('applies genre-aware velocity profiles to hits', async () => {
     gen.setEnabled(true)
     gen['lastKickTime'] = -100 // Avoid test-induced sidechain ducking
     
@@ -258,6 +269,7 @@ describe('DrumGenerator', () => {
     gen.loadGeneratedPattern([
       { instrument: DrumInstrument.Hat, time: '0:0:0', velocity: 0.5 }
     ], true)
+    await flushForcedRebuild()
     
     let partMock = Tone.Part as any
     let lastCall = partMock.mock.calls.at(-1)
@@ -274,6 +286,7 @@ describe('DrumGenerator', () => {
     gen.loadGeneratedPattern([
       { instrument: DrumInstrument.Hat, time: '0:0:0', velocity: 0.5 }
     ], true)
+    await flushForcedRebuild()
     
     partMock = Tone.Part as any
     lastCall = partMock.mock.calls.at(-1)
@@ -284,12 +297,13 @@ describe('DrumGenerator', () => {
     expect(spy).toHaveBeenCalledWith(DrumInstrument.Hat, expect.any(Number), 0.9, 0.5)
   })
 
-  it('supports pattern locking and unlocking', () => {
+  it('supports pattern locking and unlocking', async () => {
     const hits = [
       { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
       { instrument: DrumInstrument.Snare, time: '0:2:0', velocity: 0.8 },
     ]
     gen.loadGeneratedPattern(hits, true)
+    await flushForcedRebuild()
     
     expect(gen.isPatternLocked()).toBe(false)
     
@@ -377,14 +391,17 @@ describe('DrumGenerator', () => {
     gen.loadGeneratedPattern(hits, false)
     expect(rebuildSpy).not.toHaveBeenCalled()
     
-    performance.now = vi.fn().mockReturnValue(1600)
+    // MIN_REBUILD_INTERVAL_MS is 900 (DrumGenerator.ts:335). This step used to
+    // advance to 1600 — only a 600ms gap — which the throttle correctly rejects.
+    // Advance past the real interval instead of encoding a stale 500ms guess.
+    performance.now = vi.fn().mockReturnValue(1000 + 900 + 1)
     gen.loadGeneratedPattern(hits, false)
     expect(rebuildSpy).toHaveBeenCalledTimes(1)
     
     performance.now = originalNow
   })
 
-  it('broadcasts beat pattern to BeatMaker and deduplicates it', () => {
+  it('broadcasts beat pattern to BeatMaker and deduplicates it', async () => {
     const originalWindow = global.window
     const dispatchSpy = vi.fn()
     global.window = { dispatchEvent: dispatchSpy } as any
@@ -394,6 +411,7 @@ describe('DrumGenerator', () => {
     ]
     
     gen.loadGeneratedPattern(hits, true)
+    await flushForcedRebuild()
     expect(dispatchSpy).toHaveBeenCalledTimes(1)
     
     const event = dispatchSpy.mock.calls[0][0]

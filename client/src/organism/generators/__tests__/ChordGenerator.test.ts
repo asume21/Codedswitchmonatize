@@ -100,7 +100,9 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
       expect(mockPartStart).not.toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(true)
 
-      nowSpy.mockReturnValue(1600)
+      // MIN_REBUILD_INTERVAL_MS is 900, so 1600 is only a 600ms gap and the
+      // rebuild is still (correctly) throttled. Advance past the real interval.
+      nowSpy.mockReturnValue(1000 + 900 + 1)
       gen.processFrame(physics, organism)
       expect(mockPartStart).toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(false)

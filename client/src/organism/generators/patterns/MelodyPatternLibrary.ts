@@ -7,7 +7,18 @@ import type { OrganismMode } from '../../physics/types'
 // Tuned for hip-hop: dark minor scales for trap/drill, soulful for boom-bap, jazzy for lo-fi
 export const MODE_SCALES: Record<string, number[]> = {
   heat:   [0, 3, 5, 7, 10],               // minor pentatonic — dark trap melodies
-  ice:    [0, 2, 3, 5, 7, 10, 11],        // natural minor + maj7 — jazzy lo-fi
+  // Was [0, 2, 3, 5, 7, 10, 11] "natural minor + maj7". Two problems: natural
+  // minor is [0,2,3,5,7,8,10] so the b6 (8) was missing entirely, and it carried
+  // BOTH the b7 (10) and the maj7 (11) — adjacent semitones, both freely
+  // selectable by the degree picker, so the melody could land a half-step off the
+  // chord's own 7th and clash. The comment named two things that can't coexist in
+  // one pick-any-degree scale.
+  // Resolved to plain natural minor: it is the base the comment names first, it
+  // restores the missing b6, and it removes the clash. If the jazzy maj7 colour is
+  // wanted back, it belongs as a deliberate passing/approach tone on the way
+  // somewhere — not as a degree the picker can choose at random. That is the
+  // difference between intentional and accidental.
+  ice:    [0, 2, 3, 5, 7, 8, 10],          // natural minor — jazzy lo-fi
   smoke:  [0, 3, 5, 6, 7, 10],            // blues scale — soulful boom-bap
   gravel: [0, 3, 5, 7, 10],               // minor pentatonic — drill, same as heat but lower octave
   glow:      [0, 2, 4, 7, 9],                // major pentatonic — chill, warm

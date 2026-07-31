@@ -91,6 +91,10 @@ export class GeneratorOrchestrator {
   private melodyPitchOffset:      number = 0
   private melodyVolumeMultiplier: number = 1.0
   private textureVolumeMultiplier: number = 1.0
+  // Chord was the only role WITHOUT a stored multiplier, so nothing could restore
+  // the user's chord level — setMelodyOnly(false) hardcoded 1.0 while its melody and
+  // texture neighbours read their stored values. Store it like the others.
+  private chordVolumeMultiplier:  number = 1.0
   // Part 2: the reactive*Multiplier and selfListenGainCorrection fields are gone.
   // The MixEngine owns the mix; generator volume = the user/base multiplier only.
 
@@ -157,6 +161,9 @@ export class GeneratorOrchestrator {
   // silently leaves the director in jam mode forever (section stays 'none' and
   // no arrangement ever runs). Verified live via window.__orgDebug().
   private arrangementEnabled: boolean = false
+  /** STEADY (false) = the band plays through regardless of the mic, like a produced
+   *  beat. REACTIVE (true) = the band responds to the MC's voice. See onFrame. */
+  private voiceReactive: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -570,6 +577,10 @@ export class GeneratorOrchestrator {
     this.bass.reset()
     this.melody.reset()
     this.chord.reset()
+    // reset() only gain-ramps the texture's continuous pink-noise/riser bed to 0;
+    // on a full stop the source must actually be STOPPED or it can keep sounding
+    // after Transport halts (the ghost texture that previously needed Kill All).
+    this.texture.hardSilence()
     ;[this.drum, this.bass, this.melody, this.chord, this.texture]
       .forEach(g => g.stopLoopPlayback())
 
@@ -1072,11 +1083,29 @@ export class GeneratorOrchestrator {
     this.texture.setEnabled(enabled)
     if (!enabled) {
       this.texture.applyVolumeMultiplier(0)
+    } else {
+      // applyVolumeMultiplier PERSISTS the value (TextureGenerator sets
+      // this.textureVolumeMultiplier = m), so the disable branch above writes 0 into
+      // the generator's own field. Without this restore, Texture off -> on left the
+      // pad/keys permanently silent at multiplier 0 while every UI control said it
+      // was on. Same shape as setMelodyOnly's restore path just above.
+      this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
     }
   }
 
   isTextureEnabled(): boolean {
     return this.textureEnabled
+  }
+
+  /** REACTIVE = the band responds to the MC's voice (thins out, drops energy,
+   *  answers rests). STEADY = it plays through like a produced beat. See onFrame
+   *  for the full list of behaviours this gates. */
+  setVoiceReactive(enabled: boolean): void {
+    this.voiceReactive = enabled
+  }
+
+  isVoiceReactive(): boolean {
+    return this.voiceReactive
   }
 
   /**
@@ -1119,7 +1148,9 @@ export class GeneratorOrchestrator {
       this.chord.applyArrangementMultiplier(1.0)
       if (this.textureEnabled) this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
       this.melody.applyVolumeMultiplier(this.melodyVolumeMultiplier)
-      this.chord.applyVolumeMultiplier(1.0)
+      // Was hardcoded 1.0 — it discarded whatever the user had set on the chord
+      // slider every time Melody-Only was switched off.
+      this.chord.applyVolumeMultiplier(this.chordVolumeMultiplier)
     }
     // Force applyArrangement to re-evaluate on next bar so multipliers
     // converge to the current section.
@@ -1291,7 +1322,8 @@ export class GeneratorOrchestrator {
   }
 
   setChordVolumeMultiplier(multiplier: number): void {
-    this.chord.applyVolumeMultiplier(Math.max(0, multiplier))
+    this.chordVolumeMultiplier = Math.max(0, multiplier)
+    this.chord.applyVolumeMultiplier(this.chordVolumeMultiplier)
   }
 
   /**
@@ -1408,6 +1440,26 @@ export class GeneratorOrchestrator {
   private onFrame(physics: PhysicsState, organism: OrganismState | null): void {
     if (!organism) return
 
+    // ── STEADY vs REACTIVE (user-facing mode, default STEADY) ──
+    // Seven places downstream change the music when a voice is detected: the
+    // melody's behaviour/density (MelodyGenerator:700), its velocity floor (:1186),
+    // its motif bank (motifSelection:36), a Lead-mode condition (:1357), the
+    // chord duet answer (maybeAnswerMelodyRest below, and duet.ts:93).
+    //
+    // In STEADY mode we gate the SIGNAL here rather than patching all seven: they
+    // all read this one field, so forcing it false makes the whole band behave as
+    // if it were playing instrumentally — full energy, no backing off, no flinch.
+    //
+    // Why steady is the default: no record does this. As the user put it, listening
+    // to a rap song you never hear the beat stop doing something because the
+    // vocalist came in — the music keeps playing and the vocal goes over it.
+    // Producers write the space in and mix it once; they do not duck live. The
+    // reactive path is kept because a live band answering an MC is a real musical
+    // idea worth having, just not the default for beats you rap over.
+    if (!this.voiceReactive) {
+      physics = { ...physics, voiceActive: false }
+    }
+
     // Throttle: physics fires at ~30fps but generators only need ~14fps.
     // Processing every frame creates 215 gain ramp evaluations/sec across 5
     // generators, flooding the Web Audio scheduler and causing crackling.
@@ -1513,7 +1565,17 @@ export class GeneratorOrchestrator {
     this.drum.setGenreTarget(subGenre)
     // Jam mode (no arrangement): this is the band's style — publish it as the
     // one authoritative song-cell key so all generators share one idea.
-    setSongCellStyle(subGenre)
+    //
+    // The guard makes that comment true. Unguarded, this also fired in song mode,
+    // where scoreSection() (see setSongCellStyle below, ~line 1949) is the real
+    // owner and publishes `aiOverride?.subGenre ?? musicalState.subGenre`. With an
+    // AIDirector directive live the two disagree — this writes the physics
+    // classifier's sub-genre, that writes the AI's — and since a DIFFERENT style
+    // re-rolls the salt, the whole band's cell key could change partway through a
+    // section that is supposed to be a locked loop.
+    if (!this.arrangementEnabled) {
+      setSongCellStyle(subGenre)
+    }
 
     // Rebuild drum pattern with sub-genre-specific variant.
     // force=true bypasses the 500ms throttle so a preset's subgenre pattern
