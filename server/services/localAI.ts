@@ -30,8 +30,12 @@ interface OllamaResponse {
  *
  * 3b, not 7b/8b, is a deliberate choice recorded in Dockerfile.ollama: "llama3.2:3b
  * (2GB Q4) — safe within 8GB RAM". It also has to answer a JSON consult inside
- * conductorBrain's 6s budget (client aborts at 8s), which a 7B on CPU will not
- * reliably do. codellama is tuned for source code, not musical decisions.
+ * conductorBrain's shared 12s deadline (client aborts at 15s), and the 8B measured
+ * 9.7s cold on the Railway CPU service — slow enough that hanging up made Ollama
+ * abort its own model load, so it could never warm up. codellama is tuned for
+ * source code, not musical decisions.
+ * (This comment previously cited a 6s budget and an 8s client abort. Both were
+ * raised; a stale number here is how the next person mis-sizes a model.)
  */
 export const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL?.trim() || 'llama3.2:3b';
 

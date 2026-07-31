@@ -141,11 +141,20 @@ export const conductorBrain = {
     let raw: string | null = null
     let brainName = ''
     try {
+      // ONE deadline for the whole consult, shared by every brain — not one budget
+      // each. Two brains that each get the full 12s can take 24s in sequence, which
+      // blows past AIDirector's 15s abort: the client gives up while the server is
+      // still computing an answer nobody will ever read. (Measured in production
+      // before this fix: 16.3s.) Ollama gets at most half so a slow-but-alive local
+      // model can never starve the fallback of time to answer.
+      const deadline = Date.now() + OLLAMA_CONSULT_TIMEOUT_MS
+      const remainingMs = () => Math.max(0, deadline - Date.now())
+
       if (!conductorIsCold('ollama')) {
         try {
           raw = await localAI.chat(
             [{ role: 'system', content: system }, { role: 'user', content: user }],
-            { format: 'json', temperature: 0.5, timeoutMs: OLLAMA_CONSULT_TIMEOUT_MS },
+            { format: 'json', temperature: 0.5, timeoutMs: Math.min(OLLAMA_CONSULT_TIMEOUT_MS / 2, remainingMs()) },
           )
           brainName = 'Ollama'
         } catch (e) {
@@ -153,9 +162,11 @@ export const conductorBrain = {
           console.warn('[conductorBrain] Ollama unavailable — cooling 10min:', (e as Error).message)
         }
       }
-      if (!raw && !conductorIsCold('gemini')) {
+      // Only what's LEFT of the shared deadline. Below ~1s there is no point paying
+      // for a round trip that cannot finish — ship the scaffold instead.
+      if (!raw && !conductorIsCold('gemini') && remainingMs() > 1000) {
         try {
-          raw = await geminiConsult(system, user, OLLAMA_CONSULT_TIMEOUT_MS)
+          raw = await geminiConsult(system, user, remainingMs())
           brainName = 'Gemini'
         } catch (e) {
           conductorColdUntil.set('gemini', Date.now() + CONDUCTOR_COOLDOWN_MS)
