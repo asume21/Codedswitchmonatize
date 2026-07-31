@@ -609,8 +609,15 @@ export class UnifiedMusicService {
         const message = typeof err?.message === "string" ? err.message : "";
         console.warn("MusicGen replicate error, attempting local fallback:", message);
 
-        if (!process.env.PRIVATE_OBJECT_DIR) {
-          throw new Error("Music provider temporarily unavailable. Please configure PRIVATE_OBJECT_DIR to enable fallback.");
+        // PRIVATE_OBJECT_DIR is a Replit-era variable that is NOT set on Railway, so
+        // this gate disabled the local fallback exactly where it was needed: when
+        // Replicate failed in production, users got "please configure
+        // PRIVATE_OBJECT_DIR" instead of the fallback that exists to cover it.
+        // LOCAL_OBJECTS_DIR is the storage root the rest of the app actually uses and
+        // is always set at boot (index.ts / index.prod.ts), so accept either.
+        const fallbackDir = process.env.PRIVATE_OBJECT_DIR || process.env.LOCAL_OBJECTS_DIR;
+        if (!fallbackDir) {
+          throw new Error("Music provider temporarily unavailable and no local storage root is configured.");
         }
 
         try {

@@ -10,23 +10,11 @@ import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 
-// Require critical env vars in production. Keep /api/health reachable even if
-// optional app configuration is missing; deploy platforms need the process to
-// bind before they can report a healthy rollout.
-if (!process.env.SESSION_SECRET) {
-  console.error('❌ FATAL: SESSION_SECRET environment variable is required in production');
-  process.exit(1);
-}
-if (!process.env.AUTH_TOKEN_SECRET) {
-  console.error('❌ FATAL: AUTH_TOKEN_SECRET environment variable is required in production');
-  process.exit(1);
-}
-if (!process.env.APP_URL) {
-  console.warn('⚠️ APP_URL not set — CSP connectSrc/canonical redirects may be limited');
-}
-if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
-  console.warn(`⚠️  OWNER_KEY is ${process.env.OWNER_KEY.length} chars — admin bypass requires ≥32. Rotate the key to re-enable x-owner-key auth.`);
-}
+// Env validation lives in validateEnv() below — a single checklist rather than
+// scattered ifs. Four separate top-of-file checks (SESSION_SECRET,
+// AUTH_TOKEN_SECRET, APP_URL, OWNER_KEY) used to sit here and are now folded into
+// it, so there is ONE place that answers "what does production require" instead
+// of two that can drift apart.
 
 const app = express();
 
@@ -42,6 +30,86 @@ app.get("/api/health", (_req: Request, res: Response) => {
 app.set('trust proxy', 1);
 
 // Security headers
+// ── Boot-time env validation ────────────────────────────────────────
+// Ported from server/index.ts, which never runs in production (esbuild builds
+// THIS file). Every one of these guards existed, was carefully written, and was
+// filed in the one entrypoint that could not enforce it — so review saw
+// "validated" while production booted unvalidated.
+//
+// Safe to add: all five were verified SET on the production service before this
+// shipped, so it cannot fire on the current deployment. It is here to catch the
+// day one goes missing, renamed, or lost in a service migration — a Stripe
+// secret vanishing should stop the boot, not silently corrupt the credit ledger.
+function validateEnv(): { sessionSecret: string } {
+  const missing: string[] = [];
+  if (!process.env.SESSION_SECRET) missing.push("SESSION_SECRET");
+  if (!process.env.AUTH_TOKEN_SECRET) missing.push("AUTH_TOKEN_SECRET");
+  if (!process.env.STRIPE_SECRET_KEY) missing.push("STRIPE_SECRET_KEY");
+  if (!process.env.STRIPE_WEBHOOK_SECRET) missing.push("STRIPE_WEBHOOK_SECRET");
+  if (!process.env.DATABASE_URL && !process.env.DATABASE_PUBLIC_URL) {
+    missing.push("DATABASE_URL (or DATABASE_PUBLIC_URL)");
+  }
+  if (missing.length > 0) {
+    console.error(`❌ FATAL: missing required env vars in production: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+  if (process.env.OWNER_KEY && process.env.OWNER_KEY.length < 32) {
+    console.warn("⚠️  OWNER_KEY < 32 chars — admin bypass disabled until rotated");
+  }
+  const aiKeys = [
+    process.env.XAI_API_KEY, process.env.OPENAI_API_KEY,
+    process.env.GEMINI_API_KEY, process.env.REPLICATE_API_TOKEN,
+  ].filter(Boolean);
+  if (aiKeys.length === 0) {
+    console.warn("⚠️  no AI provider keys set (XAI/OPENAI/GEMINI/REPLICATE) — generation routes will 500");
+  }
+  if (!process.env.APP_URL) {
+    console.warn("⚠️  APP_URL not set — CSP connectSrc and CORS may be too tight");
+  }
+  // Hand the validated secret back rather than letting callers re-read process.env.
+  // The top-of-file `if (!SESSION_SECRET) process.exit(1)` this replaced was also
+  // acting as a TYPE GUARD: deleting it turned SESSION_SECRET back into
+  // `string | undefined` and broke the session config below (caught by tsc, not by
+  // any test). Returning it keeps the guarantee in the type system instead of in a
+  // side effect, so it cannot be lost again by moving code around.
+  return { sessionSecret: process.env.SESSION_SECRET as string };
+}
+const { sessionSecret } = validateEnv();
+
+// ── CORS ────────────────────────────────────────────────────────────
+// Also index.ts-only until now, which meant CORS_ALLOWED_ORIGINS did NOTHING in
+// production: it could be set in the dashboard and would never be read.
+// Additive by construction — it only ATTACHES headers for an allowed origin and
+// answers preflight. It never rejects a request, so it cannot break traffic that
+// works today (CORS is enforced by browsers, not by this server).
+const normalizeOrigin = (value: string) => {
+  try { return new URL(value).origin; } catch { return value.replace(/\/$/, ""); }
+};
+const rawAllowedOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(",").map(o => o.trim()).filter(Boolean) ?? [];
+const allowedOrigins = (rawAllowedOrigins.length
+  ? rawAllowedOrigins
+  : [process.env.APP_URL || ""].filter(Boolean)
+).map(normalizeOrigin);
+const hasWildcardOrigin = allowedOrigins.includes("*");
+const isAllowedOrigin = (originHeader?: string) => {
+  if (!originHeader) return false;
+  if (hasWildcardOrigin) return true;
+  return allowedOrigins.includes(normalizeOrigin(originHeader));
+};
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -152,7 +220,7 @@ if (hasDatabase) {
 app.use(
   session({
     store: sessionStore,
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,   // validated at boot — see validateEnv()
     resave: false,
     saveUninitialized: false,
     proxy: true,

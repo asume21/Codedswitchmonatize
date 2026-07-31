@@ -8,9 +8,16 @@ const VOICES_DIR = path.resolve(process.cwd(), "objects", "voices");
 const INDEX_FILE = path.join(VOICES_DIR, "index.json");
 
 // RVC API configuration
-const RVC_API_URL = process.env.RVC_API_URL || "http://localhost:7870";
-if (!process.env.RVC_API_URL && process.env.NODE_ENV === 'production') {
-  console.warn('⚠️  RVC_API_URL not set — voice conversion will fail in production');
+// The localhost default is a DEV convenience and must not apply in production:
+// there, localhost:7870 is this container itself, so every conversion opened a
+// doomed connection to its own port and surfaced a confusing connect error rather
+// than "this feature isn't configured". Empty in prod means the health check below
+// fails immediately and honestly.
+const RVC_API_URL = process.env.RVC_API_URL
+  || (process.env.NODE_ENV === 'production' ? "" : "http://localhost:7870");
+if (!RVC_API_URL && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  RVC_API_URL not set — RVC voice conversion is DISABLED in production '
+    + '(ElevenLabs speech-to-speech is unaffected and still available).');
 }
 const ELEVENLABS_API_URL = process.env.ELEVENLABS_API_URL || "https://api.elevenlabs.io/v1";
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || "";
