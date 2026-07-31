@@ -161,6 +161,9 @@ export class GeneratorOrchestrator {
   // silently leaves the director in jam mode forever (section stays 'none' and
   // no arrangement ever runs). Verified live via window.__orgDebug().
   private arrangementEnabled: boolean = false
+  /** STEADY (false) = the band plays through regardless of the mic, like a produced
+   *  beat. REACTIVE (true) = the band responds to the MC's voice. See onFrame. */
+  private voiceReactive: boolean = false
   private lastArrangementBar: number = -1
   private lastArrangementSection: string = ''
   private lastPlanSectionLoadBar: number = -1
@@ -1094,6 +1097,17 @@ export class GeneratorOrchestrator {
     return this.textureEnabled
   }
 
+  /** REACTIVE = the band responds to the MC's voice (thins out, drops energy,
+   *  answers rests). STEADY = it plays through like a produced beat. See onFrame
+   *  for the full list of behaviours this gates. */
+  setVoiceReactive(enabled: boolean): void {
+    this.voiceReactive = enabled
+  }
+
+  isVoiceReactive(): boolean {
+    return this.voiceReactive
+  }
+
   /**
    * Melody-only mode — silences drums, bass, and texture so the melody
    * generator plays solo. Ideal for freestyling: the user hears only the
@@ -1425,6 +1439,26 @@ export class GeneratorOrchestrator {
 
   private onFrame(physics: PhysicsState, organism: OrganismState | null): void {
     if (!organism) return
+
+    // ── STEADY vs REACTIVE (user-facing mode, default STEADY) ──
+    // Seven places downstream change the music when a voice is detected: the
+    // melody's behaviour/density (MelodyGenerator:700), its velocity floor (:1186),
+    // its motif bank (motifSelection:36), a Lead-mode condition (:1357), the
+    // chord duet answer (maybeAnswerMelodyRest below, and duet.ts:93).
+    //
+    // In STEADY mode we gate the SIGNAL here rather than patching all seven: they
+    // all read this one field, so forcing it false makes the whole band behave as
+    // if it were playing instrumentally — full energy, no backing off, no flinch.
+    //
+    // Why steady is the default: no record does this. As the user put it, listening
+    // to a rap song you never hear the beat stop doing something because the
+    // vocalist came in — the music keeps playing and the vocal goes over it.
+    // Producers write the space in and mix it once; they do not duck live. The
+    // reactive path is kept because a live band answering an MC is a real musical
+    // idea worth having, just not the default for beats you rap over.
+    if (!this.voiceReactive) {
+      physics = { ...physics, voiceActive: false }
+    }
 
     // Throttle: physics fires at ~30fps but generators only need ~14fps.
     // Processing every frame creates 215 gain ramp evaluations/sec across 5

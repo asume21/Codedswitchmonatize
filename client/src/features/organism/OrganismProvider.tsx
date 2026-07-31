@@ -328,6 +328,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [songModeEnabled,     setSongModeEnabledState]     = useState(true)
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
   const songModeEnabledRef = useRef(true)
+  // Needed by applyStablePlaybackDefaults (empty deps — it can only read refs).
+  // Without it a preset swap would silently reset the band to steady, which is the
+  // same shape as the texture-volume bug fixed in 801af915.
+  const reactToVoiceEnabledRef = useRef(false)
   // Loops Mode — play back loop packs instead of generating audio.
   const [loopsModeEnabled, setLoopsModeEnabledState] = useState(false)
   const loopsModeEnabledRef = useRef(false)
@@ -1246,6 +1250,9 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Bass soloed — audible as a phantom second instrument under the solo.
     orchestr.setTextureVolumeMultiplier(textureEnabledRef.current ? textureVolumeRef.current : 0)
     orchestr.setTextureEnabled(textureEnabledRef.current)
+    // Re-assert the voice mode: this runs after every preset swap and on
+    // silent-start recovery, and a fresh orchestrator defaults to steady.
+    orchestr.setVoiceReactive(reactToVoiceEnabledRef.current)
   }, [])
 
   const seedSongRamp = useCallback((seedPhysics: PhysicsState) => {
@@ -3695,7 +3702,15 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }
       setError(null)
       setReactToVoiceEnabledState(enabled)
+      reactToVoiceEnabledRef.current = enabled
       reactiveRef.current?.setEnabled(enabled)
+      // This toggle used to stop ONLY the ReactiveBehaviorEngine's ducking. The
+      // generators read physics.voiceActive directly and never consulted it, so
+      // with "React to Voice" OFF the melody still thinned out and dropped its
+      // velocity floor the moment the mic heard you — the switch half-worked.
+      // Now it gates both, so OFF genuinely means the band plays through like a
+      // produced beat.
+      orchestrRef.current?.setVoiceReactive(enabled)
     },
     songModeEnabled,
     setSongModeEnabled: (enabled: boolean) => {

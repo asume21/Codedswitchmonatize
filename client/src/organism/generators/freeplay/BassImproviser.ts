@@ -5,6 +5,7 @@ import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
 import { midiToNote, swungTime, jitterVel } from './utils'
 import { getSongCell } from './songCell'
+import { bassVelocityForJob } from './score'
 
 /** Same register rule as BassGenerator.bassRootFromMidi (33..48, pitch class kept). */
 function clampToBassRegister(midi: number): number {
@@ -240,10 +241,22 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
         ? (gap >= 8 ? '2n' : gap >= 4 ? '4n' : '8n')
         : (gap >= 4 ? '4n' : gap >= 2 ? '8n' : '16n')
 
+      // Velocity is DERIVED from the note's job, not rolled. bassVelocityForJob
+      // weighs the downbeat anchor, whether it lands with the kick, whether the
+      // lead is busy in this slot (so the bass makes room without any live
+      // ducking), the section energy, and how far into the phrase we are. Same
+      // position always gives the same weight, so a locked section still repeats
+      // byte-identically — the variety comes from POSITION, not from dice.
       notes.push({
         pitch: midiToNote(pitchMidi),
         duration: dur,
-        velocity: jitterVel(isDownbeat ? 0.9 : 0.72, ctx.rng),
+        velocity: bassVelocityForJob({
+          slot, bar, bars: ctx.bars,
+          kickSlots: ctx.kickTimes16ths,
+          leadBusy: ctx.leadBusy16ths,
+          energy: ctx.energy,
+          isResolution: isFinalBar && i === barSlots.length - 1,
+        }),
         time: swungTime(bar, slot, ctx.swing),
       })
     })
