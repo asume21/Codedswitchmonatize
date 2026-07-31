@@ -207,6 +207,29 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Refuse to boot in production without a database.
+  //
+  // This guard existed ONLY in server/index.ts — which never runs in production
+  // (esbuild.config.js builds THIS file; package.json start and the Dockerfile CMD
+  // both run its bundle). So the protection was real, carefully commented, and
+  // filed in the one entrypoint that could never enforce it.
+  //
+  // Without it a missing DATABASE_URL logs a warning and boots on MemStorage: the
+  // app comes up looking healthy and serves traffic while every user, session and
+  // credit balance lives in RAM and is wiped on the next restart. No crash, no
+  // alert, silent data loss — the worst possible failure mode for the one thing
+  // that must not fail quietly.
+  //
+  // Safe to add: DATABASE_URL is confirmed set on the production service, so this
+  // cannot fire on the current deployment. It exists to catch the day it is
+  // removed, renamed, or lost in a service migration.
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction && !databaseUrl) {
+    console.error('❌ FATAL: refusing to boot in production without DATABASE_URL — ' +
+      'MemStorage would wipe every user, session and credit balance on restart.');
+    process.exit(1);
+  }
+
   // Choose storage implementation
   const storage: IStorage = databaseUrl
     ? new DatabaseStorage()
