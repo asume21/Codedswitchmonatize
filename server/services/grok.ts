@@ -1,3 +1,4 @@
+import { OLLAMA_DEFAULT_MODEL } from './localAI';
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 
@@ -7,7 +8,10 @@ type AIProvider = 'ollama' | 'grok' | 'openai';
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL?.trim(); // e.g. http://localhost:11434
-const ollamaModel = process.env.OLLAMA_MODEL?.trim() || 'llama3.1:8b';
+// Was an independent `|| 'llama3.1:8b'` guess — a different default from the one
+// localAI uses, so an unset OLLAMA_MODEL meant these two asked Ollama for
+// different models. One source of truth now.
+const ollamaModel = OLLAMA_DEFAULT_MODEL;
 
 // Debug logging for API key detection
 console.log('🔑 AI API Key Status:');

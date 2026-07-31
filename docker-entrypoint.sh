@@ -30,9 +30,12 @@ if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "⚠️ Ollama did not start in time, continuing anyway (will use cloud fallback)"
 fi
 
-# Verify/pull configured model (default llama3.1:8b)
+# Verify/pull configured model. Default MUST match server/services/localAI.ts
+# (OLLAMA_DEFAULT_MODEL) and Dockerfile.ollama — this said llama3.1:8b while the
+# app asked for llama3.2:3b, so an unset OLLAMA_MODEL pulled one and requested
+# the other.
 echo "📦 OLLAMA_MODEL env: ${OLLAMA_MODEL}"
-MODEL_NAME=${OLLAMA_MODEL:-llama3.1:8b}
+MODEL_NAME=${OLLAMA_MODEL:-llama3.2:3b}
 echo "📦 Verifying model: $MODEL_NAME"
 if ollama list 2>/dev/null | grep -q "$MODEL_NAME"; then
     echo "✅ Model '$MODEL_NAME' is ready"

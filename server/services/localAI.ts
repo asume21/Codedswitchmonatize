@@ -20,6 +20,21 @@ interface OllamaResponse {
   done: boolean;
 }
 
+/**
+ * THE default Ollama model. Every caller must resolve OLLAMA_MODEL through this —
+ * it was previously guessed independently in three places (localAI 'llama3.2:3b',
+ * grok.ts 'llama3.1:8b', docker-entrypoint.sh 'llama3.1:8b') plus a hand-edited
+ * 'codellama:7b' in the Railway start command. Whenever OLLAMA_MODEL was unset the
+ * server pulled one model and the app asked for another, so Ollama answered "model
+ * not found" even when the service was healthy and reachable.
+ *
+ * 3b, not 7b/8b, is a deliberate choice recorded in Dockerfile.ollama: "llama3.2:3b
+ * (2GB Q4) — safe within 8GB RAM". It also has to answer a JSON consult inside
+ * conductorBrain's 6s budget (client aborts at 8s), which a 7B on CPU will not
+ * reliably do. codellama is tuned for source code, not musical decisions.
+ */
+export const OLLAMA_DEFAULT_MODEL = process.env.OLLAMA_MODEL?.trim() || 'llama3.2:3b';
+
 export class LocalAIService {
   private baseUrl: string;
   private defaultModel: string;
@@ -29,7 +44,7 @@ export class LocalAIService {
 
   constructor(
     baseUrl: string = process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    defaultModel: string = process.env.OLLAMA_MODEL || 'llama3.2:3b',
+    defaultModel: string = OLLAMA_DEFAULT_MODEL,
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultModel = defaultModel;
