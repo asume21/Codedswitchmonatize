@@ -64,7 +64,19 @@ async function geminiConsult(system: string, user: string, timeoutMs: number): P
 }
 import { localAI } from './localAI'
 
-const OLLAMA_CONSULT_TIMEOUT_MS = 6000
+// Was 6000. Measured on the Railway CPU service: ~4.9s warm, ~9.7s cold — so a 6s
+// budget cut off answers that were on their way, and worse, hanging up mid-load made
+// Ollama ABORT the model load ("client connection closed before llama-server finished
+// loading"), so it could never warm up and every call paid full cold-start forever.
+//
+// The real deadline is not a fixed number: AIDirector prefetches section N+1 the
+// moment section N starts, so the budget is one section's duration — ~10.7s for 4
+// bars at 90 BPM, ~21s for 8. 12s fits the warm case with wide margin and lets a
+// cold load finish instead of being killed halfway.
+//
+// MUST stay below AIDirector's FETCH_TIMEOUT_MS (15s) so the server returns the
+// deterministic scaffold itself rather than the client aborting blind.
+const OLLAMA_CONSULT_TIMEOUT_MS = Number(process.env.OLLAMA_CONSULT_TIMEOUT_MS) || 12000
 
 const SUB_GENRES = ['trap', 'boom-bap', 'drill', 'r&b-soul', 'afrobeats'] as const
 const GROOVES = ['straight', 'swing', 'triplet'] as const

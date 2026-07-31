@@ -28,7 +28,15 @@ export interface AIBeatDirective {
 // Matches the GeneratorOrchestrator's ARRANGEMENT section order
 const SECTION_ORDER = ['intro', 'verse', 'build', 'drop', 'breakdown', 'drop2']
 
-const FETCH_TIMEOUT_MS = 8000
+// Was 8000, which was tighter than the architecture needs. This call is a PREFETCH:
+// it fires when section N starts and is only needed when N+1 begins, so the budget is
+// one section — ~10.7s for 4 bars at 90 BPM, ~21s for 8. Measured server-side on CPU
+// inference: ~4.9s warm, ~9.7s cold, both of which 8s was discarding.
+// Kept above the server's 12s consult budget so the server answers with its scaffold
+// rather than this aborting first. Arriving late is harmless — the directive is
+// cached and applied at the next boundary, and the hardcoded arrangement covers the
+// gap. Music never stops either way.
+const FETCH_TIMEOUT_MS = 15000
 
 export class AIDirector {
   private orchestrator: GeneratorOrchestrator
