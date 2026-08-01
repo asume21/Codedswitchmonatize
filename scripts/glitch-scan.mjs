@@ -34,7 +34,7 @@ for (const path of process.argv.slice(2)) {
   if (run >= minRun) { dropouts++; dropSamples += run }
   const secs = (x.length / rate).toFixed(1)
   console.log(
-    path.split(/[\/]/).slice(-2).join('/').padEnd(34),
+    path.split(/[/]/).slice(-2).join('/').padEnd(34),
     `${secs}s  dropouts=${String(dropouts).padStart(3)}  silent=${(dropSamples / rate * 1000).toFixed(0)}ms  clicks=${String(clicks).padStart(5)}  maxJump=${maxJump.toFixed(2)}`,
   )
 }
