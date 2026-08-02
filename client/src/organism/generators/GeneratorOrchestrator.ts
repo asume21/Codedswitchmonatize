@@ -160,6 +160,14 @@ export class GeneratorOrchestrator {
   // early-returns when the value already matches. So defaulting this to `true`
   // silently leaves the director in jam mode forever (section stays 'none' and
   // no arrangement ever runs). Verified live via window.__orgDebug().
+  // Every deferred rebuild goes through this.later() so stop()/dispose() can cancel
+  // it. 24 bare setTimeout calls used to queue generator rebuilds 40-280ms out with
+  // nobody holding the ids: stopping (or unmounting) right after a state transition
+  // let an already-queued callback rebuild Tone parts and restart texture sources
+  // AFTER the user stopped — ghost playback, or work left behind for the next play.
+  private pendingTimers = new Set<ReturnType<typeof setTimeout>>()
+  private disposed = false
+
   private arrangementEnabled: boolean = false
   /** STEADY (false) = the band plays through regardless of the mic, like a produced
    *  beat. REACTIVE (true) = the band responds to the MC's voice. See onFrame. */
@@ -409,9 +417,9 @@ export class GeneratorOrchestrator {
       this.drum.onStateTransition(event.to, snap)
       this.texture.onStateTransition(event.to, snap)
       // Stagger bass/melody/chord so Part rebuilds don't collide on the audio thread
-      setTimeout(() => this.bass.onStateTransition(event.to, snap), 50)
-      setTimeout(() => this.melody.onStateTransition(event.to, snap), 120)
-      setTimeout(() => {
+      this.later(() => this.bass.onStateTransition(event.to, snap), 50)
+      this.later(() => this.melody.onStateTransition(event.to, snap), 120)
+      this.later(() => {
         // Chords rebuild LAST in the stagger, so the melody's fresh loop is
         // already committed — sync its busy slots before the comp plan builds.
         this.syncLeadBusyToChords()
@@ -561,8 +569,30 @@ export class GeneratorOrchestrator {
    */
   private startedTransport: boolean = false
 
+  /** setTimeout that is cancelled by stop()/dispose() and no-ops once disposed. */
+  private later(fn: () => void, ms: number): void {
+    const id = setTimeout(() => {
+      this.pendingTimers.delete(id)
+      // Guard on DISPOSED only, not on !running. stop() already cancels everything
+      // queued before it, and some deferred work is legitimately scheduled while
+      // stopped — setEnabled() replays state to a generator the user just switched
+      // back on. Adding !running here would silently break that.
+      if (this.disposed) return
+      fn()
+    }, ms)
+    this.pendingTimers.add(id)
+  }
+
+  private clearPendingTimers(): void {
+    for (const id of this.pendingTimers) clearTimeout(id)
+    this.pendingTimers.clear()
+  }
+
   stop(): void {
     this.running = false
+    // Cancel queued rebuilds BEFORE silencing, or one can fire straight after and
+    // undo the silence it was racing.
+    this.clearPendingTimers()
     // Reset Duet edge/throttle so a new session doesn't fire a stale answer.
     this.duetWasBreathing = false
     this.duetLastAnswerMs = 0
@@ -683,10 +713,10 @@ export class GeneratorOrchestrator {
     )
 
     if (live) {
-      globalThis.setTimeout(() => this.bass.onStateTransition(orgState, physics), 80)
-      globalThis.setTimeout(() => this.melody.onStateTransition(orgState, physics), 160)
-      globalThis.setTimeout(() => this.texture.onStateTransition(orgState, physics), 220)
-      globalThis.setTimeout(() => {
+      this.later(() => this.bass.onStateTransition(orgState, physics), 80)
+      this.later(() => this.melody.onStateTransition(orgState, physics), 160)
+      this.later(() => this.texture.onStateTransition(orgState, physics), 220)
+      this.later(() => {
         this.syncLeadBusyToChords()
         this.chord.onStateTransition(orgState, physics)
       }, 280)
@@ -746,6 +776,8 @@ export class GeneratorOrchestrator {
    * when OrganismProvider re-mounts (userId / inputSource / autoEnergy change).
    */
   dispose(): void {
+    this.disposed = true
+    this.clearPendingTimers()
     // Unsubscribe from physics/state before disposing generators so the
     // circular reference (physics → orchestrator → generators) is broken.
     this.unsubPhysics?.()
@@ -1039,7 +1071,7 @@ export class GeneratorOrchestrator {
     if (this.bassEnabled === enabled) return
     this.bassEnabled = enabled
     this.bass.setEnabled(enabled)
-    if (enabled) setTimeout(() => this.replayStateToGenerator(this.bass), 50)
+    if (enabled) this.later(() => this.replayStateToGenerator(this.bass), 50)
     this.updateSoloStates()
   }
 
@@ -1047,7 +1079,7 @@ export class GeneratorOrchestrator {
     if (this.melodyEnabled === enabled) return
     this.melodyEnabled = enabled
     this.melody.setEnabled(enabled)
-    if (enabled) setTimeout(() => this.replayStateToGenerator(this.melody), 120)
+    if (enabled) this.later(() => this.replayStateToGenerator(this.melody), 120)
     this.updateSoloStates()
   }
 
@@ -1055,7 +1087,7 @@ export class GeneratorOrchestrator {
     if (this.chordEnabled === enabled) return
     this.chordEnabled = enabled
     this.chord.setEnabled(enabled)
-    if (enabled) setTimeout(() => this.replayStateToGenerator(this.chord), 180)
+    if (enabled) this.later(() => this.replayStateToGenerator(this.chord), 180)
     this.updateSoloStates()
   }
 
@@ -2145,7 +2177,7 @@ export class GeneratorOrchestrator {
 
       // Shift melody density and chord technique per section.
       // Staggered so Part rebuilds don't collide on the audio thread.
-      setTimeout(() => {
+      this.later(() => {
         if (aiOverride?.melodyBehavior) {
           this.melody.onSectionChange(section.name, aiOverride.melodyBehavior as any)
         } else if (chordLeadsBand) {
@@ -2155,7 +2187,7 @@ export class GeneratorOrchestrator {
           this.melody.onSectionChange(section.name)
         }
       }, 80)
-      setTimeout(() => {
+      this.later(() => {
         if (aiOverride?.chordTechnique) {
           this.chord.onSectionChange(section.name, aiOverride.chordTechnique)
         } else {
@@ -2164,7 +2196,7 @@ export class GeneratorOrchestrator {
       }, 160)
       // Texture (the pad BED) shapes how it sits per section — staggered after
       // chord so the three Part-affecting rebuilds don't collide on the thread.
-      setTimeout(() => this.texture.onSectionChange(section.name), 240)
+      this.later(() => this.texture.onSectionChange(section.name), 240)
 
       // ── Arrangement primitives ──────────────────────────────────
       // Producer-style flourishes that turn the loop into a song.
@@ -2335,11 +2367,11 @@ export class GeneratorOrchestrator {
     // avoid simultaneous Tone.Part rebuild collisions on the audio thread.
     if (this.lastPhysics && this.lastOrganism) {
       // Drum/bass need immediate rebuild; melody/chord slightly later.
-      setTimeout(() => this.replayStateToGenerator(this.drum), 40)
-      setTimeout(() => this.replayStateToGenerator(this.bass), 60)
-      setTimeout(() => this.replayStateToGenerator(this.melody), 120)
-      setTimeout(() => this.replayStateToGenerator(this.chord), 160)
-      setTimeout(() => this.replayStateToGenerator(this.texture), 80)
+      this.later(() => this.replayStateToGenerator(this.drum), 40)
+      this.later(() => this.replayStateToGenerator(this.bass), 60)
+      this.later(() => this.replayStateToGenerator(this.melody), 120)
+      this.later(() => this.replayStateToGenerator(this.chord), 160)
+      this.later(() => this.replayStateToGenerator(this.texture), 80)
     }
   }
 
@@ -2429,7 +2461,7 @@ export class GeneratorOrchestrator {
     gen.setLoopMode(false)
     this._rowSources[row] = 'band'
     if (this.lastPhysics && this.lastOrganism) {
-      setTimeout(() => this.replayStateToGenerator(gen), 60)
+      this.later(() => this.replayStateToGenerator(gen), 60)
     }
     // Last loop row gone → give the tempo back to the session.
     if (!Object.values(this._rowSources).includes('loop') && this._preLockBpm !== null) {
@@ -2506,10 +2538,10 @@ export class GeneratorOrchestrator {
     if (this._rowSources.drums === 'band') {
       this.drum.loadGeneratedPattern(this.buildDrumHits(state.subGenre as HipHopSubGenre, state.drums.variantIndex), true)
     }
-    if (this._rowSources.bass === 'band')    setTimeout(() => this.replayStateToGenerator(this.bass), 50)
-    if (this._rowSources.chords === 'band')  setTimeout(() => this.replayStateToGenerator(this.chord), 110)
-    if (this._rowSources.melody === 'band')  setTimeout(() => this.replayStateToGenerator(this.melody), 170)
-    if (this._rowSources.texture === 'band') setTimeout(() => this.replayStateToGenerator(this.texture), 80)
+    if (this._rowSources.bass === 'band')    this.later(() => this.replayStateToGenerator(this.bass), 50)
+    if (this._rowSources.chords === 'band')  this.later(() => this.replayStateToGenerator(this.chord), 110)
+    if (this._rowSources.melody === 'band')  this.later(() => this.replayStateToGenerator(this.melody), 170)
+    if (this._rowSources.texture === 'band') this.later(() => this.replayStateToGenerator(this.texture), 80)
   }
 
   /** The scene currently playing, so applyScene only swaps rows that changed. */
