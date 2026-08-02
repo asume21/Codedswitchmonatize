@@ -1,0 +1,40 @@
+#!/bin/sh
+# Run the same checks CI runs, BEFORE the push leaves this machine.
+#
+# Why: CI was red for three weeks (2026-07-12 -> 2026-08-01) and nobody noticed,
+# because a permanently-failing light stops carrying information. It was also
+# masking a genuinely broken test suite — 14 failing tests, one of which was
+# pointing at a real wrong note live in production.
+#
+# Catching it here means the feedback arrives in seconds, attached to the push you
+# just made, instead of as an email you have learned to ignore.
+#
+# Skip deliberately with:  git push --no-verify
+
+# Node major must match production (Dockerfile: node:20-bullseye, CI: 20.x).
+# A mismatch is what broke CI for three weeks: npm 11 (Node 22) and npm 10 (Node 20)
+# resolve package.json into DIFFERENT dependency trees, so a lock file written on the
+# wrong Node can never satisfy `npm ci`. Warn loudly rather than block — but if you
+# touch package.json on the wrong major, regenerate the lock with:
+#   npx npm@10 install --package-lock-only
+WANT_NODE=20
+HAVE_NODE=$(node -p "process.versions.node.split('.')[0]" 2>/dev/null)
+if [ "$HAVE_NODE" != "$WANT_NODE" ]; then
+  echo "⚠  node $HAVE_NODE — production and CI run $WANT_NODE (see .nvmrc)."
+  echo "   Safe for code changes. If you changed dependencies, regenerate the lock"
+  echo "   with: npx npm@10 install --package-lock-only"
+fi
+
+echo "→ pre-push: typecheck"
+npm run check --silent || { echo "✗ typecheck failed — push aborted (git push --no-verify to override)"; exit 1; }
+
+echo "→ pre-push: unit tests"
+npm run test:unit --silent || { echo "✗ tests failed — push aborted (git push --no-verify to override)"; exit 1; }
+
+echo "✓ pre-push checks passed"
+
+# Preserve Git LFS, which owns the original pre-push hook. Removing this breaks
+# large-file uploads silently.
+if command -v git-lfs >/dev/null 2>&1; then
+  git lfs pre-push "$@"
+fi

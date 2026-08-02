@@ -30,7 +30,8 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "lint:css": "stylelint \"**/*.css\"",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "hooks:install": "cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.1",
