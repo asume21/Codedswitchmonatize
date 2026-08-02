@@ -103,6 +103,10 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   // by both play() (on entry) and stop() (on entry); the post-await branch
   // checks the captured epoch matches before scheduling Tone.Transport.start.
   const playEpochRef = useRef(0);
+  // True while THIS provider is the one broadcasting 'globalAudio:stopAll', so the
+  // listener below can tell "someone stopped audio behind our back, resync" from
+  // "we just did this deliberately and already set the state we want".
+  const selfDispatchedStopAllRef = useRef(false);
 
   const clearRaf = useCallback(() => {
     if (rafRef.current !== null) {
@@ -253,8 +257,17 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     pianoRollScheduler.stop();
     arrangementScheduler.stop();
     Tone.getTransport().pause();
-    // Stop any standalone audio sources (Astutely generated audio, previews, etc.)
-    window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+    // Stop any standalone audio sources (Astutely generated audio, previews, etc.).
+    // Flagged as self-dispatched: dispatchEvent is SYNCHRONOUS, so without this the
+    // syncStoppedState listener below runs before pause() returns and calls
+    // storeStop() — overwriting the storePause() two lines up and resetting the
+    // playhead to zero. Pause silently became Stop.
+    selfDispatchedStopAllRef.current = true;
+    try {
+      window.dispatchEvent(new CustomEvent('globalAudio:stopAll'));
+    } finally {
+      selfDispatchedStopAllRef.current = false;
+    }
   }, [clearRaf, storePause]);
   const stop = useCallback(() => {
     // Bump the epoch so any in-flight play() awaiting resumeAudioContext()
@@ -265,7 +278,14 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
     pianoRollScheduler.stop();
     arrangementScheduler.stop();
     Tone.getTransport().stop();
-    globalAudioKillSwitch.killAllAudio();
+    // Same self-dispatch guard: killAllAudio broadcasts 'globalAudio:stopAll', and
+    // this path has already done the owner-side teardown above.
+    selfDispatchedStopAllRef.current = true;
+    try {
+      globalAudioKillSwitch.killAllAudio();
+    } finally {
+      selfDispatchedStopAllRef.current = false;
+    }
   }, [clearRaf, storeStop]);
   const setTempo = useCallback((v: number) => {
     storeBpm(v); // store.setBpm writes Transport.bpm too — single source of truth
@@ -290,6 +310,9 @@ export function TransportProvider({ children, initialTempo = 120 }: TransportPro
   // stop() -> killAllAudio() -> here -> killAllAudio() would loop.
   useEffect(() => {
     const syncStoppedState = () => {
+      // Our own pause()/stop() already set the correct state before dispatching.
+      // Re-running a full stop here would clobber a PAUSE with a STOP.
+      if (selfDispatchedStopAllRef.current) return;
       playEpochRef.current++;   // bail out any in-flight play() awaiting the ctx
       clearRaf();
       storeStop();
