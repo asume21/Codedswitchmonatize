@@ -125,19 +125,41 @@ describe('ChordImproviser', () => {
     }
   })
 
-  it('dodges the slots the LEAD occupies — comps around the melody, downbeat exempt', () => {
-    // Melody sitting on the common comp pockets (per-bar slots)
-    const leadBusy = [2, 3, 6, 7, 10, 14]
-    for (let seed = 0; seed < 12; seed++) {
+  it('dodges the slots the LEAD occupies — in THAT bar only, downbeat exempt', () => {
+    // leadBusy16ths is ABSOLUTE (bar * 16 + slot). Here the melody plays those
+    // pockets in BAR 0 and is silent in bar 1.
+    const busySlots = [2, 3, 6, 7, 10, 14]
+    const inBar0 = busySlots.map(s => 0 * 16 + s)
+    const inBar1 = busySlots.map(s => 1 * 16 + s)
+
+    const planFor = (leadBusy16ths: number[], seed: number) => {
       clearMotifs(); clearCompCounters()
-      const plan = buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, leadBusy16ths: leadBusy, rng: mulberry32(seed) }))
-      expect(plan.length).toBeGreaterThanOrEqual(1)
-      for (const ev of plan) {
-        const slot = slotOf(ev.time)
-        if (slot === 0) continue  // downbeat harmony statement is always allowed
-        expect(leadBusy, `comp landed on lead slot ${slot} (seed ${seed})`).not.toContain(slot)
-      }
+      return buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, leadBusy16ths, rng: mulberry32(seed) }))
     }
+
+    let differed = 0
+    for (let seed = 0; seed < 12; seed++) {
+      const planA = planFor(inBar0, seed)
+      expect(planA.length).toBeGreaterThanOrEqual(1)
+
+      // The comp must not land on a lead slot in the bar the melody is actually in.
+      for (const ev of planA) {
+        const slot = slotOf(ev.time)
+        if (slot === 0) continue           // downbeat statement is always allowed
+        if (barOf(ev.time) !== 0) continue // bar 1 is silent here — free to use
+        expect(busySlots, `comp landed on a lead slot in bar 0 (slot ${slot}, seed ${seed})`)
+          .not.toContain(slot)
+      }
+
+      // Moving the SAME slots to the other bar must be able to change the plan.
+      // These used to fold with % 16, so bar-0-busy and bar-1-busy were literally
+      // indistinguishable and produced identical output every time — the comp
+      // thinned out against a melody that wasn't playing in that bar.
+      const planB = planFor(inBar1, seed)
+      if (JSON.stringify(planA) !== JSON.stringify(planB)) differed++
+    }
+    expect(differed, 'which bar the lead occupies never changed the comp — still folded?')
+      .toBeGreaterThan(0)
   })
 
   it('lead-dodging is a PREFERENCE — a wall-to-wall melody never silences the comp', () => {

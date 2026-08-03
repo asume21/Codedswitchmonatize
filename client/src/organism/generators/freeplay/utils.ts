@@ -1,3 +1,30 @@
+/**
+ * Section shapes every improviser plans against.
+ *
+ * 'build' was MISSING until 2026-08-02, and the classifier's `return 'verse'`
+ * fallback swallowed it silently: the producer arrangement emits a section literally
+ * named "build" and raises its energy multipliers, ArrangementMoments knows the name,
+ * but the improvisers mapped it to 'verse' — so a build got louder while keeping a
+ * verse's phrase shape and note budget. All lift, no rise.
+ *
+ * This lived as two byte-identical private copies (BassImproviser, MelodyImproviser).
+ * Shared here so adding a section kind cannot be done to one player and not the other.
+ */
+export type SectionKind = 'intro' | 'verse' | 'build' | 'hook' | 'drop' | 'breakdown' | 'bridge'
+
+export function sectionKind(sectionName: string): SectionKind {
+  const n = sectionName.toLowerCase()
+  if (n.includes('intro')) return 'intro'
+  if (n.includes('drop')) return 'drop'
+  if (n.includes('hook') || n.includes('chorus')) return 'hook'
+  if (n.includes('break')) return 'breakdown'
+  if (n.includes('bridge')) return 'bridge'
+  // Before 'verse', and before 'drop' cannot match it — "build" and "pre-drop build"
+  // must both land here.
+  if (n.includes('build') || n.includes('rise') || n.includes('pre')) return 'build'
+  return 'verse'
+}
+
 // Pure helpers for the freeplay improvisers. NO tone imports (testability).
 
 /**
@@ -108,9 +135,13 @@ export function durationToSixteenths(duration: string): number {
   return Math.max(1, Math.round(slots))
 }
 
-/** Per-bar 16th slots (0..15) a melodic line OCCUPIES — onset plus held
- *  duration, folded across bars. The comp reads this to dodge the lead the
- *  same way it dodges the kick. */
+/** ABSOLUTE 16th slots a melodic line occupies — onset plus held duration,
+ *  across the whole phrase (bar*16 + slot), NOT folded into one bar.
+ *
+ *  This used to fold everything with % 16, which threw away the bar. A melody note
+ *  in bar 3 at slot 10 then blocked chord slot 10 in bars 0-3 as well — the comp
+ *  went sparse, or kept hitting the same few "safe" slots for a whole phrase, and
+ *  left holes where no melody note existed. The consumer folds per bar itself. */
 export function extractBusySlots16ths(
   events: Array<{ time: string; dur: string }>,
 ): number[] {
@@ -120,7 +151,7 @@ export function extractBusySlots16ths(
     if ([bar, beat, sub].some(Number.isNaN)) continue
     const start = bar * 16 + beat * 4 + Math.floor(sub)
     const len = durationToSixteenths(ev.dur)
-    for (let i = 0; i < len; i++) busy.add(((start + i) % 16 + 16) % 16)
+    for (let i = 0; i < len; i++) busy.add(start + i)
   }
   return [...busy].sort((a, b) => a - b)
 }

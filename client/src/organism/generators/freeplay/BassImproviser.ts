@@ -3,7 +3,7 @@
 
 import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
-import { midiToNote, swungTime, jitterVel } from './utils'
+import { midiToNote, swungTime, jitterVel, sectionKind, SectionKind } from './utils'
 import { getSongCell } from './songCell'
 import { bassVelocityForJob } from './score'
 
@@ -19,17 +19,7 @@ const SUSTAINED_SUBGENRES = new Set(['trap', 'drill', 'phonk', 'dirty-south'])
 const WALKING_SUBGENRES = new Set(['jazz', 'classical', 'funk', 'gospel', 'boom-bap', 'lo-fi'])
 const HOUSE_SUBGENRES = new Set(['house', 'dnb', 'techno', 'edm'])
 const POP_SUBGENRES = new Set(['pop', 'r&b-soul', 'soul', 'k-pop', 'j-pop', 'afrobeat', 'reggaeton'])
-type SectionKind = 'intro' | 'verse' | 'hook' | 'drop' | 'breakdown' | 'bridge'
-
-function sectionKind(sectionName: string): SectionKind {
-  const n = sectionName.toLowerCase()
-  if (n.includes('intro')) return 'intro'
-  if (n.includes('drop')) return 'drop'
-  if (n.includes('hook') || n.includes('chorus')) return 'hook'
-  if (n.includes('break')) return 'breakdown'
-  if (n.includes('bridge')) return 'bridge'
-  return 'verse'
-}
+// SectionKind + sectionKind now live in ./utils (shared with the other improvisers).
 
 /** Chromatic leading tone into `nextRoot`, approached from the direction of
  *  travel. Falls back to the other side if the preferred tone leaves the bass
@@ -89,6 +79,9 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
   // ── Genre-specific hit patterns ───────────────────────────────────
   const hitPatterns: Record<SectionKind, number[]> = house ? {
     intro:      [0, 8],
+    // Build = the section's pattern, kept steady. House already pumps every beat;
+    // the lift comes from the rest of the band, not from a busier bass.
+    build:      [0, 4, 8, 12],
     verse:      [0, 4, 8, 12],     // four-on-the-floor pumping
     hook:       [0, 4, 8, 12],
     drop:       [0, 4, 8, 12],
@@ -96,6 +89,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     bridge:     [0, 4, 8, 12],
   } : walkingActive ? {
     intro:      [0],
+    build:      [0, 4, 8, 12],     // keep walking into the drop
     verse:      [0, 4, 8, 12],     // walking — every beat
     hook:       [0, 4, 8, 12],
     drop:       [0, 4, 8, 12],
@@ -103,6 +97,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     bridge:     [0, 4, 8, 12],
   } : pop ? {
     intro:      [0],
+    build:      [0, 6, 12],        // denser than the verse, short of the hook
     verse:      [0, 8],            // simple root-fifth
     hook:       [0, 6, 12],
     drop:       [0, 8],
@@ -110,6 +105,7 @@ export function buildFreeplayBassNotes(ctx: FreeplayContext): ScheduledNote[] {
     bridge:     [0, 8],
   } : {
     intro:      [0],
+    build:      [0, 6, 12],        // denser than the verse, short of the hook
     verse:      [0, 8],
     hook:       [0, 6, 12],
     drop:       [0, 8],

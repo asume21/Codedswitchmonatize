@@ -135,8 +135,12 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   // everywhere, comp anyway rather than vanish. Downbeat exempt as ever.
   // In hook mode the priority inverts: the comp OWNS the space and the melody
   // (disciplined to sparse answers by the orchestrator) dodges around it.
-  const leadBusy = new Set((ctx.leadBusy16ths ?? []).map(s => ((Math.floor(s) % 16) + 16) % 16))
-  const leadRoom = (slot: number) => hook || slot === 0 || !leadBusy.has(slot)
+  // ABSOLUTE slots (bar*16 + slot), so the check is per-bar. Folding them into one
+  // 16-slot mask meant a melody note anywhere in the phrase blocked that slot in
+  // EVERY bar — the comp thinned out against notes that were not playing.
+  const leadBusy = new Set((ctx.leadBusy16ths ?? []).map(s => Math.floor(s)))
+  const leadRoom = (bar: number, slot: number) =>
+    hook || slot === 0 || !leadBusy.has(bar * 16 + slot)
 
   // Bed-like gestures don't need the motif machinery at all.
   if (gesture === 'sustain') {
@@ -173,7 +177,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     }))
     const finalBar = bars - 1
     const burstSlots = [9, 10, 11, 13, 14, 15]
-      .filter(s => !BACKBEAT.has(s) && !collides(s) && leadRoom(s))
+      .filter(s => !BACKBEAT.has(s) && !collides(s) && leadRoom(finalBar, s))
       .slice(0, 3)
     let burstVel = 0.48
     for (const s of burstSlots) {
@@ -225,7 +229,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       ? motif
       : varyMotif(motif, ctx.rng)
     const kickFree = mask.slots.filter(s => !BACKBEAT.has(s) && !collides(s))
-    const roomy = kickFree.filter(leadRoom)
+    const roomy = kickFree.filter(s => leadRoom(bar, s))
     let pool = roomy.length > 0 ? roomy : kickFree
 
     // 'call-response' (ref #6): the keys "answer" in the back half of the bar.
@@ -240,7 +244,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       if (backHalf.length > 0) {
         pool = [...anchor, ...backHalf]
       } else {
-        const answer = [10, 8, 14, 9, 11, 13].find(s => !collides(s) && !BACKBEAT.has(s) && leadRoom(s))
+        const answer = [10, 8, 14, 9, 11, 13].find(s => !collides(s) && !BACKBEAT.has(s) && leadRoom(bar, s))
         pool = [...anchor, ...(answer !== undefined ? [answer] : [])]
       }
     }
@@ -286,7 +290,7 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     // BACK half — a front-of-bar push (slot 6) would break that.
     if (gesture !== 'call-response' && (role === 'develop' || role === 'answer') && bars > 1 && ctx.rng() < (role === 'develop' ? 0.85 : 0.65)) {
       const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
-        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(s))
+        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(bar, s))
       if (pushSlot !== undefined) {
         events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: vel(role === 'develop' ? 0.52 : 0.48) })
       }

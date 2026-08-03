@@ -17,12 +17,16 @@ describe('durationToSixteenths', () => {
 })
 
 describe('extractBusySlots16ths', () => {
-  it('marks onset plus held duration, folded per bar', () => {
+  it('marks onset plus held duration, keeping the bar (absolute slots)', () => {
     const events = [
-      { time: '0:0:0', dur: '4n' },   // slots 0-3
-      { time: '1:2:0', dur: '8n' },   // slots 8-9 (bar folds away)
+      { time: '0:0:0', dur: '4n' },   // bar 0, slots 0-3
+      { time: '1:2:0', dur: '8n' },   // bar 1, beat 2 -> absolute 24-25
     ]
-    expect(extractBusySlots16ths(events)).toEqual([0, 1, 2, 3, 8, 9])
+    // These used to fold with % 16, so the second event came back as 8-9 and was
+    // indistinguishable from a bar-0 note. That made the chord comp dodge a melody
+    // note in EVERY bar because it existed in one — sparse comping against notes
+    // that were not playing. The bar is information the consumer needs.
+    expect(extractBusySlots16ths(events)).toEqual([0, 1, 2, 3, 24, 25])
   })
 
   it('skips malformed times, never throws', () => {

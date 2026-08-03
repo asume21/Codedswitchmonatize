@@ -5,7 +5,7 @@ import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
 import { getSectionMotif, varyMotif } from './motif'
 import { getSongCell } from './songCell'
-import { jitterVel, midiToNote, swungTime } from './utils'
+import { jitterVel, midiToNote, swungTime, sectionKind, SectionKind } from './utils'
 import {
   contourOffset,
   isStrongBeat,
@@ -109,7 +109,6 @@ const ELECTRONIC_CONTOURS = [
   [0, 4, 2, 5, 4, 7, 5, 4],     // virtuosic run pattern
 ]
 
-type SectionKind = 'intro' | 'verse' | 'hook' | 'drop' | 'breakdown' | 'bridge'
 
 const SECTION_CONTOURS: Record<SectionKind, number[][]> = {
   intro: [
@@ -117,6 +116,14 @@ const SECTION_CONTOURS: Record<SectionKind, number[][]> = {
     [0, 0, 1, 0, -1, 0, 0, 0],
   ],
   verse: PITCH_CONTOURS,
+  // A build's whole job is to climb and NOT resolve. Both shapes end on their
+  // highest degree instead of returning to the root, so the phrase arrives at the
+  // drop still leaning forward. Every other section's contours come home; these
+  // deliberately do not.
+  build: [
+    [0, 1, 2, 3, 4, 5, 6, 7],
+    [0, 2, 1, 3, 2, 4, 5, 7],
+  ],
   hook: [
     [0, 1, 2, 3, 2, 1, 0, -1],
     [0, 1, 0, 2, 3, 4, 2, 0],
@@ -135,15 +142,7 @@ const SECTION_CONTOURS: Record<SectionKind, number[][]> = {
   ],
 }
 
-function sectionKind(sectionName: string): SectionKind {
-  const n = sectionName.toLowerCase()
-  if (n.includes('intro')) return 'intro'
-  if (n.includes('drop')) return 'drop'
-  if (n.includes('hook') || n.includes('chorus')) return 'hook'
-  if (n.includes('break')) return 'breakdown'
-  if (n.includes('bridge')) return 'bridge'
-  return 'verse'
-}
+// SectionKind + sectionKind now live in ./utils (shared with the other improvisers).
 
 function mod(n: number, d: number): number {
   return ((Math.floor(n) % d) + d) % d
@@ -221,6 +220,9 @@ function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: Secti
   const sectionMax: Record<SectionKind, number> = {
     intro: Math.round(2 * mult),
     verse: Math.round((behavior === 'lead' ? 5 : 4) * mult),
+    // Between verse and hook on purpose. A build that peaks at the hook's density
+    // has nowhere left to go; one stuck at the verse's never lifts at all.
+    build: Math.round((behavior === 'lead' ? 6 : 5) * mult),
     hook: Math.round((behavior === 'lead' ? 6 : 4) * mult),
     drop: Math.round((behavior === 'lead' ? 6 : 4) * mult),
     breakdown: Math.round(2 * mult),
