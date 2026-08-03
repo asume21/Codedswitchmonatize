@@ -1,5 +1,10 @@
 # Runtime Environment Variable Audit — CodedSwitch Studio
 
+> ⚠️ **CORRECTION (2026-08-03):** The **SUNO_API_KEY / SUNO_API_TOKEN** entry below is
+> OBSOLETE. Suno was fully removed; `sunoApi.ts` / `sunoApiService.ts` are deleted and no
+> code reads those vars anymore. ACE-Step now runs on **Replicate** (off RunPod). This is a
+> point-in-time audit; treat the Suno/RunPod lines as historical.
+
 Scope: server/, Dockerfile*, docker-entrypoint.sh, esbuild.config.js, railway.json.
 Read-only audit. `server/index.prod.ts` confirmed as the production entrypoint
 (esbuild.config.js `entryPoints: ['server/index.prod.ts']`, Dockerfile `CMD ["node", "dist/index.cjs"]`).

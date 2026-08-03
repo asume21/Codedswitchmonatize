@@ -86,17 +86,13 @@ mix_coach) still to build. Enables tuning-by-ear for everything else.
 Public hook, shareable links, OG cards, trap-genre fix all landed. Likely just loose ends.
 **Left:** verify + close.
 
-### 11. ace-everywhere (06-12) — 🎯 FINISH · likely quick
-**USER GOAL: move ACE-Step OFF RunPod.** The off-RunPod path is already BUILT — a
+### 11. ace-everywhere (06-12) — ✅ DONE
+**ACE-Step is OFF RunPod — it now runs on Replicate (user confirmed 2026-08-03).** The
 **Replicate provider** (`replicateService.ts`) + **Cog package** (`cog/cog.yaml`,
-`cog/predict.py`), committed `97c32d6e` (2026-07-20). "Zero idle cost" (pay per generation,
-nothing idle — vs the RunPod pod's $0.34/hr always-on). NOT literally free; genuinely-free
-GPU (Colab/HF Spaces/Kaggle) isn't viable as a production API.
-`aceStepService` prefers Replicate when `REPLICATE_MODEL_VERSION` is set.
-**Left to finish:** (1) build/push the Cog package to Replicate → get the model version;
-(2) set `REPLICATE_MODEL_VERSION` → ACE now runs on Replicate, RunPod becomes fallback.
-Also: confirm the render field-name key is caught end-to-end (`runpodServerlessService.ts:156`
-already casts a wide net) so it produces audio in the app.
+`cog/predict.py`, committed `97c32d6e`) shipped, and `aceStepService.isWorkerReady` now
+prefers Replicate (needs `REPLICATE_API_TOKEN` + `REPLICATE_MODEL_VERSION`), with RunPod
+Serverless and the local FastAPI worker as fallbacks. "Zero idle cost" — pay per generation
+vs the retired RunPod pod's $0.34/hr always-on. The old RunPod pod is retired.
 
 ### 12. musicmind-harmonic (06-24) — 🎯 FINISH
 WebLLM/musicMind harmonic intelligence; real work done. **Left:** trace what shipped, finish

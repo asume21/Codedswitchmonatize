@@ -1,5 +1,11 @@
 # ACE Everywhere — ACE-Step as primary provider at every music generation point
 
+> **STATUS UPDATE (2026-08-03):** This design SHIPPED. ACE-Step is the first-choice
+> provider, and hosting **moved off RunPod to Replicate** — the RunPod references
+> below (`runpodServerlessService`, `RUNPOD_SERVERLESS_ENDPOINT_ID`) are historical.
+> Current backend selection lives in `aceStepService.isWorkerReady`
+> (Replicate → RunPod Serverless → local worker). RunPod Serverless is now only a fallback.
+
 _2026-06-12. User decision: ACE-Step becomes the FIRST-CHOICE provider for all
 AI music-audio generation, with each point's current provider kept as silent
 fallback. Plus the Organism×ACE loop: the ArrangementPlan preview/live coherence
