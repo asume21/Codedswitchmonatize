@@ -4,7 +4,7 @@ import { IStorage } from "../storage";
 import { unifiedMusicService } from "../services/unifiedMusicService";
 import { jascoMusicService } from "../services/jascoMusic";
 import { generateSamplePacksWithGemini } from "../services/gemini";
-import { generateIntelligentPacks, generateSunoPacks } from "../services/packGenerator";
+import { generateIntelligentPacks } from "../services/packGenerator";
 import { localSampleLibrary } from "../services/localSampleLibrary";
 
 const router = Router();
@@ -77,9 +77,6 @@ export function createPackRoutes(_storage: IStorage) {
               console.warn("Gemini pack generation unavailable, falling back to intelligent generator:", err);
               packs = generateIntelligentPacks(prompt, packCount);
             }
-            break;
-          case "suno":
-            packs = await generateSunoPacks(prompt, packCount);
             break;
           case "jasco":
             packs = await jascoMusicService.generateSamplePack(prompt, packCount);

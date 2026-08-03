@@ -37,7 +37,7 @@ export async function grantTrialCredits(storage: IStorage, userId: string): Prom
       userId,
       TRIAL_CREDITS,
       CreditTransactionType.BONUS,
-      'Welcome trial credits - Try Suno AI!',
+      'Welcome trial credits - Try AI music generation!',
       {
         trial: true,
         grantedAt: new Date().toISOString(),

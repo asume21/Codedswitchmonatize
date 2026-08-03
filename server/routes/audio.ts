@@ -67,7 +67,7 @@ export function createAudioRoutes() {
     });
   };
 
-  // Professional song generation endpoint (Suno via Replicate)
+  // Professional song generation endpoint (ACE-Step-first cascade)
   router.post("/songs/generate-professional", 
     requireAuth(), 
     aiGenerationLimiter, 

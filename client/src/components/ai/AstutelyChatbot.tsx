@@ -2202,7 +2202,7 @@ function AstutelyCreateContent({
 
   // ── Vocal Melody state ────────────────────────────────────
   const [vocalMood, setVocalMood] = useState('Energetic');
-  const [vocalProvider, setVocalProvider] = useState('suno');
+  const [vocalProvider, setVocalProvider] = useState('ace-step');
 
   // ── Helper: progress animation ────────────────────────────
   const runWithProgress = async (genId: string, fn: () => Promise<void>) => {

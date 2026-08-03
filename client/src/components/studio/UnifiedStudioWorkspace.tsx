@@ -241,7 +241,7 @@ const AI_SONG_GUIDE_STEPS = [
   { id: 'lyrics', title: 'Lyrics', detail: 'Generate lyrics, then run lyrics analysis for quality.' },
   { id: 'plan', title: 'Song plan', detail: 'Generate song plan/sections (intro/verse/chorus/bridge).' },
   { id: 'patterns', title: 'Patterns', detail: 'Create/edit patterns in Piano Roll (Astutely patterns).' },
-  { id: 'audio', title: 'Real audio', detail: 'Generate real audio (Suno/MusicGen); load reference track.' },
+  { id: 'audio', title: 'Real audio', detail: 'Generate real audio (ACE-Step/MusicGen); load reference track.' },
   { id: 'vocals', title: 'Vocals (optional)', detail: 'Generate/import vocals (e.g., ElevenLabs) and align to BPM/key.' },
   { id: 'mix', title: 'Mix', detail: 'Balance levels/pan/EQ; loop main section for balance.' },
   { id: 'master', title: 'Master & export', detail: 'Export master WAV/MP3; spot-check trims and loudness.' },

@@ -12,12 +12,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Professional Audio Generation Service - Suno-Level Quality
+// Professional Audio Generation Service - radio-ready quality
 export class ProfessionalAudioGenerator {
-  
+
   /**
    * Generate studio-quality full songs (up to 8 minutes)
-   * This is our answer to Suno's professional song generation
+   * Our professional song-generation path.
    */
   async generateFullSong(prompt: string, options: {
     genre?: string;
@@ -43,7 +43,7 @@ export class ProfessionalAudioGenerator {
 
       const startTime = Date.now();
 
-      const systemPrompt = `You are a PROFESSIONAL AI music producer competing with Suno AI. 
+      const systemPrompt = `You are a PROFESSIONAL AI music producer making radio-ready music.
       Generate STUDIO-QUALITY musical compositions with advanced production techniques.
 
       🎛️ PROFESSIONAL STANDARDS:
@@ -53,7 +53,7 @@ export class ProfessionalAudioGenerator {
       - Dynamic range and frequency spectrum balance
       - Sophisticated harmonic progressions and melody writing
 
-      🎵 SUNO-LEVEL FEATURES:
+      🎵 PROFESSIONAL FEATURES:
       - Generate complete song structures (Intro, Verse, Chorus, Bridge, Outro)
       - Multiple instrument layers with proper orchestration
       - Vocal melody lines and harmony parts
@@ -118,7 +118,7 @@ export class ProfessionalAudioGenerator {
         }
       }
 
-      Create a professional, radio-ready composition that rivals Suno's quality.`;
+      Create a professional, radio-ready composition of the highest quality.`;
 
       const promptHash = logPromptStart(`${systemPrompt}\n${userPrompt}`, {
         feature: "professional-song",
@@ -240,7 +240,7 @@ export class ProfessionalAudioGenerator {
   }
 
   /**
-   * Add Vocals Feature - Like Suno's "Add Vocals"
+   * Add Vocals Feature
    */
   async addVocalsToInstrumental(instrumentalData: any, vocalOptions: {
     style?: string;
@@ -303,7 +303,7 @@ export class ProfessionalAudioGenerator {
   }
 
   /**
-   * Add Instrumentals Feature - Like Suno's "Add Instrumentals"
+   * Add Instrumentals Feature
    */
   async addInstrumentalsToVocals(vocalData: any, instrumentalOptions: {
     genre?: string;
@@ -394,7 +394,7 @@ export class ProfessionalAudioGenerator {
    */
   async generateAdvancedLyrics(theme: string, genre: string, mood: string, songStructure: any): Promise<any> {
     try {
-      const systemPrompt = `You are an advanced AI lyricist competing with ReMi and Suno's lyric generation.
+      const systemPrompt = `You are an advanced AI lyricist creating radio-ready, original lyrics.
       Create sophisticated, creative, and emotionally resonant lyrics.`;
 
       const userPrompt = `Create professional ${genre} lyrics:

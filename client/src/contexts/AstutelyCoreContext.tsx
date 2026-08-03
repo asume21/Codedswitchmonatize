@@ -472,7 +472,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
     try {
       console.log(`🎵 UNIFIED: Generating music for "${options.style}"...`);
 
-      // Step 1: Generate the AI instrumental audio (Suno / MusicGen)
+      // Step 1: Generate the AI instrumental audio (ACE-Step / MusicGen)
       console.log('🎵 Step 1/3: Generating professional AI audio...');
       const aiAudio = await astutelyGenerateAudio(options.style, {
         prompt: options.prompt,

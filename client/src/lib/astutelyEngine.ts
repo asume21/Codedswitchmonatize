@@ -457,7 +457,7 @@ const generateLocalFallback = (style: string, overrides?: { tempo?: number; time
 };
 
 /**
- * Generate actual audio using Suno API or MusicGen fallback
+ * Generate actual audio using ACE-Step or MusicGen fallback
  * This produces real audio files that can be played, not just MIDI patterns
  */
 export async function astutelyGenerateAudio(style: string, options?: {
@@ -505,7 +505,7 @@ export async function astutelyGenerateAudio(style: string, options?: {
 }
 
 /**
- * Extract MIDI notes from an audio URL (Suno/MusicGen instrumental → Piano Roll notes)
+ * Extract MIDI notes from an audio URL (ACE-Step/MusicGen instrumental → Piano Roll notes)
  * Calls the server-side audio-to-midi endpoint which uses melody extraction
  */
 export async function astutelyExtractMidiFromAudio(

@@ -1,7 +1,7 @@
 /**
  * ACE-first adapter — the single seam through which every music generation
  * point tries our own ACE-Step worker BEFORE falling back to its existing
- * provider (Replicate/Suno/JASCO/MusicGen sidecar).
+ * provider (Replicate/JASCO/MusicGen sidecar).
  *
  * Contract: NEVER throws. Any failure — endpoint down, queue timeout, job
  * error, no-audio completion — logs one structured line and returns null so

@@ -10,7 +10,6 @@ vi.mock('replicate', () => ({
 }))
 vi.mock('../local-musicgen', () => ({ localMusicGenService: { generateSamplePack: vi.fn() } }))
 vi.mock('../../objectStorage', () => ({ ObjectStorageService: class {} }))
-vi.mock('../sunoApiService', () => ({ sunoApiService: { isConfigured: () => false } }))
 
 import { tryAceFirst } from '../aceFirst'
 import { unifiedMusicService } from '../unifiedMusicService'
@@ -67,7 +66,8 @@ describe('unifiedMusicService ACE-first wiring', () => {
     })
 
     expect(mockAce).not.toHaveBeenCalled()
-    // Suno is unconfigured in this test, so the cascade lands on Replicate.
+    // Vocal requests skip the instrumental ACE lane here, so the cascade
+    // lands on Replicate/MusicGen (Suno removed).
     expect(result.audio_url).toBe('https://replicate.example/out.wav')
   })
 })

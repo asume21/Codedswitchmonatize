@@ -167,11 +167,6 @@ const PROVIDER_OPTIONS = [
     description: "Replicate-powered generation with real audio when tokens are configured.",
   },
   {
-    value: "suno",
-    label: "🌞 Suno Instrumentals",
-    description: "Uses the official Suno API for polished stems (requires SUNO_API_KEY).",
-  },
-  {
     value: "jasco",
     label: "🎹 JASCO Chords/Drums/Melody",
     description: "Hugging Face JASCO-1B model for theory-heavy arrangements (HUGGINGFACE_API_KEY).",

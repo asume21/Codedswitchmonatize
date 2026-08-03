@@ -3,7 +3,7 @@
  * Allows users to select which AI service to use for music generation
  */
 
-export type AIProvider = 'suno' | 'replicate-suno' | 'replicate-musicgen' | 'openai' | 'grok' | 'huggingface' | 'local';
+export type AIProvider = 'ace-step' | 'replicate-musicgen' | 'openai' | 'grok' | 'huggingface' | 'local';
 
 export interface AIProviderConfig {
   name: string;
@@ -21,10 +21,10 @@ export interface AIProviderConfig {
 }
 
 export const AI_PROVIDERS: Record<AIProvider, AIProviderConfig> = {
-  'suno': {
-    name: 'suno',
-    label: 'Suno (Official API)',
-    description: 'Official Suno API - Professional full-song generation with vocals, up to 4 minutes',
+  'ace-step': {
+    name: 'ace-step',
+    label: 'ACE-Step (CodedSwitch)',
+    description: 'Our own ACE-Step worker - full-song and instrumental generation, vocals from lyrics',
     capabilities: {
       fullSongs: true,
       beats: true,
@@ -32,22 +32,7 @@ export const AI_PROVIDERS: Record<AIProvider, AIProviderConfig> = {
       lyrics: true,
       analysis: false
     },
-    requiresAuth: true,
-    envVar: 'SUNO_API_KEY'
-  },
-  'replicate-suno': {
-    name: 'replicate-suno',
-    label: 'Suno (via Replicate)',
-    description: 'Suno through Replicate - Full-song generation with vocals',
-    capabilities: {
-      fullSongs: true,
-      beats: false,
-      instrumentals: false,
-      lyrics: false,
-      analysis: false
-    },
-    requiresAuth: true,
-    envVar: 'REPLICATE_API_TOKEN'
+    requiresAuth: false,
   },
   'replicate-musicgen': {
     name: 'replicate-musicgen',
@@ -167,10 +152,6 @@ export class AIProviderManager {
     const config = AI_PROVIDERS[provider];
     if (!config.requiresAuth) return true;
     if (!config.envVar) return false;
-    // Suno accepts both SUNO_API_KEY and SUNO_API_TOKEN
-    if (config.envVar === 'SUNO_API_KEY') {
-      return !!(process.env.SUNO_API_KEY || process.env.SUNO_API_TOKEN);
-    }
     return !!process.env[config.envVar];
   }
 

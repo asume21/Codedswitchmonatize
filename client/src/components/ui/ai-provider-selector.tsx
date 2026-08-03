@@ -46,20 +46,12 @@ const FALLBACK_PROVIDERS: AIProvider[] = [
     requiresAuth: true,
   },
   {
-    name: 'suno',
-    label: '🎤 Suno (Full Songs)',
-    description: 'Complete songs with vocals. Audio output, not editable.',
+    name: 'ace-step',
+    label: '🎤 ACE-Step (Full Songs)',
+    description: 'Complete songs and instrumentals (vocals from lyrics). Audio output, not editable.',
     outputType: 'audio',
     capabilities: { fullSongs: true, beats: true, instrumentals: true, lyrics: true, analysis: false },
-    requiresAuth: true,
-  },
-  {
-    name: 'replicate-suno',
-    label: '🎤 Suno via Replicate',
-    description: 'Full-song generation with vocals through Replicate.',
-    outputType: 'audio',
-    capabilities: { fullSongs: true, beats: false, instrumentals: false, lyrics: false, analysis: false },
-    requiresAuth: true,
+    requiresAuth: false,
   },
   {
     name: 'grok',
@@ -131,10 +123,8 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
         return <Bot className="h-4 w-4" />;
       case "grok":
         return <Zap className="h-4 w-4" />;
-      case "suno":
+      case "ace-step":
         return <Sparkles className="h-4 w-4" />;
-      case "replicate-suno":
-        return <Music className="h-4 w-4" />;
       case "replicate-musicgen":
         return <Music className="h-4 w-4" />;
       case "local":
@@ -150,10 +140,8 @@ export function AIProviderSelector({ value, onValueChange, className, feature }:
         return "text-emerald-400";
       case "grok":
         return "text-purple-400";
-      case "suno":
+      case "ace-step":
         return "text-yellow-400";
-      case "replicate-suno":
-        return "text-blue-400";
       case "replicate-musicgen":
         return "text-pink-400";
       case "local":

@@ -66,7 +66,7 @@ const workflows: WorkflowPreset[] = [
     description: 'Follow a guided flow: lyrics → plan → patterns → real audio → vocals → mix/master.',
     icon: Wand2,
     color: 'text-indigo-500',
-    preview: '1) Set genre/BPM/key\n2) AI lyrics + analysis\n3) AI song plan\n4) Astutely patterns to Piano Roll\n5) Suno/MusicGen real audio\n6) Optional vocals (ElevenLabs)\n7) Mix levels/pan/EQ\n8) Export master'
+    preview: '1) Set genre/BPM/key\n2) AI lyrics + analysis\n3) AI song plan\n4) Astutely patterns to Piano Roll\n5) ACE-Step/MusicGen real audio\n6) Optional vocals (ElevenLabs)\n7) Mix levels/pan/EQ\n8) Export master'
   },
   {
     id: 'hybrid-workflow',

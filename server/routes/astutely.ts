@@ -9,7 +9,6 @@ import { buildAstutelyPrompt } from '../ai/prompts/astutelyPrompt';
 import { logPromptStart, logPromptResult } from '../ai/utils/promptLogger';
 import { generateAstutelyFallback } from '../../shared/astutelyFallback';
 import { resolveGenerationConstraints } from '@shared/aiProviderCapabilities';
-import { sunoApiService } from '../services/sunoApiService';
 import { recordAIGenerationMetric } from '../services/aiRouteMetrics';
 import { astutelyDiagnostics } from '../services/astutelyDiagnostics';
 import { extractJSON, mergePartialWithFallback } from '../ai/utils/robustJsonParser';
@@ -454,7 +453,7 @@ router.get('/astutely/status/:predictionId', async (req: Request, res: Response)
 router.post('/astutely/generate-audio', astutelyLimiter, requireAuth(), (req, res, next) => {
   requireCredits(CREDIT_COSTS.BEAT_GENERATION, getStorage())(req, res, next);
 }, async (req: Request, res: Response) => {
-  const { style, prompt, bpm, key, duration, instrumental = true, aiProvider = 'suno', seed, variations, melodyUrl, structure } = req.body;
+  const { style, prompt, bpm, key, duration, instrumental = true, aiProvider = 'ace-step', seed, variations, melodyUrl, structure } = req.body;
 
   if (!style && !prompt) {
     return res.status(400).json({ error: 'Style or prompt is required' });
@@ -478,77 +477,45 @@ router.post('/astutely/generate-audio', astutelyLimiter, requireAuth(), (req, re
   const targetDuration = Math.max(10, Math.min(effectiveDuration, 240));
 
   try {
-    // Check if Suno API is configured
-    if (!sunoApiService.isConfigured() || effectiveProvider === 'replicate-musicgen' || effectiveProvider === 'astutely') {
-      console.log('[Astutely] Suno API not configured, falling back to MusicGen via Replicate');
-      
-      // Fallback to MusicGen via unifiedMusicService
-      const musicPrompt = prompt || `${style} instrumental beat, ${effectiveBpm} BPM, professional quality`;
-      const result = await unifiedMusicService.generateTrack(musicPrompt, {
-        type: 'beat',
-        duration: targetDuration,
-        bpm: effectiveBpm,
-        style: style || undefined,
-        key: key || undefined,
-      });
+    // Suno removed — always generate via unifiedMusicService (ACE-Step first,
+    // MusicGen/Stable Audio fallback inside the service).
+    const musicPrompt = prompt || `${style} instrumental beat, ${effectiveBpm} BPM, professional quality`;
+    const result = await unifiedMusicService.generateTrack(musicPrompt, {
+      type: 'beat',
+      duration: targetDuration,
+      bpm: effectiveBpm,
+      style: style || undefined,
+      key: key || undefined,
+    });
 
-      if (result?.audio_url) {
-        const resolvedProvider = String(result.metadata?.generator || 'musicgen');
-        const outcome: 'success' | 'fallback' = resolvedProvider.toLowerCase().includes('fallback') ? 'fallback' : 'success';
-        recordAIGenerationMetric({
-          route: '/api/astutely/generate-audio',
-          requestedProvider: aiProvider,
-          effectiveProvider: resolvedProvider,
-          outcome,
-          latencyMs: Date.now() - routeStartedAt,
-        });
-        return res.json({
-          success: true,
-          audioUrl: result.audio_url,
-          duration: targetDuration,
-          provider: result.metadata?.generator || 'musicgen',
-          requestedProvider: aiProvider,
-          effectiveProvider,
-          requestId,
-          providerWarnings: constraints.warnings,
-          rerouteReason: constraints.rerouteReason,
-          style,
-          bpm: effectiveBpm,
-        });
-      }
-      
-      return res.status(500).json({ 
-        error: 'Music generation failed',
-        details: 'Neither Suno API nor MusicGen returned audio'
+    if (result?.audio_url) {
+      const resolvedProvider = String(result.metadata?.generator || 'musicgen');
+      const outcome: 'success' | 'fallback' = resolvedProvider.toLowerCase().includes('fallback') ? 'fallback' : 'success';
+      recordAIGenerationMetric({
+        route: '/api/astutely/generate-audio',
+        requestedProvider: aiProvider,
+        effectiveProvider: resolvedProvider,
+        outcome,
+        latencyMs: Date.now() - routeStartedAt,
+      });
+      return res.json({
+        success: true,
+        audioUrl: result.audio_url,
+        duration: targetDuration,
+        provider: result.metadata?.generator || 'musicgen',
+        requestedProvider: aiProvider,
+        effectiveProvider,
+        requestId,
+        providerWarnings: constraints.warnings,
+        rerouteReason: constraints.rerouteReason,
+        style,
+        bpm: effectiveBpm,
       });
     }
 
-    console.log(`[Astutely] Generating audio with Suno API: ${style}`);
-    
-    const result = await sunoApiService.generateBeat(style, effectiveBpm, key);
-
-    recordAIGenerationMetric({
-      route: '/api/astutely/generate-audio',
-      requestedProvider: aiProvider,
-      effectiveProvider: 'suno',
-      outcome: 'success',
-      latencyMs: Date.now() - routeStartedAt,
-    });
-    
-    return res.json({
-      success: true,
-      audioUrl: result.audioUrl,
-      streamUrl: result.streamUrl,
-      duration: result.duration ?? targetDuration,
-      provider: 'suno',
-      requestedProvider: aiProvider,
-      effectiveProvider,
-      requestId,
-      providerWarnings: constraints.warnings,
-      rerouteReason: constraints.rerouteReason,
-      style,
-      bpm: effectiveBpm,
-      key,
+    return res.status(500).json({
+      error: 'Music generation failed',
+      details: 'ACE-Step and MusicGen did not return audio'
     });
 
   } catch (error: any) {
@@ -608,19 +575,6 @@ router.post('/astutely/generate-audio', astutelyLimiter, requireAuth(), (req, re
       effectiveProvider,
       providerWarnings: constraints.warnings,
     });
-  }
-});
-
-// Check Suno API status
-router.get('/astutely/suno-status', async (_req: Request, res: Response) => {
-  try {
-    const status = sunoApiService.getStatus();
-    return res.json({
-      success: true,
-      ...status,
-    });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

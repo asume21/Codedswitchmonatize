@@ -9,7 +9,6 @@ import { createReadStream } from "fs";
 import { parseFile } from "music-metadata";
 import fetch from "node-fetch";
 import { unlink } from "fs/promises";
-import { sunoApi } from "../services/sunoApi";
 import { isWorkerReady, submitGeneration, generateAndWait, pollJob } from "../services/aceStepService";
 import { aceTaskId, isAceTaskId, rawAceJobId, aceJobToSunoTracks, aceJobToSunoStatusData } from "../services/aceSunoBridge";
 import { stemSeparationService } from "../services/stemSeparation";
@@ -638,7 +637,8 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // ===== SUNO API ENDPOINTS =====
+  // ===== MUSIC GENERATION ENDPOINTS (ACE-Step; paths kept as /suno/* for the
+  // ace<->suno transport bridge and existing clients) =====
 
   // Generate Music from Scratch with Suno
   router.post("/suno/generate", async (req: Request, res: Response) => {
@@ -698,103 +698,17 @@ export function createSongRoutes(storage: IStorage) {
           console.log('[aceFirst] songs:suno-generate fell back: worker not ready');
         }
       } catch (aceErr: any) {
-        console.warn('[aceFirst] songs:suno-generate fell back:', aceErr?.message || aceErr);
+        console.warn('[aceFirst] songs:generate fell back:', aceErr?.message || aceErr);
       }
 
-      const result = await sunoApi.generateMusic({
-        prompt: prompt || '',
-        customMode,
-        instrumental,
-        model,
-        style,
-        title: title || 'AI Generated Track',
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      if (waitForResult && result.taskId) {
-        console.log(`⏳ Waiting for Suno task ${result.taskId} to complete...`);
-        const completed = await sunoApi.waitForCompletion(result.taskId);
-
-        if (!completed.success) {
-          return res.status(500).json({ error: completed.error || 'Generation timed out' });
-        }
-
-        return res.json({
-          success: true,
-          taskId: result.taskId,
-          status: 'complete',
-          tracks: completed.data,
-        });
-      }
-
-      res.json({
-        success: true,
-        taskId: result.taskId,
-        status: 'pending',
-        message: 'Generation started. Poll /api/songs/suno/status with the taskId to check progress.',
+      // ACE-Step is the only generation backend now (Suno removed). If the worker
+      // is not ready or a render failed above, there is nothing to fall back to.
+      return res.status(503).json({
+        error: 'Music generation is temporarily unavailable. Please try again shortly.',
       });
     } catch (error: any) {
-      console.error('Suno generate error:', error);
-      res.status(500).json({ error: error.message || "Failed to generate with Suno" });
-    }
-  });
-
-  // Upload and Cover - Transform song with different style
-  router.post("/suno/cover", async (req: Request, res: Response) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in" });
-    }
-
-    try {
-      const { audioUrl, prompt, style, title } = req.body;
-      console.log('🎵 Suno Cover:', { prompt, style });
-
-      const result = await sunoApi.uploadAndCover({
-        uploadUrl: audioUrl,
-        prompt,
-        style,
-        title
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno cover error:', error);
-      res.status(500).json({ error: "Failed to cover song" });
-    }
-  });
-
-  // Extend Music - Extend existing generated music
-  router.post("/suno/extend", async (req: Request, res: Response) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in" });
-    }
-
-    try {
-      const { audioId, prompt, continueAt, model } = req.body;
-      console.log('🎵 Suno Extend:', { audioId, continueAt, model });
-
-      const result = await sunoApi.extendMusic({
-        audioId,
-        prompt,
-        continueAt,
-        model: model || 'V4_5'
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno extend error:', error);
-      res.status(500).json({ error: "Failed to extend song" });
+      console.error('Song generate error:', error);
+      res.status(500).json({ error: error.message || "Failed to generate music" });
     }
   });
 
@@ -843,122 +757,23 @@ export function createSongRoutes(storage: IStorage) {
     }
   });
 
-  // Legacy Suno Separate Vocals endpoint (kept for backward compatibility)
-  router.post("/suno/separate", async (req: Request, res: Response) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in" });
-    }
-
-    try {
-      const { taskId, audioId } = req.body;
-      console.log('🎵 Suno Separate Vocals:', { taskId, audioId });
-
-      const result = await sunoApi.separateVocals({ taskId, audioId });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno separate error:', error);
-      res.status(500).json({ error: "Failed to separate vocals" });
-    }
-  });
-
-  // Add Vocals - Generate vocals for instrumental (uses cover with vocal prompt)
-  router.post("/suno/add-vocals", async (req: Request, res: Response) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in" });
-    }
-
-    try {
-      const { audioUrl, prompt, style } = req.body;
-      console.log('🎵 Suno Add Vocals:', { prompt });
-
-      // Use uploadAndCover with vocal-focused prompt
-      const result = await sunoApi.uploadAndCover({
-        uploadUrl: audioUrl,
-        prompt: prompt || 'Add professional vocals',
-        style: style || 'with vocals'
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno add vocals error:', error);
-      res.status(500).json({ error: "Failed to add vocals" });
-    }
-  });
-
-  // Add Instrumental - Generate instrumental backing (uses cover with instrumental prompt)
-  router.post("/suno/add-instrumental", async (req: Request, res: Response) => {
-    if (!req.userId) {
-      return res.status(401).json({ error: "Please log in" });
-    }
-
-    try {
-      const { audioUrl, prompt, style } = req.body;
-      console.log('🎵 Suno Add Instrumental:', { prompt });
-
-      // Use uploadAndCover with instrumental-focused prompt
-      const result = await sunoApi.uploadAndCover({
-        uploadUrl: audioUrl,
-        prompt: prompt || 'Add professional instrumental backing',
-        style: style || 'instrumental arrangement'
-      });
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno add instrumental error:', error);
-      res.status(500).json({ error: "Failed to add instrumental" });
-    }
-  });
-
-  // Get Suno job status
+  // Get generation job status. ACE-Step jobs travel through this polling flow
+  // with an ace: prefix; the path is kept at /suno/status so existing clients
+  // (and the ace<->suno transport bridge) work unchanged.
   router.post("/suno/status", async (req: Request, res: Response) => {
     try {
       const { taskId } = req.body;
 
-      // ACE-Step jobs travel through the same polling flow with an ace: prefix.
       if (isAceTaskId(taskId)) {
         const job = await pollJob(rawAceJobId(taskId));
         return res.json(aceJobToSunoStatusData(job, 'AI Generated Track'));
       }
 
-      const result = await sunoApi.getTaskStatus(taskId);
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
+      // Suno removed — only ACE task IDs are valid here now.
+      return res.status(400).json({ error: 'Unknown or unsupported taskId' });
     } catch (error) {
-      console.error('Suno status error:', error);
+      console.error('Song status error:', error);
       res.status(500).json({ error: "Failed to get status" });
-    }
-  });
-
-  // Get Suno credits
-  router.get("/suno/credits", async (req: Request, res: Response) => {
-    try {
-      const result = await sunoApi.getRemainingCredits();
-
-      if (!result.success) {
-        return res.status(500).json({ error: result.error });
-      }
-
-      res.json(result.data);
-    } catch (error) {
-      console.error('Suno credits error:', error);
-      res.status(500).json({ error: "Failed to get credits" });
     }
   });
 

@@ -1,7 +1,5 @@
 export type AIProviderId =
   | 'ace-step'
-  | 'suno'
-  | 'replicate-suno'
   | 'replicate-musicgen'
   | 'astutely'
   | 'grok'
@@ -33,32 +31,6 @@ export const PROVIDER_CAPABILITIES: Record<AIProviderId, ProviderCapability> = {
     maxSections: 1,
     supportsStructuredSections: false,
     supportsGuideMelody: false,
-    supportsNativeStems: false,
-    canGenerateAudio: true,
-  },
-  suno: {
-    id: 'suno',
-    label: 'Suno',
-    estimatedLatency: '30-90s',
-    maxDuration: 240,
-    bpmRange: { min: 60, max: 180 },
-    maxVariations: 4,
-    maxSections: 10,
-    supportsStructuredSections: true,
-    supportsGuideMelody: true,
-    supportsNativeStems: false,
-    canGenerateAudio: true,
-  },
-  'replicate-suno': {
-    id: 'replicate-suno',
-    label: 'Suno (Replicate)',
-    estimatedLatency: '30-90s',
-    maxDuration: 240,
-    bpmRange: { min: 60, max: 180 },
-    maxVariations: 4,
-    maxSections: 10,
-    supportsStructuredSections: true,
-    supportsGuideMelody: true,
     supportsNativeStems: false,
     canGenerateAudio: true,
   },
@@ -156,12 +128,13 @@ function asProviderId(provider: string): AIProviderId | null {
 }
 
 function pickHighCapacityProvider(): AIProviderId {
-  return PROVIDER_CAPABILITIES.suno.canGenerateAudio ? 'suno' : 'replicate-suno';
+  // ACE-Step is our primary audio generator now (Suno removed).
+  return 'ace-step';
 }
 
 export function resolveGenerationConstraints(input: GenerationConstraintInput): GenerationConstraintResult {
-  const requestedProvider = String(input.provider || 'suno').toLowerCase();
-  const requestedId = asProviderId(requestedProvider) || 'suno';
+  const requestedProvider = String(input.provider || 'ace-step').toLowerCase();
+  const requestedId = asProviderId(requestedProvider) || 'ace-step';
   let effectiveProvider: AIProviderId = requestedId;
   let capability = PROVIDER_CAPABILITIES[effectiveProvider];
   const warnings: string[] = [];

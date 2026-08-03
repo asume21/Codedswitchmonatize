@@ -257,7 +257,7 @@ export function ProAudioGenerator() {
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // Derived provider info
-  const providerCapability = PROVIDER_CAPABILITIES[(aiProvider as keyof typeof PROVIDER_CAPABILITIES)] || PROVIDER_CAPABILITIES.suno;
+  const providerCapability = PROVIDER_CAPABILITIES[(aiProvider as keyof typeof PROVIDER_CAPABILITIES)] || PROVIDER_CAPABILITIES['ace-step'];
   const providerMaxSingle = providerCapability.maxDuration;
   const providerBpmRange = providerCapability.bpmRange;
   const isTextOnlyProvider = !providerCapability.canGenerateAudio;
@@ -1011,7 +1011,7 @@ export function ProAudioGenerator() {
                           <div className="flex h-10 items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-200">
                             ACE-Step instrumental
                           </div>
-                          <p className="text-[10px] text-emerald-400 mt-1">Reference beats only. No Suno vocals, no MusicGen fallback.</p>
+                          <p className="text-[10px] text-emerald-400 mt-1">Reference beats only. No AI vocals, no MusicGen fallback.</p>
                         </div>
                       </div>
 
