@@ -6,13 +6,46 @@ import { storage } from '../storage';
  * Enforces subscription tier requirements for premium features
  */
 
-export type SubscriptionTier = 'free' | 'pro' | 'premium';
+// Canonical paid tiers, ranked by price (see SUBSCRIPTION_TIERS in
+// services/credits.ts: creator $9.99 < pro $29.99 < studio $79.99). These are
+// the values actually written to users.subscription_tier by the Stripe webhook.
+export type SubscriptionTier = 'free' | 'creator' | 'pro' | 'studio';
 
 const TIER_LEVELS: Record<SubscriptionTier, number> = {
   free: 0,
-  pro: 1,
-  premium: 2,
+  creator: 1,
+  pro: 2,
+  studio: 3,
 };
+
+// A userSubscriptions.status that means the paid tier is currently entitled.
+// Anything else (canceled, past_due, incomplete, unpaid…) drops the user to free.
+const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+
+/**
+ * Resolve a user's EFFECTIVE tier.
+ *
+ * The entitlement lives in `user.subscriptionTier` (free|creator|pro|studio) —
+ * NOT in the subscription's Stripe *lifecycle* status. The prior code cast
+ * `subscription.status` ("active") straight to a tier, and since "active" is not
+ * a key in TIER_LEVELS it silently resolved to free level 0, 403-ing every
+ * paying customer (audit 2026-08-02, finding #2).
+ *
+ * The status only gates VALIDITY: if a subscription row exists, the paid tier is
+ * honored only while that row is active/trialing. With no row we fall back to the
+ * stored tier so manual/activation-key grants still work.
+ */
+function resolveTier(
+  user: { subscriptionTier?: string | null },
+  subscription: { status?: string | null } | null | undefined,
+): SubscriptionTier {
+  const stored = (user.subscriptionTier || 'free') as SubscriptionTier;
+  if (!(stored in TIER_LEVELS)) return 'free';
+  if (stored === 'free') return 'free';
+  // Paid tier stored — valid only if there's no gating row, or the row is active.
+  if (!subscription) return stored;
+  return ACTIVE_STATUSES.has(subscription.status || '') ? stored : 'free';
+}
 
 /**
  * Middleware to require a minimum subscription tier
@@ -40,7 +73,7 @@ export function requireTier(minTier: SubscriptionTier) {
 
       // Get subscription tier
       const subscription = await storage.getUserSubscription(user.id);
-      const userTier = (subscription?.status as SubscriptionTier) || user.subscriptionTier || 'free';
+      const userTier = resolveTier(user, subscription);
 
       // Check if user meets minimum tier requirement
       const userLevel = TIER_LEVELS[userTier] || 0;
@@ -78,7 +111,7 @@ export async function hasAccess(userId: string, requiredTier: SubscriptionTier):
     if (!user) return false;
 
     const subscription = await storage.getUserSubscription(userId);
-    const userTier = (subscription?.status as SubscriptionTier) || user.subscriptionTier || 'free';
+    const userTier = resolveTier(user, subscription);
 
     const userLevel = TIER_LEVELS[userTier] || 0;
     const requiredLevel = TIER_LEVELS[requiredTier];
@@ -99,7 +132,7 @@ export async function getUserTier(userId: string): Promise<SubscriptionTier> {
     if (!user) return 'free';
 
     const subscription = await storage.getUserSubscription(userId);
-    return (subscription?.status as SubscriptionTier) || user.subscriptionTier || 'free';
+    return resolveTier(user, subscription);
   } catch (error) {
     console.error('Get tier error:', error);
     return 'free';
@@ -109,7 +142,15 @@ export async function getUserTier(userId: string): Promise<SubscriptionTier> {
 /**
  * Feature limits by tier
  */
-export const TIER_LIMITS = {
+export const TIER_LIMITS: Record<SubscriptionTier, {
+  aiGenerationsPerMonth: number;
+  songsPerMonth: number;
+  lyricsPerMonth: number;
+  beatsPerMonth: number;
+  uploadsPerMonth: number;
+  maxProjectSize: number;
+  maxSongDuration: number;
+}> = {
   free: {
     aiGenerationsPerMonth: 10,
     songsPerMonth: 5,
@@ -118,6 +159,15 @@ export const TIER_LIMITS = {
     uploadsPerMonth: 20,
     maxProjectSize: 50 * 1024 * 1024, // 50MB
     maxSongDuration: 180, // 3 minutes
+  },
+  creator: {
+    aiGenerationsPerMonth: 50,
+    songsPerMonth: 20,
+    lyricsPerMonth: 100,
+    beatsPerMonth: 150,
+    uploadsPerMonth: 60,
+    maxProjectSize: 250 * 1024 * 1024, // 250MB
+    maxSongDuration: 420, // 7 minutes
   },
   pro: {
     aiGenerationsPerMonth: 100,
@@ -128,7 +178,7 @@ export const TIER_LIMITS = {
     maxProjectSize: 500 * 1024 * 1024, // 500MB
     maxSongDuration: 600, // 10 minutes
   },
-  premium: {
+  studio: {
     aiGenerationsPerMonth: -1, // Unlimited
     songsPerMonth: -1,
     lyricsPerMonth: -1,

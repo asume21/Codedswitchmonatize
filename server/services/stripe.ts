@@ -125,7 +125,11 @@ export async function handleStripeWebhook(
   }
 
   switch (event.type) {
-    case "checkout.session.completed": {
+    case "checkout.session.completed":
+    // async_payment_succeeded fires when a delayed payment method (e.g. bank
+    // debit) finally clears. It carries the same session; re-entering here with
+    // payment_status now "paid" is what actually grants the credits (#4).
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       const customerId = (session.customer as string) || undefined;
       const subscriptionId = (session.subscription as string) || undefined;
@@ -157,8 +161,13 @@ export async function handleStripeWebhook(
         normalizeTier((session.metadata as any)?.tier) ||
         normalizeTier((subscription as any)?.metadata?.tier);
 
-      // Handle credit purchases (one-time payments)
-      if (session.mode === "payment" && userId) {
+      // Handle credit purchases (one-time payments).
+      // Only fulfill once funds are actually collected. A completed Checkout
+      // session with a delayed payment method can be payment_status "unpaid"/
+      // "no_payment_required"; granting then would hand out credits that may
+      // never be paid for (audit 2026-08-02, #4). We wait for payment_status
+      // "paid", which async_payment_succeeded re-delivers when the money clears.
+      if (session.mode === "payment" && userId && session.payment_status === "paid") {
         const packageKey = session.metadata?.packageKey as keyof typeof CREDIT_PACKAGES;
         const credits = parseInt(session.metadata?.credits || "0");
 
@@ -214,6 +223,17 @@ export async function handleStripeWebhook(
           }
         });
       }
+      break;
+    }
+
+    case "checkout.session.async_payment_failed": {
+      // A delayed payment ultimately failed. Because we only grant on
+      // payment_status "paid" (#4), nothing was ever granted — nothing to
+      // reverse. Log for visibility and move on.
+      const session = event.data.object as Stripe.Checkout.Session;
+      console.warn(
+        `Async payment failed for checkout session ${session.id}; no credits were granted.`,
+      );
       break;
     }
 
@@ -278,7 +298,13 @@ export async function handleStripeWebhook(
       if (!user) break;
 
       const status = sub.status;
-      const tier = deriveTier(status);
+      // Honor the tier the customer actually bought (creator|pro|studio), stored
+      // in subscription metadata at checkout. Falling back to deriveTier here was
+      // the bug that overwrote Creator/Studio as Pro on every subscription update
+      // (audit 2026-08-02, finding #3). Validity is gated separately by `status`
+      // via resolveTier() in tierEnforcement, so metadata is safe to keep here.
+      const metadataTier = normalizeTier((sub as any)?.metadata?.tier);
+      const tier = metadataTier || deriveTier(status);
       const currentPeriodEnd = (sub as any).current_period_end
         ? new Date((sub as any).current_period_end * 1000)
         : null;
@@ -316,15 +342,11 @@ export async function handleStripeWebhook(
         : undefined;
       if (!user) break;
 
-      // Find the original credit-purchase transaction for this paymentIntent.
-      // Scanning recent history is acceptable here — refunds are rare and we
-      // need only one match. If more rigor is needed later, add an indexed
-      // lookup by metadata->>'paymentIntentId'.
-      const recent = await storage.getCreditTransactions(user.id, 500, 0);
-      const original = recent.find((t: any) => {
-        const meta = (t as any)?.metadata;
-        return meta?.paymentIntentId === paymentIntentId && (t as any).amount > 0;
-      });
+      // Find the original credit-purchase transaction for this paymentIntent by
+      // direct indexed lookup. The old 500-row recent-history scan silently
+      // no-op'd when the purchase was older than the window, letting high-volume
+      // accounts keep credits from a refunded charge (audit 2026-08-02, #5).
+      const original = await storage.getCreditTransactionByPaymentIntent(paymentIntentId);
       if (!original) {
         console.warn(
           `Refund/dispute received for ${paymentIntentId} but no matching purchase found`,
@@ -334,22 +356,18 @@ export async function handleStripeWebhook(
 
       const clawbackAmount = Math.abs((original as any).amount);
       await withClaim({ userId: user.id, paymentIntentId }, async () => {
-        // Use atomicAddCredits with a negative delta — the same SQL UPDATE that
-        // grants credits is also race-safe for clawback. We deliberately allow
-        // the balance to go negative; the next `requireCredits` check will block
-        // further AI work until the user buys more.
-        const { balanceBefore, balanceAfter } = await storage.atomicAddCredits(
-          user.id,
-          -clawbackAmount,
-        );
-        await storage.logCreditTransaction({
+        // grantCreditsAtomic with a negative delta: the balance UPDATE and the
+        // ledger INSERT commit together (audit 2026-08-02, #1). Previously a
+        // failure between atomicAddCredits and logCreditTransaction released the
+        // event claim, so Stripe's retry could claw back the same credits again.
+        // We deliberately allow the balance to go negative; the next
+        // `requireCredits` check blocks further AI work until the user tops up.
+        await storage.grantCreditsAtomic(user.id, -clawbackAmount, {
           id: crypto.randomUUID(),
           userId: user.id,
           amount: -clawbackAmount,
           type: "refund" as any,
           reason: event.type === "charge.refunded" ? "Stripe refund clawback" : "Stripe dispute clawback",
-          balanceBefore,
-          balanceAfter,
           metadata: {
             stripeEventId: event.id,
             paymentIntentId,

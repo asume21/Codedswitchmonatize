@@ -952,11 +952,25 @@ Return ONLY valid JSON:
       }
 
       if (result.status === "succeeded" && result.output) {
-        // Only deduct credits if payment method was credits (not subscription)
+        // Only deduct credits if payment method was credits (not subscription).
+        //
+        // Was storage.updateUserCredits(-BEAT_COST), which bypassed the credit
+        // service entirely and cost two guarantees:
+        //   1. NO LEDGER ROW. updateUserCredits moves users.credits and
+        //      totalCreditsSpent but never calls logCreditTransaction, so the
+        //      balance dropped with nothing in the user's history explaining why —
+        //      transaction log and balance permanently disagree.
+        //   2. NO OVERDRAFT PROTECTION. It floors with GREATEST(0, ...), so a user
+        //      with fewer credits than the cost silently lands on 0 instead of
+        //      being refused. deductCredits uses atomicDeductCredits, a single
+        //      UPDATE ... WHERE credits >= amount, which also closes the TOCTOU
+        //      race between the balance check above and this write.
         let remainingCredits = userCredits;
         if (paymentMethod === 'credits') {
-          await storage.updateUserCredits(req.userId!, -BEAT_COST);
-          remainingCredits = Math.max(0, userCredits - BEAT_COST);
+          const tx = await getCreditService(storage).deductCredits(
+            req.userId!, BEAT_COST, 'beat_generation', { model: 'musicgen' },
+          );
+          remainingCredits = tx.balanceAfter;
         }
 
         // Use Grok/OpenAI via callAI to generate the visible drum grid pattern.
@@ -1225,11 +1239,16 @@ Return ONLY valid JSON:
       console.log(`✅ Generation complete - Status: ${result.status}`);
 
       if (result.status === "succeeded" && result.output) {
-        // Only deduct credits if payment method was credits (not subscription)
+        // Only deduct credits if payment method was credits (not subscription).
+        // Same bypass as the beat route above — no ledger row and no overdraft
+        // protection. Routed through the credit service so the deduction is
+        // atomic and shows up in the user's transaction history.
         let remainingCredits = userCredits;
         if (paymentMethod === 'credits') {
-          await storage.updateUserCredits(req.userId!, -MELODY_COST);
-          remainingCredits = Math.max(0, userCredits - MELODY_COST);
+          const tx = await getCreditService(storage).deductCredits(
+            req.userId!, MELODY_COST, 'melody_generation', { model: 'replicate' },
+          );
+          remainingCredits = tx.balanceAfter;
         }
 
         // Generate MIDI notes for the piano roll

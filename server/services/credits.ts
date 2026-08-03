@@ -35,7 +35,7 @@ export const MEMBERSHIP_TIERS = {
     rolloverMax: 600,
     features: [
       '300 credits/month',
-      '2 Suno songs + extras',
+      '2 AI songs + extras',
       '60 MusicGen beats OR mix & match',
       'Credits rollover (max 600)',
       'Priority support',
@@ -54,7 +54,7 @@ export const MEMBERSHIP_TIERS = {
     rolloverMax: 2000,
     features: [
       '1000 credits/month',
-      '8 Suno songs + extras',
+      '8 AI songs + extras',
       '200 MusicGen beats OR mix & match',
       'Credits rollover (max 2000)',
       'Priority queue',
@@ -173,31 +173,24 @@ export class CreditService {
     reason: string,
     metadata?: Record<string, any>
   ): Promise<CreditTransaction> {
-    // Atomic deduction: single SQL UPDATE with WHERE credits >= amount
-    // prevents overdraft from concurrent requests (TOCTOU race condition)
-    const updatedUser = await this.storage.atomicDeductCredits(userId, amount);
-
-    const balanceBefore = (updatedUser.credits || 0) + amount;
-    const balanceAfter = updatedUser.credits || 0;
-
-    // Log transaction
-    const transaction: CreditTransaction = {
+    // Atomic deduction + ledger insert in ONE DB transaction. The overdraft
+    // guard (WHERE credits >= amount) prevents concurrent overdraw, and wrapping
+    // the ledger write in the same transaction means a log failure rolls the
+    // balance back — no orphan debit with no matching history, and no retry can
+    // debit twice (audit 2026-08-02, finding #1).
+    const { transaction } = await this.storage.deductCreditsAtomic(userId, amount, {
       id: crypto.randomUUID(),
       userId,
       amount: -amount,
       type: CreditTransactionType.DEDUCTION,
       reason,
-      balanceBefore,
-      balanceAfter,
       metadata,
       createdAt: new Date(),
-    };
-
-    await this.storage.logCreditTransaction(transaction);
+    });
 
     console.log(`💳 Credits deducted: User ${userId}, -${amount} credits, Reason: ${reason}`);
 
-    return transaction;
+    return transaction as CreditTransaction;
   }
 
   /**

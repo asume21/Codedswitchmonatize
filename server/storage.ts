@@ -106,6 +106,20 @@ export interface IStorage {
   ): Promise<User>;
   updateUserUsage(userId: string, uploads: number, generations: number): Promise<User>;
   incrementUserUsage(userId: string, type: 'uploads' | 'generations'): Promise<User>;
+  /**
+   * RAW balance write — does NOT log a ledger row and does NOT check for overdraft
+   * (it floors with GREATEST(0, ...), so an underfunded user silently lands on 0).
+   *
+   * Do NOT use this to charge a user. Two routes did, and the result was balances
+   * that dropped with nothing in the transaction history explaining why, plus a
+   * TOCTOU race between the balance check and the write.
+   *
+   * To DEDUCT:  getCreditService(storage).deductCredits(userId, amount, reason)
+   *             — atomic (UPDATE ... WHERE credits >= amount) and ledger-logged.
+   * To GRANT:   the credit service's purchase/grant path, same reason.
+   *
+   * Kept only for administrative adjustments that deliberately bypass the ledger.
+   */
   updateUserCredits(userId: string, creditsDelta: number): Promise<User>;
   atomicDeductCredits(userId: string, amount: number): Promise<User>;
   // M-C1: race-free credit grant. Returns balanceBefore/balanceAfter so callers
@@ -118,6 +132,15 @@ export interface IStorage {
   // ledger-based dedup wouldn't see the orphan grant. Both writes commit
   // together or both roll back; nothing in between.
   grantCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }>;
+  // Audit 2026-08-02 (finding #1): the debit twin of grantCreditsAtomic. One DB
+  // transaction wraps the overdraft-guarded balance UPDATE and the ledger INSERT,
+  // so a logCreditTransaction failure can no longer leave a user's balance lower
+  // with no matching transaction row (and no retry can debit twice).
+  deductCreditsAtomic(
     userId: string,
     amount: number,
     txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
@@ -138,6 +161,10 @@ export interface IStorage {
   logCreditTransaction(transaction: any): Promise<void>;
   getCreditTransactions(userId: string, limit: number, offset: number): Promise<any[]>;
   getCreditTransaction(transactionId: string): Promise<any | undefined>;
+  // Audit 2026-08-02 (finding #5): direct lookup of the original positive
+  // purchase for a Stripe paymentIntent, so refund/dispute clawbacks work even
+  // when the purchase is older than any recent-history window.
+  getCreditTransactionByPaymentIntent(paymentIntentId: string): Promise<CreditTransaction | undefined>;
 
   // M-C2 / M-H4: Stripe webhook idempotency. tryClaimStripeEvent returns false
   // if this event was already processed (so the caller skips the side-effect),
@@ -597,6 +624,45 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async deductCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }> {
+    // Simulated transaction with overdraft guard; rewind on ledger failure.
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    const balanceBefore = user.credits || 0;
+    if (balanceBefore < amount) {
+      throw new Error(`Insufficient credits. Need ${amount}, have ${balanceBefore}`);
+    }
+    const balanceAfter = balanceBefore - amount;
+    const updated: User = {
+      ...user,
+      credits: balanceAfter,
+      totalCreditsSpent: (user.totalCreditsSpent || 0) + amount,
+    };
+    this.users.set(userId, updated);
+    try {
+      const transaction: CreditTransaction = {
+        id: txn.id ?? crypto.randomUUID(),
+        userId: txn.userId,
+        amount: txn.amount,
+        type: txn.type,
+        reason: txn.reason,
+        balanceBefore,
+        balanceAfter,
+        metadata: txn.metadata as any,
+        createdAt: txn.createdAt ?? new Date(),
+      } as CreditTransaction;
+      this.creditTransactions.set(transaction.id, transaction);
+      return { user: updated, balanceBefore, balanceAfter, transaction };
+    } catch (err) {
+      this.users.set(userId, user);
+      throw err;
+    }
+  }
+
   async tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean> {
     if (this.processedStripeEvents.has(event.eventId)) return false;
     this.processedStripeEvents.set(event.eventId, {
@@ -723,6 +789,18 @@ export class MemStorage implements IStorage {
 
   async getCreditTransaction(transactionId: string): Promise<CreditTransaction | undefined> {
     return this.creditTransactions.get(transactionId);
+  }
+
+  async getCreditTransactionByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<CreditTransaction | undefined> {
+    // Newest matching positive (purchase) transaction for this paymentIntent.
+    return Array.from(this.creditTransactions.values())
+      .filter(
+        (t) =>
+          (t.metadata as any)?.paymentIntentId === paymentIntentId && t.amount > 0,
+      )
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))[0];
   }
 
   // Projects
@@ -2131,6 +2209,47 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async deductCreditsAtomic(
+    userId: string,
+    amount: number,
+    txn: Omit<InsertCreditTransaction, 'balanceBefore' | 'balanceAfter'>,
+  ): Promise<{ user: User; balanceBefore: number; balanceAfter: number; transaction: CreditTransaction }> {
+    // Audit 2026-08-02 (finding #1): debit + ledger insert in one Postgres
+    // transaction. The overdraft guard lives in the UPDATE's WHERE clause, so a
+    // concurrent request can't overdraw and a failed ledger insert rolls the
+    // balance back. `tx` is typed any because the db Proxy erases Drizzle generics.
+    return await db.transaction(async (tx: any) => {
+      const [user] = await tx
+        .update(users)
+        .set({
+          credits: sql`${users.credits} - ${amount}`,
+          totalCreditsSpent: sql`COALESCE(${users.totalCreditsSpent}, 0) + ${amount}`,
+        })
+        .where(and(eq(users.id, userId), sql`COALESCE(${users.credits}, 0) >= ${amount}`))
+        .returning();
+      if (!user) throw new Error("Insufficient credits or user not found");
+      const balanceAfter = user.credits || 0;
+      const balanceBefore = balanceAfter + amount;
+
+      const [transaction] = await tx
+        .insert(creditTransactions)
+        .values({
+          ...txn,
+          balanceBefore,
+          balanceAfter,
+        })
+        .returning();
+      if (!transaction) throw new Error("Failed to insert credit transaction");
+
+      return {
+        user,
+        balanceBefore,
+        balanceAfter,
+        transaction: transaction as CreditTransaction,
+      };
+    });
+  }
+
   async tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean> {
     // M-C2 / M-H4: ON CONFLICT DO NOTHING gives us atomic "first writer wins".
     // If the row already exists, the insert affects 0 rows and we return false
@@ -2304,6 +2423,27 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset);
     return transactions;
+  }
+
+  async getCreditTransactionByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<CreditTransaction | undefined> {
+    // Audit 2026-08-02 (finding #5): look the original purchase up directly by
+    // its paymentIntentId (stored in the metadata JSON), newest positive first,
+    // instead of scanning a 500-row recent window that misses old purchases.
+    // json `->>` extracts the text value; works on Postgres json and jsonb.
+    const [transaction] = await db
+      .select()
+      .from(creditTransactions)
+      .where(
+        and(
+          sql`${creditTransactions.metadata}->>'paymentIntentId' = ${paymentIntentId}`,
+          sql`${creditTransactions.amount} > 0`,
+        ),
+      )
+      .orderBy(desc(creditTransactions.createdAt))
+      .limit(1);
+    return transaction || undefined;
   }
 
   async getCreditTransaction(transactionId: string): Promise<CreditTransaction | undefined> {

@@ -57,6 +57,9 @@ function makeCheckoutSessionCompleted() {
         id: 'cs_test_123',
         object: 'checkout.session',
         mode: 'payment',
+        // Immediate (card) payments arrive already "paid"; the handler now
+        // requires this before fulfilling a credit pack (audit 2026-08-02, #4).
+        payment_status: 'paid',
         customer: 'cus_test_123',
         subscription: null,
         payment_intent: 'pi_test_123',
