@@ -25,7 +25,10 @@ specs and competing systems (the "doubles"). Before acting on the first request:
 ## Commands
 
 ```bash
-# Development (runs client on :5000 and server on :4000)
+# Development — client (Vite) on http://localhost:5001, server (Express) on :4001.
+# Ports are authoritative in vite.config.ts (port: 5001, strictPort) and the
+# package.json dev:server script (set PORT=4001, which OVERRIDES .env PORT=4000).
+# Ignore the stale :5000/:4000 in .env and the server/index.ts dev-default comment.
 npm run dev
 
 # Build for production
@@ -113,5 +116,5 @@ Drizzle ORM table definitions used by both server (queries) and client (inferred
 ### Key Patterns
 - `client/src/main.tsx` imports `./lib/globalAudioKillSwitch` **first** — this patches `window.Audio` globally before React mounts.
 - `server/storage.ts` exports a `storage` singleton (MemStorage in dev, DatabaseStorage in prod).
-- Vite dev server proxies `/api/*` to Express on port 4000.
+- Vite dev server (`:5001`) proxies `/api/*` to Express on port `4001`.
 - `AI_HANDOFF.md` in the root tracks cross-session context — update it after major changes.
