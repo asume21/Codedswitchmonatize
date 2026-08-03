@@ -1,9 +1,11 @@
 /**
  * ACE-Step Service
  *
- * Talks to ACE-Step through one of two backends:
- *   1. RunPod Serverless when RUNPOD_SERVERLESS_ENDPOINT_ID is set.
- *   2. A persistent FastAPI worker at ACE_STEP_WORKER_URL for local/dev fallback.
+ * Talks to ACE-Step through one of three backends (see isWorkerReady for the
+ * priority order):
+ *   1. Replicate when REPLICATE_API_TOKEN is set (current hosted backend).
+ *   2. RunPod Serverless when RUNPOD_API_KEY + RUNPOD_SERVERLESS_ENDPOINT_ID are set.
+ *   3. A persistent FastAPI worker at ACE_STEP_WORKER_URL for local/dev fallback.
  *
  * Flow:
  *   1. POST /generate → returns { job_id }

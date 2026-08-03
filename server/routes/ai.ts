@@ -4,6 +4,8 @@ import { getAIProviderStatus, makeAICall } from "../services/grok";
 import { conductorBrain } from "../services/conductorBrain";
 import { generateChordProgression } from "../services/chordEngine";
 import { aiProviderManager } from "../services/aiProviderManager";
+import { isReplicateConfigured } from "../services/replicateService";
+import { isServerlessConfigured } from "../services/runpodServerlessService";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 
@@ -184,7 +186,13 @@ export function createAIRoutes() {
     try {
       const providerStatus = getAIProviderStatus();
       const replicateConfigured = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
-      const aceStepConfigured = Boolean(process.env.ACE_STEP_WORKER_URL?.trim());
+      // ACE-Step runs on one of three backends (see aceStepService.isWorkerReady):
+      // Replicate, RunPod Serverless, or a local FastAPI worker. Mirror that here
+      // so the status reflects whichever backend is actually configured.
+      const aceStepConfigured =
+        isReplicateConfigured() ||
+        isServerlessConfigured() ||
+        Boolean(process.env.ACE_STEP_WORKER_URL?.trim());
 
       const anyCloudAI = providerStatus.grok.clientReady || providerStatus.openai.clientReady;
 
