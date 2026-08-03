@@ -132,9 +132,13 @@ describe('ChordImproviser', () => {
     const inBar0 = busySlots.map(s => 0 * 16 + s)
     const inBar1 = busySlots.map(s => 1 * 16 + s)
 
+    // Pin the gesture to a motif/stab path — lead-dodging (leadRoom) only applies
+    // there. Without this the gesture is picked via the session-salt-seeded
+    // pickCompGesture, and a bed gesture (sustain/roll) ignores leadBusy16ths
+    // entirely, so moving the lead's bar changes nothing → flaky `differed === 0`.
     const planFor = (leadBusy16ths: number[], seed: number) => {
       clearMotifs(); clearCompCounters()
-      return buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, leadBusy16ths, rng: mulberry32(seed) }))
+      return buildFreeplayCompPlan(ctx({ bars: 2, energy: 0.9, compGesture: 'stabs', leadBusy16ths, rng: mulberry32(seed) }))
     }
 
     let differed = 0
