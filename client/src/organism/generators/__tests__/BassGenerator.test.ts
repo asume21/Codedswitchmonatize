@@ -5,7 +5,7 @@ import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
 import type { OrganismState } from '../../state/types'
 import { GeneratorName } from '../types'
-import { createToneMock, mockPartStart, mockFilterFreqRampTo } from './__mocks__/toneMock'
+import { createToneMock, mockPartStart, mockPartClear, mockFilterFreqRampTo } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
 
@@ -77,7 +77,10 @@ describe('BassGenerator', () => {
 
     gen.setSubGenre('trap')
 
-    expect(mockPartStart).toHaveBeenCalled()
+    // A rebuild now mutates the existing looping Part's events in place
+    // (spec §13) rather than dispose+recreate, so the signal is clear(), not a
+    // new start().
+    expect(mockPartClear).toHaveBeenCalled()
   })
 
   it('high pocket physics → filter cutoff drops', () => {
@@ -123,21 +126,23 @@ describe('BassGenerator', () => {
       vi.clearAllMocks()
       getConductor().advanceChord()
 
-      // The primary guarantee: zero Tone.Part.start() calls from the listener.
-      expect(mockPartStart).not.toHaveBeenCalled()
+      // The primary guarantee: zero rebuilds from the listener. A rebuild now
+      // mutates the existing Part in place (spec §13), so clear() is the rebuild
+      // signal — the old dispose+recreate start() is gone.
+      expect(mockPartClear).not.toHaveBeenCalled()
       // The dirty flag is the deferred-work signal consumed on a later frame.
       expect((gen as any).conductorChordDirty).toBe(true)
 
       nowSpy.mockReturnValue(1001)
       gen.processFrame(physics, organism)
-      expect(mockPartStart).not.toHaveBeenCalled()
+      expect(mockPartClear).not.toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(true)
 
       // MIN_REBUILD_INTERVAL_MS is 900, so 1600 is only a 600ms gap and the
       // rebuild is still (correctly) throttled. Advance past the real interval.
       nowSpy.mockReturnValue(1000 + 900 + 1)
       gen.processFrame(physics, organism)
-      expect(mockPartStart).toHaveBeenCalled()
+      expect(mockPartClear).toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(false)
     } finally {
       nowSpy.mockRestore()

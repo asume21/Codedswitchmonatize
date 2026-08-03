@@ -17,7 +17,7 @@ import {
 import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
 import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
-import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
 // root via the Conductor's chord-change events (Phase 4).
 import type { PhysicsState }   from '../physics/types'
@@ -681,28 +681,24 @@ export class BassGenerator extends GeneratorBase {
     }))
     this.emitNoteEvents(events)
 
-    const startAt = getLivePartStart(this.hasStartedPlayback)
-
-    // Seamless handoff: keep the old Part playing until the new one starts.
-    const transport = Tone.getTransport()
-    const oldPart = this.part
-    if (oldPart) {
-      if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
-        oldPart.stop(startAt)
-        // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
-        // Dispose only AFTER the boundary, generously padded — disposing early
-        // destroys the incoming part's handoff window; disposing late is free.
-        const msUntilStart = msUntilTransportTime(startAt)
-        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
-      } else {
-        // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
-        // Tone rejects negative times with an uncaught RangeError that aborts the
-        // whole preset-swap chain. dispose() below still unschedules everything.
-        try { oldPart.stop() } catch { /* negative-time rounding — dispose handles it */ }
-        oldPart.dispose()
-      }
+    // HOLD-AND-MUTATE (spec §13): if the Part already exists and is running, swap
+    // its events in place — no dispose, no re-start, no grid re-alignment. The
+    // dispose+create burst on every rebuild was the crackle source
+    // (GeneratorOrchestrator.ts:400 "floods the audio scheduler and causes crackling").
+    // The callback reads all live state off `this.*` at fire time, so only the
+    // events need updating.
+    if (this.part && this.hasStartedPlayback) {
+      this.updatePartEvents(this.part, events)
+      return true
     }
-    this.part = null
+
+    // FIRST BUILD (no Part yet, or it was dropped on stop). This is the ONLY place
+    // the bass Part is (re)started. Defensive: if a Part somehow survived without
+    // hasStartedPlayback (invariant break), drop it so we never leak one — normally
+    // a no-op because this.part is null here.
+    if (this.part) this.stopPart()
+
+    const startAt = getLivePartStart(this.hasStartedPlayback)
 
     // Bass used to sit 20ms behind the grid for hip-hop pocket feel, but
     // when stacked against sampler/synth load-latency micro-jitter the
