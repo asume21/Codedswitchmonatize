@@ -428,3 +428,83 @@ Corrected while writing this, so it is not "fixed" again later: the bass is NOT 
 to the kick. All four improvisers build onsets from the shared `getSongCell`, so
 bass/drums lock through the cell (`9a76dd1b`). `ctx.kickTimes16ths` is populated but
 unread — redundant plumbing, not a missed signal. §11's ✅ is correct.
+
+## 13. Hold the Part, mutate it in place — stop the build/teardown/rebuild crackle (2026-08-03)
+
+User's words: *"why does it always have to build tear down and rebuild all the time
+cant it just build hold that state while i use and then drop when down or save."*
+Reported symptom: the beat plays ~1 second, then **crackles and cuts out** — but
+**plays fine when the tab is backgrounded**.
+
+The instinct is correct, and the code already admits the problem:
+- `GeneratorOrchestrator.ts:400` — the 5 generators *"dispose + create Tone.Parts …
+  floods the audio scheduler and **causes crackling**"* (band-aided by a 50/120/180ms
+  stagger, not fixed).
+- `OrganismProvider.tsx:880` — per-frame work is *"per-frame CPU that contributes to
+  the **crackle/cutout on busy machines**."*
+
+### 13.1 Root cause
+
+Foreground-only is the tell: Web Audio runs on its own thread, so the sound never
+needed the tab visible. What needs the tab visible is the ~43fps input→physics→state
+loop; when it runs full-speed it (a) burns main-thread CPU and (b) fires state
+transitions, and **every transition/chord/sub-genre/section change disposes the
+generator's `Tone.Part` and creates a new one** (`BassGenerator.rebuildPart`:
+`this.part = new Tone.Part(...)`; `stopPart`: `stop() + dispose()`). Bursts of
+Part dispose/create starve the audio render thread → crackle → the graph gives out.
+Hide the tab → the loop throttles → the storm stops → clean playback.
+
+### 13.2 The fix — build once, hold, mutate
+
+The Part is **already a looping 4-bar Part** (`part.loop = true; part.loopEnd = '4m'`)
+and its callback reads live state at FIRE time (`this.currentPocket`,
+`getActiveVoice()`), so on a "rebuild" **only the events change** — never the callback,
+never the Part. So:
+
+- **Shared helper on `GeneratorBase`:** `updatePartEvents(part, events)` = `part.clear()`
+  then `part.add(e)` for each event. No dispose, no re-`start`.
+- **`rebuildPart` splits:**
+  - *First build* (no Part, or Part was dropped on stop): `new Tone.Part(cb, events)`,
+    set `loop`/`loopEnd`, `start(getLivePartStart(...))` — the **one** grid-aligned start.
+  - *Every later rebuild:* `updatePartEvents(this.part, events)` — the Part keeps
+    looping; the new pattern lands at the next loop iteration.
+- **Drop when done:** `stopPart()` still `stop()+dispose()`s and nulls the Part on real
+  stop / dispose / entering loop-mode, so the next real start rebuilds cleanly.
+- **Deleted for free:** the `livePartStartOffset` phase-alignment hack ("continue from
+  the current bar, don't restart at 0") is unnecessary once the Part never restarts —
+  it keeps its own running timeline. A whole class of "restarted in the middle" bugs
+  goes away.
+- **Kept:** the chord-change **dirty-flag deferral** to `processFrame` (never mutate
+  from inside an audio-thread callback) and the rebuild throttle. Both correct.
+- **Untouched this pass:** the loop-player machinery (already clean — double-buffered,
+  gain-ramped) and the orchestrator's 50/120/180ms stagger. The stagger's *reason*
+  disappears; remove it only after all five generators are converted.
+
+### 13.3 Build order (proof-first, per the risk history)
+
+This is the engine that caused "starts then silence" twice
+([[project_organism_silence_audio_routing]]), so **one generator, verified by ear,
+before the rest:**
+
+1. **`BassGenerator` only.** Add `updatePartEvents` to `GeneratorBase`; split
+   `rebuildPart` into first-build vs mutate. Extend the Tone test-mock if it lacks
+   `Part.clear`/`Part.add`.
+2. **Verify** (§13.4). Only then:
+3. Roll the identical mechanical change to `Drum`, `Chord`, `Melody`, `Texture`
+   generators — one at a time, each re-verified.
+4. Remove the now-pointless orchestrator stagger.
+
+### 13.4 Acceptance
+
+- **By ear (the real test):** bass plays in auto, **tab focused**, 30s+ with **no
+  crackle and no cutout**; a chord/behavior change still **audibly** updates the line
+  (proves `clear()/add()` actually swapped the events).
+- **Tests green:** existing `BassGenerator.*` suites pass; extend the Tone mock as needed.
+- **Rollback:** one file per step — trivial to revert if a step regresses.
+
+### 13.5 Risk
+
+`clear()`+`add()` on a looping Part lands the new events at the next loop boundary;
+an event added "in the past" of the current iteration is skipped (harmless — better
+than today's dispose/restart glitch). If a live capture later shows a seam at the
+mutation point, batch the swap to a bar boundary via the existing dirty-flag path.
