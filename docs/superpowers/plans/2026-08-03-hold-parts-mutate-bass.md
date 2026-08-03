@@ -60,9 +60,12 @@ Create `client/src/organism/generators/__tests__/GeneratorBase.updatePartEvents.
 
 ```typescript
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-vi.mock('tone', () => import('./__mocks__/toneMock'))
+// NOTE: the mock is installed via the createToneMock() FACTORY, not a bare
+// import of the module (a bare import returns only the mockXxx assertion spies,
+// not Gain/Part — vitest then errors 'No "Gain" export on the tone mock').
+import { createToneMock, mockPartClear, mockPartAdd } from './__mocks__/toneMock'
+vi.mock('tone', () => createToneMock())
 import * as Tone from 'tone'
-import { mockPartClear, mockPartAdd } from './__mocks__/toneMock'
 import { GeneratorBase } from '../GeneratorBase'
 
 // Minimal concrete subclass so we can reach the protected helper.

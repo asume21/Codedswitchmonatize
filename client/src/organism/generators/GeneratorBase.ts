@@ -461,6 +461,20 @@ export abstract class GeneratorBase {
     return this.arrangementMultiplier
   }
 
+  /** Swap a looping Part's events IN PLACE — clear then re-add — so a "rebuild"
+   *  never disposes/recreates the Part (which floods the audio scheduler and
+   *  crackles). The Part keeps looping; new events land at the next iteration.
+   *  Spec 2026-07-02-freeplay-generators-design.md §13. */
+  protected updatePartEvents(
+    part: Tone.Part,
+    events: Array<{ time: string; [k: string]: unknown }>,
+  ): void {
+    part.clear()
+    for (const event of events) {
+      part.add(event as any)
+    }
+  }
+
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void
   abstract onStateTransition(to: OState, physics: PhysicsState): void
   abstract reset(): void

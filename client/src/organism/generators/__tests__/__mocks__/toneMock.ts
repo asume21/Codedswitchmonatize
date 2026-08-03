@@ -22,6 +22,8 @@ export const mockTriggerRelease = vi.fn()
 export const mockPartStart = vi.fn()
 export const mockPartStop = vi.fn()
 export const mockPartDispose = vi.fn()
+export const mockPartClear = vi.fn()
+export const mockPartAdd = vi.fn()
 export const mockPlayerStart = vi.fn()
 export const mockNoiseStart = vi.fn()
 export const mockFilterFreqRampTo = vi.fn()
@@ -309,6 +311,8 @@ export function createToneMock() {
         start: mockPartStart,
         stop: mockPartStop,
         dispose: mockPartDispose,
+        clear: mockPartClear,
+        add: mockPartAdd,
       })
     }),
     // Real, parseable note names/MIDI (not a fake "NoteXX" string) — matches
