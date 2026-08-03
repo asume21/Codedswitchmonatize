@@ -602,8 +602,19 @@ Create complete lyrics with verses, chorus, and bridge.`;
 
       console.log('✅ Bass line generated');
 
-      // Render to WAV server-side and create Track
-      const uploadsDir = path.join(process.cwd(), "server", "uploads");
+      // Render to WAV server-side and create Track.
+      //
+      // Was `server/uploads` + an audioUrl of `/uploads/<file>`. Two problems, and
+      // together they meant this endpoint could never return playable audio:
+      //   1. NOTHING serves bare /uploads — there is no express.static mount for it
+      //      in index.ts, index.prod.ts or routes.ts. The URL 404'd immediately.
+      //   2. server/uploads is OUTSIDE the Railway volume (mounted at /app/objects,
+      //      surfaced as LOCAL_OBJECTS_DIR), so the file was wiped on every redeploy
+      //      even if something had served it.
+      // LOCAL_OBJECTS_DIR is the durable root every other audio route writes to, and
+      // routes.ts:4018 (`GET /api/internal/uploads/*`) is what actually serves it.
+      const objectsRoot = process.env.LOCAL_OBJECTS_DIR || path.join(process.cwd(), "objects");
+      const uploadsDir = path.join(objectsRoot, "bass-renders");
       const renderResult = await renderBassToWav(
         bassNotes.map((n) => ({
           note: n.note,
@@ -619,7 +630,7 @@ Create complete lyrics with verses, chorus, and bridge.`;
         }
       );
 
-      const audioUrl = `/uploads/${renderResult.fileName}`;
+      const audioUrl = `/api/internal/uploads/bass-renders/${encodeURIComponent(renderResult.fileName)}`;
 
       const track = await storage.createTrack(req.userId!, projectId ?? null, {
         name,
