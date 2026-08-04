@@ -295,6 +295,42 @@ Use `capture_audio` (~15000ms) then `describe_audio` to get a second opinion on 
 
 ---
 
+---
+
+### Task 4: Roll out to drum/chord/melody + kill the cut-out contention (DONE — 4d4fb67d, 8f910d02)
+
+Done ahead of the by-ear check in Task 3, because the reported symptom was
+*both* clicking and cut-outs, and those turned out to be two separate causes.
+
+**Clicking — churn (commit `4d4fb67d`).** Drum, chord and melody all still did
+the dispose+recreate handoff. Converted all three to hold-and-mutate. The
+generalization is NOT a straight copy of the bass slice:
+
+- Drums loop at a fixed `4m` → can always mutate.
+- Chord (`freeplayEnabled ? 4 : 1`) and melody (`ceil(phraseLength / 16)`) have
+  **variable loop lengths**. Mutating keeps the live Part's existing `loopEnd`,
+  so a length change must fall through to a real rebuild — otherwise the new
+  events loop against the wrong bar count (a silent-gap bug, not a click).
+  Both guard on a new `partLoopBars` field, cleared in `stopPart()`.
+- The bar count is tracked in a field rather than compared against
+  `part.loopEnd`, because Tone coerces Time values to seconds on write — 
+  `part.loopEnd === '4m'` is always false.
+- Melody's events were built in an inline IIFE as the Part's second argument;
+  hoisted so the mutate branch can reuse them.
+
+**Cut-outs — main-thread contention (commit `8f910d02`).** Separate root cause:
+periodic main-thread work starving Tone's scheduler. Worst offender was
+`audioContext.ts`'s "TANK RECOVERY", which called `suspend()/resume()` on the
+sole shared context on detecting a stall — manufacturing a dropout in response
+to a dropout. Also gated: the 8s `decodeAudioData` self-listen loop, the 4Hz
+debug snapshot, and the vitals HUD (both now opt-in via localStorage
+`organism-debug` = '1').
+
+**Status:** all 620 organism tests pass; `tsc --noEmit` clean. Task 3's by-ear
+acceptance still OUTSTANDING and is the real verdict.
+
+---
+
 ## Self-Review
 
 **Spec coverage (§13):** §13.2 mechanism → Tasks 1+2. §13.3 build order (bass first, verify, then roll) → Tasks 2+3 (roll-out is a separate future plan, per the slice decision). §13.4 acceptance → Task 3. §13.5 risk (next-loop-boundary landing) → covered by the by-ear check in Task 3. ✓
