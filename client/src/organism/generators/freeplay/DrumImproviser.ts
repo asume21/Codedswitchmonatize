@@ -1,8 +1,9 @@
 // client/src/organism/generators/freeplay/DrumImproviser.ts
 // Freeplay drums: the sub-genre SKELETON (kick/snare anchors) is authored and
-// immutable — boom-bap stays boom-bap. The skeleton IS the groove; additions
-// are deliberately small, committed to the phrase, and never allowed to erase
-// the genre's kick/snare identity.
+// immutable — boom-bap stays boom-bap. The skeleton IS the groove: extra kicks,
+// ghost snares and 16th hat infill were removed (2026-07-11 fire-beats) because
+// they buried the backbone the ear needs to lock onto. Improvisation is now
+// limited to open-hat accents and the phrase-end fill.
 
 import { DrumInstrument, type DrumHit } from '../types'
 import type { FreeplayContext } from './types'
@@ -115,21 +116,6 @@ export function buildFreeplaySectionDrumHits(ctx: FreeplayContext, sectionBars: 
     for (const hit of core) tiled.push(shiftBar(hit, c * CORE_BARS))
   }
 
-  // The listener must feel that a long verse is going somewhere, but a fresh
-  // new beat every four bars destroys the lock. Later cycles receive one small,
-  // deterministic lift: an extra closed-hat answer and, at real drop energy, a
-  // light percussion marker. Kick/snare anchors remain byte-for-byte intact.
-  if (ctx.density >= 0.55 || ctx.energy >= 0.65) {
-    for (let cycle = 1; cycle < cycles; cycle++) {
-      const liftBar = cycle * CORE_BARS + 2
-      const liftSlot = cycle % 2 === 1 ? 11 : 7
-      push(tiled, H, liftBar, liftSlot, 0.27 + ctx.energy * 0.08, ctx.swing, ctx.rng)
-      if (ctx.energy >= 0.86 && ctx.density >= 0.8) {
-        push(tiled, P, liftBar, 14, 0.32 + ctx.energy * 0.08, ctx.swing, ctx.rng)
-      }
-    }
-  }
-
   // Turnaround: rebuild two bars so the replacement bar keeps the kick A/B
   // parity of the bar it replaces (the section's last bar is always odd), then
   // graft its second bar over the tiled one.
@@ -169,20 +155,7 @@ export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
   const kickMotif: number[] = cell.accents
     .filter(s => s !== 0 && s % 4 !== 0 && !protectedSlots.has(s))
     .slice(0, 2)
-  // A closed-hat infill is a phrase-level decision, not a per-bar coin flip.
-  // Start from the shared song cell so hats reinforce the same rhythmic idea as
-  // the bass/chords, then fall back to a safe off-grid slot when the cell's
-  // accents all coincide with protected kick/snare territory.
-  const infillCount = ctx.density >= 0.78 ? 2 : ctx.density >= 0.48 ? 1 : 0
-  const hatInfill = new Set<number>(
-    cell.slots.filter(s => s % 2 === 1 && !protectedSlots.has(s)).slice(0, infillCount),
-  )
-  if (hatInfill.size < infillCount) {
-    for (const slot of [3, 15, 1, 13, 5, 11, 7, 9]) {
-      if (hatInfill.size >= infillCount) break
-      if (!protectedSlots.has(slot)) hatInfill.add(slot)
-    }
-  }
+  const hatInfill = new Set<number>()
 
   // 0-2 open-hat accents per bar, drawn once per phrase so the placement is an
   // idea, not noise. Kept off slots where the closed 8th grid would double them.

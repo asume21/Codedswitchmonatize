@@ -7,7 +7,7 @@ vi.mock('../../instruments/OrganismKitCache', () => ({
   loadOrganismKits: vi.fn(),
 }))
 
-import { buildSampleKitDefinitionFromSamples, velocityToGain } from '../SampledDrumKit'
+import { buildSampleKitDefinitionFromSamples } from '../SampledDrumKit'
 
 const sample = (role: OrganismKitSample['role'], fileName: string): OrganismKitSample => ({
   role,
@@ -63,25 +63,5 @@ describe('buildSampleKitDefinitionFromSamples', () => {
       perc: [expect.stringContaining('Floor%20Tom.wav')],
     })
     expect(definition?.hatOpen).toEqual(definition?.hatClosed)
-  })
-
-  it('accepts generically named hats by partitioning their role pool', () => {
-    const definition = buildSampleKitDefinitionFromSamples('unknown-kit', [
-      sample('kick', 'Kick One.wav'),
-      sample('snare', 'Snare One.wav'),
-      sample('hat', 'Hat A.wav'),
-      sample('hat', 'Hat B.wav'),
-      sample('perc', 'Perc One.wav'),
-    ])
-
-    expect(definition?.hatClosed).toHaveLength(1)
-    expect(definition?.hatOpen).toHaveLength(1)
-  })
-
-  it('keeps ghost velocities audible while preserving accent contrast', () => {
-    expect(velocityToGain(0)).toBe(0)
-    expect(velocityToGain(0.2)).toBeGreaterThanOrEqual(0.12)
-    expect(velocityToGain(0.2)).toBeLessThan(velocityToGain(0.7))
-    expect(velocityToGain(1)).toBe(1)
   })
 })

@@ -349,14 +349,6 @@ export class GeneratorOrchestrator {
       // called from several places during the section — so they are set once,
       // here, and stay put until the next section change.
       this.currentSectionBars = Math.max(1, slot.bars)
-      // The section listener rebuilds the drum Part before applyArrangement()
-      // runs on this frame. Prime the incoming slot's density now so the first
-      // bar of a drop is actually built as a drop, rather than borrowing the
-      // outgoing section's sparse pattern for one full loop.
-      const enteringDirective = this.aiDirectiveOverrides.get(section)
-      const enteringDrumDensity = enteringDirective?.drumsArrangement ?? slot.drums
-      this.sectionDensityLevel = Math.max(0, Math.min(1, enteringDrumDensity))
-      this.drum.setSectionDensity(enteringDrumDensity, false)
       const entries = (this.sectionEntryCounts.get(section) ?? 0)
       this.sectionEntryCounts.set(section, entries + 1)
       this.currentSectionOccurrence = entries
@@ -1738,10 +1730,16 @@ export class GeneratorOrchestrator {
         // pocket — which quietly defeated grooveLock. Now the pattern is a pure
         // function of the section, so the beat is the SAME beat all section long.
         rng: mulberry32(seed + getSessionSalt()),
-      // The Part is explicitly capped at 16 bars by the builder; that gives
-      // long Song Mode sections a real mid-section lift and an ending turn while
-      // retaining a bounded scheduler workload and a predictable recovery loop.
-      }, Math.max(DRUM_CORE_BARS, this.currentSectionBars))
+        // GATED OFF (2026-08-04) pending the cut-out fix. Passing the section's
+        // real length makes the drum Part 8-16 bars instead of 4. That is the
+        // intended feature (see buildFreeplaySectionDrumHits), but a longer loop
+        // also multiplies the cost of the Parts-stop-firing cut-out: whatever
+        // leaves the Part silent, it stays silent until the loop WRAPS — ~10s at
+        // 96 BPM with 4 bars, ~40s with 16. Measured live: transport running at
+        // bar 18 with drum channel at -118 dB while the generator reported
+        // gain 0.88 / on. Restore `this.currentSectionBars` once Parts are proven
+        // to keep firing; the builder and its tests are unchanged and ready.
+      }, DRUM_CORE_BARS)
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
     }
