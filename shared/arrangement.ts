@@ -41,6 +41,48 @@ export interface SectionOrchestration {
   texture: InstrumentRole
 }
 
+/**
+ * Default live-band ownership when a plan does not supply an explicit score.
+ * The rhythm section stays dependable for freestyling, while the foreground
+ * harmonic hook changes with genre: trap/drill-adjacent styles give the hook to
+ * melody; sample/chord-led styles give it to keys. Keeping this shared prevents
+ * the server's deterministic plan and the client's jam fallback from drifting.
+ */
+export function defaultSectionOrchestration(
+  name: ArrangementSectionName,
+  subGenre = 'hip-hop',
+): SectionOrchestration {
+  const normalizedGenre = subGenre.toLowerCase()
+  const melodyOwnsHook = new Set([
+    'trap', 'drill', 'dirty-south', 'phonk', 'jersey-club', 'bounce',
+    'reggaeton', 'afrobeat', 'dnb', 'house',
+  ]).has(normalizedGenre)
+  const hook: 'chord' | 'melody' = melodyOwnsHook ? 'melody' : 'chord'
+  const withHook = (role: InstrumentRole, other: InstrumentRole): Pick<SectionOrchestration, 'chord' | 'melody'> => ({
+    chord: hook === 'chord' ? role : other,
+    melody: hook === 'melody' ? role : other,
+  })
+
+  switch (name) {
+    case 'intro':
+      return { drums: 'support', bass: 'support', ...withHook('lead', 'out'), texture: 'support' }
+    case 'verse':
+      // Reserve the centre for the rapper: rhythm drives, the hook seat answers.
+      return { drums: 'lead', bass: 'lead', ...withHook('support', 'out'), texture: 'support' }
+    case 'build':
+      return { drums: 'lead', bass: 'lead', ...withHook('lead', 'support'), texture: 'support' }
+    case 'drop':
+    case 'drop2':
+      return { drums: 'lead', bass: 'lead', ...withHook('lead', 'support'), texture: 'support' }
+    case 'breakdown':
+      return { drums: 'support', bass: 'support', ...withHook('lead', 'out'), texture: 'support' }
+    case 'outro':
+      return { drums: 'support', bass: 'support', ...withHook('lead', 'out'), texture: 'support' }
+    default:
+      return { drums: 'support', bass: 'support', chord: 'support', melody: 'support', texture: 'support' }
+  }
+}
+
 // ── Note-level section score (Claude-composed performance) ──────────
 //
 // "Play like Beethoven" (2026-07-17): the rule-based improvisers cap the

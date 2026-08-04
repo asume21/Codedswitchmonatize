@@ -704,11 +704,8 @@ describe('GeneratorOrchestrator — kick anchors stay within the 4-bar phrase', 
     ;(orch as any).currentSectionBars = 16
     const hits = (orch as any).buildDrumHits('trap', 0)
 
-    // Section tiling is currently GATED OFF at the call site pending the cut-out
-    // fix, so the built pattern is the 4-bar core. The anchor filter is what this
-    // test guards: it must hold when tiling is restored and the pattern spans 16
-    // bars, which is why it asserts the bound rather than the pattern length.
     expect(hits.length).toBeGreaterThan(0)
+    expect(Math.max(...hits.map(hit => Number(hit.time.split(':')[0])))).toBe(15)
 
     // The followers only ever hear one 4-bar phrase of kicks.
     for (const spy of [bassSpy, chordSpy]) {
