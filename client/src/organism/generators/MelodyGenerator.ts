@@ -357,7 +357,7 @@ export class MelodyGenerator extends GeneratorBase {
     this.delaySend  = new Tone.Gain(0.10)
     this.reverbSend = new Tone.Gain(0.08)
     this.delay  = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.12, wet: 1.0 })
-    this.reverb = new Tone.Reverb({ decay: 0.8, wet: 1.0 })
+    this.reverb = new Tone.Reverb({ decay: 0.6, wet: 1.0 })  // CPU: 0.8 -> 0.6, see TextureGenerator.padReverb
 
     this.delayReturnHP  = new Tone.Filter({ type: 'highpass', frequency: 300, rolloff: -12 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })

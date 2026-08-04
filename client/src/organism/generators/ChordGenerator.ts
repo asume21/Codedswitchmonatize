@@ -342,7 +342,9 @@ export class ChordGenerator extends GeneratorBase {
     // stack without fighting.
     this.dryBus = new Tone.Gain(0.72)
     this.reverbSend = new Tone.Gain(0.24)
-    this.reverb = new Tone.Reverb({ decay: 1.5, wet: 1.0 })
+    // CPU (2026-08-04): decay 1.5 -> 0.9 — see TextureGenerator.padReverb for the
+    // measured stall numbers. Convolution cost tracks IR length.
+    this.reverb = new Tone.Reverb({ decay: 0.9, wet: 1.0 })
     this.reverbReturnHP = new Tone.Filter({ type: 'highpass', frequency: 250, rolloff: -12 })
 
     this.synth.connect(this.chorus)

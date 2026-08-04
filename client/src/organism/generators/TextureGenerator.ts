@@ -113,7 +113,7 @@ export class TextureGenerator extends GeneratorBase {
     this.noiseSource = new Tone.Noise('pink')
     this.highpass    = new Tone.Filter({ type: 'highpass', frequency: 400, rolloff: -24 })  // hard cut below 400Hz — no hum
     this.filter      = new Tone.Filter(600, 'lowpass')    // start moderate, opens as organism warms up
-    this.reverb      = new Tone.Reverb({ decay: 1.0, wet: 0.25 })  // short tail, low wet to prevent wash buildup
+    this.reverb      = new Tone.Reverb({ decay: 0.7, wet: 0.25 })  // short tail, low wet to prevent wash buildup (CPU: 1.0 -> 0.7, see padReverb)
     this.gain        = new Tone.Gain(0)
 
     this.output = new Tone.Gain(1)
@@ -141,7 +141,15 @@ export class TextureGenerator extends GeneratorBase {
     // Convolution reverb cost scales with IR length. 2.0s keeps the pad bed
     // lush and distant while cutting ~40% of the audio-thread cost vs the
     // previous 3.2s tail — the heaviest always-on node in the generator stack.
-    this.padReverb  = new Tone.Reverb({ decay: 2.0, wet: 0.4 })
+    // CPU (2026-08-04): decay 2.0 -> 1.1. Tone.Reverb is a ConvolverNode and
+    // convolution cost scales with impulse-response length, so this is the single
+    // most expensive node in the Organism's graph. Measured live on the user's
+    // machine: 43 real audio-clock stalls in 248 checks (17% of half-second
+    // windows), avg 145ms behind — real-time OUTPUT UNDERRUNS on the render
+    // thread, which no amount of Tone lookAhead can absorb. A 1.1s tail still
+    // reads as a wash under the pad; 2.0s was paying double for tail nobody
+    // hears under a busy mix.
+    this.padReverb  = new Tone.Reverb({ decay: 1.1, wet: 0.4 })
     this.padGain    = new Tone.Gain(0)
     this.padWidener = new Tone.StereoWidener(0.65)
     this.padSampler = this.createPadSamplerForMode(this.currentModeKey)
