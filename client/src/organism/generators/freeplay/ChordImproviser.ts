@@ -74,6 +74,40 @@ const compCounters = new Map<string, number>()
 
 const BACKBEAT = new Set([4, 12])
 
+/**
+ * §14 — COMP FIGURES. A comp is a positive statement, not what's left over.
+ *
+ * The stab path used to build its rhythm by subtraction (!BACKBEAT && !collides
+ * && leadRoom, filling cell.gaps), so the part was whatever the kick, backbeat
+ * and melody didn't take. Measured for a boom-bap verse: b0:[0,3,14] b1:[0,3]
+ * b2:[0,3,5,14] b3:[0,3,5] — it plays the downbeat and then NEVER a beat again,
+ * landing on the sixteenths flanking beat 2. The user heard exactly that:
+ * "those notes almost seem to just randomly play whenever."
+ *
+ * Every figure here sits on the 8th-note grid (even slots) — felt positions a
+ * listener can lock onto — and still leaves 4 and 12 to the snare.
+ */
+const COMP_FIGURES: Record<string, number[][]> = {
+  'boom-bap':   [[0, 6, 14], [0, 6, 10], [0, 10, 14]],   // Rhodes on the "and"s
+  'lo-fi':      [[0, 6, 14], [0, 10], [2, 6, 10, 14]],
+  'r&b-soul':   [[0, 6, 10, 14], [0, 6, 14], [2, 10]],
+  'west-coast': [[0, 6, 10], [0, 14], [0, 6, 10, 14]],
+  'trap':       [[0, 14], [0, 6], [0, 10, 14]],           // sparse, pushes the change
+  'drill':      [[0, 14], [0, 10], [0, 6, 14]],
+  'phonk':      [[0, 14], [0, 6, 14], [0, 10]],
+  'house':      [[2, 6, 10, 14], [0, 6, 10, 14]],         // offbeat stabs
+  'funk':       [[2, 6, 10, 14], [0, 6, 14], [0, 2, 10]],
+  'default':    [[0, 6, 14], [0, 10], [0, 6, 10, 14]],
+}
+
+/** The section's committed comp figure. Deterministic per style+seed, like the
+ *  drum lock — it must NOT change bar to bar or the ear never locks on. */
+export function pickCompFigure(subGenre: string, seed: number): number[] {
+  const bank = COMP_FIGURES[subGenre] ?? COMP_FIGURES['default']
+  const idx = Math.abs(Math.floor(seed)) % bank.length
+  return bank[idx]
+}
+
 // The mid-bar push slot — "and of 2" (slot 6). A syncopated stab there is the
 // keys-player push that makes comping feel intentional, and it is SAFE with the
 // current voicing (unlike a next-chord anticipation, it never lands on a
@@ -204,7 +238,14 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
   const answerAnchors = [0, ...cell.gaps.filter(s => s !== 0 && s % 2 === 0).slice(0, 2)]
   // Hook mode gets a denser motif ceiling — a support comp answers in gaps,
   // a hook states a real riff.
-  const motif = getSectionMotif(key, ctx.rng, Math.min(ctx.density, hook ? 0.7 : 0.5), answerAnchors)
+  // Kept so the section's motif memory (and its rng draws) stay stable for the
+  // other gestures and for anything downstream that reads the cell — the stab
+  // path no longer derives its PLACEMENT from it (§14).
+  void getSectionMotif(key, ctx.rng, Math.min(ctx.density, hook ? 0.7 : 0.5), answerAnchors)
+
+  // The section's committed comp figure. One per style+seed, identical in every
+  // bar — this is the loop the listener locks onto.
+  const figure = pickCompFigure(ctx.subGenre, ctx.motifSeed)
 
   const events: CompEvent[] = []
   for (let bar = 0; bar < bars; bar++) {
@@ -225,12 +266,35 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
           : (bar % 4) === 2 ? 'develop'
           : 'answer')
 
-    const mask: RhythmMotif = role === 'statement' || role === 'echo'
-      ? motif
-      : varyMotif(motif, ctx.rng)
-    const kickFree = mask.slots.filter(s => !BACKBEAT.has(s) && !collides(s))
-    const roomy = kickFree.filter(s => leadRoom(bar, s))
-    let pool = roomy.length > 0 ? roomy : kickFree
+    // §14 — the FIGURE is the part. It is identical in every bar so the ear can
+    // lock onto it; `role` below still shapes velocity and duration, so the comp
+    // breathes without the placement wandering.
+    //
+    // Avoidance is now a TIEBREAKER on a single hit, never the generator of the
+    // rhythm: a hit that lands on a kick slides to the next 8th (or the previous
+    // one), and only drops if both are taken. The figure survives intact.
+    const taken = new Set<number>()
+    const nudged: number[] = []
+    for (const slot of figure) {
+      let placed = -1
+      if (!collides(slot) && !taken.has(slot)) {
+        placed = slot
+      } else {
+        // Slide to a free neighbouring 8th. `taken` matters: without it two hits
+        // can nudge onto the SAME slot (house [2,6,10,14] put 6→8 and 10→8,
+        // giving a duplicated 8) — two notes stacked on one beat, not a figure.
+        for (const alt of [slot + 2, slot - 2]) {
+          const wrapped = ((alt % 16) + 16) % 16
+          if (!collides(wrapped) && !BACKBEAT.has(wrapped) && !taken.has(wrapped)) { placed = wrapped; break }
+        }
+      }
+      if (placed >= 0) { taken.add(placed); nudged.push(placed) }
+    }
+
+    // Lead dodging stays a PREFERENCE: thin against the melody only while at
+    // least one hit survives, otherwise comp anyway rather than vanish.
+    const roomy = nudged.filter(s => leadRoom(bar, s))
+    let pool = roomy.length > 0 ? roomy : nudged
 
     // 'call-response' (ref #6): the keys "answer" in the back half of the bar.
     // Keep the downbeat anchor, then restrict the rest to slots >= 8 so the
@@ -254,14 +318,27 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
     const limit = role === 'echo' ? Math.max(1, baseLimit - 1)
       : role === 'answer' ? Math.max(2, baseLimit - 1)
       : baseLimit
-    let slots = pool.slice(0, limit)
-
-    if (role === 'answer') {
-      const keepDownbeat = slots.includes(0) ? [0] : []
-      const later = pool.filter(s => s >= PUSH_SLOT && s !== 0)
-      const early = pool.filter(s => s < PUSH_SLOT && s !== 0)
-      slots = [...new Set([...keepDownbeat, ...later, ...early])].slice(0, limit).sort((a, b) => a - b)
+    // The figure plays WHOLE. Role no longer trims or reorders the placement —
+    // per-bar reordering is what stopped it being a figure at all.
+    //
+    // TURNAROUND: the last bar of each 4-bar phrase adds one push into the next
+    // phrase. Same shape as the drum tiling — the loop is sacred, the phrase
+    // still resolves, and the ear gets "same beat, going somewhere" instead of
+    // either four identical bars or four different ones.
+    const isTurnaround = bars >= 4 && (bar % 4) === 3
+    const base = pool.slice(0, Math.max(limit, pool.length))
+    let slots = base
+    if (isTurnaround) {
+      const push = [14, 10, 6, 2].find(s => !base.includes(s) && !collides(s) && !BACKBEAT.has(s))
+      // If every push position is already taken, resolve the phrase by OPENING a
+      // hole instead — drop the last hit. Silence is a turnaround too, and it
+      // guarantees the phrase always resolves rather than silently restating
+      // (boom-bap [0,6,14] had no free push slot and got no turnaround at all).
+      slots = push !== undefined
+        ? [...base, push]
+        : base.length > 1 ? base.slice(0, -1) : base
     }
+    slots = [...slots].sort((a, b) => a - b)
 
     slots.forEach((slot, i) => {
       const isStatementBar = role === 'statement'
@@ -284,17 +361,13 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       })
     })
 
-    // Development/answer bars usually add the mid-bar push (same voicing — safe).
-    // The push also dodges the kick: try the and-of-2 first, then neighbours.
-    // Skipped for 'call-response', whose whole character is answering in the
-    // BACK half — a front-of-bar push (slot 6) would break that.
-    if (gesture !== 'call-response' && (role === 'develop' || role === 'answer') && bars > 1 && ctx.rng() < (role === 'develop' ? 0.85 : 0.65)) {
-      const pushSlot = [PUSH_SLOT, PUSH_SLOT + 1, PUSH_SLOT - 1]
-        .find(s => !collides(s) && !BACKBEAT.has(s) && !slots.includes(s) && leadRoom(bar, s))
-      if (pushSlot !== undefined) {
-        events.push({ time: swungTime(bar, pushSlot, ctx.swing), dur: '8n', vel: vel(role === 'develop' ? 0.52 : 0.48) })
-      }
-    }
+    // REMOVED 2026-08-04 (§14): a per-bar COIN FLIP (rng() < 0.85 on develop,
+    // < 0.65 on answer) used to add a mid-bar push here. That is randomness
+    // mutating the figure bar to bar — the same class of problem as generating
+    // placement by subtraction, and part of why the comp never settled into
+    // something the ear could hold. The deterministic turnaround on the last bar
+    // of each 4-bar phrase (above) serves the same musical purpose: it pushes
+    // into the next phrase, but at a position you can predict.
   }
 
   // Kick-heavy patterns can filter a sparse motif to nothing — always leave at

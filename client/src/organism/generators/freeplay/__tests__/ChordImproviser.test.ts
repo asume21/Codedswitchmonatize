@@ -1,6 +1,6 @@
 // client/src/organism/generators/freeplay/__tests__/ChordImproviser.test.ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { buildFreeplayCompPlan, clearCompCounters, pickCompGesture } from '../ChordImproviser'
+import { buildFreeplayCompPlan, clearCompCounters, pickCompGesture, pickCompFigure } from '../ChordImproviser'
 import { clearMotifs } from '../motif'
 import { mulberry32, hashString } from '../utils'
 import type { FreeplayContext } from '../types'
@@ -67,19 +67,19 @@ describe('ChordImproviser', () => {
     }
   })
 
-  it('2-bar plan: bar 1 states the motif, bar 2 develops it (not an identical copy)', () => {
-    let developed = 0
+  // CHANGED 2026-08-04 (spec §14). This used to require bar 2 to DEVELOP away
+  // from bar 1 in most seeds. Two bars is one loop — restating it is the point,
+  // and per-bar development is what made the placement wander. The phrase shape
+  // now lives in the 4-bar turnaround, not in every second bar.
+  it('2-bar plan restates the figure — two bars is one loop', () => {
     for (let seed = 0; seed < 12; seed++) {
       clearMotifs(); clearCompCounters()
       const plan = buildFreeplayCompPlan(ctx({ bars: 2, compGesture: 'stabs', rng: mulberry32(seed) }))
       const barSlots = (bar: number) =>
         plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
       expect(barSlots(0).length).toBeGreaterThanOrEqual(1)
-      expect(barSlots(1).length).toBeGreaterThanOrEqual(1)
-      if (JSON.stringify(barSlots(0)) !== JSON.stringify(barSlots(1))) developed++
+      expect(JSON.stringify(barSlots(1))).toBe(JSON.stringify(barSlots(0)))
     }
-    // development is probabilistic per seed but must be the norm
-    expect(developed).toBeGreaterThan(6)
   })
 
   it('2-bar plan still avoids the backbeat and never anticipates the next voicing', () => {
@@ -93,21 +93,26 @@ describe('ChordImproviser', () => {
     }
   })
 
-  it('4-bar plan uses a real phrase shape, not the same bar four times', () => {
-    let varied = 0
+  // CHANGED 2026-08-04 (spec §14). This used to require >=3 DISTINCT bar shapes
+  // out of 4 — "not the same bar four times". That intent produced placement that
+  // wandered every bar, which the user heard as "those notes almost seem to just
+  // randomly play whenever". A comp is a figure you commit to; the phrase shape
+  // now lives in the TURNAROUND, exactly like the drum tiling: bars 1-3 restate
+  // the figure, bar 4 pushes into the next phrase.
+  it('4-bar plan repeats the figure and turns around on the last bar', () => {
     for (let seed = 0; seed < 12; seed++) {
       clearMotifs(); clearCompCounters()
       const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.9, compGesture: 'stabs', rng: mulberry32(seed) }))
       const barSlots = (bar: number) =>
         plan.filter(e => barOf(e.time) === bar).map(e => slotOf(e.time)).sort((a, b) => a - b)
-      const shapes = [0, 1, 2, 3].map(bar => JSON.stringify(barSlots(bar)))
-      expect(barSlots(0).length).toBeGreaterThanOrEqual(1)
-      expect(barSlots(1).length).toBeGreaterThanOrEqual(1)
-      expect(barSlots(2).length).toBeGreaterThanOrEqual(1)
-      expect(barSlots(3).length).toBeGreaterThanOrEqual(1)
-      if (new Set(shapes).size >= 3) varied++
+      for (const bar of [0, 1, 2, 3]) expect(barSlots(bar).length).toBeGreaterThanOrEqual(1)
+
+      // The figure is the same in every non-turnaround bar...
+      expect(JSON.stringify(barSlots(1))).toBe(JSON.stringify(barSlots(0)))
+      expect(JSON.stringify(barSlots(2))).toBe(JSON.stringify(barSlots(0)))
+      // ...and the turnaround bar resolves the phrase rather than restating it.
+      expect(barSlots(3).length).toBeGreaterThanOrEqual(barSlots(0).length)
     }
-    expect(varied).toBeGreaterThan(8)
   })
 
   it('comps in the pockets BETWEEN the kicks — never doubles a syncopated kick slot', () => {
@@ -262,5 +267,65 @@ describe('ChordImproviser', () => {
         .map(s => pickCompGesture(hashString(s))),
     )
     expect(gestures.size).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ── §14: the comp plays a FIGURE it commits to ───────────────────────
+// The stab path built its rhythm by SUBTRACTION — !BACKBEAT && !collides &&
+// leadRoom, filling cell.gaps — so the part was whatever the kick, backbeat and
+// melody didn't take. Measured for a boom-bap verse: b0:[0,3,14] b1:[0,3]
+// b2:[0,3,5,14] b3:[0,3,5]. It plays the downbeat and then NEVER a beat again,
+// landing on the sixteenths flanking beat 2 (slots 3 and 5). The user: "those
+// notes almost seem to just randomly play whenever".
+//
+// A comp is a positive statement: a figure on FELT positions (8th-note slots)
+// that repeats every bar so the ear can lock onto it. Avoidance becomes a
+// tiebreaker on a single hit, never the thing that generates the part.
+describe('ChordImproviser — comp figure (§14)', () => {
+  beforeEach(() => { clearMotifs(); clearCompCounters() })
+
+  it('the figure sits on FELT 8th-note positions, never the weak 16ths', () => {
+    for (let seed = 0; seed < 8; seed++) {
+      const figure = pickCompFigure('boom-bap', seed)
+      expect(figure.length).toBeGreaterThan(0)
+      for (const slot of figure) {
+        expect(slot % 2).toBe(0)            // 8th-note grid — no 3s and 5s
+        expect([4, 12]).not.toContain(slot) // still leaves the snare its room
+      }
+    }
+  })
+
+  it('plays the SAME figure in every bar — the ear can lock onto it', () => {
+    const plan = buildFreeplayCompPlan(ctx({ bars: 4, energy: 0.6, compGesture: 'stabs' }))
+    const byBar = new Map<number, number[]>()
+    for (const ev of plan) {
+      const bar = barOf(ev.time)
+      byBar.set(bar, [...(byBar.get(bar) ?? []), slotOf(ev.time)].sort((a, b) => a - b))
+    }
+    // Bar 3 is the turnaround (see the phrase-shape test); bars 0-2 restate.
+    const bars = [...byBar.keys()].sort((a, b) => a - b).filter(b => (b % 4) !== 3)
+    expect(bars.length).toBeGreaterThan(1)
+    const first = JSON.stringify(byBar.get(bars[0]))
+    for (const bar of bars.slice(1)) {
+      expect(JSON.stringify(byBar.get(bar))).toBe(first)
+    }
+  })
+
+  it('a kick collision moves ONE hit, it does not regenerate the bar', () => {
+    const base = buildFreeplayCompPlan(ctx({ bars: 1, energy: 0.6, compGesture: 'stabs' }))
+    const baseSlots = base.map(e => slotOf(e.time)).sort((a, b) => a - b)
+    const clash = baseSlots.find(s => s !== 0)
+    expect(clash).toBeDefined()
+
+    clearMotifs(); clearCompCounters()
+    const dodged = buildFreeplayCompPlan(
+      ctx({ bars: 1, energy: 0.6, compGesture: 'stabs', kickTimes16ths: [clash!] }),
+    )
+    const dodgedSlots = dodged.map(e => slotOf(e.time)).sort((a, b) => a - b)
+
+    // Every other hit of the figure survives untouched.
+    const survivors = baseSlots.filter(s => s !== clash)
+    for (const s of survivors) expect(dodgedSlots).toContain(s)
+    expect(dodgedSlots).not.toContain(clash)
   })
 })
