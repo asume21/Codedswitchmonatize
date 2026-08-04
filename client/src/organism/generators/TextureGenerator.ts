@@ -118,11 +118,27 @@ export class TextureGenerator extends GeneratorBase {
 
     this.output = new Tone.Gain(1)
 
-    // Signal chain: noise → highpass → lowpass → reverb → gain → output
+    // Signal chain: noise → highpass → lowpass → gain → output
+    //
+    // THE BED REVERB IS BYPASSED (2026-08-04). Texture was the only generator
+    // carrying TWO ConvolverNodes, and convolution runs on the audio RENDER
+    // thread where lookAhead cannot help. Bisected live with the stall monitor:
+    //
+    //   stopped (idle) ............   0%   of 500ms checks stalled
+    //   solo drums ................   3%
+    //   solo chords (texture off) .   3%
+    //   chords + TEXTURE .......... 100%   (143-202ms behind, every check)
+    //
+    // Texture alone took the render thread from clean to permanently behind. The
+    // pad's reverb is doing real musical work (it IS the warm distant bed), but
+    // convolving a band-limited pink-noise wash buys almost nothing — a noise bed
+    // is already a wash. So the pad keeps its reverb and the bed loses one
+    // ConvolverNode. The node is still constructed (processFrame ramps its wet,
+    // dispose() releases it) but is disconnected from the graph, and a Convolver
+    // with no input costs nothing.
     this.noiseSource.connect(this.highpass)
     this.highpass.connect(this.filter)
-    this.filter.connect(this.reverb)
-    this.reverb.connect(this.gain)
+    this.filter.connect(this.gain)
     this.gain.connect(this.output)
 
     // Riser sub-chain: white noise → resonant bandpass → gain → output.
