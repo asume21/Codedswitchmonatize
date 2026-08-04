@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrganismMode } from '../../physics/types'
 import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
-import { createToneMock, mockPartStart } from './__mocks__/toneMock'
+import { createToneMock, mockPartStart, mockPartClear, mockPartAdd } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
 
@@ -104,7 +104,12 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
       // rebuild is still (correctly) throttled. Advance past the real interval.
       nowSpy.mockReturnValue(1000 + 900 + 1)
       gen.processFrame(physics, organism)
-      expect(mockPartStart).toHaveBeenCalled()
+      // The deferred rebuild MUTATES the live Part (hold-and-mutate, spec §13)
+      // instead of re-starting a new one — loopBars is unchanged here, so the
+      // running Part is still valid and only its events are swapped.
+      expect(mockPartClear).toHaveBeenCalled()
+      expect(mockPartAdd).toHaveBeenCalled()
+      expect(mockPartStart).not.toHaveBeenCalled()
       expect((gen as any).conductorChordDirty).toBe(false)
     } finally {
       nowSpy.mockRestore()

@@ -5,7 +5,7 @@ import { orgLog }             from '../../lib/perf/organismLog'
 import { GeneratorBase }      from './GeneratorBase'
 import { GeneratorName, DrumInstrument } from './types'
 import type { DrumHit }       from './types'
-import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
+import { getLivePartStart, livePartStartOffset, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
@@ -573,22 +573,29 @@ export class DrumGenerator extends GeneratorBase {
       }
     })
 
-    const startAt = getLivePartStart(this.hasStartedPlayback)
-
-    const transport = Tone.getTransport()
-    const oldPart = this.part
-    if (oldPart) {
-      if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
-        oldPart.stop(startAt)
-        const msUntilStart = msUntilTransportTime(startAt)
-        window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
-      } else {
-        try { oldPart.stop() } catch { }
-        oldPart.dispose()
-      }
-      this.lastTriggerByVoice.clear()
+    // HOLD-AND-MUTATE (spec §13): if the Part already exists and is running, swap
+    // its events in place — no dispose, no re-start, no grid re-alignment. The
+    // dispose+create burst on every rebuild was the crackle source. Drums loop at
+    // a fixed 4m, so the live Part is never invalidated by a length change; the
+    // callback reads all live state off `this.*` at fire time, so only the events
+    // need updating.
+    if (this.part && this.hasStartedPlayback) {
+      this.updatePartEvents(this.part, events)
+      this.lastTriggerByVoice.clear()   // stale dedup entries must not suppress new hits
+      return
     }
-    this.part = null
+
+    // FIRST BUILD (no Part yet, or it was dropped on stop). This is the ONLY place
+    // the drum Part is (re)started. Defensive: if a Part somehow survived without
+    // hasStartedPlayback (invariant break), drop it so we never leak one.
+    if (this.part) {
+      try { this.part.stop() } catch { }
+      this.part.dispose()
+      this.lastTriggerByVoice.clear()
+      this.part = null
+    }
+
+    const startAt = getLivePartStart(this.hasStartedPlayback)
 
     this.part = new Tone.Part((time, event) => {
       const vel = this.applyDynamics(event.instrument, event.velocity, time)
