@@ -138,15 +138,14 @@ function startAudioHealthMonitor(ctx: AudioContext): void {
         if (consecutiveStalls % 10 === 1) {
           console.warn(`🩺 [audio-health] real stall #${consecutiveStalls}: audio clock fell ${stall.behindMs}ms behind (outputLatency ${stall.outputLatencyMs}ms, threshold ${realStallThreshold}ms)`);
         }
-        // TANK BUILD: if we stall 5+ times consecutively with >300ms behind,
-        // the scheduler is drowning. Force a reset.
+        // A clock stall is evidence to report, not a reason to interrupt audio.
+        // Suspending and resuming the sole shared context here created a second,
+        // guaranteed audible dropout precisely when playback was already under
+        // pressure. Keep collecting diagnostics and let Tone's look-ahead absorb
+        // transient main-thread work instead.
         if (consecutiveStalls >= 5 && behindMs > 300) {
-          console.warn('🩺 [audio-health] TANK RECOVERY: resetting audio context to clear stall backlog');
-          ctx.suspend().then(() => ctx.resume()).catch(() => {});
+          console.warn('🩺 [audio-health] sustained stall burst — shared AudioContext left running');
           consecutiveStalls = 0;
-          lastAudio = ctx.currentTime;
-          lastWall = performance.now();
-          return;
         }
       } else {
         consecutiveStalls = Math.max(0, consecutiveStalls - 1);

@@ -1,9 +1,9 @@
 /**
  * SelfListenAnalyzer — gives Astutely ears to hear its own output.
  *
- * Every CAPTURE_INTERVAL_MS milliseconds, captures CAPTURE_DURATION_MS of
- * Tone.js output, decodes it to raw PCM via AudioContext.decodeAudioData,
- * and runs WebEar-grade signal analysis via pcmAnalyzer.
+ * On an explicit listening request, captures CAPTURE_DURATION_MS of Tone.js
+ * output, decodes it to raw PCM via AudioContext.decodeAudioData, and runs
+ * WebEar-grade signal analysis via pcmAnalyzer.
  *
  * The resulting SelfListenReport tells OrganismProvider + Astutely:
  *   - Is anything clipping? → reduce kick/melody volume
@@ -24,9 +24,7 @@ import * as Tone          from 'tone'
 import type { SelfListenReport } from './types'
 import { analyzePcm }     from './pcmAnalyzer'
 
-const CAPTURE_INTERVAL_MS  = 8_000   // run self-analysis often enough for live diagnosis
 const CAPTURE_DURATION_MS  = 2_000   // capture 2 seconds per sample
-const FIRST_CAPTURE_MS     = 2_500   // hear the startup phrase while it is still relevant
 const LOUD_DB              = -2      // above this → reduce volume
 const QUIET_DB             = -35     // below this → boost volume
 
@@ -46,17 +44,16 @@ export class SelfListenAnalyzer {
   private transportBpm: number = 90
   private capturing: boolean = false
 
-  /** Start periodic self-listen cycle. Call after Tone has started. */
+  /**
+   * Prepare self-listening after Tone has started.
+   *
+   * Decoding and analyzing a two-second recording is deliberately manual-only:
+   * repeating it during live mic playback competes with Tone's scheduler on the
+   * main thread and causes audible stalls. captureNow() remains available for
+   * an explicit diagnostics or mix-analysis request.
+   */
   start(): void {
-    if (this.interval) return
     this.ensureTap()
-    // Delay first capture just enough for the first downbeat/phrase to exist,
-    // then keep listening periodically. Long delays hide startup failures.
-    this.initTimer = setTimeout(() => {
-      this.initTimer = null
-      this.runCapture()
-      this.interval = setInterval(() => this.runCapture(), CAPTURE_INTERVAL_MS)
-    }, FIRST_CAPTURE_MS)
   }
 
   /** Trigger an immediate capture for debugging or user-requested listening. */

@@ -29,6 +29,14 @@ const OrganismProvider = lazy(() =>
   import('./OrganismProvider').then(m => ({ default: m.OrganismProvider })),
 )
 
+// The vitals HUD is valuable while debugging, but it should not be part of the
+// normal live-audio path. Enable it explicitly in a local dev session with
+// localStorage.setItem('organism-debug', '1') and refresh.
+const showOrganismDebugOverlay =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  window.localStorage.getItem('organism-debug') === '1'
+
 interface GlobalOrganismState {
   /** Whether the heavy OrganismProvider is mounted */
   isActivated: boolean
@@ -84,7 +92,7 @@ export function GlobalOrganismWrapper({ children }: Props) {
         <Suspense fallback={children}>
           <OrganismProvider userId={userId} isGuest={!isAuthenticated}>
             {children}
-            <OrganismDebugOverlay />
+            {showOrganismDebugOverlay && <OrganismDebugOverlay />}
           </OrganismProvider>
         </Suspense>
       ) : (

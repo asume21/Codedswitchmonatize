@@ -49,6 +49,13 @@ import { getStylePreset } from '@shared/stylePresets'
 import { requestTransportStart, requestTransportStop } from '../../lib/transportController'
 import { useStudioStore } from '../../stores/useStudioStore'
 
+// Read once at boot rather than querying synchronous localStorage from every
+// audio frame. Developers can enable this before a refresh when diagnosing.
+const ORGANISM_DEBUG_ENABLED =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  window.localStorage.getItem('organism-debug') === '1'
+
 export class GeneratorOrchestrator {
   private drum:    DrumGenerator
   private bass:    BassGenerator
@@ -1744,8 +1751,11 @@ export class GeneratorOrchestrator {
    * < 0.3), and Dormant/Awakening makes generators stopPart().
    */
   private emitDebugSnapshot(physics: PhysicsState, organism: OrganismState, now: number): void {
-    // DEV-only and self-throttled — zero cost in production, ~4Hz in dev.
-    if (!import.meta.env.DEV) return
+    // Diagnostics are opt-in even in development. Building five activity
+    // reports and dispatching a DOM event while the transport is running must
+    // not compete with the real-time audio path. Set localStorage
+    // `organism-debug` to `1` and refresh when the HUD is deliberately needed.
+    if (!ORGANISM_DEBUG_ENABLED) return
     this.debugFrameCounter++
     if (this.debugFrameCounter % 4 !== 0) return
     const transport = Tone.getTransport()
