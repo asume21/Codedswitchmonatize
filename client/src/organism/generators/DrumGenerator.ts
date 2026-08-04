@@ -13,7 +13,6 @@ import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
 import { mulberry32, getSessionSalt, hashString } from './freeplay/utils'
-import { midiToNote }          from '../performers/InstrumentPerformerRouter'
 import { applyGroovePocket, GROOVE_SLOT_COUNT } from './groove'
 
 const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
@@ -354,11 +353,16 @@ export class DrumGenerator extends GeneratorBase {
     }
   }
 
-  setSectionDensity(density: number): void {
+  /**
+   * Store incoming section density before its pattern is built. Callers that
+   * are about to load a replacement pattern can skip an unnecessary interim
+   * Part rebuild, which is especially important at section boundaries.
+   */
+  setSectionDensity(density: number, rebuild = true): void {
     const prev = this.sectionDensity
     this.sectionDensity = Math.max(0, Math.min(1.5, density))
     const tierOf = (d: number) => d >= 0.75 ? 2 : d >= 0.45 ? 1 : 0
-    if (tierOf(prev) !== tierOf(this.sectionDensity) && this.rawHits.length > 0 && !this.patternLocked) {
+    if (rebuild && tierOf(prev) !== tierOf(this.sectionDensity) && this.rawHits.length > 0 && !this.patternLocked) {
       this.rebuildPart(this.rawHits)
     }
   }
@@ -477,10 +481,7 @@ export class DrumGenerator extends GeneratorBase {
   private applyKitPreset(): void {
     const idx    = DrumGenerator.MODE_KIT_MAP[this.currentPhysicsMode] ?? 0
     const preset = DrumGenerator.KIT_PRESETS[idx]
-    // setKeyRoot expects a root-letter string (e.g. "F#"), not a raw 0-11
-    // pitch class number — convert via midiToNote and strip the octave digit.
-    const keyRootNote = midiToNote(60 + getConductor().getKeyPitchClass()).replace(/-?\d+$/, '')
-    this.sampledKit!.setKeyRoot(keyRootNote)
+    this.sampledKit!.setKeyRoot(getConductor().getKeyPitchClass())
     this.sampledKit!.setMode(this.currentPhysicsMode)
     this.currentKickNote          = preset.kickNote
     this.kickSub!.pitchDecay       = preset.kickPitchDecay
