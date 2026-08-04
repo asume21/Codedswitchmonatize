@@ -595,3 +595,26 @@ only sounded if it happened to fall between two wipes. Measured live: bass
 channel at `-inf` while the generator reported `on:true` / gain 0.95. Fixed in
 `f678ca5f` by skipping the swap when the events are unchanged (they usually are —
 these are locked loops).
+
+### 14.6 Repetition tolerance is PER-ROLE (2026-08-04, from the user's Groove Pad use)
+
+> "when I played one of the loops in the app and it's a leading loop, usually I
+> can only stand to play it for 2 trips … then I have to change it"
+
+Measured from real use, not theory. It resolves the tension that has caused two
+reverts:
+
+| role                | repetition tolerance                                  |
+|---------------------|-------------------------------------------------------|
+| drums, bass, comp   | effectively infinite — this is the BED, repetition IS the point |
+| lead / hook         | **~2 passes**, then it must move                      |
+
+`a70e576e` and the sameness complaints came from applying ONE repetition policy
+to all four players. There is no single policy. The bed locks; the thing on top
+has a ~2-cycle shelf life.
+
+Consequence for §15 (hook ownership): whoever owns the hook inherits the 2-pass
+rule. Chords as SUPPORT keep the locked figure built in §14; chords as the HOOK
+must move every ~2 cycles. So the owner choice is not cosmetic — it changes that
+instrument's repetition contract, and the contract must follow the role rather
+than the instrument.
