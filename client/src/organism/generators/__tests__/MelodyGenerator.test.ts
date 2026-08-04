@@ -4,7 +4,7 @@ import type { PhysicsState } from '../../physics/types'
 import { OState } from '../../state/types'
 import type { OrganismState } from '../../state/types'
 import { GeneratorName, MelodyBehavior } from '../types'
-import { createToneMock, mockPartStart, mockPartClear, mockPartAdd } from './__mocks__/toneMock'
+import { createToneMock, mockPartStart } from './__mocks__/toneMock'
 import * as Tone from 'tone'
 
 vi.mock('tone', () => createToneMock())
@@ -344,19 +344,12 @@ describe('MelodyGenerator', () => {
     
     const partMock = Tone.Part as any
     const firstChorusCalls = partMock.mock.calls.length
-    mockPartClear.mockClear()
-    mockPartAdd.mockClear()
-
+    
     // Changing section should trigger phrase rebuild (scaleDirty = true)
     gen.onSectionChange('verse')
     gen.processFrame(physics, makeOrganism())
-
-    // Hold-and-mutate (spec §13): the rebuild swaps the running Part's events
-    // rather than constructing a new Tone.Part, so assert the event swap. A new
-    // Part is only constructed when the phrase's loopBars actually changes.
-    expect(mockPartClear).toHaveBeenCalled()
-    expect(mockPartAdd).toHaveBeenCalled()
-    expect(partMock.mock.calls.length).toBe(firstChorusCalls)
+    
+    expect(partMock.mock.calls.length).toBeGreaterThan(firstChorusCalls)
   })
 
   it('applies swing to the default minor contour', () => {

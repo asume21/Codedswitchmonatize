@@ -110,11 +110,6 @@ export class MelodyGenerator extends GeneratorBase {
   // Fallback synth — always available for instant playback while CDN samplers load
   private fallbackSynth: Tone.PolySynth
   private hasStartedPlayback: boolean = false
-  /** Bar count the live Part was built with. Tone coerces `loopEnd` to seconds
-   *  on write, so it cannot be compared back against `${bars}m` — track it here
-   *  to decide whether a rebuild can mutate in place (spec §13). Melody's phrase
-   *  length varies, so this guard actually fires. */
-  private partLoopBars: number | null = null
 
   // Expression & Phrasing — Tone.Vibrato sits inline in the audio chain so it
   // works for both PolySynth and Sampler sources (PolySynth does not expose a
@@ -949,30 +944,6 @@ export class MelodyGenerator extends GeneratorBase {
     if (notes.length > 32) notes = notes.slice(0, 32)
     if (notes.length === 0) return true
 
-    const loopBars = Math.max(1, Math.ceil(phraseLength / 16))
-
-    // Built here (was an inline IIFE at the Part's event argument) so the
-    // hold-and-mutate branch below can reuse the exact same events.
-    const events = notes.map((n, i) => ({
-      time: quantizeGridTime(n.time, loopBars),
-      note: n.pitch,
-      dur:  n.duration,
-      vel:  n.velocity,
-      art:  guitarArtIds ? guitarArtIds[i] : undefined,
-    }))
-    this.busySlots16ths = extractBusySlots16ths(events)
-
-    // HOLD-AND-MUTATE (spec §13): swap the running Part's events in place rather
-    // than dispose+recreate, which flooded the audio scheduler and crackled.
-    // Guarded on loopBars: mutating keeps the live Part's existing loopEnd, and
-    // melody's phrase length genuinely varies, so a length change MUST fall
-    // through to a real rebuild or the new notes would loop against the wrong
-    // bar count. The callback reads live state off `this.*` at fire time.
-    if (this.part && this.hasStartedPlayback && this.partLoopBars === loopBars) {
-      this.updatePartEvents(this.part, events)
-      return true
-    }
-
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
     // Seamless handoff: schedule old Part to stop exactly when the new one
@@ -997,6 +968,8 @@ export class MelodyGenerator extends GeneratorBase {
       }
     }
     this.part = null
+
+    const loopBars = Math.max(1, Math.ceil(phraseLength / 16))
 
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
@@ -1053,7 +1026,11 @@ export class MelodyGenerator extends GeneratorBase {
         voice.triggerAttackRelease(note, n.duration, t, n.velocity)
         this.lastNoteEndSec = t + Tone.Time(n.duration).toSeconds()
       }
-    }, events)
+    }, (() => {
+      const events = notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined }));
+      this.busySlots16ths = extractBusySlots16ths(events);
+      return events;
+    })())
 
     this.part.loop    = true
     this.part.loopEnd = `${loopBars}m`
@@ -1061,7 +1038,6 @@ export class MelodyGenerator extends GeneratorBase {
     // instead of restarting at bar 0 on every chord-change rebuild.
     this.part.start(startAt, livePartStartOffset(startAt, loopBars))
     this.hasStartedPlayback = true
-    this.partLoopBars = loopBars
 
     // Schedule periodic phrase refreshes once per generator lifetime. The
     // existing Tone.Part loop keeps audio continuous; this just flips a flag
@@ -1536,7 +1512,6 @@ export class MelodyGenerator extends GeneratorBase {
       this.part.stop()
       this.part.dispose()
       this.part = null
-      this.partLoopBars = null
     }
     if (this.phraseRefreshEventId !== null) {
       try { Tone.getTransport().clear(this.phraseRefreshEventId) } catch { /* */ }

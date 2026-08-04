@@ -61,10 +61,6 @@ export class ChordGenerator extends GeneratorBase {
   private reverbReturnHP: Tone.Filter
   private part:    Tone.Part | null = null
   private hasStartedPlayback: boolean = false
-  /** Bar count the live Part was built with. Tone coerces `loopEnd` to seconds
-   *  on write, so it cannot be compared back against `${bars}m` — track it here
-   *  to decide whether a rebuild can mutate in place (spec §13). */
-  private partLoopBars: number | null = null
 
   // Musical state — Phase 4: Conductor owns the progression and chord index.
   // ChordGenerator is a performer: reads conductor.currentChord() at render
@@ -714,17 +710,6 @@ export class ChordGenerator extends GeneratorBase {
       ),
     )
 
-    // HOLD-AND-MUTATE (spec §13): swap the running Part's events in place rather
-    // than dispose+recreate, which flooded the audio scheduler and crackled.
-    // Guarded on loopBars: mutating keeps the live Part's existing loopEnd, so a
-    // length change (freeplay 4m ↔ authored 1m) MUST fall through to a real
-    // rebuild or the events would loop against the wrong bar count. The callback
-    // reads live state off `this.*` at fire time, so only events need updating.
-    if (this.part && this.hasStartedPlayback && this.partLoopBars === loopBars) {
-      this.updatePartEvents(this.part, quantizedEvents)
-      return true
-    }
-
     const startAt = getLivePartStart(this.hasStartedPlayback)
 
     // Seamless handoff: keep old Part playing until the new one starts.
@@ -836,7 +821,6 @@ export class ChordGenerator extends GeneratorBase {
     // they belong instead of collapsing back to the same tiny rhythm cell.
     this.part.start(startAt, livePartStartOffset(startAt, loopBars))
     this.hasStartedPlayback = true
-    this.partLoopBars = loopBars
     return true
   }
 
@@ -963,7 +947,6 @@ export class ChordGenerator extends GeneratorBase {
       this.part.stop()
       this.part.dispose()
       this.part = null
-      this.partLoopBars = null
     }
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())
