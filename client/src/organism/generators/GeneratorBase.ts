@@ -461,18 +461,42 @@ export abstract class GeneratorBase {
     return this.arrangementMultiplier
   }
 
+  /** Signature of the events currently scheduled on each live Part, so a rebuild
+   *  that produced the same line can skip the swap entirely. WeakMap: a disposed
+   *  Part takes its entry with it, and a NEW Part is always unknown (so it always
+   *  gets scheduled, even if its events match the Part it replaced). */
+  private static scheduledSig = new WeakMap<object, string>()
+
   /** Swap a looping Part's events IN PLACE — clear then re-add — so a "rebuild"
    *  never disposes/recreates the Part (which floods the audio scheduler and
-   *  crackles). The Part keeps looping; new events land at the next iteration.
-   *  Spec 2026-07-02-freeplay-generators-design.md §13. */
+   *  crackles). Spec 2026-07-02-freeplay-generators-design.md §13.
+   *
+   *  NO-OP WHEN NOTHING CHANGED (2026-08-04). The original comment here said "new
+   *  events land at the next iteration", which is only true if rebuilds are RARER
+   *  than the loop. They are not: BassGenerator rebuilds every 900ms
+   *  (MIN_REBUILD_INTERVAL_MS) against a '4m' Part — ~10s at 96 BPM — so the whole
+   *  schedule was wiped ~10x per loop and a note only sounded if it happened to
+   *  fall between two wipes. clear() unschedules everything; anything re-added at a
+   *  position the Transport has already passed waits for the next iteration, which
+   *  never survived. Measured live: bass channel -inf while the generator reported
+   *  on:true / gain 0.95, and bass was the only generator left on this path after
+   *  a70e576e reverted the drum/chord/melody rollout.
+   *
+   *  The lines are LOCKED loops, so nearly every rebuild regenerates identical
+   *  events. Comparing first makes the common case free and keeps the schedule
+   *  intact; a genuine change still swaps exactly as before. */
   protected updatePartEvents(
     part: Tone.Part,
     events: Array<{ time: string; [k: string]: unknown }>,
   ): void {
+    const sig = JSON.stringify(events)
+    if (GeneratorBase.scheduledSig.get(part as unknown as object) === sig) return
+
     part.clear()
     for (const event of events) {
       part.add(event as any)
     }
+    GeneratorBase.scheduledSig.set(part as unknown as object, sig)
   }
 
   abstract processFrame(physics: PhysicsState, organism: OrganismState): void
