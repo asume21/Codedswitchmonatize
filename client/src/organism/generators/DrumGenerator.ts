@@ -358,6 +358,32 @@ export class DrumGenerator extends GeneratorBase {
    * are about to load a replacement pattern can skip an unnecessary interim
    * Part rebuild, which is especially important at section boundaries.
    */
+  /** DIAGNOSTIC (read-only) — Part state, so __orgDebug can explain a silent
+   *  drum channel without a debugger. Mirrors TextureGenerator.getPadDebug.
+   *    hasPart=false      → nothing scheduled at all (stopPart ran, or an empty build)
+   *    events=0           → a Part exists but carries no notes (a wipe that never refilled)
+   *    started=false      → built but never .start()ed
+   *    loopEnd            → how long a silent stretch can last before the loop wraps
+   *    rawHits=0          → the BUILDER produced nothing; the fault is upstream of Tone
+   *  A silent channel with hasPart, events>0 and started=true means the Part is
+   *  scheduled but its callback is not firing — a Transport/timing fault, not a
+   *  generator one. */
+  getPartDebug(): Record<string, unknown> {
+    const part = this.part as unknown as { length?: number; state?: string; loopEnd?: unknown } | null
+    return {
+      hasPart:   part !== null,
+      events:    part?.length ?? 0,
+      state:     part?.state ?? 'none',
+      loopEnd:   String(part?.loopEnd ?? ''),
+      started:   this.hasStartedPlayback,
+      rawHits:   this.rawHits.length,
+      enabled:   this.enabled,
+      loopMode:  this._loopMode,
+      sectionDensity: Number(this.sectionDensity.toFixed(2)),
+      msSinceRebuild: Math.round(performance.now() - this.lastRebuildTime),
+    }
+  }
+
   setSectionDensity(density: number, rebuild = true): void {
     const prev = this.sectionDensity
     this.sectionDensity = Math.max(0, Math.min(1.5, density))

@@ -1329,9 +1329,9 @@ export class GeneratorOrchestrator {
    * zeroed INSIDE the generator (multiplier/output-ramp); if `gain` > 0 yet the
    * channel meter reads −inf, the break is the channel strip / wiring.
    */
-  getGainReport(): Record<string, { gain: number; arr: number; on: boolean; pad?: Record<string, unknown> }> {
+  getGainReport(): Record<string, { gain: number; arr: number; on: boolean; pad?: Record<string, unknown>; part?: Record<string, unknown> }> {
     return {
-      drum:    { gain: this.drum.output.gain.value,    arr: this.drum.getArrangementMultiplier(),    on: this.drumEnabled },
+      drum:    { gain: this.drum.output.gain.value,    arr: this.drum.getArrangementMultiplier(),    on: this.drumEnabled, part: this.drum.getPartDebug() },
       bass:    { gain: this.bass.output.gain.value,    arr: this.bass.getArrangementMultiplier(),    on: this.bassEnabled },
       melody:  { gain: this.melody.output.gain.value,  arr: this.melody.getArrangementMultiplier(),  on: this.melodyEnabled },
       chord:   { gain: this.chord.output.gain.value,   arr: this.chord.getArrangementMultiplier(),   on: this.chordEnabled },
