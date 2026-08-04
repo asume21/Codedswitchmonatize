@@ -1,6 +1,6 @@
 // client/src/organism/generators/freeplay/__tests__/DrumImproviser.test.ts
 import { describe, it, expect, beforeEach } from 'vitest'
-import { buildFreeplayDrumHits, SKELETONS } from '../DrumImproviser'
+import { buildFreeplayDrumHits, buildFreeplaySectionDrumHits, drumSectionSeedKey, SKELETONS } from '../DrumImproviser'
 import { clearMotifs } from '../motif'
 import { mulberry32, hashString } from '../utils'
 import type { FreeplayContext } from '../types'
@@ -163,5 +163,69 @@ describe('DrumImproviser', () => {
     for (const g of ['boom-bap','trap','drill','lo-fi','west-coast','dirty-south','phonk','jersey-club','bounce','reggaeton','afrobeat','chill']) {
       expect(SKELETONS[g], `missing skeleton: ${g}`).toBeDefined()
     }
+  })
+})
+
+// ── Section tiling ───────────────────────────────────────────────────
+// Song Mode scales template sections x4 (ProducerArrangement SECTION_LENGTH_SCALE),
+// so a 4-bar template verse is 16 LIVE bars — but buildDrumHits only ever built 4
+// and DrumGenerator looped it at '4m'. The listener got the identical 4-bar
+// kick/hat/FILL phrase four times per verse, with no sense the section ever ended.
+//
+// The fix must not break the locked loop (a beat is ~6 sections, each a locked
+// perfect loop — repetition IS the point). So: tile the SAME core across the
+// section and escalate only its final bar, the turnaround into the next section.
+describe('DrumImproviser — section tiling', () => {
+  const sig = (hits: ReturnType<typeof buildFreeplaySectionDrumHits>, n: number) =>
+    hits
+      .filter(h => slotOf(h.time).bar === n)
+      .map(h => `${h.instrument}@${slotOf(h.time).slot}`)
+      .sort()
+      .join(',')
+
+  it('tiles the locked 4-bar core across a 16-bar section', () => {
+    const hits = buildFreeplaySectionDrumHits(ctx(), 16)
+    // Cycles 2 and 3 restate cycle 1 exactly — the loop stays locked.
+    for (let b = 0; b < 4; b++) {
+      expect(sig(hits, 4 + b)).toBe(sig(hits, b))
+      expect(sig(hits, 8 + b)).toBe(sig(hits, b))
+    }
+  })
+
+  it('escalates only the final bar of the section as a turnaround', () => {
+    const hits = buildFreeplaySectionDrumHits(ctx(), 16)
+    // The last cycle is the core right up to its final bar...
+    expect(sig(hits, 12)).toBe(sig(hits, 0))
+    expect(sig(hits, 13)).toBe(sig(hits, 1))
+    expect(sig(hits, 14)).toBe(sig(hits, 2))
+    // ...whose final bar resolves the section instead of restating bar 4 again.
+    expect(sig(hits, 15)).not.toBe(sig(hits, 3))
+  })
+
+  it('a section no longer than the core is left as the plain locked loop', () => {
+    const hits = buildFreeplaySectionDrumHits(ctx(), 4)
+    const lastBar = Math.max(...hits.map(h => slotOf(h.time).bar))
+    expect(lastBar).toBe(3)
+  })
+})
+
+// ── Section-occurrence seed ──────────────────────────────────────────
+// The drum seed was hash(`drums:${section}:${subGenre}`) — no occurrence term —
+// so re-entering a named section resolved the SAME seed and replayed the exact
+// same phrase. But making every verse unique is the opposite overreach: verse 2's
+// drums usually ARE verse 1's, and that sameness is what makes it one beat.
+// Classic form is A / A': alternate between two locks.
+describe('drumSectionSeedKey', () => {
+  it('gives a returning section a different lock the second time through', () => {
+    expect(drumSectionSeedKey('verse', 'trap', 1)).not.toBe(drumSectionSeedKey('verse', 'trap', 0))
+  })
+
+  it('returns to the first lock on the third visit (A / A′ alternation)', () => {
+    expect(drumSectionSeedKey('verse', 'trap', 2)).toBe(drumSectionSeedKey('verse', 'trap', 0))
+  })
+
+  it('keeps different sections and sub-genres on different locks', () => {
+    expect(drumSectionSeedKey('hook', 'trap', 0)).not.toBe(drumSectionSeedKey('verse', 'trap', 0))
+    expect(drumSectionSeedKey('verse', 'drill', 0)).not.toBe(drumSectionSeedKey('verse', 'trap', 0))
   })
 })

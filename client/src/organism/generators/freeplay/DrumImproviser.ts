@@ -53,6 +53,84 @@ function push(hits: DrumHit[], inst: DrumInstrument, bar: number, slot: number, 
   hits.push({ instrument: inst, time: swungTime(bar, slot, swing), velocity: jitterVel(vel, rng) })
 }
 
+/** How many distinct locks a returning section rotates through. 2 = A / A':
+ *  verse 2 answers verse 1, verse 3 is verse 1 again. Higher would make every
+ *  verse unique, which stops it being one beat. */
+const SECTION_LOCKS = 2
+
+/**
+ * Seed key for a section's drum phrase. `occurrence` is how many times the song
+ * has ENTERED this named section — it must be counted on section change only,
+ * never incremented inside the pattern builder: buildDrumHits is called from six
+ * places (sub-genre change, regenerateAll, re-enable, mutation tick...) and a
+ * counter that moves on build re-rolls the pocket mid-section, which is the drift
+ * that defeated grooveLock before.
+ */
+export function drumSectionSeedKey(section: string, subGenre: string, occurrence: number): string {
+  const lock = ((occurrence % SECTION_LOCKS) + SECTION_LOCKS) % SECTION_LOCKS
+  return `drums:${section}:${lock}:${subGenre}`
+}
+
+/** The locked phrase every section is built from. Four bars is what the ear
+ *  recognises as "the beat"; it must not change inside a section. */
+export const DRUM_CORE_BARS = 4
+const CORE_BARS = DRUM_CORE_BARS
+/** Longest pattern we will build. Sections scale to 16-24 live bars; past 16 the
+ *  Part gets expensive and the ear has stopped tracking phrase position anyway,
+ *  so a 24-bar section plays the 16-bar pattern and re-loops. */
+const MAX_SECTION_BARS = 16
+
+function shiftBar(hit: DrumHit, offset: number): DrumHit {
+  if (offset === 0) return { ...hit }
+  const [bar, beat, sub] = hit.time.split(':')
+  return { ...hit, time: `${Number(bar) + offset}:${beat}:${sub}` }
+}
+
+const barOf = (hit: DrumHit): number => Number(hit.time.split(':')[0])
+
+/**
+ * A whole section's drums: the locked CORE_BARS loop tiled across the section,
+ * with the final bar replaced by a turnaround.
+ *
+ * Why tile rather than just build `sectionBars` bars: buildFreeplayDrumHits puts
+ * its fill on the LAST bar only (isFillBar = bar === ctx.bars - 1). Asking it for
+ * 16 bars would therefore delete the 4-bar fill cadence and leave fifteen plain
+ * bars — a worse loop, not a better one. Tiling keeps every cycle byte-identical
+ * to the 4-bar phrase the listener locked onto (repetition IS the point), and the
+ * ONLY new information is the section's last bar.
+ *
+ * The turnaround is built at raised energy, which crosses the improviser's own
+ * roll (>0.6) and hot-fill (>0.7) thresholds; it also draws the next fill flavour
+ * from the same seeded stream, so it is deterministic but not a restatement.
+ */
+export function buildFreeplaySectionDrumHits(ctx: FreeplayContext, sectionBars: number): DrumHit[] {
+  const core = buildFreeplayDrumHits({ ...ctx, bars: CORE_BARS })
+  const cycles = Math.max(1, Math.min(
+    Math.floor(MAX_SECTION_BARS / CORE_BARS),
+    Math.floor(sectionBars / CORE_BARS),
+  ))
+  if (cycles <= 1) return core
+
+  const tiled: DrumHit[] = []
+  for (let c = 0; c < cycles; c++) {
+    for (const hit of core) tiled.push(shiftBar(hit, c * CORE_BARS))
+  }
+
+  // Turnaround: rebuild two bars so the replacement bar keeps the kick A/B
+  // parity of the bar it replaces (the section's last bar is always odd), then
+  // graft its second bar over the tiled one.
+  const lastBar = cycles * CORE_BARS - 1
+  const turn = buildFreeplayDrumHits({
+    ...ctx,
+    bars: 2,
+    energy: Math.min(1, ctx.energy + 0.3),
+  })
+  return [
+    ...tiled.filter(h => barOf(h) !== lastBar),
+    ...turn.filter(h => barOf(h) === 1).map(h => shiftBar(h, lastBar - 1)),
+  ]
+}
+
 export function buildFreeplayDrumHits(ctx: FreeplayContext): DrumHit[] {
   const skeleton = SKELETONS[ctx.subGenre] ?? SKELETONS['boom-bap']
   const hits: DrumHit[] = []

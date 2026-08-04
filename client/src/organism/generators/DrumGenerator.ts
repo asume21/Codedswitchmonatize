@@ -597,9 +597,19 @@ export class DrumGenerator extends GeneratorBase {
       this.triggerDrum(event.instrument, time + (event.microShift ?? 0), vel, event.velocity)
     }, events)
 
+    // Loop over the pattern's OWN length. The orchestrator now builds a whole
+    // section — the locked 4-bar core tiled across 8/12/16 bars with a turnaround
+    // on the last one (buildFreeplaySectionDrumHits) — and a fixed '4m' loop point
+    // would replay the first cycle forever, so the turnaround would never sound.
+    // Measured from the RAW hits, not the density-thinned set, so a sparse
+    // section whose last bar is all perc can't silently shorten the loop.
+    const patternBars = Math.max(
+      1,
+      ...hits.map(h => Number(h.time.split(':')[0]) + 1).filter(Number.isFinite),
+    )
     this.part.loop    = true
-    this.part.loopEnd = '4m'
-    this.part.start(startAt, livePartStartOffset(startAt, 4))
+    this.part.loopEnd = `${patternBars}m`
+    this.part.start(startAt, livePartStartOffset(startAt, patternBars))
     this.hasStartedPlayback = true
   }
 

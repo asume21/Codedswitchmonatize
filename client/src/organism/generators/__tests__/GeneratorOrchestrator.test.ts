@@ -152,11 +152,14 @@ describe('GeneratorOrchestrator', () => {
     expect(useStudioStore.getState().bpm).toBe(140)
   })
 
-  it('all 5 generators receive processFrame calls after wire()', () => {
+  it('all 5 generators receive processFrame calls while running', async () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
       mockStateMachine as unknown as import('../../state/StateMachine').StateMachine,
     )
+    // Frames only drive generators while running — a wired-but-stopped
+    // orchestrator ignores them (see the stop() suite at the end of this file).
+    await orchestrator.start()
 
     // Emit organism state first so onFrame has it
     const organism = makeOrganism()
@@ -206,11 +209,12 @@ describe('GeneratorOrchestrator', () => {
     expect(orchestrator.getOutput()).toBeNull()
   })
 
-  it('transition event to FLOW → all generators receive onStateTransition(FLOW)', () => {
+  it('transition event to FLOW → all generators receive onStateTransition(FLOW)', async () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
       mockStateMachine as unknown as import('../../state/StateMachine').StateMachine,
     )
+    await orchestrator.start()
 
     // Need lastPhysics to be set
     const organism = makeOrganism()
@@ -232,11 +236,12 @@ describe('GeneratorOrchestrator', () => {
     expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalled()
   })
 
-  it('density > 0.85 triggers thinning on texture generator', () => {
+  it('density > 0.85 triggers thinning on texture generator', async () => {
     orchestrator.wire(
       mockPhysics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
       mockStateMachine as unknown as import('../../state/StateMachine').StateMachine,
     )
+    await orchestrator.start()
 
     const organism = makeOrganism({ current: OState.Flow, flowDepth: 1 })
     mockStateMachine._emitState(organism)
@@ -626,5 +631,90 @@ describe('GeneratorOrchestrator — preset swap clean cut', () => {
     // All five (including the keys/pad texture) get cut so neither a Tone.Part
     // loop nor a sustained pad voicing survives into the new preset.
     spies.forEach(spy => expect(spy).toHaveBeenCalledOnce())
+  })
+})
+
+// ── Stop must actually stop ──────────────────────────────────────────
+// stop() silences every generator, but the orchestrator stays subscribed to
+// the PhysicsEngine and the StateMachine — both of which are owned by
+// OrganismProvider and keep running after the user hits Stop. Neither
+// subscription consulted `running`, so the very next frame/transition
+// re-drove the generators: onFrame -> texture.processFrame re-raised padGain,
+// and onTransition -> texture.onStateTransition called startPadLoop(), which
+// re-scheduled the pad chords on the Transport. Symptom: the keys/pad kept
+// playing after Stop, and ONLY the texture volume slider could silence them
+// (the pad chain is padGain -> padWidener, not the `gain` node hardSilence
+// zeroes).
+
+describe('GeneratorOrchestrator — stop() ignores late engine events', () => {
+  // NOTE: do NOT emit a physics frame during setup. onFrame throttles to
+  // MIN_FRAME_INTERVAL_MS, so a warm-up frame makes the post-stop frame return
+  // early on the throttle and the test passes whether or not stop() works.
+  function wired() {
+    const orch = new GeneratorOrchestrator()
+    const physics = createMockPhysicsEngine()
+    const stateMachine = createMockStateMachine()
+    orch.wire(
+      physics as unknown as import('../../physics/PhysicsEngine').PhysicsEngine,
+      stateMachine as unknown as import('../../state/StateMachine').StateMachine,
+    )
+    stateMachine._emitState(makeOrganism())
+    return { orch, physics, stateMachine }
+  }
+
+  it('does not drive the texture generator on a physics frame after stop()', () => {
+    const { orch, physics } = wired()
+    orch.stop()
+
+    const spy = vi.spyOn((orch as any).texture, 'processFrame')
+    physics._emit(makePhysics({ timestamp: 9000, frameIndex: 99 }))
+
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('does not re-arm the pad loop on a state transition after stop()', () => {
+    const { orch, stateMachine } = wired()
+    orch.stop()
+
+    const spy = vi.spyOn((orch as any).texture, 'onStateTransition')
+    stateMachine._emitTransition({
+      from: OState.Breathing,
+      to: OState.Flow,
+      transition: 'BREATHING_TO_FLOW' as import('../../state/types').OTransition,
+      timestamp: 9000,
+      physicsSnapshot: makePhysics({ timestamp: 9000 }),
+    })
+
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+// ── Rhythm-section glue survives long sections ───────────────────────
+// buildDrumHits now builds a whole SECTION (the locked 4-bar core tiled to the
+// section's live length). extractKickSlots returns ABSOLUTE slots (bar*16+...),
+// so a 16-bar pattern yields anchors up to 255 — but the bass and chords build
+// 4-BAR phrases and only understand slots 0-63. Anchors must come from the core
+// cycle, which the tiled bars merely repeat.
+describe('GeneratorOrchestrator — kick anchors stay within the 4-bar phrase', () => {
+  it('shares core-cycle kick anchors even when the section is 16 bars', () => {
+    const orch = new GeneratorOrchestrator()
+    const bassSpy = vi.spyOn((orch as any).bass, 'setKickAnchors')
+    const chordSpy = vi.spyOn((orch as any).chord, 'setKickAnchors')
+
+    ;(orch as any).currentSectionBars = 16
+    const hits = (orch as any).buildDrumHits('trap', 0)
+
+    // Section tiling is currently GATED OFF at the call site pending the cut-out
+    // fix, so the built pattern is the 4-bar core. The anchor filter is what this
+    // test guards: it must hold when tiling is restored and the pattern spans 16
+    // bars, which is why it asserts the bound rather than the pattern length.
+    expect(hits.length).toBeGreaterThan(0)
+
+    // The followers only ever hear one 4-bar phrase of kicks.
+    for (const spy of [bassSpy, chordSpy]) {
+      const anchors = spy.mock.calls[spy.mock.calls.length - 1][0] as number[]
+      expect(anchors.length).toBeGreaterThan(0)
+      expect(Math.max(...anchors)).toBeLessThan(64)
+    }
   })
 })

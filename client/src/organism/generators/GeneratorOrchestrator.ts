@@ -35,7 +35,7 @@ import type { AceStemLayer } from '../loops/AceStemLayer'
 import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
 import { setSampleCell, cellFromOnsetGrid, setSongCellStyle } from './freeplay/songCell'
-import { buildFreeplayDrumHits } from './freeplay/DrumImproviser'
+import { buildFreeplaySectionDrumHits, drumSectionSeedKey, DRUM_CORE_BARS } from './freeplay/DrumImproviser'
 import { clearCompCounters } from './freeplay/ChordImproviser'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
@@ -121,6 +121,15 @@ export class GeneratorOrchestrator {
   // ── Freeplay (spec 2026-07-02) ──
   private drumFreeplay = true
   private currentSectionName = 'intro'
+  // Live length of the section being played. Song Mode scales template sections
+  // x4 (ProducerArrangement.SECTION_LENGTH_SCALE), so a 4-bar template verse is
+  // 16 live bars — the drums build the whole section, not one 4-bar phrase.
+  private currentSectionBars = 4
+  // How many times the song has ENTERED each named section. Counted here, on
+  // section change only — see drumSectionSeedKey for why it must never be
+  // incremented inside buildDrumHits.
+  private sectionEntryCounts = new Map<string, number>()
+  private currentSectionOccurrence = 0
   private sectionDensityLevel = 0.7
 
   // Groove lock (2026-07-11 fire-beats) — when true (default), the core groove
@@ -335,6 +344,14 @@ export class GeneratorOrchestrator {
       const barNumber = parseInt(position.split(':')[0], 10) || 0
       // Freeplay improvisers key their committed motifs on the section name.
       this.currentSectionName = section
+      // Build the drums for the section's REAL length, and give a returning
+      // section its own lock (A / A'). Both are read by buildDrumHits, which is
+      // called from several places during the section — so they are set once,
+      // here, and stay put until the next section change.
+      this.currentSectionBars = Math.max(1, slot.bars)
+      const entries = (this.sectionEntryCounts.get(section) ?? 0)
+      this.sectionEntryCounts.set(section, entries + 1)
+      this.currentSectionOccurrence = entries
       this.bass.setSectionName(section)
       this.melody.setSectionName(section)
       this.chord.setSectionName(section)
@@ -394,6 +411,12 @@ export class GeneratorOrchestrator {
     // circular reference: physics.callbacks → orchestrator → generators
     this.unsubPhysics = physicsEngine.subscribe((physics) => {
       this.lastPhysics = physics
+      // STOP MEANS STOP. The PhysicsEngine belongs to OrganismProvider and keeps
+      // emitting after the user hits Stop. Driving generators from a late frame
+      // re-raises the very gains stop() just zeroed — texture.processFrame ramps
+      // padGain back toward its target. Same guard applyArrangement() already uses.
+      // The snapshot above is still recorded so a later start() sees fresh physics.
+      if (!this.running) return
       this.onFrame(physics, this.lastOrganism)
     })
 
@@ -415,6 +438,14 @@ export class GeneratorOrchestrator {
         // onFrame calls don't skip the first seeding.
         this.lastPhysics = snap
       }
+
+      // STOP MEANS STOP — see the physics subscriber above. The StateMachine also
+      // keeps transitioning after Stop, and texture.onStateTransition() calls
+      // startPadLoop(), which re-schedules the pad chords as a Transport
+      // scheduleRepeat. That is the "I stopped it but the keys/pad kept playing"
+      // bug: the pad chain is padGain -> padWidener, NOT the `gain` node that
+      // hardSilence() zeroes, so only the texture volume slider could silence it.
+      if (!this.running) return
 
       // Notify director FIRST — it picks sub-genre, fires onSubGenreChange which
       // rebuilds drums via buildDrumHits (freeplay) and auto-shares kick anchors
@@ -1680,8 +1711,10 @@ export class GeneratorOrchestrator {
   private buildDrumHits(subGenre: HipHopSubGenre, variantIndex: number): DrumHit[] {
     let hits: DrumHit[]
     if (this.drumFreeplay) {
-      const seed = hashString(`drums:${this.currentSectionName}:${subGenre}`)
-      hits = buildFreeplayDrumHits({
+      const seed = hashString(
+        drumSectionSeedKey(this.currentSectionName, subGenre as string, this.currentSectionOccurrence),
+      )
+      hits = buildFreeplaySectionDrumHits({
         rootMidi: 0, chordIntervals: [0],           // drums don't use pitch
         bars: 4,
         swing: swingForSubGenre(subGenre),
@@ -1697,13 +1730,30 @@ export class GeneratorOrchestrator {
         // pocket — which quietly defeated grooveLock. Now the pattern is a pure
         // function of the section, so the beat is the SAME beat all section long.
         rng: mulberry32(seed + getSessionSalt()),
-      })
+        // GATED OFF (2026-08-04) pending the cut-out fix. Passing the section's
+        // real length makes the drum Part 8-16 bars instead of 4. That is the
+        // intended feature (see buildFreeplaySectionDrumHits), but a longer loop
+        // also multiplies the cost of the Parts-stop-firing cut-out: whatever
+        // leaves the Part silent, it stays silent until the loop WRAPS — ~10s at
+        // 96 BPM with 4 bars, ~40s with 16. Measured live: transport running at
+        // bar 18 with drum channel at -118 dB while the generator reported
+        // gain 0.88 / on. Restore `this.currentSectionBars` once Parts are proven
+        // to keep firing; the builder and its tests are unchanged and ready.
+      }, DRUM_CORE_BARS)
     } else {
       hits = buildSubGenrePattern(subGenre, variantIndex).hits
     }
     // Rhythm-section glue: BOTH followers hear the same kick. Bass locks its
     // onsets to it; chords comp in the pockets BETWEEN the kicks.
-    const anchors = extractKickSlots(hits)
+    //
+    // Anchors come from the CORE cycle only. extractKickSlots numbers slots
+    // absolutely (bar*16+...), so a tiled 16-bar section would hand the bass
+    // anchors up to 255 — but bass and chords build 4-bar phrases and only
+    // understand 0-63. The tiled bars are exact repeats of the core, so the core
+    // cycle already carries every kick the followers need.
+    const anchors = extractKickSlots(
+      hits.filter(h => Number(h.time.split(':')[0]) < DRUM_CORE_BARS),
+    )
     this.bass.setKickAnchors(anchors)
     this.chord.setKickAnchors(anchors)
     const pocket = this.drum.getGroovePocket()

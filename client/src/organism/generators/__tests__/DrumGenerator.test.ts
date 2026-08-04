@@ -486,3 +486,29 @@ describe('DrumGenerator — loop mode', () => {
     expect(() => gen.setLoopMode(false)).not.toThrow()
   })
 })
+
+// ── Loop length follows the pattern ──────────────────────────────────
+// The Part was pinned to loopEnd '4m'. Once the orchestrator builds a whole
+// SECTION (the locked 4-bar core tiled across 16 bars with a turnaround on the
+// last one), a 4-bar loop point would replay bars 1-4 forever and the turnaround
+// would never sound. The loop length has to be the pattern's own length.
+describe('DrumGenerator — loop length follows the pattern', () => {
+  const barsOfKicks = (bars: number) =>
+    Array.from({ length: bars }, (_, b) => ({
+      instrument: DrumInstrument.Kick,
+      time: `${b}:0:0.00`,
+      velocity: 0.9,
+    }))
+
+  it('loops a 4-bar pattern at 4 bars', () => {
+    const drum = new DrumGenerator()
+    drum.loadGeneratedPattern(barsOfKicks(4))
+    expect((drum as any).part.loopEnd).toBe('4m')
+  })
+
+  it('loops a 16-bar section pattern over all 16 bars', () => {
+    const drum = new DrumGenerator()
+    drum.loadGeneratedPattern(barsOfKicks(16))
+    expect((drum as any).part.loopEnd).toBe('16m')
+  })
+})
