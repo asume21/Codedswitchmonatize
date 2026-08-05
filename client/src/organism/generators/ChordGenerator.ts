@@ -658,19 +658,21 @@ export class ChordGenerator extends GeneratorBase {
     // walked C->B->A->F->G->C from 48 to 60 and kept climbing into the lead's
     // register; anchoring purely to a fixed centre killed the drift but put the
     // 11-semitone leap back. Nearest-then-clamp gets both.
-    const rootPc = ((voicing.bass % 12) + 12) % 12
-    let leftHandRoot = [48 + rootPc, 48 + rootPc + 12, 48 + rootPc - 12]
-      .reduce((best, n) =>
-        Math.abs(n - this.lastLeftHandRoot) < Math.abs(best - this.lastLeftHandRoot) ? n : best,
-        48 + rootPc)
-    // Window is F2..B3 (45..59), not a strict single octave: with only 12
-    // semitones every pitch class has exactly ONE legal position, so there is no
-    // freedom to voice-lead and C->B is forced to leap 11. Fifteen semitones
-    // gives the lower roots two options while still hard-bounding the range, so
-    // it cannot drift.
-    while (leftHandRoot > 59) leftHandRoot -= 12
-    while (leftHandRoot < 45) leftHandRoot += 12
-    this.lastLeftHandRoot = leftHandRoot
+    // The left hand must be the BOTTOM of the chord, with air under the voicing.
+    // Voicing it into the comping octave (bass + 12) was wrong and made the
+    // chords harsh: measured against real voicings it landed INSIDE the cluster —
+    // F doubled an inner F3 in unison, G sat a whole tone ABOVE the inner F3,
+    // B a tritone above it. Four of five chords had inner voices below the
+    // "root". A major 2nd low in the register is one of the harshest intervals
+    // there is: the user's "fingernails on a chalkboard".
+    //
+    // `voicing.bass` (36..47, C2) is already placed below `inner` by design.
+    // Use it, and guarantee at least a minor 3rd of space under the lowest inner
+    // voice so the two never collide even when voice-leading drags inner down.
+    const lowestInner = voicing.inner.length ? Math.min(...voicing.inner) : 60
+    let leftHandRoot = voicing.bass
+    while (lowestInner - leftHandRoot < 3) leftHandRoot -= 12
+    while (leftHandRoot < 28) leftHandRoot += 12                 // never below E1
     const midiNotes = [...new Set([leftHandRoot, ...voicing.inner])].sort((a, b) => a - b)
     const noteStrings = midiNotes.map((m) => Tone.Frequency(m, 'midi').toNote())
     const topNote = midiNotes[midiNotes.length - 1]
