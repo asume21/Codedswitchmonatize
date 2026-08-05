@@ -36,6 +36,7 @@ import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSession
 import { clearMotifs } from './freeplay/motif'
 import { setSampleCell, cellFromOnsetGrid, setSongCellStyle } from './freeplay/songCell'
 import { buildFreeplaySectionDrumHits, drumSectionSeedKey, DRUM_CORE_BARS } from './freeplay/DrumImproviser'
+import { logPart } from './partLog'
 import { clearCompCounters } from './freeplay/ChordImproviser'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
@@ -1928,6 +1929,10 @@ export class GeneratorOrchestrator {
    * has no scheduled Part — its cut releases the sustained keys/pad voicing.
    */
   private cutActivePartsForSwap(): void {
+    // Hard-cuts ALL FIVE Parts mid-bar. Logged because it is the loudest
+    // candidate for an audible teardown and must be distinguishable from the
+    // per-bar seamless chord rebuild when reading __partLog().
+    logPart('ALL', 'stopPart', { reason: 'cutActivePartsForSwap (preset swap)' })
     this.drum.stopPart()
     this.bass.stopPart()
     this.melody.stopPart()

@@ -8,6 +8,7 @@ import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
 import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
 import { slotsToDur, compVoicingForHit } from './freeplay/score'
+import { logPart } from './partLog'
 import type { LoopClip } from '@shared/loopPack'
 import { GeneratorBase }  from './GeneratorBase'
 import { GeneratorName }  from './types'
@@ -719,6 +720,7 @@ export class ChordGenerator extends GeneratorBase {
     const oldPart = this.part
     if (oldPart) {
       if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
+        logPart('chord', 'rebuild:seamless', { startAt: String(startAt) })
         oldPart.stop(startAt)
         // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
         // Dispose only AFTER the boundary, generously padded — disposing early
@@ -726,6 +728,9 @@ export class ChordGenerator extends GeneratorBase {
         const msUntilStart = msUntilTransportTime(startAt)
         window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
       } else {
+        logPart('chord', 'rebuild:hard-cut', {
+          transport: transport.state, started: this.hasStartedPlayback, startAt: String(startAt),
+        })
         // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
         // Tone rejects negative times with an uncaught RangeError that aborts the
         // whole preset-swap chain. dispose() below still unschedules everything.
@@ -946,6 +951,7 @@ export class ChordGenerator extends GeneratorBase {
    *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
   stopPart(): void {
     if (this.part) {
+      logPart('chord', 'stopPart', { behavior: String(this.currentBehavior) })
       this.part.stop()
       this.part.dispose()
       this.part = null
