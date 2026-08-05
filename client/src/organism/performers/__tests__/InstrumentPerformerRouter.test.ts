@@ -102,3 +102,37 @@ describe('wildcard instrument selection', () => {
     }
   })
 })
+
+// ── The chord role must be able to sound a CHORD ─────────────────────
+// conformChordToInstrument collapses a chord to its single top note when the
+// profile is polyphony:'mono'. Five monophonic instruments (violin, cello,
+// trumpet, trombone, french-horn) declared the 'chord' role, so whenever the
+// selector landed on one the harmony was DELETED — one note per hit, which the
+// user heard as "all I kept hearing was one fucking note each time, like a kid
+// using his finger on a piano". A trumpet cannot comp chords; that is a category
+// error, not a voicing choice.
+describe('selectInstrumentPerformer — the chord role can always play a chord', () => {
+  const MODES = ['heat', 'ice', 'smoke', 'gravel', 'glow'] as const
+
+  it('never assigns a monophonic instrument to the chord role', () => {
+    for (const mode of MODES) {
+      for (let energy = 0; energy <= 1.0001; energy += 0.1) {
+        const profile = selectInstrumentPerformer({ role: 'chord', mode, energy } as any)
+        expect(
+          profile.polyphony,
+          `${profile.id} was picked for chords in ${mode} @ energy ${energy.toFixed(1)}`,
+        ).not.toBe('mono')
+      }
+    }
+  })
+
+  it('still allows monophonic instruments to take the LEAD role', () => {
+    const ids = new Set<string>()
+    for (const mode of MODES) {
+      for (let energy = 0; energy <= 1.0001; energy += 0.1) {
+        ids.add(selectInstrumentPerformer({ role: 'lead', mode, energy } as any).id)
+      }
+    }
+    expect(ids.size).toBeGreaterThan(0)
+  })
+})

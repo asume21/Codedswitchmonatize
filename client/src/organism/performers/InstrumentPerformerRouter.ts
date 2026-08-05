@@ -93,7 +93,24 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
     if (explicit && explicit.roles.includes(ctx.role)) return explicit
   }
 
-  const candidates = INSTRUMENT_PERFORMERS.filter(profile => profile.roles.includes(ctx.role))
+  // THE CHORD ROLE MUST BE ABLE TO SOUND A CHORD (2026-08-05).
+  // conformChordToInstrument collapses a chord to its single top note when the
+  // profile is polyphony:'mono'. Five monophonic instruments — violin, cello,
+  // trumpet, trombone, french-horn — declared the 'chord' role, so whenever the
+  // selector landed on one (mode pool, or the 18% wildcard) the harmony was
+  // DELETED: one note per hit until the instrument changed. Measured: trombone
+  // was picked for chords in gravel mode. The user heard exactly that — "all I
+  // kept hearing was one note each time, like a kid using his finger on a
+  // piano" — and it is why the chords never sounded like chords no matter how
+  // they were voiced.
+  //
+  // A trumpet cannot comp chords; that is a category error, not a voicing
+  // choice. They stay fully available for the LEAD role, where a single line is
+  // the point. (If we later want brass on the harmony it should be an
+  // arpeggiation or a section patch, not a silently-collapsed block.)
+  const candidates = INSTRUMENT_PERFORMERS.filter(profile =>
+    profile.roles.includes(ctx.role) &&
+    (ctx.role !== 'chord' || profile.polyphony !== 'mono'))
   const modePool = MODE_ROLE_DEFAULTS[ctx.mode]?.[ctx.role]
   const preferred = modePool ?? [DEFAULT_BY_ROLE[ctx.role]]
   // Wildcard start: the preferred pool becomes advisory, not a gate — the mild
