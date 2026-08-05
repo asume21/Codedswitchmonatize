@@ -565,6 +565,9 @@ export class ChordGenerator extends GeneratorBase {
 
   private lastRebuildTime: number = -Infinity
   private lastRebuildReason = 'unknown'
+  /** Where the comping left hand last sat, so the root voice-leads instead of
+   *  leaping by pitch class (C -> B jumped 11 semitones up). */
+  private lastLeftHandRoot = 48
   private static readonly MIN_REBUILD_INTERVAL_MS = 900
 
   private rebuildPart(reason = 'unknown'): boolean {
@@ -636,7 +639,38 @@ export class ChordGenerator extends GeneratorBase {
     // it there would mud the low end. Voiced up an octave it lands at C3..B3,
     // inside the comping register, exactly where a player's left hand goes.
     const voicing = conductor.currentVoicing()
-    const leftHandRoot = voicing.bass + 12                    // C2 -> C3
+    // VOICE-LEAD THE LEFT HAND. `bass` is 36 + rootPitchClass, so it is placed by
+    // pitch class, NOT by nearness: C -> B jumped the root ELEVEN semitones UP
+    // when a player would step one semitone DOWN. Heard immediately as "the next
+    // note is just not right — wrong octave" at the chord rollover.
+    // `inner` already solves this with nearestWithPC; the left hand now does the
+    // same — pick the octave of the root nearest where the hand already was,
+    // kept inside C3..B3 so it anchors without entering the 808's register.
+    // Anchor to a fixed centre rather than to the previous root. "Nearest to
+    // last" voice-leads each move correctly but DRIFTS: C->B->A->F->G->C walked
+    // 48 up to 60, and after a few more chords the left hand climbs into the
+    // lead's register — the toy-keyboard sound again, just slower. A player's
+    // left hand stays in one octave. Anchoring to F3 keeps every root inside
+    // C3..B3 and caps any single move at a tritone, which is what a hand does.
+    // Nearest octave to where the hand already was (so each move is at most a
+    // tritone, never an 11-semitone leap), THEN clamped into C3..B3 so it cannot
+    // drift upward over a progression. Anchoring purely to the previous root
+    // walked C->B->A->F->G->C from 48 to 60 and kept climbing into the lead's
+    // register; anchoring purely to a fixed centre killed the drift but put the
+    // 11-semitone leap back. Nearest-then-clamp gets both.
+    const rootPc = ((voicing.bass % 12) + 12) % 12
+    let leftHandRoot = [48 + rootPc, 48 + rootPc + 12, 48 + rootPc - 12]
+      .reduce((best, n) =>
+        Math.abs(n - this.lastLeftHandRoot) < Math.abs(best - this.lastLeftHandRoot) ? n : best,
+        48 + rootPc)
+    // Window is F2..B3 (45..59), not a strict single octave: with only 12
+    // semitones every pitch class has exactly ONE legal position, so there is no
+    // freedom to voice-lead and C->B is forced to leap 11. Fifteen semitones
+    // gives the lower roots two options while still hard-bounding the range, so
+    // it cannot drift.
+    while (leftHandRoot > 59) leftHandRoot -= 12
+    while (leftHandRoot < 45) leftHandRoot += 12
+    this.lastLeftHandRoot = leftHandRoot
     const midiNotes = [...new Set([leftHandRoot, ...voicing.inner])].sort((a, b) => a - b)
     const noteStrings = midiNotes.map((m) => Tone.Frequency(m, 'midi').toNote())
     const topNote = midiNotes[midiNotes.length - 1]
