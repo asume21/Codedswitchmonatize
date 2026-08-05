@@ -72,9 +72,19 @@ describe('voiceChord — spread style', () => {
     expect(span(spread.inner)).toBeGreaterThan(span(close.inner))
   })
 
-  it('spread keeps the same chord pitch classes (it re-registers, not re-harmonises)', () => {
+  // UPDATED 2026-08-05: this asserted the literal set {0,4,7,11} — root, 3rd,
+  // 5th, 7th. Four-note chords now OMIT THE 5th (see voiceChord): a close-voiced
+  // 7th chord put four notes inside one octave in the low-mid, which reads as a
+  // cluster rather than a chord. The test's INTENT — spread re-registers rather
+  // than re-harmonises — is unchanged and is what it now checks directly, by
+  // comparing spread against close instead of against a hardcoded set. That also
+  // makes it survive future voicing changes.
+  it('spread keeps the same chord pitch classes as close (it re-registers, not re-harmonises)', () => {
+    const close  = voiceChord(Cmaj7, null, { style: 'close' })
     const spread = voiceChord(Cmaj7, null, { style: 'spread' })
-    expect(new Set(spread.inner.map(pcOf))).toEqual(new Set([0, 4, 7, 11]))
+    expect(new Set(spread.inner.map(pcOf))).toEqual(new Set(close.inner.map(pcOf)))
+    // and the 5th is gone from both — the guide tones (3rd, 7th) carry the chord
+    expect(new Set(close.inner.map(pcOf))).toEqual(new Set([0, 4, 11]))
   })
 
   it('spread stays in the comp register, out of the bass OCTAVE (not just the bass note)', () => {

@@ -91,7 +91,28 @@ export function voiceChord(
   const bass = bassBase + rootPC          // 36..47
 
   // Unique chord pitch classes from the intervals.
-  const chordPCs = [...new Set(chord.intervals.map((i) => pc(chord.rootMidi + i)))]
+  //
+  // OMIT THE 5th on four-note chords (2026-08-05). A close-voiced 7th chord puts
+  // four notes inside one octave in the low-mid — Cm7 came out C3 Eb3 G3 Bb3 —
+  // and that density is what reads as a cluster rather than a chord. Measured on
+  // a soloed capture: "notes too close together… they cluster up in the
+  // lower-middle part of the chord stack… like mashing down too many fingers",
+  // and the user's own "fingernails on a chalkboard".
+  //
+  // A pianist playing with a bass player drops the 5th: the 3rd and 7th (the
+  // GUIDE TONES) carry the chord's identity, the root grounds it, and the 5th
+  // adds no harmonic information — it is purely the note that crowds the
+  // voicing. Cm7 becomes C-Eb-Bb. Triads keep all three notes; the 5th is only
+  // expendable once a 7th is present to define the quality.
+  //
+  // The mix config already scoops 500Hz by -3dB "to fight low-mid boxiness" —
+  // EQ compensating for a voicing problem. This fixes the cause.
+  const allPCs = chord.intervals.map((i) => pc(chord.rootMidi + i))
+  const hasSeventh = chord.intervals.some((i) => pc(i) === 10 || pc(i) === 11)
+  const keptIntervals = hasSeventh && allPCs.length >= 4
+    ? chord.intervals.filter((i) => pc(i) !== 7)
+    : chord.intervals
+  const chordPCs = [...new Set(keptIntervals.map((i) => pc(chord.rootMidi + i)))]
 
   // Voice each chord tone with minimal movement from the previous voicing:
   // a shared pitch class lands on the SAME note (held); the rest step nearest.
