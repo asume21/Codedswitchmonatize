@@ -62,7 +62,14 @@ export function getAudioContext(): AudioContext {
     // on chord changes — that's a scheduling spike of 100+ events in one frame.
     // 0.35s gives the scheduler ~4× the headroom to ride out these spikes.
     // Latency cost is ~350ms which is imperceptible for generative playback.
-    toneContext.lookAhead = 0.5;
+    // 0.8 (was 0.5). lookAhead is how far ahead Tone queues notes into the audio
+    // clock, i.e. how long the MAIN thread may stall before a note lands late.
+    // Measured main-thread blocks: the ~120ms command-centre re-render, sampler
+    // decodes, GC. Individually survivable at 0.5s; several inside one window is
+    // not, which is what produced the crackle. Latency cost is inaudible for a
+    // GENERATED beat (nobody hears that a note was queued early) and the
+    // mic-reactive path has its own faster route.
+    toneContext.lookAhead = 0.8;
     Tone.setContext(toneContext);
 
     // Kill the orphan: close Tone's import-time default context so its audio

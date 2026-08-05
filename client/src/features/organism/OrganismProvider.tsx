@@ -569,7 +569,13 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // is still responsive for meters and state badges while giving the audio
     // scheduler the headroom it needs.
     let lastPhysicsUIUpdate = 0
-    const ORGANISM_UI_INTERVAL_MS = 1000
+    // 2000 (was 1000). Each of these pushes re-renders the ~2.7k-line
+    // OrganismCommandCenter at ~120ms; at 1Hz that is ~12% of the main thread
+    // spent competing with Tone's note scheduler. Meters and state badges are
+    // still perfectly readable at 0.5Hz, and the audio gets that time back.
+    // The real fix is splitting that tree so a physics tick re-renders a small
+    // leaf instead of the whole surface; this is the cheap half.
+    const ORGANISM_UI_INTERVAL_MS = 2000
     const unsubPhysicsState = physics.subscribe((state) => {
       machine.processFrame(state)
 

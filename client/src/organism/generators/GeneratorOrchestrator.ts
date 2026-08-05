@@ -501,7 +501,10 @@ export class GeneratorOrchestrator {
     // crackle source once clipping is ruled out). For generative/auto playback the
     // extra ~150ms of latency is inaudible; mic-reactive features have their own
     // faster path, so this does not affect responsiveness to the performer.
-    Tone.getContext().lookAhead = 0.4
+    // Do NOT shrink the shared context's lookAhead here. audioContext.ts owns it
+    // (0.8) and this line used to quietly overwrite it with 0.4 on every start —
+    // two settings disagreeing, with the smaller one winning. Raise-only.
+    Tone.getContext().lookAhead = Math.max(Tone.getContext().lookAhead, 0.8)
 
     // Start at 0 dB. The prior pre-mute-to-silence was hiding an initial
     // transient, but when the ramp was skipped it silently bricked audio.
