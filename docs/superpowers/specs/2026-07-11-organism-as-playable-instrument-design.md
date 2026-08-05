@@ -170,3 +170,58 @@ as Phase 2; it reuses the Phase-1 Locked phrase directly. (See loop-pack spec.)
 2. **Per-role + global Lock/Evolve/Fresh state + UI** (built on existing loop mode).
 3. **Seamless commit-and-repeat** for Lock (generalize Story Mode to all roles).
 4. **Phase 2** — capture Locked part → loop library (needs the write path).
+
+---
+
+## Requested 2026-08-05 — two asks from the user (captured, not yet designed)
+
+### A. Soloed means SOLOING, and two players trading
+
+> "I still want the chords and melody to be able to play full solos when they are
+> soloed, not just what they play as a band … it would be cool if I could have the
+> melody and chords both playing the guitar, or not the guitar and one the flute,
+> and have them both play off each other and make awesome music — or by themselves"
+
+Two distinct things:
+
+1. **Solo = a real solo.** Today the solo button is a MIX action (mute everyone
+   else); the soloed generator keeps playing its band part. He wants soloing to
+   change what the player PLAYS — a full statement, not the supporting part.
+2. **Two players trading.** Melody and chords on freely-chosen instruments,
+   answering each other.
+
+**⚠️ Tension with a previous decision — do not overturn silently.** The user
+earlier settled that solo mode is "a locked riff to rap over, not virtuoso
+shredding" (machine-gun trill bug, `fa849f08`; "audition must equal
+performance"). This ask points the other way. Reconcile explicitly: likely
+answer is that FREESTYLE mode keeps the locked riff (it is the bed he raps over)
+and an explicit SOLO/showcase mode is where a player states a full solo — two
+modes, not one behaviour redefined.
+
+**Already exists — extend, do not rebuild:**
+- Instrumental duet: `GeneratorOrchestrator.maybeAnswerMelodyRest` / `executeDuetCue`
+  watches the melody's rests and cues a chord answer.
+- `call-response` comp gesture in `ChordImproviser` (answers in the back half).
+- Per-role instrument assignment: `InstrumentPerformerRouter` + the Chords/Bass/
+  Melody instrument dropdowns (Nylon Guitar, Violin, Trumpet, Cello…).
+- Role system (`lead` / `support` / `out`) from the Conductor spec.
+
+The missing piece is not machinery, it is INTENT: nothing decides "you are
+soloing now, play a statement" or "you two are trading fours".
+
+### B. Texture needs controls and a voice picker
+
+> "texture needs some controls and instead of it just being a background sound —
+> which I like — it would be nice to actually have some keys and pads to choose
+> from like we have the instruments on chords and melody"
+
+`TextureGenerator` already carries a pad voice per mode (`TEXTURE_VOICE_BY_MODE`,
+`swapPadVoice`, `createPadSamplerForMode`, `refreshVoice`) — currently
+VSCO2_StringSection. There is no UI, so it reads as a fixed wash rather than a
+chosen instrument. Mostly a UI-exposure + setter task, matching the existing
+Chords/Melody instrument dropdowns.
+
+Note the constraint discovered 2026-08-05: texture was the render-thread hog (two
+ConvolverNodes; `c5462a5e`). Any new pad voice must be measured with
+`__audioHealth()` before it ships — a lush new pad is exactly how the crackle
+comes back.
