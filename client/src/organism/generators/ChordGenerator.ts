@@ -141,9 +141,15 @@ export class ChordGenerator extends GeneratorBase {
     if (markAsOverride) this.techniqueOverridden = true
     if (this.currentTechniqueId === techniqueId) return
     this.currentTechniqueId = techniqueId
-    // Rebuild on next tick so new technique takes effect at the next chord
-    this.lastRebuildTime = -Infinity
-    this.rebuildPart()
+    // COALESCED (§14, 2026-08-05). This used to rebuild IMMEDIATELY and set
+    // lastRebuildTime = -Infinity to bypass the 900ms throttle. At a section
+    // change that produced TWO rebuilds targeting the SAME boundary — measured
+    // live: `setTechnique` then `conductorChordDirty`, both startAt 11520i. The
+    // first built a full comp plan from the OUTGOING progression and was
+    // disposed before it ever sounded: a wasted dispose/create burst on the
+    // thread that schedules notes, once per section change.
+    // Marking dirty lets processFrame do ONE rebuild with the final state.
+    this.conductorChordDirty = true
   }
 
   /** Freeplay on/off. Entering freeplay resets to the default (humanised
@@ -152,7 +158,7 @@ export class ChordGenerator extends GeneratorBase {
     if (this.freeplayEnabled === enabled) return
     this.freeplayEnabled = enabled
     if (enabled) this.currentTechniqueId = DEFAULT_TECHNIQUE_ID
-    this.rebuildPart()
+    this.rebuildPart('setFreeplay')
   }
 
   /**
@@ -188,7 +194,7 @@ export class ChordGenerator extends GeneratorBase {
     // e-piano via setMultisampleInstrument).
     if (instrumentId) this.multisampleActive = false
     this.applyVoice(this.currentMode)
-    this.rebuildPart()
+    this.rebuildPart('setInstrument')
   }
 
   // When true, a real multisample instrument owns the chord voice and applyVoice
@@ -415,14 +421,14 @@ export class ChordGenerator extends GeneratorBase {
 
     if (newBehavior !== this.currentBehavior) {
       this.currentBehavior = newBehavior
-      const rebuilt = this.rebuildPart()
+      const rebuilt = this.rebuildPart('behaviorChange')
       if (rebuilt) this.conductorChordDirty = false
     } else if (this.conductorChordDirty) {
       // Conductor's chord changed (bar-tick advance OR pickNewProgression).
       // Single-bar Part architecture means we always need to rebuild — the
       // running Part loops the previous chord forever otherwise. Throttle in
       // rebuildPart keeps this from going wild at extreme BPMs.
-      const rebuilt = this.rebuildPart()
+      const rebuilt = this.rebuildPart('conductorChordDirty')
       if (rebuilt) this.conductorChordDirty = false
     }
 
@@ -458,7 +464,7 @@ export class ChordGenerator extends GeneratorBase {
 
     if (to === OState.Breathing || to === OState.Flow) {
       this.currentBehavior = to === OState.Breathing ? ChordBehavior.Pad : ChordBehavior.Rhythm
-      this.rebuildPart()
+      this.rebuildPart('stateTransition')
     }
   }
 
@@ -558,9 +564,11 @@ export class ChordGenerator extends GeneratorBase {
   }
 
   private lastRebuildTime: number = -Infinity
+  private lastRebuildReason = 'unknown'
   private static readonly MIN_REBUILD_INTERVAL_MS = 900
 
-  private rebuildPart(): boolean {
+  private rebuildPart(reason = 'unknown'): boolean {
+    this.lastRebuildReason = reason
     if (this._loopMode) return false
     const now = performance.now()
     if (now - this.lastRebuildTime < ChordGenerator.MIN_REBUILD_INTERVAL_MS) return false
@@ -582,8 +590,22 @@ export class ChordGenerator extends GeneratorBase {
     const conductor = getConductor()
     const parsedCurrent = conductor.currentChord()
     if (!parsedCurrent) {
-      this.stopPart()
-      return true
+      // HOLD, DON'T CUT (2026-08-05). This used to call stopPart() — part.stop()
+      // with no time argument (= NOW), dispose(), and synth.releaseAll() — which
+      // kills every sounding voice instantly, mid-bar, mid-phrase.
+      //
+      // The Conductor transiently reports no current chord while loadSection()
+      // swaps sections, so a Song Mode section change hard-cut the comp in the
+      // middle of a phrase. Measured live: `13:2:1.57 chord stopPart
+      // {"behavior":"stab"}` between two normal boundary rebuilds — the user's
+      // "it sounds like its being torn down in the middle of a phrase".
+      //
+      // A momentary gap in the DATA must not become a gap in the SOUND. Skip the
+      // rebuild and let the running Part keep looping the last good voicing until
+      // a real chord arrives — a bar of the previous harmony is far less audible
+      // than silence plus a cut tail. Dormant/reset/loop-mode still stop the Part
+      // through their own explicit paths.
+      return false
     }
     // Part 3 V2: the Conductor owns the voicing now — voice-led, common tones
     // held — instead of ChordGenerator restacking the chord root-position. One
@@ -720,7 +742,7 @@ export class ChordGenerator extends GeneratorBase {
     const oldPart = this.part
     if (oldPart) {
       if (transport.state === 'started' && this.hasStartedPlayback && startAt !== 0) {
-        logPart('chord', 'rebuild:seamless', { startAt: String(startAt) })
+        logPart('chord', 'rebuild:seamless', { why: this.lastRebuildReason, startAt: String(startAt) })
         oldPart.stop(startAt)
         // startAt is a ticks TransportTime (see CompositionClock.getLivePartStart).
         // Dispose only AFTER the boundary, generously padded — disposing early
@@ -729,7 +751,7 @@ export class ChordGenerator extends GeneratorBase {
         window.setTimeout(() => oldPart.dispose(), Math.max(50, msUntilStart + 250))
       } else {
         logPart('chord', 'rebuild:hard-cut', {
-          transport: transport.state, started: this.hasStartedPlayback, startAt: String(startAt),
+          why: this.lastRebuildReason, transport: transport.state, started: this.hasStartedPlayback, startAt: String(startAt),
         })
         // Transport "now" can float-round to ~-2e-10 right after Transport.stop();
         // Tone rejects negative times with an uncaught RangeError that aborts the
