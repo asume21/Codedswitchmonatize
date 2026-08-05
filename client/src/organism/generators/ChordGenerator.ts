@@ -620,8 +620,26 @@ export class ChordGenerator extends GeneratorBase {
       chordIdx: number
     }
 
-    const midiNotes = conductor.currentVoicing().inner
+    // VOICING ANATOMY (§14 part 2, 2026-08-05). The keys used to play ONLY
+    // `inner` — the voice-led cluster — and `voicing().bass` had ZERO call sites
+    // anywhere in the codebase. So whatever note voice-leading happened to put
+    // lowest (a 3rd, a 7th) became the bottom of the chord, and no note was the
+    // top. A handful of correct pitches with no hand shape: the user's "it
+    // doesn't sound like a chord, it sounds like a note with no place", and then
+    // "it sounds like a kid is playing them".
+    //
+    // A chord sounds like a chord because its notes have JOBS: the bottom says
+    // WHICH chord this is, the top SINGS (it's the line the ear follows), the
+    // inner voices fill and stay out of the way.
+    //
+    // The engine's `bass` sits at 36..47 (C2) — the 808's register, so doubling
+    // it there would mud the low end. Voiced up an octave it lands at C3..B3,
+    // inside the comping register, exactly where a player's left hand goes.
+    const voicing = conductor.currentVoicing()
+    const leftHandRoot = voicing.bass + 12                    // C2 -> C3
+    const midiNotes = [...new Set([leftHandRoot, ...voicing.inner])].sort((a, b) => a - b)
     const noteStrings = midiNotes.map((m) => Tone.Frequency(m, 'midi').toNote())
+    const topNote = midiNotes[midiNotes.length - 1]
 
     const events: ChordPartEvent[] = []
 
@@ -832,7 +850,18 @@ export class ChordGenerator extends GeneratorBase {
         })
 
         for (const f of figured) {
-          const noteVel = Math.min(1.0, Math.max(0.1, vel * f.velocityScale))
+          // VOICE BALANCE (§14 part 2): a real player leans on the top voice and
+          // keeps the inner ones under it. Equal velocity across the stack is a
+          // large part of why this read as "a kid playing them" — every finger
+          // pressing exactly as hard as every other. Top sings, bottom anchors,
+          // middle supports.
+          let midi = 0
+          try { midi = Tone.Frequency(f.note).toMidi() } catch { /* leave 0 */ }
+          const role =
+            midi === topNote      ? 1.18 :   // the line the ear follows
+            midi === leftHandRoot ? 1.0  :   // anchor — present, not loud
+                                    0.82     // inner voices get out of the way
+          const noteVel = Math.min(1.0, Math.max(0.1, vel * f.velocityScale * role))
           voice.triggerAttackRelease(
             f.note,
             event.dur,
