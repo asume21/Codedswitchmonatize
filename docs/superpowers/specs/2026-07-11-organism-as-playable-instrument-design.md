@@ -225,3 +225,18 @@ Note the constraint discovered 2026-08-05: texture was the render-thread hog (tw
 ConvolverNodes; `c5462a5e`). Any new pad voice must be measured with
 `__audioHealth()` before it ships — a lush new pad is exactly how the crackle
 comes back.
+
+#### A.1 — the two modes, decided by the user 2026-08-06 (build LATER)
+
+Soloing an instrument offers a choice of two behaviours. This resolves the
+tension flagged above — the locked riff is not replaced, it becomes one of two
+explicit modes:
+
+1. **"Make a perfect loop bed"** — the soloed player writes a loop the BEAT can
+   be built on and that it can then solo over. This is the existing
+   "locked riff to rap over" behaviour, made explicit.
+2. **"Play me a full song"** — the soloed player performs a complete piece
+   rather than a loop.
+
+Deferred by the user: "that can wait for now, I just want to get all five
+generators playing their part of a beat first."
