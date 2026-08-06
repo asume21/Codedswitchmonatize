@@ -746,6 +746,22 @@ export class MelodyGenerator extends GeneratorBase {
     this.vibrato.depth.rampTo(this.lastPerformerEnergy * 0.06, 0.4)
   }
 
+  /** DIAGNOSTIC (read-only) — melody Part state for __orgDebug. Soloed captures
+   *  showed FOUR onsets in 20s (chords managed 107 in the same conditions), so
+   *  this answers the only question that matters: are few notes SCHEDULED, or are
+   *  many scheduled and not sounding? */
+  getPartDebug(): Record<string, unknown> {
+    const part = this.part as unknown as { length?: number; state?: string; loopEnd?: unknown } | null
+    return {
+      hasPart:  part !== null,
+      events:   part?.length ?? 0,
+      state:    part?.state ?? 'none',
+      loopEnd:  String(part?.loopEnd ?? ''),
+      behavior: String(this.currentBehavior),
+      enabled:  this.enabled,
+    }
+  }
+
   private enabled: boolean = true
 
   setEnabled(enabled: boolean): void {

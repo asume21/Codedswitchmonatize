@@ -1337,7 +1337,7 @@ export class GeneratorOrchestrator {
     return {
       drum:    { gain: this.drum.output.gain.value,    arr: this.drum.getArrangementMultiplier(),    on: this.drumEnabled, part: this.drum.getPartDebug() },
       bass:    { gain: this.bass.output.gain.value,    arr: this.bass.getArrangementMultiplier(),    on: this.bassEnabled },
-      melody:  { gain: this.melody.output.gain.value,  arr: this.melody.getArrangementMultiplier(),  on: this.melodyEnabled },
+      melody:  { gain: this.melody.output.gain.value,  arr: this.melody.getArrangementMultiplier(),  on: this.melodyEnabled, part: this.melody.getPartDebug() },
       chord:   { gain: this.chord.output.gain.value,   arr: this.chord.getArrangementMultiplier(),   on: this.chordEnabled },
       texture: { gain: this.texture.output.gain.value, arr: this.texture.getArrangementMultiplier(), on: this.textureEnabled, pad: this.texture.getPadDebug() },
     }
@@ -1540,6 +1540,17 @@ export class GeneratorOrchestrator {
     // idea worth having, just not the default for beats you rap over.
     if (!this.voiceReactive) {
       physics = { ...physics, voiceActive: false }
+      // ...and FLOOR flowDepth. Zeroing voiceActive alone was half the job:
+      // getMelodyBehavior gates density on flowDepth, which only rises when
+      // someone is actually rapping. With no mic it stays ~0, so the melody fell
+      // through to `return Hint` and stayed there — measured live: behavior
+      // "hint", 2 events, activity pinned at 0.21, FOUR onsets in 20 seconds
+      // soloed (the chords managed 107). The lead simply never played its part.
+      //
+      // STEADY means "plays through like a produced beat", so the band should
+      // behave as if the performer is in flow: 0.55 lands in the Lead band
+      // (>=0.5) while leaving REACTIVE mode's real, mic-driven depth untouched.
+      organism = { ...organism, flowDepth: Math.max(organism.flowDepth, 0.55) }
     }
 
     // Throttle: physics fires at ~30fps but generators only need ~14fps.
