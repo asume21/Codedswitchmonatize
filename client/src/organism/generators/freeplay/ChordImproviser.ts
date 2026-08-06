@@ -6,6 +6,7 @@ import type { FreeplayContext, CompGesture } from './types'
 import { getSectionMotif, varyMotif, type RhythmMotif } from './motif'
 import { swungTime, mulberry32, getSessionSalt } from './utils'
 import { getSongCell } from './songCell'
+import { slotsToDur } from './score'
 
 // ── Animator gestures (2026-07-09 reference study) ──────────────────
 // Six reference beats shared one architecture — a pad BED plus a keys
@@ -344,13 +345,21 @@ export function buildFreeplayCompPlan(ctx: FreeplayContext): CompEvent[] {
       const isStatementBar = role === 'statement'
       const isDevBar = role === 'develop'
       const isAnswerBar = role === 'answer'
+      // LET IT RING (2026-08-06). Every hit used to be a FIXED length, and
+      // ChordBehavior.Stab sets ctx.energy to 0.85, so `energy > 0.7` made every
+      // single note a short '8n' no matter where the next one fell. The user:
+      // "every note it plays is just a short sound and it's annoying."
+      //
+      // A comping player holds a chord until the next one arrives; only
+      // deliberate staccato is short. Duration now comes from the FIGURE — the
+      // gap to the next hit (or to the end of the bar for the last one) — so the
+      // chord sustains through the space it owns instead of stabbing and
+      // leaving a hole. Capped at a bar, floored at an 8th.
+      const nextSlot = i + 1 < slots.length ? slots[i + 1] : 16
+      const gap16ths = Math.max(2, Math.min(16, nextSlot - slot))
       events.push({
         time: swungTime(bar, slot, ctx.swing),
-        dur: ctx.energy > 0.7
-          ? '8n'
-          : slot === 0
-            ? (isStatementBar ? '2n' : '4n')
-            : (isAnswerBar ? '8n' : '4n'),
+        dur: slotsToDur(gap16ths),
         vel: vel(
           (slot === 0 ? 0.6 : 0.48)
           - i * 0.02
