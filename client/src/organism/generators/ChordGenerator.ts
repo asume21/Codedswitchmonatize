@@ -24,7 +24,7 @@ import { getRealInstrumentNotes } from '../instruments/realInstruments'
 import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../techniques/library'
 import type { TechniqueContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
-import { applyGroovePocket } from './groove'
+import { applyGroovePocket, buildHumanizeTemplate } from './groove'
 import {
   conformChordToInstrument,
   selectInstrumentPerformer,
@@ -101,6 +101,9 @@ export class ChordGenerator extends GeneratorBase {
   // Freeplay comping reads these to sit in the pockets BETWEEN the kicks.
   private kickAnchors: number[] = []
   private groovePocket: number[] = Array(16).fill(0)
+  /** This player's own hand — see buildHumanizeTemplate. The groove pocket is
+   *  the DRUMMER's feel, shared by the band; this is the keys player's. */
+  private human = buildHumanizeTemplate('chord-hand')
 
   setKickAnchors(slots: number[]): void {
     this.kickAnchors = [...slots]
@@ -827,8 +830,12 @@ export class ChordGenerator extends GeneratorBase {
       const timeSub  = parseFloat(timeParts[2] ?? '0')
       const sixteenthPos = Math.floor(timeBeat * 4 + timeSub) % 16
       const pocketOffset = applyGroovePocket(0, sixteenthPos, this.groovePocket)
+        + (this.human.timeMs[sixteenthPos] ?? 0) / 1000
 
-      const vel = Math.min(1, Math.max(0.1, event.vel + (Math.random() - 0.5) * 0.08))
+      // Touch: the seeded per-slot scale gives the hand its own dynamics, on top
+      // of the small live jitter so repeated passes are not photocopies.
+      const vel = Math.min(1, Math.max(0.1,
+        event.vel * (this.human.velScale[sixteenthPos] ?? 1) + (Math.random() - 0.5) * 0.05))
 
       // Use sampler only if fully loaded; otherwise use fallback PolySynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth

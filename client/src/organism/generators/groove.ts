@@ -1,3 +1,4 @@
+import { mulberry32, getSessionSalt } from './freeplay/utils'
 // Per-instrument groove humanization shared between live (Wow) patterns built
 // from voice/MIDI input and stock genre presets from DrumPatternLibrary, so
 // both flavors share one hip-hop pocket rather than drifting apart over time.
@@ -98,4 +99,30 @@ export function humanizePattern(hits: DrumHit[]): DrumHit[] {
     const { velocity, microShift } = humanize(h.instrument, h.time, h.velocity)
     return { ...h, velocity, microShift }
   })
+}
+
+/**
+ * Per-slot HUMANIZATION — the player's own hand.
+ *
+ * Drums and bass sound fine and are humanized (grooveHatShiftPct, jitterVel).
+ * Chords and melody were mathematically exact: every note dead on the grid, with
+ * only the DRUMMER's shared groove pocket applied — so they rode the drums'
+ * micro-feel identically instead of having their own. The user: "the melody and
+ * chords still sound like beginners", and an independent listen: "rigid and
+ * quantized… stamped on a grid… lacking the natural dynamics and subtle
+ * imperfections that give a performance life."
+ *
+ * Seeded per slot (same convention as DrumGenerator.buildGrooveTemplate), so the
+ * SAME slot always gets the SAME nudge: the loop stays locked and predictable —
+ * which is the whole product — while no two positions in the bar feel identical.
+ * Humanity is variation ACROSS the bar, not randomness on every pass.
+ */
+export function buildHumanizeTemplate(seedKey: string): { timeMs: number[]; velScale: number[] } {
+  const rng = mulberry32(hashString(seedKey) + getSessionSalt())
+  return {
+    // +/-9ms. Below ~12ms reads as feel rather than sloppiness at hip-hop tempos.
+    timeMs:   Array.from({ length: 16 }, () => (rng() - 0.5) * 18),
+    // +/-9% touch variation, so no two notes are struck exactly alike.
+    velScale: Array.from({ length: 16 }, () => 1 + (rng() - 0.5) * 0.18),
+  }
 }

@@ -26,7 +26,7 @@ import {
 } from '../techniques/articulations'
 import type { ArticulationContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
-import { applyGroovePocket } from './groove'
+import { applyGroovePocket, buildHumanizeTemplate } from './groove'
 import {
   conformNoteToInstrument,
   midiToNote,
@@ -107,6 +107,9 @@ export class MelodyGenerator extends GeneratorBase {
 
   private synth: Tone.PolySynth | LoadableSampler
   private part:  Tone.Part | null = null
+  /** This player's own hand — see buildHumanizeTemplate. Distinct seed from the
+   *  chords so the two do not breathe in lockstep. */
+  private human = buildHumanizeTemplate('melody-hand')
   // Fallback synth — always available for instant playback while CDN samplers load
   private fallbackSynth: Tone.PolySynth
   private hasStartedPlayback: boolean = false
@@ -990,7 +993,10 @@ export class MelodyGenerator extends GeneratorBase {
     this.part = new Tone.Part((time, event) => {
       const presenceDuck = Math.max(0.3, 1 - this.currentPresence * 0.5)
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
-      const finalVel = event.vel * presenceDuck
+      // Touch (see buildHumanizeTemplate): the seeded per-slot scale is applied
+      // below once sixteenthPos is known — a lead played at one uniform velocity
+      // is the clearest "beginner" tell there is.
+      const baseVel = event.vel * presenceDuck
       const playableNote = this.currentPerformer
         ? conformNoteToInstrument(event.note, this.currentPerformer)
         : event.note
@@ -1009,6 +1015,9 @@ export class MelodyGenerator extends GeneratorBase {
       const sub  = parseFloat(parts[2] ?? '0')
       const sixteenthPos = Math.floor(beat * 4 + sub) % 16
       const pocketOffset = applyGroovePocket(0, sixteenthPos, this.groovePocket)
+        + (this.human.timeMs[sixteenthPos] ?? 0) / 1000
+      const finalVel = Math.min(1, Math.max(0.05,
+        baseVel * (this.human.velScale[sixteenthPos] ?? 1)))
 
       // Fast-path: default articulation skips the transform for zero overhead.
       if (artId === DEFAULT_ARTICULATION_ID) {
