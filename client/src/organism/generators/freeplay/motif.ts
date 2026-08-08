@@ -22,8 +22,15 @@ export function clearMotifsByPrefix(prefix: string): void {
   }
 }
 
-/** Downbeat-first candidate order so motifs feel grounded, not random. */
-const WEIGHTED_SLOTS = [0, 8, 4, 12, 6, 14, 2, 10, 3, 7, 11, 15, 1, 5, 9, 13]
+/** Downbeat-first candidate order so motifs feel grounded, not random.
+ *
+ *  This is the band's shared notion of SLOT STRENGTH: downbeat, then the other
+ *  quarters, then the strong offbeats, then ornamental 16ths. It is exported
+ *  because reduction needs it as badly as construction does — thinning a motif
+ *  by array order silently means "keep the earliest slots", which is not a
+ *  musical statement about anything. Thin by this instead. */
+export const SLOT_PRIORITY = [0, 8, 4, 12, 6, 14, 2, 10, 3, 7, 11, 15, 1, 5, 9, 13]
+const WEIGHTED_SLOTS = SLOT_PRIORITY
 
 /** Get (or commit) the section's motif. Anchors (e.g. kick slots) always kept. */
 export function getSectionMotif(

@@ -3,7 +3,7 @@
 
 import type { ScheduledNote } from '../types'
 import type { FreeplayContext } from './types'
-import { getSectionMotif, varyMotif } from './motif'
+import { getSectionMotif, varyMotif, SLOT_PRIORITY } from './motif'
 import { getSongCell } from './songCell'
 import { jitterVel, midiToNote, swungTime, sectionKind, SectionKind } from './utils'
 import {
@@ -213,7 +213,30 @@ function pitchIdeaFor(ctx: MelodyFreeplayContext, chordDegrees: number[], prefer
   return idea
 }
 
-function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: SectionKind, subGenre?: string): number[] {
+/**
+ * Thin a motif down to the section's density budget.
+ *
+ * This used to be `filtered.slice(0, max)`, and that one call was why the lead
+ * never phrased across the bar. `getSectionMotif` returns its slots SORTED, and
+ * `songCell` deliberately picks its accents as the downbeat plus the two LATEST
+ * slots — "the idea's shape is carried by where it leaves the grid". So slicing
+ * the head of a sorted array deleted the band's late landing points on EVERY
+ * phrase, deterministically, and left the lead bunched at the top of the bar
+ * (measured: bar 0 playing [0,2,6,7] while the cell's accents were [0,8,14] —
+ * skipping the beat-3 landing to play two ornamental 16ths).
+ *
+ * Density has to come out of the FILLER, never out of the idea. So: keep the
+ * anchors first, then let the motif's own remaining slots have the rest of the
+ * budget. When the budget is tighter than the anchor count (an intro, a
+ * breakdown), even the anchors are chosen by strength rather than by position.
+ */
+function capSlots(
+  slots: number[],
+  behavior: MelodyFreeplayBehavior,
+  kind: SectionKind,
+  subGenre?: string,
+  anchors: number[] = [],
+): number[] {
   const classicalMult = isClassical(subGenre ?? '') ? 1.25 : 1.0
   const electronicMult = isElectronic(subGenre ?? '') ? 1.15 : 1.0
   const mult = Math.max(classicalMult, electronicMult)
@@ -232,7 +255,28 @@ function capSlots(slots: number[], behavior: MelodyFreeplayBehavior, kind: Secti
   const filtered = behavior === 'hint'
     ? slots.filter(slot => slot === 0 || slot === 8 || slot === 12)
     : slots
-  const out = filtered.slice(0, max)
+  if (filtered.length <= max) return filtered.length > 0 ? [...filtered] : [0]
+
+  const present = new Set(filtered.map(slot => mod(slot, 16)))
+  const anchorSet = new Set(
+    anchors.map(slot => mod(slot, 16)).filter(slot => present.has(slot)),
+  )
+  // Anchors in strength order, so a tight budget keeps the downbeat and the
+  // beat-3 landing rather than whichever two happen to sort first.
+  const kept = SLOT_PRIORITY.filter(slot => anchorSet.has(slot)).slice(0, max)
+  // The leftover budget goes to the motif's OWN filler, in its own order. Do not
+  // spend it by SLOT_PRIORITY too: that pushes every remaining note onto a strong
+  // beat, and resolveDegreeComplementing snaps strong beats to chord tones — so a
+  // dense line collapses onto the four chord pitches and the lead gets a stuck
+  // note. The ornamental 16ths are the notes that are FREE to be non-chord tones;
+  // they are where the melody's colour comes from.
+  for (const slot of [...present].sort((a, b) => a - b)) {
+    if (kept.length >= max) break
+    if (anchorSet.has(slot)) continue
+    kept.push(slot)
+  }
+
+  const out = kept.sort((a, b) => a - b)
   return out.length > 0 ? out : [0]
 }
 
@@ -244,18 +288,19 @@ function slotsForBar(
   kind: SectionKind,
   rng: () => number,
   subGenre?: string,
+  anchors: number[] = [],
 ): number[] {
   if (kind === 'intro' || kind === 'breakdown') {
-    return capSlots(baseSlots, behavior, kind, subGenre)
+    return capSlots(baseSlots, behavior, kind, subGenre, anchors)
   }
-  if (behavior === 'hint') return capSlots(baseSlots, behavior, kind, subGenre)
-  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior, kind, subGenre)
+  if (behavior === 'hint') return capSlots(baseSlots, behavior, kind, subGenre, anchors)
+  if (bars > 2 && bar === 2) return capSlots(varyMotif({ slots: baseSlots }, rng).slots, behavior, kind, subGenre, anchors)
   if (bars > 1 && bar === bars - 1) {
     const cadenceSlot = 12
     const setup = baseSlots.filter(slot => slot < cadenceSlot).slice(0, Math.max(1, baseSlots.length - 1))
     return [...new Set([...setup, cadenceSlot])].sort((a, b) => a - b)
   }
-  return capSlots(baseSlots, behavior, kind, subGenre)
+  return capSlots(baseSlots, behavior, kind, subGenre, anchors)
 }
 
 function durationFromGap(slots: number, family: string | undefined, articulation: 'normal' | 'staccato' | 'legato' = 'normal'): string {
@@ -380,7 +425,15 @@ function rawDegreeFor(
     if (slot === 4 || slot === 10) degree -= 1
   }
 
-  if (slot >= 12 || absSlot >= phraseSlots - 4) {
+  // Come home at the end of the PHRASE, not at the end of every bar. This used
+  // to be `slot >= 12 || …`, which forced the root on slots 12-15 of all four
+  // bars — the whole back half of every bar collapsed onto one pitch. It went
+  // unnoticed because capSlots was deleting those slots before they could sound;
+  // once the lead actually phrased across the bar, the rule turned the back half
+  // into a stuck note. Slot 12 is still guaranteed a CHORD TONE below (it is
+  // passed as a strong beat to resolveDegreeComplementing) — it just no longer
+  // has to be the root every bar, which is where approach notes live.
+  if (absSlot >= phraseSlots - 4) {
     degree = chordDegrees[0] ?? 0
   }
 
@@ -393,28 +446,49 @@ function rawDegreeFor(
   )
 }
 
+/**
+ * Rescue line for a phrase whose PITCHES came out degenerate (see
+ * `phraseNeedsContourFallback`) — it re-states a guaranteed contour.
+ *
+ * It fixes the pitches; it must not throw away the rhythm to do it. The original
+ * placed its contour on an even `i * step` grid, which at a 4-bar phrase is slots
+ * 0, 8, 16, 24… — a metronome. Any phrase unlucky enough to trip the fallback
+ * therefore stopped playing the section's idea altogether and went stiff, which
+ * is a worse fault than the repeated pitch it was rescuing. It now walks the same
+ * cell slots the main path uses, so only the PITCHES are replaced.
+ */
 function buildContourFallback(
   ctx: MelodyFreeplayContext,
   chordDegrees: number[],
   preferredDegrees: number[],
+  rhythmSlots: number[],
 ): ScheduledNote[] {
   const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)).length
   const totalSlots = Math.max(1, ctx.length16ths ?? ctx.bars * 16)
   const pattern = [0, 1, 2, 4, 3, 2, 1, 0]
-  const step = Math.max(2, Math.floor(totalSlots / pattern.length))
+  const bars = Math.max(1, Math.ceil(totalSlots / 16))
+  const grid = rhythmSlots.length > 0 ? [...rhythmSlots].sort((a, b) => a - b) : [0, 8]
+  const absSlots: number[] = []
+  for (let bar = 0; bar < bars; bar++) {
+    for (const slot of grid) {
+      const abs = bar * 16 + slot
+      if (abs < totalSlots) absSlots.push(abs)
+    }
+  }
   const events: RawMelodyEvent[] = []
 
-  for (let i = 0; i < pattern.length; i++) {
-    const absSlot = i * step
-    if (absSlot >= totalSlots) break
+  for (let i = 0; i < absSlots.length; i++) {
+    const absSlot = absSlots[i]
     const pos = absSlot / totalSlots
-    let degree = (chordDegrees[0] ?? 0) + pattern[i] + contourOffset(pos, 1)
+    // The contour cycles: the grid is now the cell's rhythm, which is rarely
+    // exactly `pattern.length` long.
+    let degree = (chordDegrees[0] ?? 0) + pattern[i % pattern.length] + contourOffset(pos, 1)
     degree = resolveDegreeComplementing(
       degree,
       chordDegrees,
       preferredDegrees,
       scaleLen,
-      isStrongBeat(absSlot) || i === pattern.length - 1,
+      isStrongBeat(absSlot) || i === absSlots.length - 1,
     )
     events.push({ absSlot, degree, velocity: velocityFor(ctx, absSlot) })
   }
@@ -490,14 +564,14 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
       : Math.min(0.25, ctx.density),
     cell.accents,
   )
-  const baseSlots = capSlots(motif.slots, behavior, kind, ctx.subGenre)
+  const baseSlots = capSlots(motif.slots, behavior, kind, ctx.subGenre, cell.accents)
   const events: RawMelodyEvent[] = []
   let melodicIndex = 0
   let previousDegree: number | null = null
   const scaleLen = (ctx.scaleIntervals.length > 0 ? ctx.scaleIntervals : scaleForGenre(ctx.subGenre)).length
 
   for (let bar = 0; bar < bars; bar++) {
-    const slots = slotsForBar(bar, bars, baseSlots, behavior, kind, ctx.rng, ctx.subGenre)
+    const slots = slotsForBar(bar, bars, baseSlots, behavior, kind, ctx.rng, ctx.subGenre, cell.accents)
     for (const slot of slots) {
       const absSlot = bar * 16 + slot
       if (absSlot >= totalSlots) continue
@@ -531,7 +605,7 @@ export function buildFreeplayMelodyNotes(ctx: MelodyFreeplayContext): ScheduledN
 
   const notes = renderEvents(ctx, events, totalSlots)
   if (phraseNeedsContourFallback(notes.map(note => note.pitch))) {
-    return buildContourFallback(ctx, chordDegrees, preferredDegrees)
+    return buildContourFallback(ctx, chordDegrees, preferredDegrees, baseSlots)
   }
   return notes
 }

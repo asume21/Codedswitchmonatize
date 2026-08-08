@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { buildFreeplayMelodyNotes, clearMelodyMotifs, type MelodyFreeplayContext } from '../MelodyImproviser'
 import { clearMotifs } from '../motif'
+import { getSongCell } from '../songCell'
 import { hashString, mulberry32 } from '../utils'
 
 function ctx(overrides: Partial<MelodyFreeplayContext> = {}): MelodyFreeplayContext {
@@ -106,6 +107,31 @@ describe('MelodyImproviser', () => {
       const notes = buildFreeplayMelodyNotes(ctx({ rng: mulberry32(seed) }))
       const unique = new Set(notes.map(note => note.pitch))
       expect(unique.size, `seed ${seed}`).toBeGreaterThan(2)
+    }
+  })
+
+  // The lead is supposed to phrase FROM the song cell — the cell's accents are
+  // passed in as the melody motif's anchors precisely so the lead lands where the
+  // band's idea lands. songCell picks its accents as the downbeat plus the two
+  // LATEST slots ("the idea's shape is carried by where it leaves the grid"), so
+  // a lead that never reaches the back half of the bar is not playing the idea.
+  it('phrases onto the song cell accents instead of clustering at the top of the bar', () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      clearMotifs()
+      clearMelodyMotifs()
+      // Build (and cache) the cell first so we can assert against the exact one
+      // the improviser will receive.
+      const cell = getSongCell('verse', 'boom-bap', mulberry32(seed), 0.72)
+      const lateAccents = cell.accents.filter(slot => slot !== 0)
+      if (lateAccents.length === 0) continue
+
+      const notes = buildFreeplayMelodyNotes(ctx({ rng: mulberry32(seed) }))
+      const bar0 = barSlots(notes, 0)
+
+      expect(
+        lateAccents.some(slot => bar0.includes(slot)),
+        `seed ${seed}: bar 0 played ${JSON.stringify(bar0)} but the cell accents are ${JSON.stringify(cell.accents)}`,
+      ).toBe(true)
     }
   })
 
