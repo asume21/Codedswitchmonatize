@@ -2261,8 +2261,24 @@ export class GeneratorOrchestrator {
       this.later(() => {
         if (aiOverride?.melodyBehavior) {
           this.melody.onSectionChange(section.name, aiOverride.melodyBehavior as any)
-        } else if (chordLeadsBand) {
+        } else if (chordLeadsBand && this.voiceReactive) {
           // Chord hook leads → melody answers sparsely instead of noodling.
+          //
+          // ONLY while a voice is actually in the room. This used to be
+          // unconditional, and because `chordLeadsBand` is TRUE BY DEFAULT
+          // (chord?.role ?? 'lead', melody?.role ?? 'support' — see above), the
+          // lead was pinned to Hint on every section change forever: measured
+          // live as behavior "hint", events 2, activity stuck at 0.21 through a
+          // section change into a DROP. Two notes on a three-beat loop, which is
+          // not "answering sparsely" — it is a stuck note, and it is what the
+          // user heard as "it plays the same key over and over".
+          //
+          // Leaving room for the MC is right when the MC is there. In STEADY
+          // (no mic, the demo and auto case) there is no vocal to leave room
+          // for, so the band should play the tune. Same bug class as the
+          // flowDepth floor and the mono-instrument chord collapse: a signal
+          // that only exists while a human performs was deciding what the band
+          // plays when nobody is.
           this.melody.onSectionChange(section.name, 'hint' as MelodyBehavior)
         } else {
           this.melody.onSectionChange(section.name)
