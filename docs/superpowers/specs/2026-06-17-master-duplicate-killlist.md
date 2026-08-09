@@ -102,3 +102,74 @@ Each step: delete → tsc + test:unit + live-path check → commit. Then re-audi
 the category is truly closed. When the list is exhausted, the app is consolidated and
 launch-ready; THEN new ideas (AI-uses-all-tools, pads, pluckable instruments) build on
 the single spine.
+
+---
+
+# Part 2 — the RUNTIME doubles (2026-08-09)
+
+The inventory above catalogues **structural** doubles: two mixers, two engines,
+two track stores. It would not have caught any of the three doubles found by ear
+on 2026-08-09, because those were a different class — not two *components*, but
+two **code paths to the same audible output**:
+
+1. **A second melody.** `MelodyGenerator.triggerAnswerLick` fires 3 ascending
+   chord tones an octave up on the melody's OWN voice, "OUTSIDE the looping
+   phrase Part" (its own docstring). User heard it as "the old way it used to
+   play, dum dum dum each a higher octave" under the real melody.
+2. **The solo buttons killing the pad.** `handleSolo` saved the CURRENT volumes
+   when switching solo→solo — all zeros mid-solo — and volume 0 also calls
+   `setTextureEnabled(false)`, so the generator switched OFF for good.
+3. **Texture silent for up to 16 bars** after re-enabling — volume multiplier
+   restored, arrangement multiplier not.
+
+## The searchable fingerprints
+
+`scripts/find-organism-doubles.mjs` — re-runnable, no arguments. It hunts the
+four shapes these bugs shared. **Validation: it independently rediscovers #1**
+(`duetEnabled` is the only ⚠ it emits).
+
+| | Shape | Why it hides a double |
+|---|---|---|
+| **A** | Setter with zero callers | A control nothing can reach can never be turned off |
+| **B** | `boolean = true` that gates behaviour, whose setter is dead | Permanently on, invisibly |
+| **C** | `triggerAttack*` outside a `Tone.Part` | A second voice on an existing output |
+| **D** | A volume setter that also flips an enable flag | "Quiet" silently means "off" |
+
+## First run — the worklist
+
+**A. 14 dead controls.** Musical features with no way to reach them:
+`setMelodyFreeplay`, `setMelodyPitchOffset`, `setSubLevel`, `setGlideRate`,
+`setLazySnareRange`, `setHatCyclicPattern`, `setHatShuffleRange`,
+`setParallelCompression`, `setHaasDelayMs`, `disableSidechain`, `setStemMuted`,
+`setStemLevel`, `setExpression`, `setDuetEnabled` (now split/fixed). Each is
+either a control that should be wired to the UI, or dead code to delete — but
+never left as an unreachable default.
+
+**B. 1 always-on gate:** `duetEnabled` — FIXED 2026-08-09 by splitting the vocal
+duet (answers the MC, keep) from the instrumental duet (answers the melody's own
+rests, now owned by the Melody + Chords feature and off otherwise).
+
+**C. 35 out-of-Part triggers.** Most are helpers called BY a Part callback
+(`triggerDrum`, `triggerNoise`) — the heuristic cannot see through one level of
+indirection, so this category needs human classification. The genuine ghosts are
+the ones that fire on a CUE rather than a schedule:
+`MelodyGenerator.triggerAnswerLick` (fixed), `ChordGenerator.triggerAnswerStab`
+(same class — still reachable via the vocal duet), `BassGenerator.startSubBassRise`,
+`DrumGenerator.triggerImpact`. Each needs a reachable gate or it is a second
+voice nobody asked for.
+
+**D. 13 coupled kill-switches — ALL FIVE ROLES, not just texture.**
+`OrganismProvider.tsx:3674-3706`: drums, bass, melody, chord and texture each
+call `setXEnabled(v > 0)` from their volume setter. Only the `handleSolo` half
+was fixed; **the coupling itself remains**. Any path that writes volume 0 —
+solo, an automation lane, a preset, a restore — switches that generator OFF
+rather than muting it, and re-enabling does not necessarily restore the
+arrangement multiplier (see #3 above). **This is the highest-value remaining
+item in this file:** separate "muted" from "off" for all five roles.
+
+## How to use it
+
+Run `node scripts/find-organism-doubles.mjs` after any Organism change, and
+before hunting an audible double by hand. It reports PLACES bugs of this shape
+live — a worklist, not a verdict. Pair it with the ear: the scanner finds the
+candidates, only listening confirms which one you are hearing.
