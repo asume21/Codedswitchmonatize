@@ -62,6 +62,8 @@ vi.mock('../../../organism/generators/GeneratorOrchestrator', () => ({
     forceSubGenre = vi.fn()
     regenerateAll = vi.fn()
     setArrangementEnabled = vi.fn()
+    setBeatModeEnabled = vi.fn()
+    isBeatModeEnabled = vi.fn().mockReturnValue(false)
     setVoiceReactive = vi.fn()
     isArrangementEnabled = vi.fn().mockReturnValue(true)
     getMusicalState = vi.fn().mockReturnValue(null)
@@ -164,6 +166,12 @@ describe('OrganismProvider', () => {
   it('texture starts enabled by default', () => {
     const { result } = renderHook(() => useOrganism(), { wrapper })
     expect(result.current.textureEnabled).toBe(true)
+  })
+
+  it('starts with Auto texture voice and no full-song feature owner', () => {
+    const { result } = renderHook(() => useOrganism(), { wrapper })
+    expect(result.current.instrumentAssignments.texture).toBeNull()
+    expect(result.current.featuredPerformance).toBe('none')
   })
 
   it('lastSessionDNA starts as null', () => {

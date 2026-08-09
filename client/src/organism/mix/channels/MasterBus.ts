@@ -27,7 +27,7 @@ export class MasterBus {
   private  saturator:  Tone.Distortion
   private  limiter:    Tone.Limiter
   private  safetyClip: Tone.WaveShaper  // TRUE ceiling — catches the transients the limiter overshoots
-  private  tapGain:    Tone.Gain        // pass-through for the audio-debug tap
+  private  tapGain:    Tone.Gain        // final codec-safe output trim + audio-debug tap
   private  analyser:   Tone.Analyser
 
   constructor(
@@ -94,7 +94,12 @@ export class MasterBus {
     }, 4096)
     this.safetyClip.oversample = '4x'
 
-    this.tapGain  = new Tone.Gain(1)
+    // Lossy browser capture codecs can overshoot a sample-perfect Web Audio
+    // ceiling during decode. The controlled bench measured +1.68 dBFS on the
+    // drum stem even though safetyClip itself never exceeds unity. Keep 2.5 dB
+    // of post-ceiling margin so playback, WAV export, and Opus/AAC round-trips
+    // remain clean without changing the drum compressor or transient shape.
+    this.tapGain  = new Tone.Gain(Tone.dbToGain(-2.5))
     this.analyser = new Tone.Analyser('waveform', 256)
 
     // Signal chain: input → gain → EQ → hiCut → comp → sat → limiter → safetyClip → tap → analyser → destination

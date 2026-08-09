@@ -60,6 +60,15 @@ describe('MelodyGenerator', () => {
     expect(mockPartStart).not.toHaveBeenCalled()
   })
 
+  it('invalidates the short phrase when promoted to a featured solo', () => {
+    ;(gen as any).phraseDirty = false
+    ;(gen as any).phraseRefreshEventId = 77
+    gen.setSoloMode(true)
+    expect((gen as any).isSoloMode).toBe(true)
+    expect((gen as any).phraseDirty).toBe(true)
+    expect((gen as any).phraseRefreshEventId).toBeNull()
+  })
+
   it('voiceActive=false, flowDepth=0.35 → behavior = Respond', () => {
     const behavior = getMelodyBehavior(OrganismMode.Glow, false, 0.35)
     expect(behavior).toBe(MelodyBehavior.Respond)

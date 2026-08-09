@@ -240,3 +240,48 @@ explicit modes:
 
 Deferred by the user: "that can wait for now, I just want to get all five
 generators playing their part of a beat first."
+
+#### A.2 — Beat Mode, the BAND-level loop bed (SHIPPED 2026-08-08)
+
+A.1 above is per-instrument. The user asked for the same idea at band scale:
+"there is a song mode but maybe we should also have a beat mode."
+
+**Investigation first — most of it already existed.** The rhythm section is
+already a locked 4-bar core tiled across a section with a turnaround on its
+final bar (`DrumImproviser.buildFreeplaySectionDrumHits`); sections already
+exist; per-section multipliers are constants that do not move mid-section; and
+drums/bass/chords already play turnarounds. So Song Mode is *already* "~6
+sections, each a locked loop, with the change announced." A separate Beat Mode
+that re-implemented any of that would have been a duplicate system.
+
+**What was actually missing** is that a section change is expressed by moving
+the ground: the arc ducks the rhythm section, thins the drum pattern (below
+0.45 density the filter keeps kick+snare and drops EVERY hat), and a breakdown
+"genuinely kills the drums" by design. Defensible on a produced record;
+hostile to a live freestyle take. The user's report: Song Mode on is
+"a difference but not a better difference."
+
+**Decision — announce and hold, not duck and thin.** Beat Mode keeps the whole
+arrangement running: sections, per-section harmony (musicMind's matrix in plan
+mode), turnarounds, and the pre-drop break are all untouched — a one-bar break
+IS the announcement the user wants. It only pins the FOUNDATION: drums and bass
+ignore the section multiplier (including a dropout's 0) and the drum density
+ladder. Melody/chords/texture keep following the section, so a drop still feels
+like a drop.
+
+Implementation: `client/src/organism/generators/beatMode.ts` — a pure intent
+module in the same shape as `featuredPerformance.ts`, resolved at the single
+choke point (`GeneratorOrchestrator.applyArrangement`). No second scheduler, no
+new arrangement system.
+
+**Deliberately NOT coupled to Song Mode in either direction.** The
+Feature/Song-Mode pair (each forcing the other) proved that two flags which
+force each other cannot be reasoned about — it is why no capture ever recorded
+`featured: true`. With the arrangement off, Beat Mode is simply inert; jam mode
+and Loops Mode are unchanged, per the user's explicit instruction.
+
+Related fix found during the same investigation: `setArrangementEnabled(false)`
+restored the drum gain but not the drum *density*, stranding the thinning so
+jam mode inherited a kick+snare skeleton from the last sparse section forever
+(captured live as `arr:1` / `sectionDensity:0.30`, 96 raw hits → 31 events).
+That is the "drums are very sparse" report, and it is fixed independently.

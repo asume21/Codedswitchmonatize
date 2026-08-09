@@ -211,6 +211,19 @@ export class MelodyGenerator extends GeneratorBase {
   // resets that interrupted the listener's sense of a continuous melody.
   private static readonly PHRASE_REFRESH_BARS = 8
 
+  /** Featured/isolated melody is a foreground performance. Changing this state
+   * invalidates the backing phrase and cadence so the next build starts a full
+   * four-bar statement instead of making the short hook merely louder. */
+  override setSoloMode(solo: boolean): void {
+    if (this.isSoloMode === solo) return
+    super.setSoloMode(solo)
+    this.phraseDirty = true
+    if (this.phraseRefreshEventId !== null) {
+      try { Tone.getTransport().clear(this.phraseRefreshEventId) } catch { /* disposed transport */ }
+      this.phraseRefreshEventId = null
+    }
+  }
+
   // Behavior debounce — require behavior to be stable for 2 consecutive frames
   private pendingBehavior: MelodyBehavior | null = null
   private pendingBehaviorFrames: number = 0
@@ -762,6 +775,13 @@ export class MelodyGenerator extends GeneratorBase {
       loopEnd:  String(part?.loopEnd ?? ''),
       behavior: String(this.currentBehavior),
       enabled:  this.enabled,
+      performerId: this.currentPerformer?.id ?? null,
+      performerName: this.currentVoiceName,
+      voiceKey: this.currentVoiceKey,
+      samplerLoaded: this.isSamplerReady(),
+      source: this.isSamplerReady() ? this.currentVoiceKey : 'fm-fallback',
+      explicit: this.explicitPerformerId,
+      featured: this.isSoloMode,
     }
   }
 
@@ -896,7 +916,7 @@ export class MelodyGenerator extends GeneratorBase {
     // that lines up with the 2-bar chord cycle. Same fix the bowed strings already
     // had; now applied to guitar and every other lead.
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
-      ? Math.max(32, selectedLength)
+      ? Math.max(this.isSoloMode ? 64 : 32, selectedLength)
       : selectedLength
     let notes          = this.generatePhrase(phraseLength, physics)
     if (this.isSoloMode && this.currentScale.length > 0) {
@@ -958,9 +978,10 @@ export class MelodyGenerator extends GeneratorBase {
     // Computed AFTER dynamics so accent velocities drive the bend choice.
     const guitarArtIds = this.isGuitar() ? planGuitarArticulations(notes) : null
 
-    // TANK BUILD: hard cap at 32 notes per phrase — more than this floods
-    // the Tone.js scheduler when all 4 generators rebuild simultaneously.
-    if (notes.length > 32) notes = notes.slice(0, 32)
+    // A featured four-bar line needs enough events to reach its answer/cadence;
+    // the old universal slice could truncate the back half of the performance.
+    const noteCap = this.isSoloMode ? 40 : 32
+    if (notes.length > noteCap) notes = notes.slice(0, noteCap)
     if (notes.length === 0) return true
 
     const startAt = getLivePartStart(this.hasStartedPlayback)
@@ -1070,7 +1091,7 @@ export class MelodyGenerator extends GeneratorBase {
     // and section can sit still indefinitely and the melody plays the same
     // notes forever.
     if (this.phraseRefreshEventId === null) {
-      const refreshInterval = `${MelodyGenerator.PHRASE_REFRESH_BARS}m`
+      const refreshInterval = `${this.isSoloMode ? 4 : MelodyGenerator.PHRASE_REFRESH_BARS}m`
       this.phraseRefreshEventId = Tone.getTransport().scheduleRepeat(
         () => { this.phraseDirty = true },
         refreshInterval,

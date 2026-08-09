@@ -27,15 +27,17 @@ const DEFAULT_BY_ROLE: Record<PerformerRole, InstrumentPerformerId> = {
 
 const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, InstrumentPerformerId[]>>>> = {
   heat: {
-    lead: ['piano', 'trumpet', 'rhodes'],        // trap: piano riffs + brass stabs
+    // Brass remains available explicitly, but no longer becomes the automatic
+    // identity of a Trap beat; the captured trumpet-like riff read as dated GM.
+    lead: ['piano', 'rhodes', 'guitar-clean', 'violin'],
     bass: ['bass-synth', 'bass-electric'],
-    chord: ['piano', 'strings', 'rhodes'],        // piano block chords or string pads
+    chord: ['rhodes', 'piano', 'guitar-clean', 'strings'],
   },
   gravel: {
     // boom-bap: keys, horns — and violin/strings, the classic sampled-loop
     // flavour (RZA/Nas-era string leads). Violin was absent from this pool
     // entirely, making it unreachable in boom-bap except by explicit pick.
-    lead: ['piano', 'sax', 'trumpet', 'violin'],
+    lead: ['piano', 'sax', 'rhodes', 'violin'],
     bass: ['bass-synth', 'bass-electric'],
     chord: ['piano', 'rhodes', 'guitar-nylon', 'strings'],
   },
@@ -85,7 +87,14 @@ function seededRoll(key: string): number {
  *  articulations), not the timbre. Without this, the +12 preference bonus made
  *  the pools de facto gates: a violin boom-bap or marimba trap could never
  *  happen organically. */
-const WILDCARD_CHANCE = 0.18
+const WILDCARD_CHANCE = 0.08
+
+// Auto still gets occasional color, but only from voices that can carry a
+// credible record-ready core. Every instrument remains available explicitly.
+const AUTO_TASTE_SAFE_BY_ROLE: Partial<Record<PerformerRole, ReadonlySet<InstrumentPerformerId>>> = {
+  lead: new Set(['piano', 'rhodes', 'guitar-nylon', 'guitar-clean', 'violin', 'cello', 'flute', 'clarinet', 'sax']),
+  chord: new Set(['piano', 'rhodes', 'guitar-nylon', 'guitar-clean', 'strings', 'choir', 'organ']),
+}
 
 export function selectInstrumentPerformer(ctx: PerformerSelectionContext): InstrumentPerformerProfile {
   if (ctx.explicitId) {
@@ -108,7 +117,7 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
   // choice. They stay fully available for the LEAD role, where a single line is
   // the point. (If we later want brass on the harmony it should be an
   // arpeggiation or a section patch, not a silently-collapsed block.)
-  const candidates = INSTRUMENT_PERFORMERS.filter(profile =>
+  const allCandidates = INSTRUMENT_PERFORMERS.filter(profile =>
     profile.roles.includes(ctx.role) &&
     (ctx.role !== 'chord' || profile.polyphony !== 'mono'))
   const modePool = MODE_ROLE_DEFAULTS[ctx.mode]?.[ctx.role]
@@ -121,6 +130,10 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
   const wildcard = modePool !== undefined
     && (ctx.role === 'lead' || ctx.role === 'chord')
     && seededRoll(`wildcard:${ctx.role}:${ctx.mode}`) < WILDCARD_CHANCE
+  const safeWildcardIds = AUTO_TASTE_SAFE_BY_ROLE[ctx.role]
+  const candidates = wildcard && safeWildcardIds
+    ? allCandidates.filter(profile => safeWildcardIds.has(profile.id))
+    : allCandidates
   let best = candidates[0] ?? INSTRUMENT_PERFORMERS_BY_ID.get(DEFAULT_BY_ROLE[ctx.role])!
   let bestScore = -Infinity
 

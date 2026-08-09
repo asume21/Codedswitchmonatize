@@ -84,7 +84,15 @@ async function main() {
     ],
   })
 
-  const manifest = { label: LABEL, seed: SEED, base: BASE, capturedAt: new Date().toISOString(), presets: {}, captures: [] }
+  const manifest = {
+    label: LABEL,
+    seed: SEED,
+    base: BASE,
+    capturedAt: new Date().toISOString(),
+    comparable: process.env.SONG_MODE !== '1',
+    presets: {},
+    captures: [],
+  }
 
   for (const preset of PRESETS) {
     const page = await browser.newPage()
@@ -135,11 +143,19 @@ async function main() {
       })
       log('song mode →', off)
       await page.waitForTimeout(2000)
+      await page.waitForFunction(() => {
+        const report = window.__orgDebug?.()?.gainReport
+        if (!report) return false
+        return ['drum', 'bass', 'melody', 'chord', 'texture'].every((role) =>
+          report[role]?.on === true && report[role]?.arr > 0.2 && report[role]?.gain > 0.1)
+      }, null, { timeout: 10000 }).catch(() => log('jam-mode gain settling timeout — manifest will show the transition state'))
+      await page.waitForTimeout(1200)
     }
 
     const ready = await page.evaluate(() => ({
       debug: !!window.__audioDebug,
       solo:  typeof window.soloChannel === 'function',
+      organism: typeof window.__orgDebug === 'function',
     }))
     log('ready:', JSON.stringify(ready))
     if (!ready.debug || !ready.solo) {
@@ -147,18 +163,37 @@ async function main() {
       await page.close()
       continue
     }
-    manifest.presets[preset.key] = { label: preset.label, seed: seedApplied }
+    if (ready.organism) {
+      await page.waitForFunction(() => {
+        const report = window.__orgDebug?.()?.gainReport
+        return report?.melody?.part?.samplerLoaded === true &&
+          report?.chord?.voice?.samplerLoaded === true &&
+          report?.texture?.pad?.loaded === true
+      }, null, { timeout: 15000 }).catch(() => log('voice readiness timeout — capture metadata will show the fallback'))
+    }
+    const presetRuntime = ready.organism ? await page.evaluate(() => window.__orgDebug?.() ?? null) : null
+    manifest.presets[preset.key] = { label: preset.label, seed: seedApplied, runtime: presetRuntime }
 
     for (const stem of STEMS) {
       const role = stem === 'full' ? null : stem
       await page.evaluate((r) => window.soloChannel(r), role)
       await page.waitForTimeout(1200) // ramp + settle before measuring
 
+      const runtime = ready.organism ? await page.evaluate(() => window.__orgDebug?.() ?? null) : null
       const capId = await page.evaluate((ms) => window.__audioDebug.startCapture(ms), CAP_MS)
       await page.waitForTimeout(500) // let the upload POST land
 
       const base = `${preset.key}-${stem}-seed${SEED}`
-      const record = { preset: preset.key, stem, captureId: capId, wav: null, analysis: null }
+      const record = {
+        preset: preset.key,
+        stem,
+        captureId: capId,
+        wav: null,
+        analysis: null,
+        section: runtime?.section ?? null,
+        transport: runtime?.transport ?? null,
+        generator: runtime?.gainReport?.[stem] ?? (stem === 'full' ? runtime?.gainReport ?? null : null),
+      }
 
       const buf = blobs.get(capId)
       if (buf) {

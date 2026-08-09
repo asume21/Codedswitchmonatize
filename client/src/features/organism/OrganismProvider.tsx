@@ -175,6 +175,7 @@ function applyPresetBand(
   orchestr.setInstrumentPerformer('lead',  userPicks.lead  ?? preset.performers?.lead  ?? null)
   orchestr.setInstrumentPerformer('chord', userPicks.chord ?? preset.performers?.chord ?? null)
   orchestr.setInstrumentPerformer('bass',  userPicks.bass  ?? preset.performers?.bass  ?? null)
+  orchestr.setInstrumentPerformer('texture', userPicks.texture ?? null)
   orchestr.setMelodyEmotionalIntent(preset.emotionalIntent ?? null)
 }
 
@@ -328,6 +329,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   const [songModeEnabled,     setSongModeEnabledState]     = useState(true)
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
   const songModeEnabledRef = useRef(true)
+  const [beatModeEnabled, setBeatModeEnabledState] = useState(false)
+  const beatModeEnabledRef = useRef(false)
   // Needed by applyStablePlaybackDefaults (empty deps — it can only read refs).
   // Without it a preset swap would silently reset the band to steady, which is the
   // same shape as the texture-volume bug fixed in 801af915.
@@ -437,12 +440,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     lead: null,
     bass: null,
     chord: null,
+    texture: null,
   })
   // Ref mirror so preset start/swap closures read the LIVE user picks —
   // a user-chosen instrument (dropdown or vibe text) outranks the preset's
   // default band: violin can totally be in boom-bap if the user says so.
   const instrumentAssignmentsRef = useRef(instrumentAssignments)
   instrumentAssignmentsRef.current = instrumentAssignments
+  const [featuredPerformance, setFeaturedPerformanceState] = useState<import('../../organism/generators/featuredPerformance').FeaturedPerformance>('none')
+  const featuredPerformanceRef = useRef(featuredPerformance)
+  featuredPerformanceRef.current = featuredPerformance
   const [vibeInterpretation, setVibeInterpretation] = useState<{ text: string; result: string; confidence: number } | null>(null)
 
   // ACE Hybrid Stems Mode state
@@ -1246,6 +1253,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // follows the user's Song Mode switch — forcing it on here silently
     // re-enabled song structure on every start/swap.
     orchestr.setArrangementEnabled(songModeEnabledRef.current)
+    orchestr.setBeatModeEnabled(beatModeEnabledRef.current)
+    orchestr.setFeaturedPerformance(featuredPerformanceRef.current)
     orchestr.setGrooveLocked(true)
     // Respect the texture VOLUME, not just the enabled flag. Hardcoding 1 here
     // meant there were two independent answers to "should texture be heard":
@@ -3242,6 +3251,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestr.setGrooveLocked(false)
       // Restore to the user's Song Mode switch, not a hardcoded "on".
       orchestr.setArrangementEnabled(songModeEnabledRef.current)
+      orchestr.setBeatModeEnabled(beatModeEnabledRef.current)
       orgLog('recording:lock-released', {
         arrangementEnabled: orchestr.isArrangementEnabled(),
         floor: null,
@@ -3474,6 +3484,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       return { ...prev, [role]: instrumentId }
     })
     orchestrRef.current?.setInstrumentPerformer(role, instrumentId)
+  }, [])
+
+  const setFeaturedPerformance = useCallback((
+    feature: import('../../organism/generators/featuredPerformance').FeaturedPerformance,
+  ) => {
+    setFeaturedPerformanceState(feature)
+    featuredPerformanceRef.current = feature
+    const orchestr = orchestrRef.current
+    orchestr?.setFeaturedPerformance(feature)
+    if (feature !== 'none') {
+      // "Full Song" means the existing producer section arc is active. Mirror
+      // the state in the UI so the Song Mode switch remains truthful.
+      setSongModeEnabledState(true)
+      songModeEnabledRef.current = true
+      orchestr?.setArrangementEnabled(true)
+    }
   }, [])
 
   const setV2MasterGain = useCallback((value: number) => {
@@ -3718,10 +3744,22 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // produced beat.
       orchestrRef.current?.setVoiceReactive(enabled)
     },
+    beatModeEnabled,
+    setBeatModeEnabled: (enabled: boolean) => {
+      setBeatModeEnabledState(enabled)
+      beatModeEnabledRef.current = enabled
+      orchestrRef.current?.setBeatModeEnabled(enabled)
+    },
     songModeEnabled,
     setSongModeEnabled: (enabled: boolean) => {
       setSongModeEnabledState(enabled)
       songModeEnabledRef.current = enabled
+      if (!enabled && featuredPerformanceRef.current !== 'none') {
+        // A Full Song feature cannot remain truthful with the song arc off.
+        featuredPerformanceRef.current = 'none'
+        setFeaturedPerformanceState('none')
+        orchestrRef.current?.setFeaturedPerformance('none')
+      }
       orchestrRef.current?.setArrangementEnabled(enabled)
     },
 
@@ -3767,6 +3805,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     // Instrument picker
     instrumentAssignments,
     setOrganismInstrument,
+    featuredPerformance,
+    setFeaturedPerformance,
 
     // Guest experience
     guestSecondsRemaining,
@@ -3824,8 +3864,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, textureVolume, melodyFocusEnabled, textureEnabled,
-    reactToVoiceEnabled, songModeEnabled, loopsModeEnabled, isLoopsLoading,
-    instrumentAssignments, setOrganismInstrument,
+    reactToVoiceEnabled, songModeEnabled, beatModeEnabled, loopsModeEnabled, isLoopsLoading,
+    instrumentAssignments, setOrganismInstrument, featuredPerformance, setFeaturedPerformance,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,
     isRunning, isStarting, isCapturing, error,

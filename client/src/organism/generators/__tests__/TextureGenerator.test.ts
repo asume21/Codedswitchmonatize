@@ -8,7 +8,7 @@ import { createToneMock, mockGainRampTo, mockFilterFreqRampTo } from './__mocks_
 
 vi.mock('tone', () => createToneMock())
 
-import { TextureGenerator } from '../TextureGenerator'
+import { TextureGenerator, buildTextureBedVoicing } from '../TextureGenerator'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -140,5 +140,33 @@ describe('TextureGenerator', () => {
     gen.applyVolumeMultiplier(0.75)
     expect((gen as any).textureVolumeMultiplier).toBe(0.75)
     expect((gen as any).padVolumeMultiplier).toBe(0.75)
+  })
+
+  it('uses the existing sampler swap for an explicit texture voice and restores Auto', () => {
+    gen.setInstrumentPerformer('choir')
+    expect((gen as any).explicitPerformerId).toBe('choir')
+    expect(gen.getPadDebug().voice).toBe('soundfont:choir_aahs')
+
+    gen.setInstrumentPerformer(null)
+    expect((gen as any).explicitPerformerId).toBeNull()
+    expect(gen.getPadDebug().voice).toBe('soundfont:string_ensemble_1')
+  })
+
+  it('ignores an instrument that is not texture-capable', () => {
+    gen.setInstrumentPerformer('flute')
+    expect((gen as any).explicitPerformerId).toBeNull()
+  })
+})
+
+describe('buildTextureBedVoicing', () => {
+  it('does not octave-double the bed and leaves space under a featured lead', () => {
+    const voiced = buildTextureBedVoicing([48, 52, 55, 59], { leadPocketed: true, featured: false })
+    expect(voiced.length).toBeLessThanOrEqual(2)
+    expect(Math.max(...voiced)).toBeLessThanOrEqual(64)
+  })
+
+  it('allows a featured texture to carry a fuller four-note voicing', () => {
+    expect(buildTextureBedVoicing([48, 52, 55, 59], { leadPocketed: false, featured: true }))
+      .toEqual([48, 52, 55, 59])
   })
 })

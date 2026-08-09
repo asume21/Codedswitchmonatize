@@ -247,6 +247,7 @@ export class SampledDrumKit {
   private readonly slotErrored = new Set<string>()  // "voice:slotIndex" → failed to load
   private currentMode: OrganismMode | null = null
   private privateKitDefinition: SampleKitDefinition | null = null
+  private kitSource: string = 'bundled:cymatics-bang'
   private warnedVoices = new Set<SampleVoice>()
   private profiles: Map<string, SampleProfile> = new Map()
   private genreTarget: GenreTarget = getGenreTarget('hip-hop')
@@ -262,6 +263,22 @@ export class SampledDrumKit {
       this.profiles = profiles
       if (profiles.size && this.privateKitDefinition) this.rebuildVoicePools(this.privateKitDefinition)
     })
+  }
+
+  getDebug(): Record<string, unknown> {
+    const voices = Object.fromEntries([...this.slots.entries()].map(([voice, slots]) => [
+      voice,
+      {
+        total: slots.length,
+        loaded: slots.filter((slot) => slot.player.loaded).length,
+        errors: slots.filter((_, index) => this.slotErrored.has(`${voice}:${index}`)).length,
+      },
+    ]))
+    return {
+      mode: this.currentMode,
+      source: this.kitSource,
+      voices,
+    }
   }
 
   setMode(mode: OrganismMode): void {
@@ -478,6 +495,7 @@ export class SampledDrumKit {
       if (!definition) return
 
       this.privateKitDefinition = definition
+      this.kitSource = `private:${kit.id}`
       if (this.profiles.size) this.rebuildVoicePools(definition)
       const mode = this.currentMode ?? OrganismMode.Glow
       this.currentMode = null

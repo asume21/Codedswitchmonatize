@@ -38,6 +38,12 @@ import { setSampleCell, cellFromOnsetGrid, setSongCellStyle } from './freeplay/s
 import { buildFreeplaySectionDrumHits, drumSectionSeedKey, DRUM_CORE_BARS } from './freeplay/DrumImproviser'
 import { logPart } from './partLog'
 import { clearCompCounters } from './freeplay/ChordImproviser'
+import {
+  featuredArrangementMultiplier,
+  resolveFeaturedRole,
+  type FeaturedPerformance,
+} from './featuredPerformance'
+import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -63,6 +69,13 @@ export class GeneratorOrchestrator {
   private melody:  MelodyGenerator
   private texture: TextureGenerator
   private chord:   ChordGenerator
+
+  // User-owned musical foreground. Separate from mixer isolation and from the
+  // composer's per-section lead/support/out plan.
+  private featuredPerformance: FeaturedPerformance = 'none'
+  /** Beat Mode — the arrangement runs, but drums and bass never duck, thin, or
+   *  drop out. Off by default so the existing producer arc is unchanged. */
+  private beatModeEnabled: boolean = false
 
   private lastPhysics:  PhysicsState  | null = null
   private lastOrganism: OrganismState | null = null
@@ -806,7 +819,7 @@ export class GeneratorOrchestrator {
   unlockChordProgression(): void { this.chord.unlockProgression() }
 
   setInstrumentPerformer(
-    role: 'lead' | 'bass' | 'chord',
+    role: 'lead' | 'bass' | 'chord' | 'texture',
     instrumentId: InstrumentPerformerId | null,
   ): void {
     if (role === 'lead') {
@@ -817,7 +830,45 @@ export class GeneratorOrchestrator {
       this.bass.setInstrumentPerformer(instrumentId)
       return
     }
+    if (role === 'texture') {
+      this.texture.setInstrumentPerformer(instrumentId)
+      return
+    }
     this.chord.setInstrumentPerformer(instrumentId)
+  }
+
+  setFeaturedPerformance(feature: FeaturedPerformance): void {
+    if (this.featuredPerformance === feature) return
+    this.featuredPerformance = feature
+    const leadIsForeground = feature === 'melody' || feature === 'melody-chords'
+    this.chord.setLeadPocketed(leadIsForeground)
+    this.texture.setLeadPocketed(leadIsForeground || feature === 'chord')
+    this.texture.setFeaturedTexture(feature === 'texture')
+    this.updateSoloStates()
+    if (feature !== 'none') {
+      // A Full Song feature uses the existing producer section arc.
+      this.setArrangementEnabled(true)
+      if (feature === 'melody-chords') this.duetEnabled = true
+    }
+    this.lastArrangementBar = -1
+
+    // Apply intent now as well as at the next bar. These existing section hooks
+    // rebuild the current phrase/comp once; no parallel sequencer is introduced.
+    const section = this.director.getState().section || 'verse'
+    this.later(() => {
+      if (feature === 'melody' || feature === 'melody-chords') {
+        this.melody.onSectionChange(section, 'lead' as MelodyBehavior)
+      } else if (feature === 'chord' || feature === 'texture') {
+        this.melody.onSectionChange(section, 'hint' as MelodyBehavior)
+      } else {
+        this.melody.onSectionChange(section)
+      }
+    }, 0)
+    this.later(() => this.chord.onSectionChange(section), 80)
+  }
+
+  getFeaturedPerformance(): FeaturedPerformance {
+    return this.featuredPerformance
   }
 
   /**
@@ -1148,7 +1199,11 @@ export class GeneratorOrchestrator {
       (this.melodyEnabled ? 1 : 0) +
       (this.chordEnabled ? 1 : 0)
     
-    const leadSolo = (activeCount === 1 && this.melodyEnabled) || this.melodyOnlyMode
+    const leadSolo =
+      (activeCount === 1 && this.melodyEnabled) ||
+      this.melodyOnlyMode ||
+      this.featuredPerformance === 'melody' ||
+      this.featuredPerformance === 'melody-chords'
     const bassSolo = (activeCount === 1 && this.bassEnabled)
     const drumSolo = (activeCount === 1 && this.drumEnabled)
     const chordSolo = (activeCount === 1 && this.chordEnabled)
@@ -1279,6 +1334,29 @@ export class GeneratorOrchestrator {
 
   // ── Mix engine connection methods (Section 06) ────────────────────
 
+  /**
+   * Beat Mode. The section arc keeps running — harmony, texture, turnarounds
+   * and the pre-drop break are all untouched — but the rhythm section stops
+   * moving. Deliberately NOT coupled to Song Mode in either direction: the
+   * Feature/Song-Mode pair already showed that two flags which force each
+   * other are impossible to reason about. With the arrangement off this is
+   * simply inert, and jam mode behaves exactly as before.
+   */
+  setBeatModeEnabled(enabled: boolean): void {
+    if (this.beatModeEnabled === enabled) return
+    this.beatModeEnabled = enabled
+    orgLog('beatMode:toggle', { enabled })
+    if (!enabled) return
+    // Apply now rather than waiting for the next bar tick, so the floor comes
+    // back the moment it is asked for instead of one section later.
+    this.drum.applyArrangementMultiplier(1)
+    this.drum.setSectionDensity(1)
+    this.bass.applyArrangementMultiplier(1)
+    this.sectionDensityLevel = 1
+  }
+
+  isBeatModeEnabled(): boolean { return this.beatModeEnabled }
+
   lockDrumPattern(): void   { this.drum.lockPattern() }
   unlockDrumPattern(): void { this.drum.unlockPattern() }
   isDrumPatternLocked(): boolean { return this.drum.isPatternLocked() }
@@ -1333,12 +1411,12 @@ export class GeneratorOrchestrator {
    * zeroed INSIDE the generator (multiplier/output-ramp); if `gain` > 0 yet the
    * channel meter reads −inf, the break is the channel strip / wiring.
    */
-  getGainReport(): Record<string, { gain: number; arr: number; on: boolean; pad?: Record<string, unknown>; part?: Record<string, unknown> }> {
+  getGainReport(): Record<string, { gain: number; arr: number; on: boolean; pad?: Record<string, unknown>; part?: Record<string, unknown>; voice?: Record<string, unknown> }> {
     return {
       drum:    { gain: this.drum.output.gain.value,    arr: this.drum.getArrangementMultiplier(),    on: this.drumEnabled, part: this.drum.getPartDebug() },
-      bass:    { gain: this.bass.output.gain.value,    arr: this.bass.getArrangementMultiplier(),    on: this.bassEnabled },
+      bass:    { gain: this.bass.output.gain.value,    arr: this.bass.getArrangementMultiplier(),    on: this.bassEnabled, voice: this.bass.getVoiceDebug() },
       melody:  { gain: this.melody.output.gain.value,  arr: this.melody.getArrangementMultiplier(),  on: this.melodyEnabled, part: this.melody.getPartDebug() },
-      chord:   { gain: this.chord.output.gain.value,   arr: this.chord.getArrangementMultiplier(),   on: this.chordEnabled },
+      chord:   { gain: this.chord.output.gain.value,   arr: this.chord.getArrangementMultiplier(),   on: this.chordEnabled, voice: this.chord.getVoiceDebug() },
       texture: { gain: this.texture.output.gain.value, arr: this.texture.getArrangementMultiplier(), on: this.textureEnabled, pad: this.texture.getPadDebug() },
     }
   }
@@ -1895,6 +1973,13 @@ export class GeneratorOrchestrator {
       // Restore full multipliers so the drums don't stay at whatever reduced
       // level the last arrangement section applied.
       this.drum.applyArrangementMultiplier(1.0)
+      // ...and the PATTERN too. Gain and density are separate controls, and
+      // restoring only the gain stranded the thinning: below 0.45 the rebuild
+      // filter keeps kick+snare and drops every hat and perc, so jam mode
+      // inherited a skeleton from the last sparse section and never recovered.
+      // Captured live as arr:1 with sectionDensity:0.30 — 96 raw hits reaching
+      // the Part as 31 events, which is the "drums are very sparse" report.
+      this.drum.setSectionDensity(1.0)
       this.bass.applyArrangementMultiplier(1.0)
       this.melody.applyArrangementMultiplier(1.0)
       this.chord.applyArrangementMultiplier(1.0)
@@ -2170,20 +2255,39 @@ export class GeneratorOrchestrator {
       conductor.advanceChord()
     }
 
-    const drumsMultiplier = aiOverride ? aiOverride.drumsArrangement : section.drums
-    const bassMultiplier  = aiOverride ? aiOverride.bassVolume        : section.bass
-    const melodyMultiplier = aiOverride ? aiOverride.melodyVolume     : section.melody
+    const drumsMultiplier = featuredArrangementMultiplier(
+      this.featuredPerformance, 'drums', aiOverride ? aiOverride.drumsArrangement : section.drums,
+    )
+    const bassMultiplier = featuredArrangementMultiplier(
+      this.featuredPerformance, 'bass', aiOverride ? aiOverride.bassVolume : section.bass,
+    )
+    const melodyMultiplier = featuredArrangementMultiplier(
+      this.featuredPerformance, 'melody', aiOverride ? aiOverride.melodyVolume : section.melody,
+    )
+    const textureMultiplier = featuredArrangementMultiplier(
+      this.featuredPerformance, 'texture', section.texture,
+    )
+    const chordMultiplier = featuredArrangementMultiplier(
+      this.featuredPerformance, 'chord', section.chord,
+    )
 
-    this.drum.applyArrangementMultiplier(drumsMultiplier)
+    // Beat Mode pins the foundation: the section still changes, but it speaks
+    // through harmony/texture/turnaround instead of pulling the floor out from
+    // under the MC. Melodic parts keep following the section below.
+    const heldDrums = beatModeMultiplier(this.beatModeEnabled, 'drums', drumsMultiplier)
+    const heldBass  = beatModeMultiplier(this.beatModeEnabled, 'bass', bassMultiplier)
+
+    this.drum.applyArrangementMultiplier(heldDrums)
     // Density drives HIT COUNT (pattern thinning) separate from volume.
     // Intro (0.28) → kick+hat skeleton; verse (0.85) → full minus percs;
     // drop (1.0) → every hit including fills.
-    this.drum.setSectionDensity(drumsMultiplier)
-    this.sectionDensityLevel = Math.max(0, Math.min(1, drumsMultiplier))
-    this.bass.applyArrangementMultiplier(bassMultiplier)
+    const heldDensity = beatModeDrumDensity(this.beatModeEnabled, drumsMultiplier)
+    this.drum.setSectionDensity(heldDensity)
+    this.sectionDensityLevel = Math.max(0, Math.min(1, heldDensity))
+    this.bass.applyArrangementMultiplier(heldBass)
     this.melody.applyArrangementMultiplier(melodyMultiplier)
-    this.texture.applyArrangementMultiplier(this.textureEnabled ? section.texture : 0)
-    this.chord.applyArrangementMultiplier(section.chord)
+    this.texture.applyArrangementMultiplier(this.textureEnabled ? textureMultiplier : 0)
+    this.chord.applyArrangementMultiplier(chordMultiplier)
 
     // Composer roles: who plays / how forward this section. Absent orchestration
     // (old plans / jam mode) should still behave like a hip-hop beat machine:
@@ -2193,11 +2297,11 @@ export class GeneratorOrchestrator {
     // the CHORD seat leads — most modern beats use keys/pads/chords AS the
     // hook, and the melody answers sparsely around it. Chord 'lead' also flips
     // the ChordImproviser into hook mode (foreground gestures, presence).
-    this.drum.setRole(orch?.drums ?? 'lead')
-    this.bass.setRole(orch?.bass ?? 'lead')
-    this.melody.setRole(orch?.melody ?? 'support')
-    this.chord.setRole(orch?.chord ?? 'lead')
-    this.texture.setRole(orch?.texture ?? 'support')
+    this.drum.setRole(resolveFeaturedRole(this.featuredPerformance, 'drums', orch?.drums ?? 'lead'))
+    this.bass.setRole(resolveFeaturedRole(this.featuredPerformance, 'bass', orch?.bass ?? 'lead'))
+    this.melody.setRole(resolveFeaturedRole(this.featuredPerformance, 'melody', orch?.melody ?? 'support'))
+    this.chord.setRole(resolveFeaturedRole(this.featuredPerformance, 'chord', orch?.chord ?? 'lead'))
+    this.texture.setRole(resolveFeaturedRole(this.featuredPerformance, 'texture', orch?.texture ?? 'support'))
     // When chords lead and melody doesn't, discipline the melody to sparse
     // answering phrases ('hint') — a continuous lead line over a chord hook
     // is exactly the old inverted arrangement.
@@ -2259,7 +2363,11 @@ export class GeneratorOrchestrator {
       // Shift melody density and chord technique per section.
       // Staggered so Part rebuilds don't collide on the audio thread.
       this.later(() => {
-        if (aiOverride?.melodyBehavior) {
+        if (this.featuredPerformance === 'melody' || this.featuredPerformance === 'melody-chords') {
+          this.melody.onSectionChange(section.name, 'lead' as MelodyBehavior)
+        } else if (this.featuredPerformance === 'chord' || this.featuredPerformance === 'texture') {
+          this.melody.onSectionChange(section.name, 'hint' as MelodyBehavior)
+        } else if (aiOverride?.melodyBehavior) {
           this.melody.onSectionChange(section.name, aiOverride.melodyBehavior as any)
         } else if (chordLeadsBand && this.voiceReactive) {
           // Chord hook leads → melody answers sparsely instead of noodling.

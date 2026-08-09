@@ -1,5 +1,9 @@
 // MUST be first import — patches window.Audio and AudioContext globally
 import './lib/globalAudioKillSwitch';
+// Second: patch the native Web Audio constructors so every node creation is
+// counted before Tone.js (imported below via App) builds anything.
+// Read with window.__nodeCensus() — see the file header for the method.
+import './lib/audioNodeCensus';
 
 import { createRoot } from "react-dom/client";
 import App from "./App";

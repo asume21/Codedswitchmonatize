@@ -160,7 +160,7 @@ describe('DrumGenerator', () => {
     expect(() => gen.onStateTransition(OState.Flow, physics)).not.toThrow()
   })
 
-  it('keeps snare backbeats when section density is sparse', async () => {
+  it('keeps the backbeat AND the closed-hat pulse when section density is sparse', async () => {
     const events: import('../../session/types').GeneratorEvent[] = []
     gen.setGeneratorEventSink(event => events.push(event))
     gen.setSectionDensity(0.25)
@@ -168,14 +168,19 @@ describe('DrumGenerator', () => {
     gen.loadGeneratedPattern([
       { instrument: DrumInstrument.Kick, time: '0:0:0', velocity: 0.9 },
       { instrument: DrumInstrument.Snare, time: '0:1:0', velocity: 0.8 },
-      { instrument: DrumInstrument.Hat, time: '0:2:0', velocity: 0.5 },
+      { instrument: DrumInstrument.Hat, time: '0:2:0', velocity: 0.5 },   // closed — the pulse
+      { instrument: DrumInstrument.Hat, time: '0:2:2', velocity: 0.68 },  // open accent — decoration
       { instrument: DrumInstrument.Perc, time: '0:3:0', velocity: 0.4 },
     ], true)
     await flushForcedRebuild()
 
-    // With Bug 9 fixed, hats/perc are filtered out entirely in the sparse tier (< 0.45),
-    // keeping only Kick and Snare.
-    expect(events.map(event => event.pitch)).toEqual([36, 38])
+    // REVISED 2026-08-08 (user: "drums are very sparse"). The sparse tier used to
+    // strip every hat, which the orchestrator's own comment contradicted — it
+    // claims a "kick+hat skeleton". In hip-hop the hats ARE the motion, so
+    // removing them first reads as broken rather than stripped. Sparse now keeps
+    // the backbeat plus the CLOSED hat pulse (42) and drops the loud decoration:
+    // perc and open-hat accents.
+    expect(events.map(event => event.pitch)).toEqual([36, 38, 42])
   })
 
   it('keeps default runtime pocket tight instead of dragging the kit late', async () => {

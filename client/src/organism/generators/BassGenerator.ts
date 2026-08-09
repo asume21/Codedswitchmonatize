@@ -153,6 +153,24 @@ export class BassGenerator extends GeneratorBase {
     return this.glideRate
   }
 
+  getVoiceDebug(): Record<string, unknown> {
+    const real808Loaded = this.real808Sampler?.isLoaded() === true
+    return {
+      performerId: this.currentPerformer?.id ?? null,
+      performerName: this.currentPerformer?.name ?? null,
+      voiceKey: this.currentVoiceKey,
+      samplerLoaded: this.isSamplerReady(),
+      real808Loaded,
+      source: this.use808Active
+        ? real808Loaded ? 'real-808-sample' : 'synth-808'
+        : this.isCurrentVoiceSampler
+          ? this.currentPerformer?.realInstrument ? 'real-instrument' : 'sampled'
+          : 'synth',
+      explicit: this.explicitPerformerId !== null,
+      subLevel: this.currentSubLevel,
+    }
+  }
+
   setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
     this.explicitPerformerId = instrumentId
     this.applyBassPreset()

@@ -18,7 +18,7 @@ describe('InstrumentPerformerRouter', () => {
     const pools: Array<[string, string[]]> = [
       ['ice',  ['harp', 'violin', 'sitar', 'flute']],
       ['glow', ['violin', 'guitar-nylon', 'clarinet', 'flute']],
-      ['heat', ['piano', 'trumpet', 'rhodes']],
+      ['heat', ['piano', 'rhodes', 'guitar-clean', 'violin']],
     ]
     for (const [mode, pool] of pools) {
       let idiomatic = 0
@@ -81,7 +81,7 @@ import { reseedPerformerSelection, selectInstrumentPerformer as pick } from '../
 
 describe('wildcard instrument selection', () => {
   it('boom-bap lead occasionally lands OUTSIDE the preferred pool, but the house sound stays the norm', () => {
-    const preferredGravelLeads = new Set(['piano', 'sax', 'trumpet', 'violin'])
+    const preferredGravelLeads = new Set(['piano', 'sax', 'rhodes', 'violin'])
     let outside = 0
     const RUNS = 80
     for (let i = 0; i < RUNS; i++) {
@@ -89,7 +89,8 @@ describe('wildcard instrument selection', () => {
       const lead = pick({ role: 'lead', mode: 'gravel', energy: 0.5 })
       if (!preferredGravelLeads.has(lead.id)) outside++
     }
-    // ~18% wildcard chance: P(zero in 80) ≈ 0.82^80 ≈ 1e-7 — must appear...
+    // 8% curated wildcard chance: variety remains possible without random brass
+    // taking over the house sound.
     expect(outside, 'no wildcard pick in 80 reseeds').toBeGreaterThan(0)
     // ...but the preferred pool must still dominate (taste-default, not chaos).
     expect(outside, `wildcards took over: ${outside}/${RUNS}`).toBeLessThan(RUNS * 0.45)

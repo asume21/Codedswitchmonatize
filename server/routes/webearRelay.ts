@@ -2149,10 +2149,16 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
 
     const entry: BlobEntry = { buffer, contentType, expiresAt: Date.now() + 5 * 60_000 };
     storeAudioBlob(captureId, entry);
+    let persisted = true;
     try {
       await persistAudioBlob(captureId, entry);
     } catch (err: any) {
-      return void res.status(500).json({ error: `Could not persist capture: ${err.message}` });
+      // The in-memory copy is already complete and is the source used by the
+      // live analyzer/capture bench. Database durability is best-effort: a
+      // local/dev database outage must not turn a successful audio recording
+      // into an HTTP 500 and strand the pending capture until timeout.
+      persisted = false;
+      console.warn('[WebEar] Capture stored in memory but not persisted:', err?.message ?? err);
     }
 
     const pending = pendingCaptures.get(captureId);
@@ -2162,7 +2168,7 @@ export function createWebearRelayRoutes(storage: IStorage): Router {
       pendingCaptures.delete(captureId);
     }
 
-    res.json({ ok: true });
+    res.json({ ok: true, persisted });
   });
 
   // ── 2b. GET raw captured blob (Dev only / Capture script helper) ───────────

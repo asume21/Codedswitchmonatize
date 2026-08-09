@@ -80,12 +80,13 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       eq: { highpassHz: 20, lowShelfHz: 62, lowShelfGain: 4, midHz: 300, midGain: -4, midQ: 1.0, highShelfHz: 2000, highShelfGain: -7 },  // sub lift + low-mid mud scoop; HP only removes inaudible rumble
     },
     melody: {
-      // +3 (was +8): melody was the hottest channel, making the beat midrange-
-      // heavy (mid 32%, centroid ~3 kHz) and un-trap-like. In hip-hop the lead is
-      // an accent over drums+808, not the loudest element. Pulled back to sit under.
+      // MEASURED 2026-08-08: +3 still left the isolated melody at -32 dBFS RMS,
+      // 10 dB below chords (-22 dBFS). That is not an accent; it is barely
+      // audible. +9 restores a readable lead while the arrangement multiplier
+      // still tucks it under drums/808 in normal band mode.
       // Sits opposite the chords (see CENTER DEFENSE there) so the middle of the
       // image stays clear for the vocal.
-      name: 'melody', pan: 0.34, gainDb: 3,
+      name: 'melody', pan: 0.34, gainDb: 9,
       compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
@@ -95,12 +96,22 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // pad bed, which is meant to BE the harmonic colour, was ~35 dB below the
       // band and effectively inaudible. It loses level three times over (role
       // ceiling -> activity, pad gain, then this channel), so the -9 dB cut here
-      // was the last straw. Lifted to +2. Re-measure with the fire-beats bench
-      // (soloed texture RMS) if you touch this.
-      name: 'texture', pan: 0, gainDb: 2,
+      // was the last straw. The 2026-08-08 re-measure still found -43.6 dBFS
+      // RMS at +2 — effectively absent. +12 puts the normal bed near -34 dBFS;
+      // Full Song Feature's existing arrangement lift then brings it near -28,
+      // while the wide/filtered signal stays well away from kick, bass, and vocal.
+      name: 'texture', pan: 0, gainDb: 12,
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
-      eq: { highpassHz: 160, midHz: 450, midGain: -2, midQ: 1.0, highShelfHz: 7000, highShelfGain: -1 },  // warm pad bed; keep mud controlled without stripping the body
+      // LANE (2026-08-08, user heard "bass seems way muddy"): the +2 -> +12 lift
+      // above is correct — the pad WAS inaudible — but at highpass 160 with only
+      // a -2 dip at 450 it put ~10 dB of new energy straight through 160-450 Hz,
+      // which is the bass BODY. The bass channel deliberately scoops 300 Hz by
+      // -4 to stay sub-forward; the pad was refilling exactly what the bass had
+      // just cleared. Fix the OVERLAP, not the level: move the highpass above
+      // the bass body and put the dip on 320 where the two actually collide.
+      // The pad keeps its full presence from the low-mids up.
+      eq: { highpassHz: 240, midHz: 320, midGain: -5, midQ: 1.1, highShelfHz: 7000, highShelfGain: -1 },  // warm pad bed, out of the bass's lane
     },
     chord: {
       // Harmony/keys carry the hook; keep them forward enough to be the idea,

@@ -18,6 +18,7 @@ import { OState }             from '../state/types'
 import { createMultisampleSampler, createSoundfontSampler, type LoadableSampler } from '../instruments/SamplerUtils'
 import { getConductor }       from '../conductor/Conductor'
 import { getRealInstrumentNotes, realInstrumentsReady } from '../instruments/realInstruments'
+import { INSTRUMENT_PERFORMERS_BY_ID, type InstrumentPerformerId } from '../performers'
 
 type TextureVoiceSpec = {
   key: string
@@ -51,6 +52,29 @@ const TEXTURE_VOICE_BY_MODE: Record<string, TextureVoiceSpec> = {
 const TEXTURE_VOICE_FALLBACK: Record<string, TextureVoiceSpec> = {
   rhodes:  { key: 'rhodes',  kind: 'soundfont', instrumentId: 'electric_piano_1',  attack: 0.01, release: 2.8, volume: -6 },
   strings: { key: 'strings', kind: 'soundfont', instrumentId: 'string_ensemble_1', attack: 0.18, release: 3.6, volume: -4 },
+}
+
+/** Build a warm pad bed without the old unconditional octave lift/doubling. */
+export function buildTextureBedVoicing(
+  inner: number[],
+  options: { leadPocketed: boolean; featured: boolean },
+): number[] {
+  if (inner.length === 0) return []
+  const floor = options.leadPocketed ? 43 : 48
+  const ceiling = options.leadPocketed ? 64 : 72
+  const normalized = [...new Set(inner.map((value) => {
+    let midi = Math.round(value)
+    while (midi > ceiling) midi -= 12
+    while (midi < floor) midi += 12
+    return midi
+  }))].sort((a, b) => a - b)
+  const maxVoices = options.featured ? 4 : options.leadPocketed ? 2 : 3
+  if (normalized.length <= maxVoices) return normalized
+  const indexes = Array.from(
+    { length: maxVoices },
+    (_, index) => Math.round(index * (normalized.length - 1) / (maxVoices - 1)),
+  )
+  return [...new Set(indexes.map((index) => normalized[index]))]
 }
 
 export class TextureGenerator extends GeneratorBase {
@@ -93,6 +117,9 @@ export class TextureGenerator extends GeneratorBase {
   private lastPadGain: number = 0
   private activeVoiceKey: string | null = null
   private currentModeKey: string = 'glow'
+  private explicitPerformerId: InstrumentPerformerId | null = null
+  private leadPocketed: boolean = false
+  private featuredTexture: boolean = false
 
   // Section-aware bed character (set by onSectionChange). The pad is the BED,
   // not the animator — so section-awareness shapes how it SITS (velocity, hold
@@ -195,11 +222,10 @@ export class TextureGenerator extends GeneratorBase {
       if (bar % hold !== 0) return
       const inner = getConductor().currentVoicing().inner
       if (!inner.length) return
-      const lifted = inner.map((m) => Math.min(84, m + 12))
-      const top = lifted[lifted.length - 1]
-      const voiced = top != null && top <= 72
-        ? [...lifted, top + 12]
-        : lifted
+      const voiced = buildTextureBedVoicing(inner, {
+        leadPocketed: this.leadPocketed,
+        featured: this.featuredTexture,
+      })
       const notes = [...new Set(voiced)].map((m) => Tone.Frequency(m, 'midi').toNote())
       try {
         this.padSampler.releaseAll(time)
@@ -250,7 +276,19 @@ export class TextureGenerator extends GeneratorBase {
       bedGain:    Number(this.gain.gain.value.toFixed(4)),
       velocity:   this.sectionPadVelocity,
       holdBars:   this.sectionPadHoldBars,
+      source:     this.activeVoiceKey?.startsWith('real:') ? 'real-instrument' : 'soundfont',
+      explicit:   this.explicitPerformerId !== null,
+      leadPocketed: this.leadPocketed,
+      featured:   this.featuredTexture,
     }
+  }
+
+  setLeadPocketed(enabled: boolean): void {
+    this.leadPocketed = enabled
+  }
+
+  setFeaturedTexture(enabled: boolean): void {
+    this.featuredTexture = enabled
   }
 
   private stopPadLoop(): void {
@@ -265,6 +303,24 @@ export class TextureGenerator extends GeneratorBase {
   }
 
   private voiceSpecForMode(modeKey: string): TextureVoiceSpec {
+    if (this.explicitPerformerId) {
+      const profile = INSTRUMENT_PERFORMERS_BY_ID.get(this.explicitPerformerId)
+      if (profile?.roles.includes('texture')) {
+        const realNotes = profile.realInstrument
+          ? getRealInstrumentNotes({ realInstrument: profile.realInstrument })
+          : null
+        return {
+          key: profile.id,
+          kind: realNotes ? 'real' : 'soundfont',
+          instrumentId: realNotes ? profile.realInstrument! : profile.samplerPreset,
+          attack: profile.envelope.attack,
+          release: Math.max(1.2, profile.envelope.release),
+          // Texture is a sustained bed/foreground wash, so give naturally quiet
+          // real recordings conservative makeup while retaining profile balance.
+          volume: realNotes ? profile.volume + 6 : profile.volume,
+        }
+      }
+    }
     const preferred = TEXTURE_VOICE_BY_MODE[modeKey] ?? TEXTURE_VOICE_BY_MODE.glow
     if (preferred.kind === 'real') {
       const realNotes = getRealInstrumentNotes({ realInstrument: preferred.instrumentId })
@@ -299,6 +355,17 @@ export class TextureGenerator extends GeneratorBase {
     this.padSampler.connect(this.padReverb)
 
     try { oldSampler.dispose() } catch { /* */ }
+  }
+
+  /** Explicit user voice; null restores the existing mode-aware Auto choice. */
+  setInstrumentPerformer(instrumentId: InstrumentPerformerId | null): void {
+    if (instrumentId) {
+      const profile = INSTRUMENT_PERFORMERS_BY_ID.get(instrumentId)
+      if (!profile?.roles.includes('texture')) return
+    }
+    if (this.explicitPerformerId === instrumentId) return
+    this.explicitPerformerId = instrumentId
+    this.swapPadVoice(this.currentModeKey)
   }
 
   /**

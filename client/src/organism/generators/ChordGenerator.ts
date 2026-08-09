@@ -27,10 +27,27 @@ import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGr
 import { applyGroovePocket, buildHumanizeTemplate } from './groove'
 import {
   conformChordToInstrument,
+  midiToNote,
+  noteToMidi,
   selectInstrumentPerformer,
   type InstrumentPerformerId,
   type InstrumentPerformerProfile,
 } from '../performers'
+
+/** Keep accompaniment out of a featured lead's register and reduce masking. */
+export function pocketChordBelowLead(notes: Array<string | number>): string[] {
+  if (notes.length === 0) return []
+  const numeric = [...new Set(notes.map(noteToMidi).filter((m): m is number => m !== null && Number.isFinite(m)).map((m) => {
+    let midi = Math.round(m)
+    while (midi > 67) midi -= 12
+    while (midi < 43) midi += 12
+    return midi
+  }))].sort((a, b) => a - b)
+  const selected = numeric.length <= 3
+    ? numeric
+    : [numeric[0], numeric[Math.floor((numeric.length - 1) / 2)], numeric[numeric.length - 1]]
+  return selected.map(midiToNote)
+}
 
 export enum ChordBehavior {
   Silent  = 'silent',    // Dormant / Awakening — no chords
@@ -79,6 +96,7 @@ export class ChordGenerator extends GeneratorBase {
   private currentSwing:       number = 0.35
   private currentPerformer:   InstrumentPerformerProfile | null = null
   private explicitPerformerId: InstrumentPerformerId | null = null
+  private leadPocketed: boolean = false
   private lastPerformerEnergy: number = 0.5
   // Section technique override — controls playing style per arrangement section.
   // null = fall back to mode default. User's explicit override (techniqueOverridden) wins.
@@ -198,6 +216,32 @@ export class ChordGenerator extends GeneratorBase {
     if (instrumentId) this.multisampleActive = false
     this.applyVoice(this.currentMode)
     this.rebuildPart('setInstrument')
+  }
+
+  setLeadPocketed(enabled: boolean): void {
+    if (this.leadPocketed === enabled) return
+    this.leadPocketed = enabled
+    this.conductorChordDirty = true
+  }
+
+  getVoiceDebug(): Record<string, unknown> {
+    return {
+      performerId: this.currentPerformer?.id ?? null,
+      performerName: this.currentPerformer?.name ?? null,
+      voiceKey: this.multisampleActive
+        ? 'multisample'
+        : this.currentPerformer?.realInstrument ?? this.currentPerformer?.samplerPreset ?? 'fallback-synth',
+      samplerLoaded: this.isSamplerReady(),
+      source: this.multisampleActive
+        ? 'multisample'
+        : this.currentPerformer?.realInstrument
+          ? 'real-instrument'
+          : this.currentPerformer?.samplerPreset
+            ? 'soundfont'
+            : 'synth',
+      explicit: this.explicitPerformerId !== null,
+      leadPocketed: this.leadPocketed,
+    }
   }
 
   // When true, a real multisample instrument owns the chord voice and applyVoice
@@ -839,9 +883,12 @@ export class ChordGenerator extends GeneratorBase {
 
       // Use sampler only if fully loaded; otherwise use fallback PolySynth
       const voice = this.isSamplerReady() ? this.synth : this.fallbackSynth
-      const playableNotes = this.currentPerformer
+      const instrumentNotes = this.currentPerformer
         ? conformChordToInstrument(event.notes, this.currentPerformer)
         : event.notes
+      const playableNotes = this.leadPocketed
+        ? pocketChordBelowLead(instrumentNotes)
+        : instrumentNotes
 
       // ── Technique dispatch ─────────────────────────────────────────
       // Authored mode may redistribute a chord hit into a named technique

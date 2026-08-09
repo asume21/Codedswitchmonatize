@@ -6,7 +6,7 @@ import { createToneMock, mockPartStart } from './__mocks__/toneMock'
 
 vi.mock('tone', () => createToneMock())
 
-import { ChordGenerator } from '../ChordGenerator'
+import { ChordGenerator, pocketChordBelowLead } from '../ChordGenerator'
 import { getConductor, resetConductor } from '../../conductor/Conductor'
 import * as Tone from 'tone'
 
@@ -145,5 +145,13 @@ describe('ChordGenerator (Phase 4 — passive Conductor reader)', () => {
     gen.processFrame(physics, organism)
 
     expect(gen.getTechnique()).toBe('piano-rolled-chord')
+  })
+})
+
+describe('pocketChordBelowLead', () => {
+  it('keeps accompaniment below the lead and limits it to three voices', () => {
+    const voiced = pocketChordBelowLead(['C4', 'E4', 'G4', 'B4', 'D5'])
+    expect(voiced).toHaveLength(3)
+    expect(voiced.map((note) => Tone.Frequency(note).toMidi()).every((midi) => midi <= 67)).toBe(true)
   })
 })

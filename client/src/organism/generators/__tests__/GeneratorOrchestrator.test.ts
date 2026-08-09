@@ -279,6 +279,66 @@ describe('GeneratorOrchestrator', () => {
     expect(textureSpy).toHaveBeenCalledWith(1)
   })
 
+  it('leaving song mode restores the drum PATTERN, not just its volume', () => {
+    // Gain and density are two different controls. A sparse section lowers the
+    // gain AND thins the pattern (below 0.45 the filter keeps only kick+snare,
+    // stripping every hat). setArrangementEnabled(false) restored the gain and
+    // left the density stranded, so jam mode inherited a kick+snare skeleton
+    // forever — captured live as arr:1 with sectionDensity:0.30, 96 raw hits
+    // reaching the Part as 31 events.
+    orchestrator.setArrangementEnabled(true)
+    const gainSpy = vi.spyOn((orchestrator as any).drum, 'applyArrangementMultiplier')
+    const densitySpy = vi.spyOn((orchestrator as any).drum, 'setSectionDensity')
+
+    // A breakdown/intro section thinned the kit on its way past.
+    ;(orchestrator as any).drum.setSectionDensity(0.3)
+    densitySpy.mockClear()
+
+    orchestrator.setArrangementEnabled(false)
+
+    expect(gainSpy).toHaveBeenCalledWith(1.0)
+    expect(densitySpy).toHaveBeenCalledWith(1.0)
+  })
+
+  it('beat mode holds the pocket through a ducking section but still moves the melodic parts', async () => {
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'   // intro — the sparsest slot
+    const drumGain = vi.spyOn((orchestrator as any).drum, 'applyArrangementMultiplier')
+    const drumDensity = vi.spyOn((orchestrator as any).drum, 'setSectionDensity')
+    const bassGain = vi.spyOn((orchestrator as any).bass, 'applyArrangementMultiplier')
+    const chordGain = vi.spyOn((orchestrator as any).chord, 'applyArrangementMultiplier')
+
+    ;(orchestrator as any).running = true
+    orchestrator.setArrangementEnabled(true)
+    orchestrator.setBeatModeEnabled(true)
+    drumGain.mockClear(); drumDensity.mockClear(); bassGain.mockClear(); chordGain.mockClear()
+    ;(orchestrator as any).applyArrangement()
+
+    // The floor does not move: full gain AND full pattern (no hat stripping).
+    expect(drumGain).toHaveBeenLastCalledWith(1)
+    expect(drumDensity).toHaveBeenLastCalledWith(1)
+    expect(bassGain).toHaveBeenLastCalledWith(1)
+    // ...but the section is still expressed — chords follow the slot, so a
+    // drop still feels like a drop. Beat Mode is "announce and hold", not "flat".
+    expect(chordGain).toHaveBeenCalled()
+    expect(chordGain.mock.calls.at(-1)?.[0]).toBeLessThanOrEqual(1)
+  })
+
+  it('beat mode off leaves the producer arc exactly as it was', async () => {
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'
+    const drumDensity = vi.spyOn((orchestrator as any).drum, 'setSectionDensity')
+
+    ;(orchestrator as any).running = true
+    orchestrator.setArrangementEnabled(true)
+    drumDensity.mockClear()
+    ;(orchestrator as any).applyArrangement()
+
+    // Default is off — the intro slot still thins the kit as it always did.
+    expect(orchestrator.isBeatModeEnabled()).toBe(false)
+    expect(drumDensity.mock.calls.at(-1)?.[0]).toBeLessThan(1)
+  })
+
   it('jam arrangement defaults drums, bass, and the chord hook to lead roles', async () => {
     const tone = await import('tone')
     tone.getTransport().position = '0:0:0'
@@ -294,6 +354,39 @@ describe('GeneratorOrchestrator', () => {
     expect(bassRoleSpy).toHaveBeenLastCalledWith('lead')
     // Chords-as-the-hook flip: the chord seat leads in jam mode.
     expect(chordRoleSpy).toHaveBeenLastCalledWith('lead')
+  })
+
+  it('features melody + chords through existing roles while rhythm/texture support', async () => {
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'
+    const roleSpies = {
+      drum: vi.spyOn((orchestrator as any).drum, 'setRole'),
+      bass: vi.spyOn((orchestrator as any).bass, 'setRole'),
+      melody: vi.spyOn((orchestrator as any).melody, 'setRole'),
+      chord: vi.spyOn((orchestrator as any).chord, 'setRole'),
+      texture: vi.spyOn((orchestrator as any).texture, 'setRole'),
+    }
+
+    orchestrator.setFeaturedPerformance('melody-chords')
+    ;(orchestrator as any).running = true
+    ;(orchestrator as any).applyArrangement()
+
+    expect(roleSpies.melody).toHaveBeenLastCalledWith('lead')
+    expect(roleSpies.chord).toHaveBeenLastCalledWith('lead')
+    expect(roleSpies.drum).toHaveBeenLastCalledWith('support')
+    expect(roleSpies.bass).toHaveBeenLastCalledWith('support')
+    expect(roleSpies.texture).toHaveBeenLastCalledWith('support')
+    expect(orchestrator.getFeaturedPerformance()).toBe('melody-chords')
+    expect(orchestrator.isArrangementEnabled()).toBe(true)
+    expect((orchestrator as any).melody.getPartDebug().featured).toBe(true)
+    expect((orchestrator as any).chord.getVoiceDebug().leadPocketed).toBe(true)
+    expect((orchestrator as any).texture.getPadDebug().leadPocketed).toBe(true)
+  })
+
+  it('routes texture instrument assignment through the existing generator', () => {
+    const textureSpy = vi.spyOn((orchestrator as any).texture, 'setInstrumentPerformer')
+    orchestrator.setInstrumentPerformer('texture', 'choir')
+    expect(textureSpy).toHaveBeenCalledWith('choir')
   })
 
   it('refreshInstrumentVoices re-applies bass, chord, and melody voices', () => {

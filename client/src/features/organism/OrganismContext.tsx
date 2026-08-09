@@ -20,6 +20,7 @@ import type { FreestyleReport }        from './FreestyleReportCard'
 import type { PerformerState }        from '../../organism/audio/types'
 import type { SelfListenReport }      from '../../organism/audio/types'
 import type { InstrumentPerformerId } from '../../organism/performers'
+import type { FeaturedPerformance } from '../../organism/generators/featuredPerformance'
 import type { TriggerWordDetector } from './TriggerWordDetector'
 
 // Live "Generator" status shown in the Organism panel. (Formerly defined in the
@@ -66,12 +67,13 @@ export interface SavedSession {
   lyrics:       string | null
 }
 
-export type OrganismInstrumentRole = 'lead' | 'bass' | 'chord'
+export type OrganismInstrumentRole = 'lead' | 'bass' | 'chord' | 'texture'
 
 export interface OrganismInstrumentAssignments {
   lead:  InstrumentPerformerId | null
   bass:  InstrumentPerformerId | null
   chord: InstrumentPerformerId | null
+  texture: InstrumentPerformerId | null
 }
 
 export interface WowMomentLogEntry {
@@ -239,6 +241,11 @@ export interface OrganismContextValue {
   setReactToVoiceEnabled: (enabled: boolean) => void
   songModeEnabled:        boolean
   setSongModeEnabled:     (enabled: boolean) => void
+  // Beat Mode — the section arc keeps running (harmony, texture, turnarounds,
+  // pre-drop break) but drums and bass never duck, thin, or drop out. For
+  // freestyling over: the change is announced, the floor holds.
+  beatModeEnabled:        boolean
+  setBeatModeEnabled:     (enabled: boolean) => void
   loopsModeEnabled:       boolean
   setLoopsModeEnabled:    (enabled: boolean) => void
   isLoopsLoading:         boolean
@@ -255,6 +262,11 @@ export interface OrganismContextValue {
   // Instrument picker — null means Auto, otherwise locks that generator role.
   instrumentAssignments: OrganismInstrumentAssignments
   setOrganismInstrument: (role: OrganismInstrumentRole, instrumentId: InstrumentPerformerId | null) => void
+
+  // Musical foreground ownership (not mixer isolation). Full Song uses the
+  // existing Song Mode arrangement and existing generator/duet engines.
+  featuredPerformance: FeaturedPerformance
+  setFeaturedPerformance: (feature: FeaturedPerformance) => void
 
   // Guest experience
   guestSecondsRemaining: number      // 60→0 countdown while guest is playing

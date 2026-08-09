@@ -29,6 +29,33 @@ const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
   'default': (v: number) => v,
 }
 
+/** Velocity above which a hat is voiced OPEN rather than closed (the kit's own
+ *  split — see resolveVoice). Shared so the thinning rule below and the voice
+ *  selection can never drift apart. */
+export const OPEN_HAT_VELOCITY_SPLIT = 0.55
+
+/**
+ * Section density thinning — which hits survive a sparse section.
+ *
+ * The sparse tier used to keep Kick and Snare and drop everything else, while
+ * the orchestrator's comment claimed it produced a "kick+hat skeleton". The
+ * comment was right and the code was wrong: in hip-hop the hats ARE the motion,
+ * so removing them first does not read as sparse, it reads as broken. The
+ * sparse tier now keeps the CLOSED hats (the pulse) and drops the loud
+ * decoration — perc and open-hat accents — which is what actually makes a
+ * breakdown feel stripped.
+ *
+ * Exported and pure so the ladder is testable without a Tone transport.
+ */
+export function keepAtDensity(hit: DrumHit, density: number): boolean {
+  if (density >= 0.75) return true                              // drop/build: everything
+  if (density >= 0.45) return hit.instrument !== DrumInstrument.Perc   // verse: no fills
+  // intro/breakdown (< 0.45): backbeat + closed-hat pulse, no perc, no open hats.
+  if (hit.instrument === DrumInstrument.Perc) return false
+  if (hit.instrument === DrumInstrument.Hat) return hit.velocity <= OPEN_HAT_VELOCITY_SPLIT
+  return true
+}
+
 export class DrumGenerator extends GeneratorBase {
   readonly output: Tone.Gain
 
@@ -381,6 +408,7 @@ export class DrumGenerator extends GeneratorBase {
       loopMode:  this._loopMode,
       sectionDensity: Number(this.sectionDensity.toFixed(2)),
       msSinceRebuild: Math.round(performance.now() - this.lastRebuildTime),
+      samples: this.sampledKit?.getDebug() ?? null,
     }
   }
 
@@ -532,14 +560,7 @@ export class DrumGenerator extends GeneratorBase {
     }
     this.applyKitPreset()
     
-    // Section density thinning: sparse sections (intro, breakdown) keep the
-    // essential kick/snare backbeat and filter out hats and perc entirely.
-    const thinned = hits.filter(h => {
-      if (this.sectionDensity >= 0.75) return true                 // drop/build: full pattern
-      if (this.sectionDensity >= 0.45) return h.instrument !== DrumInstrument.Perc  // verse: no fills
-      // intro/breakdown (< 0.45): keep only Kick and Snare for the sparse backbeat
-      return h.instrument === DrumInstrument.Kick || h.instrument === DrumInstrument.Snare
-    })
+    const thinned = hits.filter(h => keepAtDensity(h, this.sectionDensity))
 
     const quantizedHits = thinned.map(h => ({
       ...h,

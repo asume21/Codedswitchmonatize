@@ -332,8 +332,10 @@ export function OrganismCommandCenter() {
     textureVolume, setTextureVolume,
     melodyFocusEnabled, setMelodyFocusEnabled,
     instrumentAssignments, setOrganismInstrument,
+    featuredPerformance, setFeaturedPerformance,
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
+    beatModeEnabled, setBeatModeEnabled,
     loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
     loopRowSources, setHybridModeEnabled, setLoopRowSource,
     sampleLeadRow, setSampleLeads,
@@ -419,7 +421,7 @@ export function OrganismCommandCenter() {
   }, [unlockChordProgression])
 
   // ── Solo state ───────────────────────────────────────────────────────────
-  type SoloRole = 'lead' | 'bass' | 'chord' | 'drums'
+  type SoloRole = 'lead' | 'bass' | 'chord' | 'drums' | 'texture'
   const [soloRole, setSoloRole] = useState<SoloRole | null>(null)
   const savedVolumesRef = useRef({ melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume, texture: textureVolume })
   const savedMelodyFocusRef = useRef(melodyFocusEnabled)
@@ -443,15 +445,69 @@ export function OrganismCommandCenter() {
       setBassVolume(  role === 'bass'  ? Math.max(bassVolume,   1.0) : 0)
       setChordVolume( role === 'chord' ? Math.max(chordVolume,  1.0) : 0)
       setDrumsVolume( role === 'drums' ? Math.max(drumsVolume,  1.0) : 0)
-      // Texture (Pads/Keys) is not a soloable role, so ANY solo silences it —
-      // otherwise soloing e.g. melody left the pad/keys layer playing, sounding
-      // like a phantom second instrument under the lead.
-      setTextureVolume(0)
+      setTextureVolume(role === 'texture' ? Math.max(textureVolume, 1.0) : 0)
       setMelodyFocusEnabled(role === 'lead')
     }
   }, [soloRole, melodyVolume, bassVolume, chordVolume, drumsVolume, textureVolume,
       melodyFocusEnabled, setMelodyVolume, setBassVolume, setChordVolume,
       setDrumsVolume, setTextureVolume, setMelodyFocusEnabled])
+
+  /** Local intent routing for the explicit Full Song commands. The existing AI
+   * vibe interpreter still handles genre/mood/instrument language. */
+  const applyFeaturedPerformanceCommand = useCallback((raw: string): boolean => {
+    const text = raw.toLowerCase().replace(/[^a-z0-9+ ]/g, ' ')
+    const asksToStop = /\b(stop|cancel|clear|end|turn off)\b/.test(text)
+      && /\b(feature|featured|solo|full song|duet)\b/.test(text)
+    if (asksToStop) {
+      setFeaturedPerformance('none')
+      return true
+    }
+
+    const asksForFeature = /\b(feature|featured|solo|showcase|full song)\b/.test(text)
+      || /\bplay me a (whole|full) song\b/.test(text)
+      || /\b(trade|trading|duet)\b/.test(text)
+    if (!asksForFeature) return false
+
+    const melody = /\b(melody|lead|guitar solo|violin solo|flute solo)\b/.test(text)
+    const chord = /\b(chord|chords|harmony|keys)\b/.test(text)
+    const texture = /\b(texture|textures|pad|pads|atmosphere)\b/.test(text)
+    // Drums/bass remain isolate-only foundation roles by product decision.
+    if (!melody && !chord && !texture && /\b(drum|drums|bass|808)\b/.test(text)) return false
+
+    const feature = /\b(trade|trading|duet)\b/.test(text) || (melody && chord)
+      ? 'melody-chords'
+      : texture ? 'texture'
+      : chord ? 'chord'
+      : 'melody'
+    setFeaturedPerformance(feature)
+
+    // If the command names a voice, use the already-built assignment path.
+    // Generic mood/genre language continues to the existing vibe interpreter.
+    const namedInstrument: InstrumentPerformerId | null =
+      /\bnylon guitar\b/.test(text) ? 'guitar-nylon' :
+      /\b(electric guitar|guitar)\b/.test(text) ? 'guitar-clean' :
+      /\bviolin\b/.test(text) ? 'violin' :
+      /\bflute\b/.test(text) ? 'flute' :
+      /\bchoir\b/.test(text) ? 'choir' :
+      /\b(strings|string ensemble)\b/.test(text) ? 'strings' :
+      /\brhodes\b/.test(text) ? 'rhodes' :
+      /\borgan\b/.test(text) ? 'organ' :
+      /\bpiano\b/.test(text) ? 'piano' : null
+    if (namedInstrument) {
+      if (feature === 'texture') setOrganismInstrument('texture', namedInstrument)
+      else if (feature === 'chord') setOrganismInstrument('chord', namedInstrument)
+      else if (feature === 'melody-chords') {
+        const profile = INSTRUMENT_PERFORMERS.find(item => item.id === namedInstrument)
+        if (profile?.roles.includes('lead')) setOrganismInstrument('lead', namedInstrument)
+        if (profile?.roles.includes('chord') && profile.polyphony === 'poly') {
+          setOrganismInstrument('chord', namedInstrument)
+        }
+      } else {
+        setOrganismInstrument('lead', namedInstrument)
+      }
+    }
+    return true
+  }, [setFeaturedPerformance, setOrganismInstrument])
 
   // ── Voice command state ──────────────────────────────────────────────────
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -505,14 +561,16 @@ export function OrganismCommandCenter() {
 
       if (final) {
         setVibeStatus('interpreting')
-        await interpretVibe(final.trim())
+        if (!applyFeaturedPerformanceCommand(final.trim())) {
+          await interpretVibe(final.trim())
+        }
         setVibeStatus('done')
       }
     }
 
     recognitionRef.current = recog
     recog.start()
-  }, [isListening, interpretVibe, SpeechRecognitionCtor])
+  }, [isListening, interpretVibe, applyFeaturedPerformanceCommand, SpeechRecognitionCtor])
 
   // ── Mode + Technique state ───────────────────────────────────────────────
   const FREEPLAY_ID = 'freeplay'
@@ -918,6 +976,10 @@ export function OrganismCommandCenter() {
     setSongModeEnabled(!songModeEnabled)
   }, [songModeEnabled, setSongModeEnabled])
 
+  const toggleBeatMode = useCallback(() => {
+    setBeatModeEnabled(!beatModeEnabled)
+  }, [beatModeEnabled, setBeatModeEnabled])
+
   const toggleLoopsMode = useCallback(() => {
     setLoopsModeEnabled(!loopsModeEnabled)
   }, [loopsModeEnabled, setLoopsModeEnabled])
@@ -1018,7 +1080,7 @@ export function OrganismCommandCenter() {
                 if (triggerDetectorRef.current) {
                   await triggerDetectorRef.current.processText(text)
                 }
-                interpretVibe(text)
+                if (!applyFeaturedPerformanceCommand(text)) interpretVibe(text)
                 e.currentTarget.value = ''
               }
             }}
@@ -2310,6 +2372,7 @@ export function OrganismCommandCenter() {
             }}>
               <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
               <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
+              <PillToggle active={beatModeEnabled}      label="Beat Mode"     onToggle={toggleBeatMode}      color={C.cyan} />
               {(!activePreset || activePreset.loopPackId) && (() => {
                 const rowVals = Object.values(loopRowSources)
                 const allLoop = loopsModeEnabled && rowVals.length > 0 && rowVals.every(s => s === 'loop')
@@ -2524,6 +2587,35 @@ export function OrganismCommandCenter() {
             flexShrink: 0,
           }}>
             <div style={{ ...label11, marginBottom: 7 }}>Instruments</div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: C.text3, marginBottom: 5 }}>
+                FULL SONG FEATURE <span style={{ color: C.text3 }}>— musical foreground, not isolate</span>
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {([
+                  ['none', 'Band'],
+                  ['melody', 'Melody'],
+                  ['chord', 'Chords'],
+                  ['texture', 'Pads / Keys'],
+                  ['melody-chords', 'Melody + Chords'],
+                ] as const).map(([feature, label]) => {
+                  const active = featuredPerformance === feature
+                  return (
+                    <button
+                      key={feature}
+                      onClick={() => setFeaturedPerformance(feature)}
+                      title={feature === 'none' ? 'Normal band arrangement' : `Feature ${label} across the full song`}
+                      style={{
+                        padding: '4px 7px', borderRadius: 5, fontSize: 9, fontWeight: 700,
+                        border: `1px solid ${active ? C.amber : C.border2}`,
+                        background: active ? `${C.amber}22` : 'transparent',
+                        color: active ? C.amber : C.text3, cursor: 'pointer',
+                      }}
+                    >{label}</button>
+                  )
+                })}
+              </div>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <InstrumentSelect
                 label="Lead (melody)"
@@ -2558,19 +2650,17 @@ export function OrganismCommandCenter() {
                 soloed={soloRole === 'chord'}
                 onSolo={() => handleSolo('chord')}
               />
-              {/* Texture / Pads — volume-only, no instrument picker */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, color: C.text2 }}>Pads / Keys</span>
-                  <span style={{ fontSize: 10, color: C.text3 }}>{textureVolume.toFixed(2)}×</span>
-                </div>
-                <input
-                  type="range" min={0} max={2} step={0.05}
-                  value={textureVolume}
-                  onChange={e => setTextureVolume(Number(e.currentTarget.value))}
-                  style={{ width: '100%', accentColor: '#f59e0b', cursor: 'pointer' }}
-                />
-              </div>
+              <InstrumentSelect
+                label="Pads / Keys"
+                role="texture"
+                value={instrumentAssignments.texture}
+                onChange={id => setOrganismInstrument('texture', id)}
+                volume={textureVolume}
+                onVolumeChange={setTextureVolume}
+                volumeColor='#f59e0b'
+                soloed={soloRole === 'texture'}
+                onSolo={() => handleSolo('texture')}
+              />
             </div>
           </div>
 
