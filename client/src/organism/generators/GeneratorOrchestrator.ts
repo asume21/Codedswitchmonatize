@@ -123,6 +123,24 @@ export class GeneratorOrchestrator {
   // The band answers the MC in the gaps of the flow. The Conductor's planAnswer()
   // is pure; the orchestrator owns the edge-detect + throttle timing here.
   private duetEnabled: boolean = true
+  /**
+   * The INSTRUMENTAL duet — chords/melody answering the MELODY'S OWN rests — is
+   * a different thing from the vocal duet above, which answers the MC. Both used
+   * to share `duetEnabled`: default true, and `setDuetEnabled` has NO caller
+   * anywhere in the app, so it could never be turned off.
+   *
+   * The vocal duet is dormant unless someone is on the mic. The instrumental one
+   * is gated off only WHILE an MC is active, so with nobody rapping it fires
+   * constantly — `triggerAnswerLick` puts 3 ascending chord tones an octave up on
+   * the melody's own voice, OUTSIDE the phrase Part. The user heard it exactly:
+   * "underneath it I hear the old way it used to play, dum dum dum each a higher
+   * octave, sparse, plays once or twice then doesn't then does again."
+   *
+   * It ignores whatever the melody was asked to play (fixed shape from chord
+   * tones), so it reads as a second, uncontrolled melody. Now OFF unless asked
+   * for — the Melody + Chords feature is the explicit request for it.
+   */
+  private instrumentalDuetEnabled: boolean = false
   private duetWasBreathing: boolean = false
   private duetLastAnswerMs: number = 0
 
@@ -851,8 +869,11 @@ export class GeneratorOrchestrator {
     if (feature !== 'none') {
       // A Full Song feature uses the existing producer section arc.
       this.setArrangementEnabled(true)
-      if (feature === 'melody-chords') this.duetEnabled = true
     }
+    // Melody + Chords is the explicit ASK for the two players to trade phrases,
+    // so it is the one place the instrumental duet turns on — and it turns back
+    // off with the feature instead of leaking into every later take.
+    this.instrumentalDuetEnabled = feature === 'melody-chords'
     this.lastArrangementBar = -1
 
     // Apply intent now as well as at the next bar. These existing section hooks
@@ -1016,7 +1037,7 @@ export class GeneratorOrchestrator {
    * the vocal Duet owns the conversation then.
    */
   private maybeAnswerMelodyRest(voiceActive: boolean): void {
-    if (!this.duetEnabled || !this.melodyEnabled || !this.chordEnabled) {
+    if (!this.instrumentalDuetEnabled || !this.melodyEnabled || !this.chordEnabled) {
       this.instDuetWasQuiet = false
       return
     }

@@ -368,6 +368,29 @@ describe('GeneratorOrchestrator', () => {
     expect(textureSpy).toHaveBeenLastCalledWith(sectionLevel)
   })
 
+  it('does NOT play instrumental answer licks unless Melody + Chords is featured', () => {
+    // The ghost second melody: triggerAnswerLick puts 3 ascending chord tones an
+    // octave up on the MELODY'S OWN voice, outside its phrase Part, on a fixed
+    // shape that ignores what the melody was asked to play. It shared the vocal
+    // duet's flag (default true, setter never called anywhere), and the
+    // instrumental path is gated off only WHILE an MC is active — so with nobody
+    // rapping it fired constantly. Reported by ear as "underneath it I hear the
+    // old way it used to play, dum dum dum each a higher octave".
+    const lickSpy = vi.spyOn((orchestrator as any).melody, 'triggerAnswerLick')
+
+    expect((orchestrator as any).instrumentalDuetEnabled).toBe(false)
+    ;(orchestrator as any).maybeAnswerMelodyRest(false)
+    expect(lickSpy).not.toHaveBeenCalled()
+
+    // Asking for the duet explicitly turns it on...
+    orchestrator.setFeaturedPerformance('melody-chords')
+    expect((orchestrator as any).instrumentalDuetEnabled).toBe(true)
+
+    // ...and it turns back off with the feature, rather than leaking onward.
+    orchestrator.setFeaturedPerformance('none')
+    expect((orchestrator as any).instrumentalDuetEnabled).toBe(false)
+  })
+
   it('jam arrangement defaults drums, bass, and the chord hook to lead roles', async () => {
     const tone = await import('tone')
     tone.getTransport().position = '0:0:0'
