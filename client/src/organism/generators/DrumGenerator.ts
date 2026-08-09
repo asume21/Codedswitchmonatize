@@ -7,6 +7,7 @@ import { GeneratorName, DrumInstrument } from './types'
 import type { DrumHit }       from './types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { SampledDrumKit }       from './SampledDrumKit'
+import { logPart }              from './partLog'
 import type { PhysicsState }   from '../physics/types'
 import { OrganismMode }        from '../physics/types'
 import type { OrganismState }  from '../state/types'
@@ -659,6 +660,18 @@ export class DrumGenerator extends GeneratorBase {
     this.part.loopEnd = `${patternBars}m`
     this.part.start(startAt, livePartStartOffset(startAt, patternBars))
     this.hasStartedPlayback = true
+    // Drums were the ONE role with no lifecycle instrumentation, so every drum
+    // dropout left no trace: __partLog() showed only chord churn while the kit
+    // sat at -600 dB with the Part reporting state:'started'. Captured live
+    // 2026-08-09 — ~4s of digital silence around bar 25, nothing in the log to
+    // explain it. Log the same shape chord already logs.
+    logPart('drum', 'start', {
+      events: events.length,
+      rawHits: hits.length,
+      bars: patternBars,
+      startAt: String(startAt),
+      offset: String(livePartStartOffset(startAt, patternBars)),
+    })
   }
 
   private lastBroadcastSig: string = ''
@@ -818,6 +831,7 @@ export class DrumGenerator extends GeneratorBase {
     this.clearBarEndBreakFill()
     this.clearMicroFill()
     if (this.part) {
+      logPart('drum', 'stopPart', { state: String(this.part.state), enabled: this.enabled })
       this.part.stop()
       this.part.dispose()
       this.part = null

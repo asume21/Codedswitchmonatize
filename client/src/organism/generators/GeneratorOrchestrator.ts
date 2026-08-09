@@ -158,6 +158,9 @@ export class GeneratorOrchestrator {
 
   // Texture toggle — when false, texture generator is fully silenced
   private textureEnabled: boolean = true
+  /** The section's own texture level, remembered so re-enabling texture can put
+   *  it back immediately instead of waiting for the next section change. */
+  private lastTextureArrangementMultiplier: number = 1
 
   // ── Arrangement state ─────────────────────────────────────────────
   //
@@ -1227,6 +1230,13 @@ export class GeneratorOrchestrator {
       // pad/keys permanently silent at multiplier 0 while every UI control said it
       // was on. Same shape as setMelodyOnly's restore path just above.
       this.texture.applyVolumeMultiplier(this.textureVolumeMultiplier)
+      // VOLUME is only half of it. While disabled, every applyArrangement pass
+      // writes 0 into the ARRANGEMENT multiplier (`textureEnabled ? mult : 0`),
+      // and nothing rewrites it until the next SECTION CHANGE — up to 16 bars
+      // of silence after the user turns texture back on, with the UI insisting
+      // it is on. Restore the section's own value now so the pad returns at the
+      // moment it is asked for.
+      this.texture.applyArrangementMultiplier(this.lastTextureArrangementMultiplier)
     }
   }
 
@@ -2109,6 +2119,7 @@ export class GeneratorOrchestrator {
         this.bass.applyArrangementMultiplier(stage.bass)
         this.chord.applyArrangementMultiplier(stage.chord)
         this.melody.applyArrangementMultiplier(stage.melody)
+        this.lastTextureArrangementMultiplier = stage.texture
         this.texture.applyArrangementMultiplier(this.textureEnabled ? stage.texture : 0)
       }
       return
@@ -2183,6 +2194,7 @@ export class GeneratorOrchestrator {
           this.bass.applyArrangementMultiplier(nextSection.bass)
           this.melody.applyArrangementMultiplier(nextSection.melody)
           this.chord.applyArrangementMultiplier(nextSection.chord)
+          this.lastTextureArrangementMultiplier = nextSection.texture
           this.texture.applyArrangementMultiplier(this.textureEnabled ? nextSection.texture : 0)
         }, moment.breakEndTime)
 
@@ -2286,6 +2298,7 @@ export class GeneratorOrchestrator {
     this.sectionDensityLevel = Math.max(0, Math.min(1, heldDensity))
     this.bass.applyArrangementMultiplier(heldBass)
     this.melody.applyArrangementMultiplier(melodyMultiplier)
+    this.lastTextureArrangementMultiplier = textureMultiplier
     this.texture.applyArrangementMultiplier(this.textureEnabled ? textureMultiplier : 0)
     this.chord.applyArrangementMultiplier(chordMultiplier)
 

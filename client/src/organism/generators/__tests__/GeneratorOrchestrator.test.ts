@@ -339,6 +339,35 @@ describe('GeneratorOrchestrator', () => {
     expect(drumDensity.mock.calls.at(-1)?.[0]).toBeLessThan(1)
   })
 
+  it('re-enabling texture restores the section level immediately, not at the next section', async () => {
+    // The cutout: while texture is disabled, every applyArrangement pass writes 0
+    // into the arrangement multiplier. Re-enabling restored only the VOLUME
+    // multiplier, so the pad stayed silent at arrangement 0 until the next
+    // section change — up to 16 bars — while the UI reported texture as on.
+    const tone = await import('tone')
+    tone.getTransport().position = '0:0:0'
+    ;(orchestrator as any).running = true
+    orchestrator.setArrangementEnabled(true)
+    ;(orchestrator as any).applyArrangement()
+
+    const sectionLevel = (orchestrator as any).lastTextureArrangementMultiplier
+    expect(sectionLevel).toBeGreaterThan(0)
+
+    const textureSpy = vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier')
+
+    // Disabling does not zero it directly — the NEXT arrangement pass does,
+    // because it writes `textureEnabled ? mult : 0`.
+    orchestrator.setTextureEnabled(false)
+    tone.getTransport().position = '4:0:0'   // new bar, or the pass is skipped
+    ;(orchestrator as any).applyArrangement()
+    expect(textureSpy).toHaveBeenLastCalledWith(0)
+
+    // Re-enabling must put the section's level back NOW, not at the next
+    // section boundary.
+    orchestrator.setTextureEnabled(true)
+    expect(textureSpy).toHaveBeenLastCalledWith(sectionLevel)
+  })
+
   it('jam arrangement defaults drums, bass, and the chord hook to lead roles', async () => {
     const tone = await import('tone')
     tone.getTransport().position = '0:0:0'

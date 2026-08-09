@@ -63,6 +63,15 @@ function snapshot(): Snapshot {
  */
 const ONE_SHOT = new Set(['AudioBufferSourceNode', 'OscillatorNode', 'ConstantSourceNode']);
 
+/**
+ * Live ConvolverNodes, kept so the reverbs can be A/B'd BY EAR at runtime.
+ * Convolution has been the render-thread hog twice (2026-08-04: four reverbs,
+ * 5.3s of IR, 17.3% stalls; then texture's bed reverb alone, 100% -> 0%), and
+ * four are live again. `window.__reverbBypass()` drops every IR and returns the
+ * count; `__reverbBypass.restore()` puts them back. Dev diagnostic only.
+ */
+const convolvers: ConvolverNode[] = [];
+
 function patchConstructor(name: string): void {
   const Original = (window as any)[name];
   if (typeof Original !== 'function') return;
@@ -70,6 +79,7 @@ function patchConstructor(name: string): void {
   function Patched(this: any, ...args: any[]) {
     const node = new Original(...args);
     bump(created, name);
+    if (name === 'ConvolverNode') convolvers.push(node as ConvolverNode);
     if (ONE_SHOT.has(name)) {
       // `ended` fires once when the source stops rendering and the browser can
       // release it. A source that is started but never stops never fires this.
@@ -96,6 +106,10 @@ function patchFactory(method: string, typeName: string): void {
   proto[method] = function patchedFactory(this: BaseAudioContext, ...args: any[]) {
     const node = original.apply(this, args);
     bump(created, typeName);
+    // Tone.Reverb builds its convolver through createConvolver(), NOT the
+    // constructor — registering only in patchConstructor found ZERO convolvers
+    // and made the reverb A/B silently test nothing.
+    if (typeName === 'ConvolverNode') convolvers.push(node as ConvolverNode);
     if (ONE_SHOT.has(typeName)) {
       node.addEventListener('ended', () => bump(ended, typeName), { once: true });
     }
@@ -179,6 +193,31 @@ export function installAudioNodeCensus(): void {
   (report as any).totals = () => snapshot();
 
   (window as any).__nodeCensus = report;
+
+  // Reverb A/B. Dropping the IR makes a ConvolverNode pass audio through at
+  // essentially no cost, so this isolates convolution from everything else
+  // WITHOUT rebuilding the graph or restarting the band — the one thing that
+  // can be judged by ear in the same take.
+  const savedIRs = new Map<ConvolverNode, AudioBuffer | null>();
+  const bypass = () => {
+    let dropped = 0;
+    for (const node of convolvers) {
+      if (!savedIRs.has(node)) savedIRs.set(node, node.buffer);
+      if (node.buffer) { node.buffer = null; dropped++; }
+    }
+    return { convolversFound: convolvers.length, irsDropped: dropped };
+  };
+  (bypass as any).restore = () => {
+    let restored = 0;
+    for (const [node, buf] of savedIRs) { node.buffer = buf; if (buf) restored++; }
+    return { restored };
+  };
+  (bypass as any).list = () => convolvers.map((n) => ({
+    hasIR: !!n.buffer,
+    irSeconds: n.buffer ? +(n.buffer.duration).toFixed(2) : 0,
+    channels: n.buffer?.numberOfChannels ?? 0,
+  }));
+  (window as any).__reverbBypass = bypass;
 }
 
 // Installed as an IMPORT SIDE EFFECT, like globalAudioKillSwitch. A call from

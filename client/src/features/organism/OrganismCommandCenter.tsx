@@ -437,9 +437,21 @@ export function OrganismCommandCenter() {
       setMelodyFocusEnabled(savedMelodyFocusRef.current)
       setSoloRole(null)
     } else {
-      // Save current, silence all except the soloed role
-      savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume, texture: textureVolume }
-      savedMelodyFocusRef.current = melodyFocusEnabled
+      // Save current, silence all except the soloed role.
+      //
+      // Only capture the baseline when nothing is soloed yet. Clicking straight
+      // from one solo to another used to take this branch and save the CURRENT
+      // volumes — which, mid-solo, are 0 for every other role. That destroyed
+      // the real values, so every later un-solo "restored" silence. For chord
+      // and texture it is worse than silence: setChordVolume/setTextureVolume
+      // call setChordEnabled(v > 0)/setTextureEnabled(v > 0), so a saved 0 turns
+      // the GENERATOR off. Auditioning roles in a row (lead -> chord -> bass ->
+      // texture) therefore ended with a permanently dead pad, which is one of
+      // the "cutouts".
+      if (soloRole === null) {
+        savedVolumesRef.current = { melody: melodyVolume, bass: bassVolume, chord: chordVolume, drums: drumsVolume, texture: textureVolume }
+        savedMelodyFocusRef.current = melodyFocusEnabled
+      }
       setSoloRole(role)
       setMelodyVolume(role === 'lead'  ? Math.max(melodyVolume, 1.0) : 0)
       setBassVolume(  role === 'bass'  ? Math.max(bassVolume,   1.0) : 0)
