@@ -86,7 +86,15 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // still tucks it under drums/808 in normal band mode.
       // Sits opposite the chords (see CENTER DEFENSE there) so the middle of the
       // image stays clear for the vocal.
-      name: 'melody', pan: 0.34, gainDb: 9,
+      // EAR-VALIDATED 2026-08-10 (blind A/B, scripts/render-ab-variants.mjs).
+      // Pulling the three harmony channels back beat the control in BOTH rounds,
+      // at -4 dB and at -2 dB. -7 dB was a WASH — past a point you lose what the
+      // harmony contributes and it nets out — so -3 is the middle of the winning
+      // band, not the maximum. Measured cause: the full mix sat at 51% low-mid
+      // against 32% in audio/reference-beats.
+      // NOTE texture alone was indistinguishable from control; the congestion is
+      // chords and melody, so all three move or none do.
+      name: 'melody', pan: 0.34, gainDb: 6,
       compThresholdDb: -18, compRatio: 2, compAttackMs: 20,
       compReleaseMs: 200, compKneeDb: 8,
       eq: { highpassHz: 120, midHz: 250, midGain: -2, midQ: 1.2, highShelfHz: 8000, highShelfGain: 2 },  // gentler HP + lighter mud scoop + presence
@@ -100,7 +108,15 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // RMS at +2 — effectively absent. +12 puts the normal bed near -34 dBFS;
       // Full Song Feature's existing arrangement lift then brings it near -28,
       // while the wide/filtered signal stays well away from kick, bass, and vocal.
-      name: 'texture', pan: 0, gainDb: 12,
+      // EAR-VALIDATED 2026-08-10 (blind A/B, scripts/render-ab-variants.mjs).
+      // Pulling the three harmony channels back beat the control in BOTH rounds,
+      // at -4 dB and at -2 dB. -7 dB was a WASH — past a point you lose what the
+      // harmony contributes and it nets out — so -3 is the middle of the winning
+      // band, not the maximum. Measured cause: the full mix sat at 51% low-mid
+      // against 32% in audio/reference-beats.
+      // NOTE texture alone was indistinguishable from control; the congestion is
+      // chords and melody, so all three move or none do.
+      name: 'texture', pan: 0, gainDb: 9,
       compThresholdDb: -30, compRatio: 2, compAttackMs: 50,
       compReleaseMs: 500, compKneeDb: 10,
       // LANE (2026-08-08, user heard "bass seems way muddy"): the +2 -> +12 lift
@@ -124,7 +140,15 @@ export const DEFAULT_MIX_CONFIG: MixConfig = {
       // for the vocal", and nothing in the engine defended it. The two harmonic
       // parts now sit clearly to either side (chord left, melody right), leaving
       // a real hole in the middle for the voice. Kick and bass stay hard centre.
-      name: 'chord', pan: -0.38, gainDb: 10,
+      // EAR-VALIDATED 2026-08-10 (blind A/B, scripts/render-ab-variants.mjs).
+      // Pulling the three harmony channels back beat the control in BOTH rounds,
+      // at -4 dB and at -2 dB. -7 dB was a WASH — past a point you lose what the
+      // harmony contributes and it nets out — so -3 is the middle of the winning
+      // band, not the maximum. Measured cause: the full mix sat at 51% low-mid
+      // against 32% in audio/reference-beats.
+      // NOTE texture alone was indistinguishable from control; the congestion is
+      // chords and melody, so all three move or none do.
+      name: 'chord', pan: -0.38, gainDb: 7,
       compThresholdDb: -22, compRatio: 3, compAttackMs: 30,
       compReleaseMs: 250, compKneeDb: 8,
       eq: { highpassHz: 150, midHz: 500, midGain: -3, midQ: 1.0, highShelfHz: 6000, highShelfGain: -1 },  // fuller keys with the low-mid boxiness still scooped

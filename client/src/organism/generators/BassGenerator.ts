@@ -835,7 +835,35 @@ export class BassGenerator extends GeneratorBase {
     return true
   }
 
+  /**
+   * CSBL rhythm override. A CSBL bass pattern ("b--b-b--") says WHEN, never what
+   * pitch — the Conductor stays the only source of harmony, so the pitch is filled
+   * from rootMidi here at build time. That is what keeps the language a front end
+   * instead of a second harmonic authority (CSBL spec 13.6).
+   */
+  private csblRhythm: Array<{ time: string; velocity: number; sustain?: boolean; glide?: boolean }> | null = null
+
+  setCsblRhythm(hits: Array<{ time: string; velocity: number; sustain?: boolean; glide?: boolean }> | null): void {
+    this.csblRhythm = hits && hits.length ? hits : null
+    if (this.lastOutputGain > 0) this.rebuildPart()
+  }
+
+  hasCsblRhythm(): boolean { return this.csblRhythm !== null }
+
   private generateNotes(physics: PhysicsState): ScheduledNote[] {
+    // CSBL owns the rhythm when a pattern is auditioning; the Conductor still owns
+    // the note. A sustained step ('~') doubles the note length rather than adding a
+    // hit, which is the sustain semantics the compiler records.
+    if (this.csblRhythm) {
+      const root = midiToNote(this.rootMidi)
+      return this.csblRhythm.map((h) => ({
+        pitch: root,
+        duration: h.sustain ? '4n' : '8n',
+        velocity: h.velocity,
+        time: h.time,
+      }))
+    }
+
     // getPortamentoTime IS the authority on who glides — it returns hand-tuned
     // times for Slide808 (0.12), WestCoast (0.04) and Phonk (0.08), and 0 for
     // everything else via its default branch. shouldEnableSlide only ever returned
