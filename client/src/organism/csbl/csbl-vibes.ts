@@ -54,6 +54,26 @@ export const CSBL_VIBES: CsblVibe[] = [
   { genre: 'boom_bap', role: 'snare', vibe: 'crunch',   pattern: '--s---s-' },
   { genre: 'boom_bap', role: 'hats',  vibe: 'loose',    pattern: 't--t--t--t--t---' },  // was 12 chars
 
+  // ── chords ──────────────────────────────────────────────────────────
+  // DEGREES, never literal chord names (spec 13.6). The spec's Section 9 wrote
+  // these as "cmin---d#maj---gmin---"; in C minor that is i - III - v, and writing
+  // it as degrees means the same progression works in whatever key the Conductor
+  // has chosen instead of dragging everything to C.
+  // NOTATION MATTERS HERE, and it is not obvious. Verified against the bank's own
+  // parser rather than assumed:
+  //   VI   -> 9 semitones = A natural.  In a minor key you want A FLAT: write bVI.
+  //   VII  -> 11 = B natural.           Flat-seven is bVII.
+  //   i7   -> [0,4,7,10] a DOMINANT 7 (major third!) regardless of the lowercase
+  //           numeral. A minor seventh is written im7, not i7.
+  //   maj7 -> [0,4,7,11] as expected.
+  // Writing "dark minor" as i-VI-VII would produce Cm-A-B, which is not dark, just
+  // wrong. These mirror the Conductor's own per-genre defaults.
+  { genre: 'trap',     role: 'chords', vibe: 'dark minor',   pattern: 'i---bVI---bVII---i---' },
+  { genre: 'lofi',     role: 'chords', vibe: 'warm keys',    pattern: 'Imaj7---iiim7---IVmaj7---V7---' },
+  { genre: 'phonk',    role: 'chords', vibe: 'detuned pads', pattern: 'i---bVI---i---bVI---' },
+  { genre: 'boom_bap', role: 'chords', vibe: 'jazzy',        pattern: 'im7---ivm7---V7---im7---' },
+  { genre: 'drill',    role: 'chords', vibe: 'dark',         pattern: 'i---v---bVII---bVI---' },
+
   // ── bass ────────────────────────────────────────────────────────────
   { genre: 'trap',  role: 'bass', vibe: '808-slide',    pattern: 'b--b-b--' },
   { genre: 'trap',  role: 'bass', vibe: 'glide',        pattern: 'b>b--b--' },
@@ -84,7 +104,7 @@ export function vibeToSource(v: CsblVibe): string {
 
 /** Distinct roles present in the library, in a musically sensible order. */
 export function vibeRoles(): string[] {
-  const order = ['kick', 'snare', 'hats', 'perc', 'bass']
+  const order = ['kick', 'snare', 'hats', 'perc', 'bass', 'chords']
   const present = new Set(CSBL_VIBES.map((v) => v.role))
   return order.filter((r) => present.has(r))
 }

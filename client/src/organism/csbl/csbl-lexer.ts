@@ -58,8 +58,11 @@ export function tokenizePattern(pattern: string, role = "hats") {
       continue;
     }
 
-    // Chord token: Roman numeral or textual chord (we prefer degrees later)
-    const chordMatch = pattern.slice(i).match(/^[ivIVM0-9]+(?:7|maj|min|dim|aug)?/);
+    // Chord token: a scale DEGREE — optional accidental, Roman numeral, optional
+    // quality. The accidental matters: in a minor key the sixth and seventh are
+    // flat (bVI, bVII), and without it "dark minor" resolves to natural 6 and 7.
+    // Longest-first on the quality so maj7 beats maj, and m7 beats m.
+    const chordMatch = pattern.slice(i).match(/^[b#]?[ivIV]+(?:maj7|min7|m7|maj|min|dim|aug|sus2|sus4|7|9|6)?/);
     if (chordMatch) {
       tokens.push({ type: "CHORD", value: chordMatch[0], index: i });
       i += chordMatch[0].length;

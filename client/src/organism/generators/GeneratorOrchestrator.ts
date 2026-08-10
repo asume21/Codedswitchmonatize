@@ -1412,11 +1412,23 @@ export class GeneratorOrchestrator {
       return result
     }
 
-    // Bass: the pattern supplies RHYTHM only. BassGenerator fills the pitch from the
-    // Conductor's rootMidi at build time, so an auditioning bass line still follows
-    // the chord changes instead of hammering one note (spec 13.6).
-    this.bass.setCsblRhythm(result.steps)
-    orgLog('csbl:audition', { kind: 'bass', role: result.role, vibe: result.vibe, steps: result.steps.length })
+    if (result.kind === 'bass') {
+      // The pattern supplies RHYTHM only. BassGenerator fills the pitch from the
+      // Conductor's rootMidi at build time, so an auditioning bass line still
+      // follows the chord changes instead of hammering one note (spec 13.6).
+      this.bass.setCsblRhythm(result.steps)
+      orgLog('csbl:audition', { kind: 'bass', role: result.role, vibe: result.vibe, steps: result.steps.length })
+      return result
+    }
+
+    // Chords: hand DEGREES to the Conductor, which owns the key and transposes them.
+    // This does not write notes into the ChordGenerator — the whole band reads the
+    // Conductor, so bass and melody follow the new progression automatically instead
+    // of a chord track playing against them. Locked so a section change cannot pick
+    // fresh harmony out from under the audition.
+    getConductor().setProgressionFromDegrees(result.degrees)
+    getConductor().lockProgression()
+    orgLog('csbl:audition', { kind: 'chords', role: result.role, vibe: result.vibe, degrees: result.degrees.length })
     return result
   }
 
@@ -1424,6 +1436,7 @@ export class GeneratorOrchestrator {
   clearCsbl(): void {
     this.drum.unlockPattern()
     this.bass.setCsblRhythm(null)
+    getConductor().unlockProgression()
     this.regenerateAll()
     orgLog('csbl:cleared', {})
   }

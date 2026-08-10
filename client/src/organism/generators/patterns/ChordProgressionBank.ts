@@ -100,6 +100,13 @@ const CHORD_QUALITIES: Record<string, number[]> = {
  *
  * Handles: I, ii, bIIIM, #IVdim, Vsus2, i7, VI69, im7, ivm9, etc.
  */
+/** Exported for CSBL: turn a Roman degree ("i", "VI", "iv7") into a key-independent
+ *  ChordEvent. CSBL must reuse THIS parser rather than carry its own degree table —
+ *  two mappings that can disagree is how the harmony ends up split. */
+export function parseRomanNumeral(symbol: string): ChordEvent {
+  return parseNumeral(symbol)
+}
+
 function parseNumeral(symbol: string): ChordEvent {
   let s = symbol
   let flatShift = 0

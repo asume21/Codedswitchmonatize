@@ -1096,8 +1096,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       const result = orchestr.auditionCsbl(source)
       if (!result.ok) console.warn('[CSBL]', result.error)
       else {
-        const count = result.kind === 'drums' ? result.hits.length : result.steps.length
-        const unit = result.kind === 'drums' ? 'hits' : 'bass steps'
+        const count = result.kind === 'drums' ? result.hits.length
+          : result.kind === 'bass' ? result.steps.length
+          : result.degrees.length
+        const unit = result.kind === 'drums' ? 'hits'
+          : result.kind === 'bass' ? 'bass steps'
+          : 'chord degrees'
         console.info('[CSBL] playing', count, unit, '—', `${result.genre}.${result.role}`, `"${result.vibe}"`)
       }
       return result

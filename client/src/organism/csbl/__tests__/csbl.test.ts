@@ -222,3 +222,51 @@ describe('CSBL routes by role — drums and bass from one entry point', () => {
     expect(r.error).toMatch(/not in the library/)
   })
 })
+
+describe('CSBL chords — degrees that actually sound like their name', () => {
+  const MINOR = [0, 3, 7]
+  const MAJOR = [0, 4, 7]
+  const MIN7  = [0, 3, 7, 10]
+  const MAJ7  = [0, 4, 7, 11]
+
+  it('"dark minor" is i - bVI - bVII, not i - VI - VII', () => {
+    // VI resolves to 9 semitones (A natural) and VII to 11 (B natural). In a minor
+    // key those are wrong — you want the FLAT six and seven. Writing it the obvious
+    // way produces Cm-A-B, which is not dark, just out of key.
+    const r = compileCsbl('trap.chords("dark minor")')
+    expect(r.ok).toBe(true)
+    if (!r.ok || r.kind !== 'chords') { expect.fail('expected chords'); return }
+    expect(r.degrees.map(d => d.rootOffset)).toEqual([0, 8, 10, 0])
+    expect(r.degrees[0].intervals).toEqual(MINOR)
+    expect(r.degrees[1].intervals).toEqual(MAJOR)
+  })
+
+  it('"jazzy" uses MINOR sevenths — i7 would be a dominant chord', () => {
+    // The suffix 7 yields [0,4,7,10] whatever the numeral's case, so a lowercase i7
+    // is still a major third. im7 is the minor seventh.
+    const r = compileCsbl('boom_bap.chords("jazzy")')
+    if (!r.ok || r.kind !== 'chords') { expect.fail('expected chords'); return }
+    expect(r.degrees[0].intervals).toEqual(MIN7)
+    expect(r.degrees[1].intervals).toEqual(MIN7)
+    expect(r.degrees[2].intervals).toEqual([0, 4, 7, 10])  // V7 stays dominant
+  })
+
+  it('"warm keys" uses major sevenths', () => {
+    const r = compileCsbl('lofi.chords("warm keys")')
+    if (!r.ok || r.kind !== 'chords') { expect.fail('expected chords'); return }
+    expect(r.degrees[0].intervals).toEqual(MAJ7)
+    expect(r.degrees[2].intervals).toEqual(MAJ7)
+  })
+
+  it('carries NO absolute pitch — the Conductor transposes these', () => {
+    // rootOffset is an interval from the tonic, not a note. That is what lets the
+    // same progression work in whatever key the session is in.
+    const r = compileCsbl('drill.chords("dark")')
+    if (!r.ok || r.kind !== 'chords') { expect.fail('expected chords'); return }
+    for (const d of r.degrees) {
+      expect(d.rootOffset).toBeGreaterThanOrEqual(0)
+      expect(d.rootOffset).toBeLessThan(12)
+      expect(d).not.toHaveProperty('note')
+    }
+  })
+})

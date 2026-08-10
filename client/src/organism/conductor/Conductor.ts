@@ -809,6 +809,27 @@ export class Conductor {
   }
 
   /**
+   * Set the progression from key-independent DEGREES (ChordEvent), the way the
+   * internal bank picker does, rather than from chord symbols.
+   *
+   * setProgression() above takes symbols written in C and re-parses them, which
+   * means a caller holding degrees has to render "i" into "Cm", hand it over, and
+   * have it parsed back — a round trip through text that can only lose information.
+   * CSBL holds degrees (spec 13.6: the language may never name a literal chord), so
+   * it uses this path and the Conductor stays the single owner of the key.
+   */
+  setProgressionFromDegrees(events: ChordEvent[]): void {
+    if (events.length === 0) return
+    const keyPC = keyToPitchClass(this.key)
+    this.lastBankSignature = null
+    this.progression = events.map((ev) => chordEventToParsed(ev, keyPC))
+    this.chordIndex = 0
+    this.progressionVersion++
+    const chord = this.currentChord()
+    for (const cb of this.chordChangeListeners) cb(chord)
+  }
+
+  /**
    * Reset to the start of the current progression. Useful when a new
    * arrangement section begins (verse → drop, etc.).
    */

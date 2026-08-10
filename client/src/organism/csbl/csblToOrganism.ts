@@ -17,6 +17,9 @@ import type { DrumHit } from '../generators/types'
 import { parseCSBL } from './csbl-parser'
 import { compileDrumBlockToHits } from './csbl-compiler-drums'
 import { bassPatternToHits } from './csbl-compiler-bass'
+import { parseChordPattern } from './csbl-chords-degrees'
+import { parseRomanNumeral } from '../generators/patterns/ChordProgressionBank'
+import type { ChordEvent } from '../generators/patterns/ChordProgressionBank'
 
 export interface CsblCompileResult {
   ok: boolean
@@ -46,7 +49,10 @@ export interface CsblBassStep {
 export type CsblAudition =
   | { ok: true; kind: 'drums'; hits: DrumHit[]; role: string; vibe?: string; genre?: string }
   | { ok: true; kind: 'bass'; steps: CsblBassStep[]; role: string; vibe?: string; genre?: string }
+  | { ok: true; kind: 'chords'; degrees: ChordEvent[]; role: string; vibe?: string; genre?: string }
   | { ok: false; error: string; role?: string }
+
+const CHORD_ROLES = new Set(['chords', 'chord', 'harmony'])
 
 /**
  * Compile any CSBL line, routed by role. One entry point so the caller does not
@@ -65,6 +71,16 @@ export function compileCsbl(source: string): CsblAudition {
       return { ok: true, kind: 'bass', steps, role, vibe: block.vibe, genre: block.genre }
     }
 
+    if (CHORD_ROLES.has(role)) {
+      // Degrees only — never literal chord names. parseRomanNumeral is the bank's
+      // OWN parser, reused rather than copied, so CSBL and the 176-progression
+      // library can never disagree about what "iv" means (spec 13.6).
+      const tokens = parseChordPattern(block.pattern)
+      const degrees = tokens.map((t) => parseRomanNumeral(t.raw))
+      if (degrees.length === 0) return { ok: false, role, error: 'No chord degrees found' }
+      return { ok: true, kind: 'chords', degrees, role, vibe: block.vibe, genre: block.genre }
+    }
+
     if (PLAYABLE_ROLES.has(role)) {
       const hits = compileDrumBlockToHits({ role, pattern: block.pattern })
       if (hits.length === 0) return { ok: false, role, error: 'Pattern produced zero hits' }
@@ -75,7 +91,7 @@ export function compileCsbl(source: string): CsblAudition {
       ok: false,
       role,
       error: `Role "${role}" is not playable yet. Supported: ` +
-             `${[...PLAYABLE_ROLES, ...BASS_ROLES].join(', ')}.`,
+             `${[...PLAYABLE_ROLES, ...BASS_ROLES, ...CHORD_ROLES].join(', ')}.`,
     }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
