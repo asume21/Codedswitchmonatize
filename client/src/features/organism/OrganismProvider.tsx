@@ -548,6 +548,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // grooveLock(false) restores the old constant re-roll. Toggle while
       // playing to hear the difference.
       w.grooveLock = (on: boolean) => orchestr.setGrooveLock(on)
+      // Composition A/B bench: use the existing featured-performance switch
+      // without inventing a second melody/chord path. Dev-only, so seeded
+      // captures can compare existing modes under identical transport state.
+      w.__orgSetFeature = (feature: string) => orchestr.setFeaturedPerformance(feature as any)
       // Level tuning MUST be done with the arrangement off, or every capture
       // lands in a different SECTION with different per-part gains and the
       // measurement is meaningless (this produced a "+11 dB" melody reading
@@ -856,6 +860,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         delete w.__organismMix
         delete w.grooveLock
         delete w.__orgRestartForAudit
+        delete w.__orgSetFeature
       }
       mix.dispose()
       capture.reset()
@@ -1075,7 +1080,26 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         ctxState: Tone.getContext().state,
       }
     }
-    return () => { delete (window as any).__orgDebug }
+    // CSBL audition hook. A music language you cannot hear cannot be judged, so
+    // the language gets an ear before it gets more grammar:
+    //
+    //   __csbl('trap.hats("2-step") >> "t---t---t---t---"')   // hear it now
+    //   __csbl.clear()                                        // improviser takes over
+    //
+    // Returns the compile result, so a bad line reports WHY instead of silently
+    // playing nothing.
+    const csbl = (source: string) => {
+      const orchestr = orchestrRef.current
+      if (!orchestr) return { ok: false, hits: [], error: 'Organism not started' }
+      const result = orchestr.auditionCsblDrums(source)
+      if (!result.ok) console.warn('[CSBL]', result.error)
+      else console.info('[CSBL] playing', result.hits.length, 'hits —', result.genre + '.' + result.role, `"${result.vibe}"`)
+      return result
+    }
+    csbl.clear = () => { orchestrRef.current?.clearCsblDrums(); return 'drums back to the improviser' }
+    ;(window as any).__csbl = csbl
+
+    return () => { delete (window as any).__orgDebug; delete (window as any).__csbl }
   }, [])
 
   // ── Melodic loop layer ─────────────────────────────────────────────

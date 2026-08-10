@@ -4,6 +4,7 @@ import { compileDrumBlockToHits, drumPatternToDrumHits } from '../csbl-compiler-
 import { bassPatternToHits } from '../csbl-compiler-bass'
 import { parseChordPattern } from '../csbl-chords-degrees'
 import { tokenizePattern } from '../csbl-lexer'
+import { compileCsblToDrumHits } from '../csblToOrganism'
 import { DrumInstrument } from '../../generators/types'
 
 // CSBL slice 1 — spec Section 13.9. The language compiles DOWN to the structures the
@@ -87,5 +88,34 @@ describe('CSBL chords — scale degrees, never literal names', () => {
     expect(tokens[0].degree.toLowerCase()).toBe('i')
     expect(tokens[1].degree.toUpperCase()).toBe('VI')
     expect(tokens[2].degree.toLowerCase()).toBe('iv')
+  })
+})
+
+describe('CSBL -> Organism bridge', () => {
+  it('compiles a playable line to hits the DrumGenerator can load', () => {
+    const r = compileCsblToDrumHits('trap.hats("2-step") >> "t---t---t---t---"')
+    expect(r.ok).toBe(true)
+    expect(r.hits).toHaveLength(4)
+    expect(r.hits.every(h => h.instrument === DrumInstrument.Hat)).toBe(true)
+  })
+
+  it('reports WHY instead of silently playing nothing', () => {
+    // Spec 13.7 #2 — no silent failure. Every rejection carries a reason.
+    const badRole = compileCsblToDrumHits('trap.melody("dark arp") >> "c4---e4---"')
+    expect(badRole.ok).toBe(false)
+    expect(badRole.error).toMatch(/not playable/)
+
+    const badLen = compileCsblToDrumHits('trap.hats("loose") >> "t--t--t--t--"')
+    expect(badLen.ok).toBe(false)
+    expect(badLen.error).toMatch(/does not divide/)
+
+    const badHeader = compileCsblToDrumHits('nonsense')
+    expect(badHeader.ok).toBe(false)
+    expect(badHeader.error).toMatch(/Invalid header/)
+  })
+
+  it('never throws — the caller is an audition, not a build step', () => {
+    expect(() => compileCsblToDrumHits('!!!')).not.toThrow()
+    expect(() => compileCsblToDrumHits('')).not.toThrow()
   })
 })

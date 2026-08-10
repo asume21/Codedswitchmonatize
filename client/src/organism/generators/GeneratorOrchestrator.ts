@@ -44,6 +44,7 @@ import {
   type FeaturedPerformance,
 } from './featuredPerformance'
 import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
+import { compileCsblToDrumHits } from '../csbl/csblToOrganism'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -1387,6 +1388,34 @@ export class GeneratorOrchestrator {
   }
 
   isBeatModeEnabled(): boolean { return this.beatModeEnabled }
+
+  /**
+   * Audition a CSBL line on the live drums.
+   *
+   * Loads the compiled hits and LOCKS the pattern, because the improviser rebuilds
+   * on section changes and physics transitions and would otherwise overwrite the
+   * audition within a bar or two. Reuses lockPattern() rather than adding a second
+   * "hold this" mechanism.
+   *
+   * Adds no scheduler: the DrumGenerator plays these hits exactly as it plays the
+   * improviser's. Returns the compile result so a caller can report the failure
+   * instead of silently hearing nothing.
+   */
+  auditionCsblDrums(source: string): import('../csbl/csblToOrganism').CsblCompileResult {
+    const result = compileCsblToDrumHits(source)
+    if (!result.ok) return result
+    this.drum.loadGeneratedPattern(result.hits, true)
+    this.drum.lockPattern()
+    orgLog('csbl:audition', { role: result.role, vibe: result.vibe, hits: result.hits.length })
+    return result
+  }
+
+  /** Hand the drums back to the improviser. */
+  clearCsblDrums(): void {
+    this.drum.unlockPattern()
+    this.regenerateAll()
+    orgLog('csbl:cleared', {})
+  }
 
   lockDrumPattern(): void   { this.drum.lockPattern() }
   unlockDrumPattern(): void { this.drum.unlockPattern() }
