@@ -272,3 +272,64 @@ Artifacts: `marketing/output/fire-beats/remediation-clean-20260808/`.
 - [ ] In-app browser desktop/narrow visual pass — browser-control attachment timed out
 - [x] AI listening notes — full mix plus all five isolated stems
 - [ ] Human listening sign-off for feature modes and instrument taste
+
+### 2026-08-09 — behavior audit harness
+
+Added `npm run behavior-audit -- <label>` via
+`scripts/behavior-audit.mjs`. It combines static source-wiring contracts with a
+Playwright runtime audit against `/organism`:
+
+- verifies UI → context → provider → orchestrator feature wiring;
+- waits for Transport, Parts, and sampler readiness before judging state;
+- checks drum sample-slot completeness, active gains, and scheduled event Parts;
+- clicks every Full Song Feature choice and verifies the orchestrator's reported
+  ownership, lead pocketing, and texture foreground state;
+- exercises every role's isolate path and restoration;
+- compares equal node-census windows and reads audio-health stalls;
+- writes a complete JSON report under `marketing/output/behavior-audit/`.
+
+Final run: `audit-20260809-final.json` — 44 checks, **0 hard failures**, 2
+warnings. The warnings are a rising GainNode census (`+529` net in the second
+window) and one 136 ms headless audio stall. They are now explicit follow-up
+targets rather than hidden symptoms. The automatic seed selected distinct
+`piano` melody and `rhodes` chord voices in this run.
+
+### 2026-08-09 — hip-hop quality audit
+
+Added `npm run hiphop-audit -- <manifest.json>` via
+`scripts/hip-hop-quality-audit.mjs`. It scores the rendered full mix and stems
+for technical cleanliness, drum authority, kick/bass/sub relationship, groove,
+musical support, and arrangement evidence. It deliberately reports confidence
+and evidence gaps: a short Jam Mode capture cannot honestly prove a full-song
+arrangement, motif development, or commercial taste.
+
+The capture bench default is now **15 seconds per stem** (`CAP_MS` can override
+it). A fresh Trap seed-42 run produced:
+
+- measurable hip-hop foundation: **8.8/10**;
+- technical cleanliness: 10/10;
+- drum programming/authority: 9/10;
+- kick/bass/sub relationship: 10/10;
+- groove/pocket: 10/10;
+- arrangement evidence: 2/10 because the run was intentionally comparable Jam
+  Mode rather than a full Song Mode arc;
+- verdict: “Hip-hop foundation is measurable, but this capture cannot prove a
+  real full-song hip-hop beat yet.”
+
+Artifacts: `marketing/output/fire-beats/hiphop-15s-20260809/` and
+`marketing/output/hip-hop-quality/hiphop-15s-20260809.json`.
+
+The high-confidence capture path now merges a 30-second Song Mode full mix
+with 15-second per-role stems and requires timeline/section evidence before
+calling it a song-level beat. The first report was a false positive: waveform
+health and onset regularity inflated the score to 9.5/10 even though no hook
+evidence existed. The audit now caps musical-idea evidence at 4/10 when it has
+only Part-event counts, and the same package correctly reports **8.8/10
+(medium confidence): technically correct foundation, but no demonstrated
+memorable hook or strong identity**. Cross-stem synchronization remains a
+separate medium-confidence claim because restarting the live arranger can
+advance its section/BPM state. Taste confidence remains low until a person or
+audio-capable model listens for timbre, pocket, and “fire.”
+
+Artifacts: `marketing/output/fire-beats/hiphop-highconf-final/` and
+`marketing/output/hip-hop-quality/hiphop-highconf-final.json`.

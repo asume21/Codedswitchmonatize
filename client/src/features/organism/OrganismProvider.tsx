@@ -553,6 +553,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // measurement is meaningless (this produced a "+11 dB" melody reading
       // after its gain was LOWERED). The bench pins this false.
       w.songMode = (on: boolean) => orchestr.setArrangementEnabled(on)
+      // Quality-audit helper: restart through the Provider's existing lifecycle
+      // owner so repeated stem captures begin on the same Transport timeline.
+      w.__orgRestartForAudit = async () => {
+        // Keep the Conductor's active progression fixed while the capture bench
+        // restarts each stem; GeneratorOrchestrator.start() normally rolls a
+        // fresh progression on every start.
+        orchestr.lockChordProgression()
+        stop()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+        await start()
+        return true
+      }
     }
 
     // 3. Wire in correct order:
@@ -843,6 +855,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         delete w.soloChannel
         delete w.__organismMix
         delete w.grooveLock
+        delete w.__orgRestartForAudit
       }
       mix.dispose()
       capture.reset()
@@ -1038,6 +1051,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         },
         running:  isRunningRef.current,
         state:    stateNow,
+        featuredPerformance: orchestr?.getFeaturedPerformance() ?? null,
+        solo:     mix?.getSoloedRole() ?? null,
         section:  musical?.section ?? null,
         chord:    musical?.currentChordLabel ?? null,
         activity: output ? {

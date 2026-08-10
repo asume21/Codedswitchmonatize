@@ -29,8 +29,9 @@ import path from 'node:path'
 const BASE  = process.env.BASE || 'http://localhost:5001'
 const LABEL = (process.argv[2] || 'candidate').replace(/[^a-z0-9-]/gi, '')
 const SEED  = Number.parseInt(process.argv[3] || '42', 10)
-const CAP_MS = 8000        // per-stem capture length
+const CAP_MS = Number(process.env.CAP_MS || 15000) // per-stem capture length; 15s gives the quality audit enough groove evidence
 const OUT_DIR = path.join('marketing', 'output', 'fire-beats', LABEL)
+const SYNC_SETTLE_MS = Number(process.env.SYNC_SETTLE_MS || 2500)
 
 // Matches acceptance checklist (docs/superpowers/plans/2026-07-08-fire-beats-acceptance.md).
 // label = exact button text on /organism (client/src/features/organism/QuickStartPresets.ts).
@@ -48,7 +49,10 @@ const PRESETS = PRESET_FILTER.length
   : ALL_PRESETS
 
 // 'full' = no solo (whole mix); the rest solo one mix channel.
-const STEMS = ['full', 'drum', 'bass', 'melody', 'chord', 'texture']
+const STEMS = (process.env.STEMS || 'full,drum,bass,melody,chord,texture')
+  .split(',')
+  .map((stem) => stem.trim())
+  .filter((stem) => ['full', 'drum', 'bass', 'melody', 'chord', 'texture'].includes(stem))
 
 const log = (...a) => console.log('[fire-beats]', ...a)
 
@@ -84,7 +88,11 @@ async function main() {
     ],
   })
 
-  const manifest = {
+  const manifestPath = path.join(OUT_DIR, 'manifest.json')
+  const existingManifest = fs.existsSync(manifestPath)
+    ? JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    : null
+  const manifest = existingManifest ?? {
     label: LABEL,
     seed: SEED,
     base: BASE,
@@ -93,8 +101,16 @@ async function main() {
     presets: {},
     captures: [],
   }
+  manifest.label = LABEL
+  manifest.seed = SEED
+  manifest.base = BASE
+  manifest.comparable = process.env.SONG_MODE !== '1'
 
   for (const preset of PRESETS) {
+    // Allow a long full-song run and a shorter stem run to be assembled into
+    // one evidence package without invalidating the earlier captures.
+    manifest.captures = (manifest.captures ?? []).filter((capture) =>
+      !(capture.preset === preset.key && STEMS.includes(capture.stem)))
     const page = await browser.newPage()
 
     // Intercept the capture upload POST so we get the raw audio bytes without
@@ -156,6 +172,7 @@ async function main() {
       debug: !!window.__audioDebug,
       solo:  typeof window.soloChannel === 'function',
       organism: typeof window.__orgDebug === 'function',
+      restart: typeof window.__orgRestartForAudit === 'function',
     }))
     log('ready:', JSON.stringify(ready))
     if (!ready.debug || !ready.solo) {
@@ -174,13 +191,36 @@ async function main() {
     const presetRuntime = ready.organism ? await page.evaluate(() => window.__orgDebug?.() ?? null) : null
     manifest.presets[preset.key] = { label: preset.label, seed: seedApplied, runtime: presetRuntime }
 
-    for (const stem of STEMS) {
+    for (const [stemIndex, stem] of STEMS.entries()) {
+      if (process.env.SYNC_STEMS === '1' && stemIndex > 0) {
+        const restarted = await page.evaluate(async (seed) => {
+          window.setFreeplaySeed?.(seed)
+          return await window.__orgRestartForAudit?.() ?? false
+        }, SEED)
+        log('same-timeline restart →', restarted)
+        await page.waitForTimeout(SYNC_SETTLE_MS)
+      }
       const role = stem === 'full' ? null : stem
       await page.evaluate((r) => window.soloChannel(r), role)
       await page.waitForTimeout(1200) // ramp + settle before measuring
 
       const runtime = ready.organism ? await page.evaluate(() => window.__orgDebug?.() ?? null) : null
       const capId = await page.evaluate((ms) => window.__audioDebug.startCapture(ms), CAP_MS)
+      const timeline = []
+      const timelineStart = Date.now()
+      while (Date.now() - timelineStart < CAP_MS) {
+        await page.waitForTimeout(Math.min(4000, CAP_MS - (Date.now() - timelineStart)))
+        const snapshot = ready.organism ? await page.evaluate(() => window.__orgDebug?.() ?? null) : null
+        if (snapshot) {
+          timeline.push({
+            atMs: Date.now() - timelineStart,
+            section: snapshot.section ?? null,
+            chord: snapshot.chord ?? null,
+            transport: snapshot.transport ?? null,
+            gainReport: snapshot.gainReport ?? null,
+          })
+        }
+      }
       await page.waitForTimeout(500) // let the upload POST land
 
       const base = `${preset.key}-${stem}-seed${SEED}`
@@ -192,6 +232,7 @@ async function main() {
         analysis: null,
         section: runtime?.section ?? null,
         transport: runtime?.transport ?? null,
+        timeline,
         generator: runtime?.gainReport?.[stem] ?? (stem === 'full' ? runtime?.gainReport ?? null : null),
       }
 
@@ -220,13 +261,16 @@ async function main() {
       }
       log(`  ${stem.padEnd(8)} → ${record.wav ? path.basename(record.wav) : 'no wav'} | analysis ${report.status}`)
       manifest.captures.push(record)
+      // Persist incrementally so a long multi-stem audit remains recoverable if
+      // a browser or network timeout happens during a later stem.
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
     }
 
     await page.evaluate(() => window.soloChannel(null)) // un-solo before leaving
     await page.close()
   }
 
-  fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2))
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
   await browser.close()
   log(`\nDone. ${manifest.captures.length} captures + manifest.json in ${OUT_DIR}`)
 }

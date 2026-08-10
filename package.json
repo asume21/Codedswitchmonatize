@@ -27,6 +27,8 @@
     "test:headed": "playwright test --headed",
     "test:unit": "vitest run",
     "capture:fire-beats": "node scripts/capture-fire-beats.mjs",
+    "behavior-audit": "node scripts/behavior-audit.mjs",
+    "hiphop-audit": "node scripts/hip-hop-quality-audit.mjs",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "lint:css": "stylelint \"**/*.css\"",
