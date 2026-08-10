@@ -554,6 +554,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // without inventing a second melody/chord path. Dev-only, so seeded
       // captures can compare existing modes under identical transport state.
       w.__orgSetFeature = (feature: string) => orchestr.setFeaturedPerformance(feature as any)
+      w.__orgApplyCsblRecipe = () => orchestr.auditionCsblRecipe()
       // Level tuning MUST be done with the arrangement off, or every capture
       // lands in a different SECTION with different per-part gains and the
       // measurement is meaningless (this produced a "+11 dB" melody reading
@@ -863,6 +864,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         delete w.grooveLock
         delete w.__orgRestartForAudit
         delete w.__orgSetFeature
+        delete w.__orgApplyCsblRecipe
       }
       mix.dispose()
       capture.reset()
@@ -1109,7 +1111,17 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     csbl.clear = () => { orchestrRef.current?.clearCsbl(); return 'back to the improvisers' }
     ;(window as any).__csbl = csbl
 
-    return () => { delete (window as any).__orgDebug; delete (window as any).__csbl }
+    // Drum shaping knobs, for the blind A/B renderer. These exist as generator
+    // methods but had no runtime reach, so "is our timing too stiff?" could only be
+    // argued about — the reference beats measure 8.6ms of onset spread against our
+    // 6.0ms, and there was no way to hear the difference.
+    ;(window as any).__drums = {
+      humanize: (amount: number) => { orchestrRef.current?.setDrumHumanize(amount); return amount },
+      hatDensity: (m: number) => { orchestrRef.current?.setHatDensityMultiplier(m); return m },
+      kickVelocity: (m: number) => { orchestrRef.current?.setKickVelocityMultiplier(m); return m },
+    }
+
+    return () => { delete (window as any).__orgDebug; delete (window as any).__csbl; delete (window as any).__drums }
   }, [])
 
   // ── Melodic loop layer ─────────────────────────────────────────────

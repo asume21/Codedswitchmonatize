@@ -83,6 +83,17 @@ export const CSBL_VIBES: CsblVibe[] = [
   { genre: 'phonk', role: 'bass', vibe: 'wobble',       pattern: 'b~b~b~b~' },
 ]
 
+/** A complete, intentional band recipe for the Organism's Lindsey-style Trap
+ * experiment. Each line is still compiled by the normal CSBL bridge; this is
+ * only a named composition preset, not another sequencer. */
+export const LINDSEY_TRAP_RECIPE = [
+  'trap.hats("triplet-roll")',
+  'trap.kick("bounce")',
+  'trap.snare("rimshot")',
+  'trap.bass("glide")',
+  'trap.chords("dark minor")',
+] as const
+
 /** Look up the authored pattern for a genre.role("vibe"). */
 export function lookupVibePattern(genre: string, role: string, vibe: string): string | null {
   const g = genre.toLowerCase()

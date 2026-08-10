@@ -497,14 +497,34 @@ export class DrumGenerator extends GeneratorBase {
   private grooveSnareLagMs: number[] = Array(16).fill(0)
   private grooveHatShiftPct: number[] = []
 
+  /**
+   * Scales how far the groove template pushes and drags. 1 = as authored.
+   *
+   * MEASURED 2026-08-09 against audio/reference-beats: our onset timing spread is
+   * 6.0ms where the reference beats sit at 8.6ms — we are more metronomic than real
+   * hip-hop, which is the "mechanical / stiff" complaint expressed as a number. The
+   * magnitudes below were hard-coded, so there was no way to test whether more human
+   * timing actually sounds better. Now it can be A/B'd rather than argued about.
+   */
+  private humanizeAmount: number = 1
+
+  setHumanizeAmount(amount: number): void {
+    this.humanizeAmount = Math.max(0, Math.min(4, amount))
+    this.buildGrooveTemplate()
+    if (this.rawHits.length > 0 && !this.patternLocked) this.rebuildPart(this.rawHits)
+  }
+
+  getHumanizeAmount(): number { return this.humanizeAmount }
+
   private buildGrooveTemplate(): void {
     // Generate static humanization offsets per 16th-slot. Seeded off the
     // freeplay session salt (same convention as Bass/Chord/GeneratorOrchestrator's
     // freeplay RNGs) so setFreeplaySeed(...) + restart reproduces the exact
     // groove micro-timing feel, not just the pattern/note choices.
     const rng = mulberry32(hashString('groove-template') + getSessionSalt())
-    this.grooveHatShiftPct = Array.from({ length: 16 }, () => (rng() - 0.5) * 1.5)
-    this.grooveSnareLagMs  = Array.from({ length: 16 }, () => rng() * 8)
+    const amt = this.humanizeAmount
+    this.grooveHatShiftPct = Array.from({ length: 16 }, () => (rng() - 0.5) * 1.5 * amt)
+    this.grooveSnareLagMs  = Array.from({ length: 16 }, () => rng() * 8 * amt)
   }
 
   getGroovePocket(): number[] {

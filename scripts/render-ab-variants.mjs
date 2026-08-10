@@ -43,29 +43,33 @@ const OUT_DIR = path.join('marketing', 'output', 'ab', LABEL)
  * extends it next.)
  */
 const VARIANTS = [
-  { id: 'control', label: 'Control (current build)', tweak: {} },
-  { id: 'melody-feature', label: 'Existing melody feature mode', tweak: { feature: 'melody' } },
-  { id: 'chord-feature', label: 'Existing chord feature mode', tweak: { feature: 'chord' } },
-  { id: 'melody-chords-feature', label: 'Existing melody + chords feature mode', tweak: { feature: 'melody-chords' } },
+  // TASK #4 — the drum loop itself. Everything is SOLOED to drums so the judgement
+  // is about the loop and not about the band around it.
+  { id: 'control', label: 'Control — current drums', tweak: { solo: 'drum' } },
   {
-    id: 'combo',
-    label: 'Both winners: harmony -4 dB + brighter',
-    tweak: { gains: { chord: -4, melody: -4, texture: -4 }, brightness: 0.75 },
+    id: 'looser',
+    label: 'Looser timing (humanize x2.5)',
+    // Measured: our onset spread is 6.0ms against 8.6ms in audio/reference-beats.
+    // We are MORE metronomic than real hip-hop. This is the "mechanical" complaint
+    // as a number, and it has never been tested by ear.
+    tweak: { solo: 'drum', humanize: 2.5 },
   },
   {
-    id: 'combo-more',
-    label: 'Both winners, STRONGER: harmony -7 dB + very bright',
-    tweak: { gains: { chord: -7, melody: -7, texture: -7 }, brightness: 0.9 },
+    id: 'straight',
+    label: 'Dead straight (humanize 0)',
+    // The opposite direction. If this wins, the loop wants MORE grid, not less,
+    // and the measurement was pointing the wrong way.
+    tweak: { solo: 'drum', humanize: 0 },
   },
   {
-    id: 'combo-less',
-    label: 'Both winners, GENTLER: harmony -2 dB + slightly bright',
-    tweak: { gains: { chord: -2, melody: -2, texture: -2 }, brightness: 0.6 },
+    id: 'more-hats',
+    label: 'Busier hats (density x1.35)',
+    tweak: { solo: 'drum', hatDensity: 1.35 },
   },
   {
-    id: 'texture-only',
-    label: 'Only texture down 6 dB (keep chords/melody)',
-    tweak: { gains: { texture: -6 }, brightness: 0.75 },
+    id: 'harder-kick',
+    label: 'Harder kick (velocity x1.2)',
+    tweak: { solo: 'drum', kickVelocity: 1.2 },
   },
 ]
 
@@ -118,6 +122,15 @@ async function renderVariant(browser, variant) {
       if (tweak.feature) window.__orgSetFeature?.(tweak.feature)
       if (tweak.parallelComp) m.setParallelCompression(...tweak.parallelComp)
       if (typeof tweak.brightness === 'number') m.setMasterBrightness(tweak.brightness)
+      const d = window.__drums
+      if (d) {
+        if (typeof tweak.humanize === 'number') d.humanize(tweak.humanize)
+        if (typeof tweak.hatDensity === 'number') d.hatDensity(tweak.hatDensity)
+        if (typeof tweak.kickVelocity === 'number') d.kickVelocity(tweak.kickVelocity)
+      }
+      if (tweak.csbl && typeof window.__csbl === 'function') window.__csbl(tweak.csbl)
+      // SOLO last, so a drums-only comparison hears nothing but the change.
+      if (tweak.solo && typeof window.soloChannel === 'function') window.soloChannel(tweak.solo)
       return 'ok'
     } catch (e) { return String(e) }
   }, variant.tweak)

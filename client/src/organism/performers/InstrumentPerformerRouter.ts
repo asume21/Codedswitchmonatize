@@ -29,7 +29,9 @@ const MODE_ROLE_DEFAULTS: Partial<Record<string, Partial<Record<PerformerRole, I
   heat: {
     // Brass remains available explicitly, but no longer becomes the automatic
     // identity of a Trap beat; the captured trumpet-like riff read as dated GM.
-    lead: ['piano', 'rhodes', 'guitar-clean', 'violin'],
+    // Lindsey-Stirling direction for Trap: make the bowed lead the identity,
+    // while keeping the other colors available through explicit selection.
+    lead: ['violin', 'guitar-clean', 'rhodes', 'piano'],
     bass: ['bass-synth', 'bass-electric'],
     chord: ['rhodes', 'piano', 'guitar-clean', 'strings'],
   },

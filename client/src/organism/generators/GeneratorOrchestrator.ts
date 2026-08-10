@@ -45,6 +45,7 @@ import {
 } from './featuredPerformance'
 import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
 import { compileCsbl } from '../csbl/csblToOrganism'
+import { LINDSEY_TRAP_RECIPE } from '../csbl/csbl-vibes'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -1432,6 +1433,15 @@ export class GeneratorOrchestrator {
     return result
   }
 
+  /** Apply one explicit CSBL band recipe through the existing generator paths. */
+  auditionCsblRecipe(sources: readonly string[] = LINDSEY_TRAP_RECIPE): {
+    ok: boolean
+    results: Array<import('../csbl/csblToOrganism').CsblAudition>
+  } {
+    const results = sources.map((source) => this.auditionCsbl(source))
+    return { ok: results.every((result) => result.ok), results }
+  }
+
   /** Hand every role back to its improviser. */
   clearCsbl(): void {
     this.drum.unlockPattern()
@@ -1440,6 +1450,9 @@ export class GeneratorOrchestrator {
     this.regenerateAll()
     orgLog('csbl:cleared', {})
   }
+
+  /** How far the drums push and drag. 1 = as authored, 0 = metronomic. */
+  setDrumHumanize(amount: number): void { this.drum.setHumanizeAmount(amount) }
 
   lockDrumPattern(): void   { this.drum.lockPattern() }
   unlockDrumPattern(): void { this.drum.unlockPattern() }
