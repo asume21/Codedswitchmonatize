@@ -44,7 +44,7 @@ import {
   type FeaturedPerformance,
 } from './featuredPerformance'
 import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
-import { compileCsblToDrumHits } from '../csbl/csblToOrganism'
+import { compileCsbl } from '../csbl/csblToOrganism'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
  *  and the orchestrator's five generators. */
@@ -1401,18 +1401,29 @@ export class GeneratorOrchestrator {
    * improviser's. Returns the compile result so a caller can report the failure
    * instead of silently hearing nothing.
    */
-  auditionCsblDrums(source: string): import('../csbl/csblToOrganism').CsblCompileResult {
-    const result = compileCsblToDrumHits(source)
+  auditionCsbl(source: string): import('../csbl/csblToOrganism').CsblAudition {
+    const result = compileCsbl(source)
     if (!result.ok) return result
-    this.drum.loadGeneratedPattern(result.hits, true)
-    this.drum.lockPattern()
-    orgLog('csbl:audition', { role: result.role, vibe: result.vibe, hits: result.hits.length })
+
+    if (result.kind === 'drums') {
+      this.drum.loadGeneratedPattern(result.hits, true)
+      this.drum.lockPattern()
+      orgLog('csbl:audition', { kind: 'drums', role: result.role, vibe: result.vibe, hits: result.hits.length })
+      return result
+    }
+
+    // Bass: the pattern supplies RHYTHM only. BassGenerator fills the pitch from the
+    // Conductor's rootMidi at build time, so an auditioning bass line still follows
+    // the chord changes instead of hammering one note (spec 13.6).
+    this.bass.setCsblRhythm(result.steps)
+    orgLog('csbl:audition', { kind: 'bass', role: result.role, vibe: result.vibe, steps: result.steps.length })
     return result
   }
 
-  /** Hand the drums back to the improviser. */
-  clearCsblDrums(): void {
+  /** Hand every role back to its improviser. */
+  clearCsbl(): void {
     this.drum.unlockPattern()
+    this.bass.setCsblRhythm(null)
     this.regenerateAll()
     orgLog('csbl:cleared', {})
   }

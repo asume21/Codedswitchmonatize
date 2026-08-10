@@ -4,7 +4,7 @@ import { compileDrumBlockToHits, drumPatternToDrumHits } from '../csbl-compiler-
 import { bassPatternToHits } from '../csbl-compiler-bass'
 import { parseChordPattern } from '../csbl-chords-degrees'
 import { tokenizePattern } from '../csbl-lexer'
-import { compileCsblToDrumHits } from '../csblToOrganism'
+import { compileCsblToDrumHits, compileCsbl } from '../csblToOrganism'
 import { CSBL_VIBES, vibeToSource, vibeRoles, vibesForRole } from '../csbl-vibes'
 import { DrumInstrument } from '../../generators/types'
 
@@ -167,5 +167,58 @@ describe('CSBL vibes — the half a human uses', () => {
     expect(vibeRoles()).toContain('hats')
     expect(vibesForRole('hats').length).toBeGreaterThan(2)
     expect(vibeToSource(CSBL_VIBES[0])).toMatch(/^\w+\.\w+\("[^"]+"\)$/)
+  })
+})
+
+describe('CSBL routes by role — drums and bass from one entry point', () => {
+  it('routes a drum vibe to hits', () => {
+    const r = compileCsbl('trap.hats("2-step")')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.kind).toBe('drums')
+    if (r.kind !== 'drums') return
+    expect(r.hits.every(h => h.instrument === DrumInstrument.Hat)).toBe(true)
+  })
+
+  it('routes a bass vibe to RHYTHM steps that carry no pitch', () => {
+    // The whole point of 13.6: a CSBL bass pattern says WHEN. The Conductor
+    // supplies the note, so an auditioning bass still follows the chord changes
+    // instead of hammering one pitch.
+    const r = compileCsbl('trap.bass("808-slide")')
+    expect(r.ok).toBe(true)
+    if (!r.ok || r.kind !== 'bass') { expect.fail('expected a bass audition'); return }
+    expect(r.steps.length).toBeGreaterThan(0)
+    for (const s of r.steps) {
+      expect(s.time).toMatch(/^\d+:\d+:\d+$/)
+      expect(s).not.toHaveProperty('pitch')
+    }
+  })
+
+  it('carries slide and sustain through to the generator', () => {
+    const glide = compileCsbl('trap.bass("glide")')
+    expect(glide.ok).toBe(true)
+    if (!glide.ok || glide.kind !== 'bass') return
+    expect(glide.steps.some(s => s.glide)).toBe(true)
+
+    const wob = compileCsbl('phonk.bass("wobble")')
+    if (!wob.ok || wob.kind !== 'bass') return
+    expect(wob.steps.some(s => s.sustain)).toBe(true)
+  })
+
+  it('still names an unplayable role instead of going quiet', () => {
+    // With an explicit pattern so it gets PAST the vibe lookup and reaches the
+    // role check — melody has no entries in the library yet, and that lookup
+    // failure has its own (also loud) message.
+    const r = compileCsbl('trap.melody("dark arp") >> "c4---e4---g4---c4---"')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error).toMatch(/not playable yet/)
+  })
+
+  it('names an unknown VIBE distinctly from an unplayable role', () => {
+    const r = compileCsbl('trap.melody("dark arp")')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error).toMatch(/not in the library/)
   })
 })

@@ -2622,7 +2622,7 @@ export function OrganismCommandCenter() {
                   >back to the band</button>
                 )}
               </div>
-              {vibeRoles().filter(r => r !== 'bass').map(role => (
+              {vibeRoles().map(role => (
                 <div key={role} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4, alignItems: 'center' }}>
                   <span style={{ fontSize: 9, color: C.text3, width: 38, flexShrink: 0 }}>{role}</span>
                   {vibesForRole(role).map(v => {

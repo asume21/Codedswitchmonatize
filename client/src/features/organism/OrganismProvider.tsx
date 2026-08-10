@@ -1093,12 +1093,16 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     const csbl = (source: string) => {
       const orchestr = orchestrRef.current
       if (!orchestr) return { ok: false, hits: [], error: 'Organism not started' }
-      const result = orchestr.auditionCsblDrums(source)
+      const result = orchestr.auditionCsbl(source)
       if (!result.ok) console.warn('[CSBL]', result.error)
-      else console.info('[CSBL] playing', result.hits.length, 'hits —', result.genre + '.' + result.role, `"${result.vibe}"`)
+      else {
+        const count = result.kind === 'drums' ? result.hits.length : result.steps.length
+        const unit = result.kind === 'drums' ? 'hits' : 'bass steps'
+        console.info('[CSBL] playing', count, unit, '—', `${result.genre}.${result.role}`, `"${result.vibe}"`)
+      }
       return result
     }
-    csbl.clear = () => { orchestrRef.current?.clearCsblDrums(); return 'drums back to the improviser' }
+    csbl.clear = () => { orchestrRef.current?.clearCsbl(); return 'back to the improvisers' }
     ;(window as any).__csbl = csbl
 
     return () => { delete (window as any).__orgDebug; delete (window as any).__csbl }
@@ -3789,12 +3793,12 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     auditionCsbl: (source: string) => {
       const orchestr = orchestrRef.current
       if (!orchestr) return { ok: false, error: 'Start the Organism first' }
-      const result = orchestr.auditionCsblDrums(source)
+      const result = orchestr.auditionCsbl(source)
       setCsblActive(result.ok ? source : null)
-      return { ok: result.ok, error: result.error }
+      return result.ok ? { ok: true } : { ok: false, error: result.error }
     },
     clearCsbl: () => {
-      orchestrRef.current?.clearCsblDrums()
+      orchestrRef.current?.clearCsbl()
       setCsblActive(null)
     },
     beatModeEnabled,
