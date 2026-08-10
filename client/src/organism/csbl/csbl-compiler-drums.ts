@@ -40,11 +40,11 @@ function mapDrumChar(ch: string): { instrument: DrumInstrument; velocity: number
  * Throws on invalid pattern length or unknown symbols.
  */
 export function drumPatternToDrumHits(pattern: string, barIndex = 0): DrumHit[] {
-  const full = normalizeToBar(pattern);
+  const { full, grid } = normalizeToBar(pattern);
   const hits: DrumHit[] = [];
   for (let i = 0; i < full.length; i++) {
     const ch = full[i];
-    const time = stepToTime(barIndex, i);
+    const time = stepToTime(barIndex, i, grid);
 
     if (ch === "-") continue;
     if (ch === "*") {

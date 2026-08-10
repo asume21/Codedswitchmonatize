@@ -13,7 +13,8 @@
  * It is also the source of the vibe BUTTONS. One list, two interfaces — name it or
  * click it. Adding an entry here makes it playable and clickable with no UI work.
  *
- * Patterns are 1 char = one sixteenth, and must divide 16 (see csbl-time).
+ * Pattern LENGTH picks the grid (see csbl-time): a divisor of 16 is straight
+ * sixteenths, and 3/6/12/24 is a triplet bar. No extra syntax, nothing to forget.
  */
 
 export interface CsblVibe {
@@ -28,18 +29,19 @@ export interface CsblVibe {
 /**
  * From the spec's Section 9 training data.
  *
- * TWO ENTRIES WERE CORRECTED, and it is worth being explicit rather than quietly
- * "fixing" the author's data:
- *   - drill.snare "slide" was "--s>---" (7 chars) — 7 cannot divide 16. Padded to 8.
- *   - boom_bap.hats "loose" was "t--t--t--t--" (12 chars) — also indivisible. It reads
- *     as a triplet/swung feel, which the current grammar has no notation for, so it is
- *     written here as the nearest 16-step equivalent (hats every 3 steps). If real
- *     triplets are wanted they need their own notation, not a length that does not fit.
+ * ONE ENTRY WAS CORRECTED, and one turned out not to need it:
+ *   - drill.snare "slide" was "--s>---" (7 chars). 7 fits no grid — straight wants a
+ *     divisor of 16, triplet wants 3/6/12/24. Padded to 8.
+ *   - boom_bap.hats "loose" was "t--t--t--t--" (12 chars) and was briefly rewritten to
+ *     16. That was wrong: 12 is a TRIPLET bar. The original was correct and the
+ *     grammar was missing triplets. Restored verbatim.
  */
 export const CSBL_VIBES: CsblVibe[] = [
   // ── trap ────────────────────────────────────────────────────────────
   { genre: 'trap', role: 'hats',  vibe: '2-step',       pattern: 't---t---t---t---' },
-  { genre: 'trap', role: 'hats',  vibe: 'triplet-roll', pattern: 't*t*t*t*t*t*t*t*' },
+  // 12 chars = eighth-note triplets, three per beat. This is the trap hat feel;
+  // it could not be written at all while the grammar was sixteenths-only.
+  { genre: 'trap', role: 'hats',  vibe: 'triplet-roll', pattern: 'tttttttttttt' },
   { genre: 'trap', role: 'kick',  vibe: 'bounce',       pattern: 'x---x-x-' },
   { genre: 'trap', role: 'snare', vibe: 'rimshot',      pattern: '--s---s-' },
   { genre: 'trap', role: 'snare', vibe: 'ghost',        pattern: '--s-s---' },
@@ -52,7 +54,7 @@ export const CSBL_VIBES: CsblVibe[] = [
   // ── boom bap ────────────────────────────────────────────────────────
   { genre: 'boom_bap', role: 'kick',  vibe: 'classic',  pattern: 'x-----x-' },
   { genre: 'boom_bap', role: 'snare', vibe: 'crunch',   pattern: '--s---s-' },
-  { genre: 'boom_bap', role: 'hats',  vibe: 'loose',    pattern: 't--t--t--t--t---' },  // was 12 chars
+  { genre: 'boom_bap', role: 'hats',  vibe: 'loose',    pattern: 't--t--t--t--' },  // 12 = triplet bar, as originally written
 
   // ── chords ──────────────────────────────────────────────────────────
   // DEGREES, never literal chord names (spec 13.6). The spec's Section 9 wrote

@@ -38,10 +38,11 @@ describe('CSBL drums — trap.hats("2-step")', () => {
     expect(hits.every(h => h.instrument === DrumInstrument.Kick)).toBe(true)
   })
 
-  it('REJECTS a pattern length that cannot divide the bar', () => {
-    // boom_bap.hats "loose" is 12 chars. Silently truncating or padding it would be
-    // a rhythm bug that looks like a taste problem.
-    expect(() => drumPatternToDrumHits('t--t--t--t--')).toThrow(/does not divide/)
+  it('REJECTS a pattern length that fits no grid', () => {
+    // 7 is neither a divisor of 16 nor a triplet count. Silently truncating or
+    // padding it would be a rhythm bug that looks like a taste problem.
+    expect(() => drumPatternToDrumHits('--s>---')).toThrow(/fits no grid/)
+    expect(() => drumPatternToDrumHits('ttttt')).toThrow(/fits no grid/)
   })
 
   it('subdivides the PREVIOUS hit, not a hardcoded hat', () => {
@@ -106,9 +107,9 @@ describe('CSBL -> Organism bridge', () => {
     expect(badRole.ok).toBe(false)
     expect(badRole.error).toMatch(/not playable/)
 
-    const badLen = compileCsblToDrumHits('trap.hats("loose") >> "t--t--t--t--"')
+    const badLen = compileCsblToDrumHits('trap.hats("loose") >> "ttttt"')
     expect(badLen.ok).toBe(false)
-    expect(badLen.error).toMatch(/does not divide/)
+    expect(badLen.error).toMatch(/fits no grid/)
 
     const badHeader = compileCsblToDrumHits('nonsense')
     expect(badHeader.ok).toBe(false)
@@ -268,5 +269,43 @@ describe('CSBL chords — degrees that actually sound like their name', () => {
       expect(d.rootOffset).toBeLessThan(12)
       expect(d).not.toHaveProperty('note')
     }
+  })
+})
+
+describe('CSBL triplets — the grid comes from the pattern LENGTH', () => {
+  it('places 12 steps as three per beat, not sixteen', () => {
+    // Trap hat triplets. This could not be written at all while the grammar was
+    // sixteenths-only — a 12-char pattern was rejected as "does not divide 16".
+    const hits = drumPatternToDrumHits('tttttttttttt')
+    expect(hits).toHaveLength(12)
+    // Three even steps inside beat 0: 0, 1.333, 2.667 sixteenths.
+    expect(hits[0].time).toBe('0:0:0')
+    expect(hits[1].time).toBe('0:0:1.333')
+    expect(hits[2].time).toBe('0:0:2.667')
+    expect(hits[3].time).toBe('0:1:0')
+    // ...and the last one still lands inside the bar.
+    expect(hits[11].time).toBe('0:3:2.667')
+  })
+
+  it('boom_bap "loose" was a TRIPLET pattern all along', () => {
+    // Originally "t--t--t--t--" (12 chars) and briefly rewritten to 16 to make it
+    // fit. The data was right; the grammar was missing triplets.
+    const r = compileCsbl('boom_bap.hats("loose")')
+    expect(r.ok).toBe(true)
+    if (!r.ok || r.kind !== 'drums') return
+    expect(r.hits).toHaveLength(4)
+    expect(r.hits.map(h => h.time)).toEqual(['0:0:0', '0:1:0', '0:2:0', '0:3:0'])
+  })
+
+  it('still reads straight patterns as sixteenths', () => {
+    const hits = drumPatternToDrumHits('t---t---t---t---')
+    expect(hits.map(h => h.time)).toEqual(['0:0:0', '0:1:0', '0:2:0', '0:3:0'])
+  })
+
+  it('tiles a short triplet pattern across the bar', () => {
+    // 3 steps -> one beat of triplets, repeated to fill four beats.
+    const hits = drumPatternToDrumHits('ttt')
+    expect(hits).toHaveLength(12)
+    expect(hits[3].time).toBe('0:1:0')
   })
 })

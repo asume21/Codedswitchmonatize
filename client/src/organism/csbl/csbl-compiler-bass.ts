@@ -19,16 +19,15 @@ export type BassHit = {
 
 import { stepToTime, normalizeToBar } from './csbl-time'
 
-const normalizePattern = normalizeToBar
 
 export function bassPatternToHits(pattern: string, barIndex = 0): BassHit[] {
-  const full = normalizePattern(pattern);
+  const { full, grid } = normalizeToBar(pattern);
   const hits: BassHit[] = [];
   let lastHitIndex = -1;
 
   for (let i = 0; i < full.length; i++) {
     const ch = full[i];
-    const time = stepToTime(barIndex, i);
+    const time = stepToTime(barIndex, i, grid);
 
     if (ch === "-") continue;
     if (ch === "*") {
