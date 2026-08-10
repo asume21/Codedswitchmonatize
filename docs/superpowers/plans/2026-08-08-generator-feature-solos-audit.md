@@ -333,3 +333,23 @@ audio-capable model listens for timbre, pocket, and “fire.”
 
 Artifacts: `marketing/output/fire-beats/hiphop-highconf-final/` and
 `marketing/output/hip-hop-quality/hiphop-highconf-final.json`.
+
+### 2026-08-10 — blind A/B mix check
+
+Used the existing Claude-authored `scripts/render-ab-variants.mjs`; no new
+generator or parallel tuning system was introduced. With seed 42, the user
+preferred the current control over the harmony/brightness variant and marked
+the stronger, gentler, and texture-only variants as indistinguishable. This
+rules out the tested mix trims as the cause of the weak result. The next work
+must target composition/phrase identity in the existing melody/chord paths,
+not another gain or brightness layer.
+
+### 2026-08-10 — first composition correction
+
+The feature-mode A/B also produced no winner: current, melody-led, and
+melody-plus-chords were indistinguishable; chord-led lost to current. The
+existing melody path therefore received one bounded Trap/hip-hop correction:
+its scale vocabulary is now minor pentatonic and its pitch contours use a
+small hook-oriented call/answer bank rather than the generic scale walk. This
+is a change inside `MelodyImproviser`, not a duplicate generator. TypeScript
+and the eight existing MelodyImproviser tests pass.

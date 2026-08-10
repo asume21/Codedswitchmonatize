@@ -123,3 +123,13 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Compiled .js twins emitted next to their .ts source. A stray setup.js beside
+# setup.ts can shadow the TypeScript at resolution time and is never wanted here —
+# vitest and tsx run the .ts directly. Produced 2026-08-10 by a temporary tsc build.
+/server/**/*.js
+!/server/**/*.config.js
+/shared/**/*.js
+/dist-csbl/
+/dist-csbl-esm/
+tsconfig.csbl*.json

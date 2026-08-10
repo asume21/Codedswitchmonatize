@@ -176,7 +176,9 @@ function isClassical(subGenre: string): boolean {
   return subGenre === 'classical' || subGenre === 'jazz' || subGenre === 'gospel'
 }
 function isElectronic(subGenre: string): boolean {
-  return subGenre === 'electronic' || subGenre === 'house' || subGenre === 'dnb' || subGenre === 'edm' || subGenre === 'techno'
+  // Trap lead feature: reuse the existing virtuosic/electronic contour bank
+  // (fast arps and wide leaps) for the requested Lindsey-Stirling direction.
+  return subGenre === 'electronic' || subGenre === 'house' || subGenre === 'dnb' || subGenre === 'edm' || subGenre === 'techno' || subGenre === 'trap'
 }
 function isPop(subGenre: string): boolean {
   return subGenre === 'pop' || subGenre === 'k-pop' || subGenre === 'j-pop' || subGenre === 'r&b-soul' || subGenre === 'soul'
