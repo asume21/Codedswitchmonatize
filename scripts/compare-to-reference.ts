@@ -187,12 +187,14 @@ function main(): void {
   gap('dynamic range dB', ours.dynamicRangeDb, target.dynamicRangeDb, ' dB')
 
   console.log('\n  <<< marks a gap over 15% relative — those are the dimensions to close first.')
-  console.log('  Absolute LOUDNESS (rmsDb) is still not a target: the references are finished')
-  console.log('  exports and ours is a pre-export capture, so compare SHAPE not level.')
-  console.log('  But crest/dynamic-range ARE fair targets — these are type beats made by')
-  console.log('  underground producers with a normal mix chain, not major-label masters, and')
-  console.log('  the Organism has its own master bus (comp -> saturator -> limiter -> clip).')
-  console.log('  A crest factor ~2x theirs means OUR master chain is not delivering density.')
+  console.log('  Absolute LOUDNESS (rmsDb) is not a target — capture gain is arbitrary.')
+  console.log('  Everything else IS. The references are finished, mastered instrumentals')
+  console.log('  (from Voloco) meant to be rapped over, and there is NO mastering stage after')
+  console.log('  the Organism: what it plays in the headphones is the finished product. It')
+  console.log('  competes with these directly, so it has to reach this density on its own.')
+  console.log('  WARNING: density is NOT more limiting. This repo already tried three')
+  console.log('  compressors in series and it squashed the kick/snare transients flat. The')
+  console.log('  job is raising the AVERAGE without flattening the hits.')
 }
 
 main()
