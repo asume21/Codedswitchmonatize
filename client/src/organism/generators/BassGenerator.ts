@@ -302,29 +302,14 @@ export class BassGenerator extends GeneratorBase {
     })
   }
 
-  /**
-   * The register the bass plays in. Drops by octaves rather than clamping so the
-   * pitch class is preserved.
-   *
-   * MEASURED 2026-08-09 against audio/reference-beats: the bass STEM had only
-   * 6.6% of its energy below 80 Hz and 35.4% in 80-250, where the reference beats
-   * sit at 8.7% / 17.0%. The window was a single MIDI 33-48 for every genre —
-   * 55 Hz to 130 Hz — so most notes' fundamentals landed ABOVE the sub band
-   * entirely. That is not an 808, it is a midrange bass, and no channel EQ
-   * downstream can add a fundamental that was never generated. It is also what
-   * the user heard as "the bass seems way muddy": weight in the wrong octave.
-   *
-   * 808 genres now play MIDI 26-38 (D1 37 Hz - D2 73 Hz) so the fundamental lands
-   * in or just above the sub band, which is where the references put it. Genres
-   * playing a real upright/electric keep the original register — dropping those
-   * an octave would sound wrong, not heavy.
-   */
+  // Map a chord's root MIDI (Conductor parses at octave 4 → MIDI 60+) into the
+  // bass register MIDI 33-48. Drops by octaves rather than clamping so the
+  // pitch class is preserved.
   private bassRootFromMidi(midi: number): number {
-    const [lo, hi] = this.use808Active ? [26, 38] : [33, 48]
     let root = midi
-    while (root > hi) root -= 12
-    while (root < lo) root += 12
-    return Math.max(lo, Math.min(hi, root))
+    while (root > 48) root -= 12
+    while (root < 33) root += 12
+    return Math.max(33, Math.min(48, root))
   }
 
   // Conductor Part 3 V3 — the bass plays the SAME root the voicing engine
