@@ -94,7 +94,38 @@ const HEADER = [
   'onsSD'.padStart(7),
 ].join(' ')
 
+/**
+ * --stems <captureDir>: analyse every stem in a capture folder.
+ *
+ * The full mix says the band is in the wrong octave; it cannot say WHICH player put
+ * it there. Drums, bass, chords and texture all deposit energy in 80-250 Hz, so
+ * fixing the full-mix number by guessing at one channel's EQ is how you push a
+ * problem sideways. This attributes it.
+ */
+function stemsMode(dir: string): void {
+  const wavs = fs.readdirSync(dir).filter((f) => /\.wav$/i.test(f)).sort()
+  console.log(`\nPer-stem band energy — ${dir}\n`)
+  console.log(['STEM'.padEnd(10), 'rmsDb'.padStart(7), 'sub'.padStart(7), 'bass'.padStart(7),
+    'lowMid'.padStart(7), 'hiMid'.padStart(7), 'high'.padStart(7), 'crest'.padStart(6)].join(' '))
+  console.log('─'.repeat(62))
+  for (const f of wavs) {
+    const pcm = decode(path.join(dir, f), 0, SLICE_SECONDS)
+    if (pcm.length < RATE) continue
+    const r = analyzePcm(pcm, RATE)
+    const stem = (f.match(/-(\w+)-seed/)?.[1] ?? f).padEnd(10)
+    console.log([stem, fmt(r.rmsDb).padStart(7), pct(r.bandEnergy.sub).padStart(7),
+      pct(r.bandEnergy.bass).padStart(7), pct(r.bandEnergy.lowMid).padStart(7),
+      pct(r.bandEnergy.highMid).padStart(7), pct(r.bandEnergy.high).padStart(7),
+      fmt(r.crestFactor, 2).padStart(6)].join(' '))
+  }
+  console.log('\n  Read the BASS row: reference beats put ~8.7% in sub and ~17% in bass.')
+  console.log('  A bass stem whose own energy sits in 80-250 rather than 20-80 is the')
+  console.log('  wrong octave at the SOURCE — no channel EQ downstream can fix that.')
+}
+
 function main(): void {
+  const stemsIdx = process.argv.indexOf('--stems')
+  if (stemsIdx !== -1) { stemsMode(process.argv[stemsIdx + 1]); return }
   if (!fs.existsSync(REF_DIR)) { console.error(`missing ${REF_DIR}`); process.exit(1) }
   const refs = fs.readdirSync(REF_DIR).filter((f) => /\.(mp3|wav|m4a|flac|ogg)$/i.test(f))
   // One WAV/MP3 pair of the same track would double-count it.

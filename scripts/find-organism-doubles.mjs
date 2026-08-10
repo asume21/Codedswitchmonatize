@@ -72,7 +72,15 @@ for (const file of organismFiles) {
     let callers = 0
     const callRe = new RegExp(`[.\\s(]${name}\\s*\\(`)
     for (const [f, t] of source) {
-      if (f === file) continue
+      if (f === file) {
+        // Same-file callers COUNT. Skipping them produced a false positive on
+        // BassGenerator.setSubLevel, which IS called internally
+        // (`this.setSubLevel(use808 ? 0 : 0.5)`) and is not dead at all.
+        // Exclude only the definition lines themselves.
+        const body = t.split('\n').filter((l) => !CONTROL.test(l)).join('\n')
+        if (callRe.test(body)) callers++
+        continue
+      }
       if (callRe.test(t)) callers++
     }
     if (callers === 0) deadControls.push({ file: rel(file), line: i + 1, name })
