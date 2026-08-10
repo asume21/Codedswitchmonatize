@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canPerformRole,
   conformChordToInstrument,
   conformNoteToInstrument,
   midiToNote,
   noteToMidi,
   selectInstrumentPerformer,
 } from '../InstrumentPerformerRouter'
+import { INSTRUMENT_PERFORMERS } from '../InstrumentRegistry'
 import { INSTRUMENT_PERFORMERS_BY_ID } from '../InstrumentRegistry'
 
 describe('InstrumentPerformerRouter', () => {
@@ -135,5 +137,34 @@ describe('selectInstrumentPerformer — the chord role can always play a chord',
       }
     }
     expect(ids.size).toBeGreaterThan(0)
+  })
+})
+
+describe('the chord role can never be monophonic — even when explicitly asked', () => {
+  it('ignores an explicit MONO pick for chords and falls back to something polyphonic', () => {
+    // The guard filtered the automatic candidate list, but the explicitId branch
+    // returned BEFORE it — so the picker could not choose a trumpet for chords,
+    // while choosing one in the dropdown collapsed every chord to its top note.
+    const mono = INSTRUMENT_PERFORMERS.find(
+      (p) => p.polyphony === 'mono' && p.roles.includes('chord'),
+    )
+    if (!mono) return // no mono instrument declares 'chord' — nothing to guard
+    const picked = selectInstrumentPerformer({
+      role: 'chord', mode: 'gravel', energy: 0.6,
+      explicitId: mono.id,
+    })
+    expect(picked.polyphony).not.toBe('mono')
+  })
+
+  it('still honours an explicit mono pick for the LEAD role, where one line is the point', () => {
+    const mono = INSTRUMENT_PERFORMERS.find(
+      (p) => p.polyphony === 'mono' && p.roles.includes('lead'),
+    )
+    if (!mono) return
+    const picked = selectInstrumentPerformer({
+      role: 'lead', mode: 'gravel', energy: 0.6,
+      explicitId: mono.id,
+    })
+    expect(picked.id).toBe(mono.id)
   })
 })

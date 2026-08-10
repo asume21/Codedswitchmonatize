@@ -19,7 +19,7 @@ import { VoiceMonitorWindow } from './VoiceMonitorWindow'
 import { useOrganismShortcuts } from './useOrganismShortcuts'
 import { OState } from '../../organism/state/types'
 import { useStudioStore } from '../../stores/useStudioStore'
-import { INSTRUMENT_PERFORMERS } from '../../organism/performers'
+import { INSTRUMENT_PERFORMERS, canPerformRole } from '../../organism/performers'
 import type { InstrumentPerformerId, PerformerRole } from '../../organism/performers'
 import { getSessionSalt, setFreeplaySeed, isSeedPinned } from '../../organism/generators/freeplay/utils'
 
@@ -230,7 +230,11 @@ function InstrumentSelect({
   soloed?: boolean
   onSolo?: () => void
 }) {
-  const options = INSTRUMENT_PERFORMERS.filter(profile => profile.roles.includes(role))
+  // Same rule the selector uses, so the dropdown can never offer an instrument
+  // that cannot play the role. Filtering on roles alone still listed the five
+  // MONOPHONIC instruments under Chords, and picking one collapsed every chord
+  // to its top note — "back to one note sally".
+  const options = INSTRUMENT_PERFORMERS.filter(profile => canPerformRole(profile, role))
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

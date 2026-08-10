@@ -96,13 +96,41 @@ const AUTO_TASTE_SAFE_BY_ROLE: Partial<Record<PerformerRole, ReadonlySet<Instrum
   chord: new Set(['piano', 'rhodes', 'guitar-nylon', 'guitar-clean', 'strings', 'choir', 'organ']),
 }
 
+/**
+ * Can this instrument actually hold this role? ONE rule, used by the automatic
+ * selector AND by the UI dropdown, so the two can never disagree.
+ *
+ * THE CHORD ROLE MUST BE ABLE TO SOUND A CHORD (2026-08-05, re-broken 2026-08-09).
+ * conformChordToInstrument collapses a chord to its single top note when the
+ * profile is polyphony:'mono'. Five monophonic instruments — violin, cello,
+ * trumpet, trombone, french-horn — declare the 'chord' role, so landing on one
+ * DELETES the harmony: one note per hit until the instrument changes.
+ *
+ * The original fix filtered only the automatic candidate list, and the dropdown
+ * kept offering all five. The user picked one and heard it immediately: "back to
+ * one note sally". Fixing the router alone would have silently overridden his
+ * choice, which is worse — a control that lies. The instrument simply must not
+ * be offered for a role it cannot play.
+ *
+ * A trumpet cannot comp chords; that is a category error, not a voicing choice.
+ * They stay fully available for the LEAD role, where a single line is the point.
+ */
+export function canPerformRole(
+  profile: InstrumentPerformerProfile,
+  role: PerformerSelectionContext['role'],
+): boolean {
+  if (!profile.roles.includes(role)) return false
+  if (role === 'chord' && profile.polyphony === 'mono') return false
+  return true
+}
+
 export function selectInstrumentPerformer(ctx: PerformerSelectionContext): InstrumentPerformerProfile {
   if (ctx.explicitId) {
     const explicit = INSTRUMENT_PERFORMERS_BY_ID.get(ctx.explicitId)
-    if (explicit && explicit.roles.includes(ctx.role)) return explicit
+    if (explicit && canPerformRole(explicit, ctx.role)) return explicit
   }
 
-  // THE CHORD ROLE MUST BE ABLE TO SOUND A CHORD (2026-08-05).
+  // See canPerformRole — THE CHORD ROLE MUST BE ABLE TO SOUND A CHORD (2026-08-05).
   // conformChordToInstrument collapses a chord to its single top note when the
   // profile is polyphony:'mono'. Five monophonic instruments — violin, cello,
   // trumpet, trombone, french-horn — declared the 'chord' role, so whenever the
@@ -117,9 +145,7 @@ export function selectInstrumentPerformer(ctx: PerformerSelectionContext): Instr
   // choice. They stay fully available for the LEAD role, where a single line is
   // the point. (If we later want brass on the harmony it should be an
   // arpeggiation or a section patch, not a silently-collapsed block.)
-  const allCandidates = INSTRUMENT_PERFORMERS.filter(profile =>
-    profile.roles.includes(ctx.role) &&
-    (ctx.role !== 'chord' || profile.polyphony !== 'mono'))
+  const allCandidates = INSTRUMENT_PERFORMERS.filter(profile => canPerformRole(profile, ctx.role))
   const modePool = MODE_ROLE_DEFAULTS[ctx.mode]?.[ctx.role]
   const preferred = modePool ?? [DEFAULT_BY_ROLE[ctx.role]]
   // Wildcard start: the preferred pool becomes advisory, not a gate — the mild
