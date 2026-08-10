@@ -73,14 +73,7 @@ export class Real808BassSampler {
           this.sampler = new Tone.Sampler({
             urls: { [rootNote]: buffer },
             attack: 0.001,
-            // 2.5s was longer than a BAR at trap tempo (1.67s at 144), on a
-            // POLYPHONIC sampler — so every note kept ringing under the next two,
-            // at different pitches. That is a second bass line, and the user heard
-            // it as "something else playing too". A real 808 is monophonic: the
-            // new note cuts the old one, and that cut is part of the sound.
-            // 0.9s leaves a real tail while releaseAll() below ends it on the next
-            // hit rather than letting three pitches stack.
-            release: 0.9,
+            release: 2.5,
             volume: this.volume,
           })
           this.sampler.connect(this.output)
@@ -115,11 +108,6 @@ export class Real808BassSampler {
     if (!this.sampler || this.state !== 'loaded') return false
     try {
       const noteStr = typeof note === 'number' ? Tone.Frequency(note, 'midi').toNote() : note
-      // MONOPHONIC 808: end whatever is still ringing at exactly the moment the
-      // new note lands. Tone.Sampler is polyphonic and has no mono mode, so this
-      // is the cut. Without it the previous note's tail sounds UNDER the new one
-      // on a different pitch — audibly a second bass line, not a fatter one.
-      this.sampler.releaseAll(time)
       this.sampler.triggerAttackRelease(noteStr, duration, time, Math.max(0, Math.min(1, velocity)))
       return true
     } catch (err) {
