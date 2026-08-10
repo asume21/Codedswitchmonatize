@@ -5,6 +5,7 @@ import { bassPatternToHits } from '../csbl-compiler-bass'
 import { parseChordPattern } from '../csbl-chords-degrees'
 import { tokenizePattern } from '../csbl-lexer'
 import { compileCsblToDrumHits } from '../csblToOrganism'
+import { CSBL_VIBES, vibeToSource, vibeRoles, vibesForRole } from '../csbl-vibes'
 import { DrumInstrument } from '../../generators/types'
 
 // CSBL slice 1 — spec Section 13.9. The language compiles DOWN to the structures the
@@ -117,5 +118,54 @@ describe('CSBL -> Organism bridge', () => {
   it('never throws — the caller is an audition, not a build step', () => {
     expect(() => compileCsblToDrumHits('!!!')).not.toThrow()
     expect(() => compileCsblToDrumHits('')).not.toThrow()
+  })
+})
+
+// ── The vocabulary: name a feel, no pattern ─────────────────────────────
+// This is spec 13.9's definition of done, written the way it was actually
+// specified. The original slice used the explicit-pattern form instead, so the
+// missing lookup never failed a test.
+describe('CSBL vibes — the half a human uses', () => {
+  it('resolves trap.hats("2-step") with NO pattern supplied', () => {
+    const block = parseCSBL('trap.hats("2-step")')
+    expect(block.pattern).toBe('t---t---t---t---')
+
+    const hits = compileDrumBlockToHits({ role: block.role, pattern: block.pattern })
+    expect(hits).toHaveLength(4)
+    expect(hits.every(h => h.instrument === DrumInstrument.Hat)).toBe(true)
+    expect(hits.every(h => h.velocity <= 0.55)).toBe(true)
+  })
+
+  it('plays through the audition bridge from the short form', () => {
+    const r = compileCsblToDrumHits('boom_bap.kick("classic")')
+    expect(r.ok).toBe(true)
+    expect(r.hits.every(h => h.instrument === DrumInstrument.Kick)).toBe(true)
+  })
+
+  it('an explicit pattern still overrides the vibe', () => {
+    const block = parseCSBL('trap.hats("2-step") >> "t-t-t-t-t-t-t-t-"')
+    expect(block.pattern).toBe('t-t-t-t-t-t-t-t-')
+  })
+
+  it('says WHICH vibe is unknown rather than playing nothing', () => {
+    const r = compileCsblToDrumHits('trap.hats("does-not-exist")')
+    expect(r.ok).toBe(false)
+    expect(r.error).toMatch(/not in the library/)
+  })
+
+  it('every authored vibe actually compiles', () => {
+    // The spec's own training data contained two patterns whose length cannot
+    // divide a 16-step bar (7 and 12 chars). This locks the whole library so a
+    // future addition cannot reintroduce one.
+    for (const v of CSBL_VIBES) {
+      const src = vibeToSource(v)
+      expect(() => parseCSBL(src), `${src} failed to parse`).not.toThrow()
+    }
+  })
+
+  it('exposes roles and vibes for rendering buttons', () => {
+    expect(vibeRoles()).toContain('hats')
+    expect(vibesForRole('hats').length).toBeGreaterThan(2)
+    expect(vibeToSource(CSBL_VIBES[0])).toMatch(/^\w+\.\w+\("[^"]+"\)$/)
   })
 })

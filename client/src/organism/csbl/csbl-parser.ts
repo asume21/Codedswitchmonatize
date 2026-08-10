@@ -6,6 +6,7 @@
  */
 
 import { tokenizePattern } from "./csbl-lexer";
+import { lookupVibePattern } from "./csbl-vibes";
 
 export type CSBLBlock = {
   genre: string;
@@ -28,10 +29,27 @@ export function parseCSBL(input: string): CSBLBlock {
   const role = headerMatch[2];
   const vibe = headerMatch[3];
 
-  // Pattern: >> "..."
+  // Pattern: >> "..."  — OPTIONAL. When it is absent the VIBE NAME resolves it from
+  // the vocabulary, which is the whole point of the language for a human:
+  //
+  //   trap.hats("2-step")                        <- name a feel
+  //   trap.hats("2-step") >> "t---t---t---t---"  <- or spell the grid out
+  //
+  // Spec Section 13.9 defined slice 1 as the FIRST form. The lookup was referenced by
+  // Section 11's wrapper and never built, and the tests used the second form, so
+  // nothing failed.
   const patternRe = />>\s*"([^"]+)"/;
   const patternMatch = input.match(patternRe);
-  const pattern = patternMatch ? patternMatch[1] : undefined;
+  const pattern = patternMatch
+    ? patternMatch[1]
+    : lookupVibePattern(genre, role, vibe) ?? undefined;
+
+  if (!patternMatch && !pattern) {
+    throw new Error(
+      `No pattern for ${genre}.${role}("${vibe}") — the vibe is not in the library, ` +
+      `so spell it out with >> "…" or add it to csbl-vibes.ts`,
+    );
+  }
 
   // Params: {k: v, ...}
   const paramsRe = /\{([^}]+)\}/;

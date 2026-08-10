@@ -246,6 +246,11 @@ export interface OrganismContextValue {
   // freestyling over: the change is announced, the floor holds.
   beatModeEnabled:        boolean
   setBeatModeEnabled:     (enabled: boolean) => void
+  // CSBL — play a named vibe on the drums. The vocabulary is the interface; the
+  // grid notation is for the machine. Returns why it failed rather than silence.
+  auditionCsbl:           (source: string) => { ok: boolean; error?: string }
+  clearCsbl:              () => void
+  csblActive:             string | null
   loopsModeEnabled:       boolean
   setLoopsModeEnabled:    (enabled: boolean) => void
   isLoopsLoading:         boolean

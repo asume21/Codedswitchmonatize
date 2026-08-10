@@ -330,6 +330,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
   // Ref mirror so quickStart/swapPreset closures read the LIVE value.
   const songModeEnabledRef = useRef(true)
   const [beatModeEnabled, setBeatModeEnabledState] = useState(false)
+  /** The CSBL line currently auditioning on the drums, for button highlighting. */
+  const [csblActive, setCsblActive] = useState<string | null>(null)
   const beatModeEnabledRef = useRef(false)
   // Needed by applyStablePlaybackDefaults (empty deps — it can only read refs).
   // Without it a preset swap would silently reset the band to steady, which is the
@@ -3783,6 +3785,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // produced beat.
       orchestrRef.current?.setVoiceReactive(enabled)
     },
+    csblActive,
+    auditionCsbl: (source: string) => {
+      const orchestr = orchestrRef.current
+      if (!orchestr) return { ok: false, error: 'Start the Organism first' }
+      const result = orchestr.auditionCsblDrums(source)
+      setCsblActive(result.ok ? source : null)
+      return { ok: result.ok, error: result.error }
+    },
+    clearCsbl: () => {
+      orchestrRef.current?.clearCsblDrums()
+      setCsblActive(null)
+    },
     beatModeEnabled,
     setBeatModeEnabled: (enabled: boolean) => {
       setBeatModeEnabledState(enabled)
@@ -3903,7 +3917,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
     recordingBarsElapsed,
     latchMode, isPatternLocked,
     hatDensity, kickVelocity, drumsVolume, bassVolume, melodyVolume, chordVolume, textureVolume, melodyFocusEnabled, textureEnabled,
-    reactToVoiceEnabled, songModeEnabled, beatModeEnabled, loopsModeEnabled, isLoopsLoading,
+    reactToVoiceEnabled, songModeEnabled, beatModeEnabled, csblActive, loopsModeEnabled, isLoopsLoading,
     instrumentAssignments, setOrganismInstrument, featuredPerformance, setFeaturedPerformance,
     guestSecondsRemaining, isGuestNudgeVisible, isGuestLocked, dismissGuestNudge,
     shareSession, isSharingSession, lastSharedPostUrl,

@@ -20,6 +20,7 @@ import { useOrganismShortcuts } from './useOrganismShortcuts'
 import { OState } from '../../organism/state/types'
 import { useStudioStore } from '../../stores/useStudioStore'
 import { INSTRUMENT_PERFORMERS, canPerformRole } from '../../organism/performers'
+import { vibeRoles, vibesForRole, vibeToSource } from '../../organism/csbl/csbl-vibes'
 import type { InstrumentPerformerId, PerformerRole } from '../../organism/performers'
 import { getSessionSalt, setFreeplaySeed, isSeedPinned } from '../../organism/generators/freeplay/utils'
 
@@ -340,6 +341,7 @@ export function OrganismCommandCenter() {
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
     beatModeEnabled, setBeatModeEnabled,
+    auditionCsbl, clearCsbl, csblActive,
     loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
     loopRowSources, setHybridModeEnabled, setLoopRowSource,
     sampleLeadRow, setSampleLeads,
@@ -2602,6 +2604,51 @@ export function OrganismCommandCenter() {
             borderBottom: `0.5px solid ${C.border}`,
             flexShrink: 0,
           }}>
+            {/* CSBL vibes — the vocabulary, as buttons. The list comes straight from
+                csbl-vibes.ts, so adding a vibe there makes it clickable with no UI
+                work. Naming a feel is the point; the grid notation is for the
+                machine. Drums only for now — bass/chords are not wired yet. */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: C.text3, marginBottom: 5 }}>
+                BEAT LANGUAGE <span style={{ color: C.text3 }}>— click a feel, hear it</span>
+                {csblActive && (
+                  <button
+                    onClick={() => clearCsbl()}
+                    style={{
+                      marginLeft: 8, padding: '2px 7px', borderRadius: 4, fontSize: 9,
+                      fontWeight: 700, border: `1px solid ${C.border2}`,
+                      background: 'transparent', color: C.text3, cursor: 'pointer',
+                    }}
+                  >back to the band</button>
+                )}
+              </div>
+              {vibeRoles().filter(r => r !== 'bass').map(role => (
+                <div key={role} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4, alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, color: C.text3, width: 38, flexShrink: 0 }}>{role}</span>
+                  {vibesForRole(role).map(v => {
+                    const src = vibeToSource(v)
+                    const active = csblActive === src
+                    return (
+                      <button
+                        key={src}
+                        onClick={() => {
+                          const r = auditionCsbl(src)
+                          if (!r.ok) console.warn('[CSBL]', r.error)
+                        }}
+                        title={`${src}   →   ${v.pattern}`}
+                        style={{
+                          padding: '3px 7px', borderRadius: 5, fontSize: 9, fontWeight: 700,
+                          border: `1px solid ${active ? C.cyan : C.border2}`,
+                          background: active ? `${C.cyan}22` : 'transparent',
+                          color: active ? C.cyan : C.text3, cursor: 'pointer',
+                        }}
+                      >{v.label ?? v.vibe}</button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
             <div style={{ ...label11, marginBottom: 7 }}>Instruments</div>
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 10, color: C.text3, marginBottom: 5 }}>
