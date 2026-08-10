@@ -175,8 +175,6 @@ function main(): void {
     const flag = relative > good ? '  <<<' : ''
     console.log(`  ${name.padEnd(24)} ours ${fmt(mine, 2).padStart(8)}${unit}   ref ${fmt(theirs, 2).padStart(8)}${unit}   diff ${(d >= 0 ? '+' : '') + fmt(d, 2)}${flag}`)
   }
-  gap('crest factor', ours.crestFactor, target.crestFactor)
-  gap('dynamic range dB', ours.dynamicRangeDb, target.dynamicRangeDb, ' dB')
   gap('spectral centroid', ours.spectralCentroidHz, target.spectralCentroidHz, ' Hz')
   gap('sub 20-80Hz', ours.bandEnergy.sub * 100, target.sub * 100, ' %')
   gap('bass 80-250Hz', ours.bandEnergy.bass * 100, target.bass * 100, ' %')
@@ -185,9 +183,16 @@ function main(): void {
   gap('high 6k-20k', ours.bandEnergy.high * 100, target.high * 100, ' %')
   gap('onset timing SD', ours.onsetTimingStdDevMs, target.onsetSD, ' ms')
 
+  gap('crest factor', ours.crestFactor, target.crestFactor)
+  gap('dynamic range dB', ours.dynamicRangeDb, target.dynamicRangeDb, ' dB')
+
   console.log('\n  <<< marks a gap over 15% relative — those are the dimensions to close first.')
-  console.log('  NOTE: loudness (rmsDb) is deliberately NOT flagged — the references are')
-  console.log('  mastered commercial tracks and ours is a raw capture. Compare SHAPE, not level.')
+  console.log('  Absolute LOUDNESS (rmsDb) is still not a target: the references are finished')
+  console.log('  exports and ours is a pre-export capture, so compare SHAPE not level.')
+  console.log('  But crest/dynamic-range ARE fair targets — these are type beats made by')
+  console.log('  underground producers with a normal mix chain, not major-label masters, and')
+  console.log('  the Organism has its own master bus (comp -> saturator -> limiter -> clip).')
+  console.log('  A crest factor ~2x theirs means OUR master chain is not delivering density.')
 }
 
 main()
