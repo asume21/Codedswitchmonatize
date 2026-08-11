@@ -178,62 +178,99 @@ function buildPlayer(pairs, seed) {
     aId: p.a.id, aWav: p.a.wav, aLabel: p.a.label,
     bId: p.b.id, bWav: p.b.wav, bLabel: p.b.label,
   })))
+  // SYNCHRONISED A/B. Both takes play at once, in step, and the toggle swaps which
+  // one is audible WITHOUT moving the playhead. Press-play-A-then-play-B restarts
+  // from the top each time and puts a gap between them, so by the time B starts you
+  // are comparing it to a memory. Flipping mid-bar is how the difference becomes
+  // obvious. It loops, so there is no 12-second cliff to race against.
   return `<!doctype html><meta charset="utf-8"><title>Blind A/B — seed ${seed}</title>
 <style>
  :root{color-scheme:dark}
- body{background:#0b0d10;color:#e8edf2;font:16px/1.5 system-ui;margin:0;padding:32px;max-width:720px;margin-inline:auto}
+ body{background:#0b0d10;color:#e8edf2;font:16px/1.5 system-ui;margin:0;padding:32px;max-width:760px;margin-inline:auto}
  h1{font-size:20px;margin:0 0 4px}
- p.sub{color:#8b98a5;margin:0 0 28px;font-size:14px}
+ p.sub{color:#8b98a5;margin:0 0 24px;font-size:14px}
  .card{background:#141920;border:1px solid #222b36;border-radius:14px;padding:22px;margin-bottom:18px}
- .row{display:flex;gap:14px;margin:16px 0}
- button{flex:1;padding:18px;border-radius:10px;border:1px solid #2c3846;background:#1b222c;color:#e8edf2;
-        font:700 17px system-ui;cursor:pointer}
- button:hover{background:#232c38}
- .pick{border-color:#3ba55d;background:#17301f}
- .pick:hover{background:#1d3d28}
+ .ab{display:flex;gap:0;margin:18px 0;border-radius:12px;overflow:hidden;border:1px solid #2c3846}
+ .ab button{flex:1;padding:26px;border:0;background:#1b222c;color:#7f8c9b;font:800 26px system-ui;cursor:pointer;transition:none}
+ .ab button.on{background:#0e4429;color:#7ee2a8}
+ .row{display:flex;gap:14px;margin:14px 0}
+ .row button{flex:1;padding:14px;border-radius:10px;border:1px solid #2c3846;background:#1b222c;color:#e8edf2;font:700 15px system-ui;cursor:pointer}
+ .row button:hover{background:#232c38}
+ .pick{border-color:#3ba55d}
  .prog{color:#8b98a5;font-size:13px}
+ .hint{color:#6b7885;font-size:12px;margin-top:10px}
  #done{display:none;background:#12261a;border-color:#2f6b41}
  code{background:#0b0d10;padding:2px 6px;border-radius:5px;font-size:13px}
+ .bar{height:4px;background:#222b36;border-radius:2px;overflow:hidden;margin-top:14px}
+ .bar i{display:block;height:100%;background:#3ba55d;width:0}
 </style>
 <h1>Which sounds better?</h1>
-<p class="sub">Same beat, same seed — one thing changed. You are not told which is which,
-and the order is shuffled. Play both, pick the better one. No right answer.</p>
+<p class="sub">Both takes are playing at the same time, in sync. Click <b>A</b> or <b>B</b>
+to switch which one you hear — it does not restart, so you can flip mid-bar and hear the
+difference straight away. It loops. Take as long as you like.</p>
 <div class="card" id="card">
   <div class="prog" id="prog"></div>
-  <div class="row">
-    <button id="playA">▶ Play A</button>
-    <button id="playB">▶ Play B</button>
+  <div class="ab">
+    <button id="tabA" class="on">A</button>
+    <button id="tabB">B</button>
   </div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="hint">Keyboard: <code>A</code> / <code>B</code> to switch, <code>space</code> to pause.</div>
   <div class="row">
     <button class="pick" id="pickA">A is better</button>
     <button class="pick" id="pickB">B is better</button>
   </div>
-  <div class="row"><button id="same" style="flex:0 0 auto;padding:10px 16px;font-size:14px">can't tell / same</button></div>
+  <div class="row"><button id="same" style="flex:0 0 auto;padding:10px 16px;font-size:13px">can't tell / same</button></div>
 </div>
 <div class="card" id="done"><b>Done — thank you.</b><div id="results" style="margin-top:12px"></div></div>
 <script>
 const PAIRS = ${data};
-let i = 0, results = [], flip = [], audio = null;
+let i = 0, results = [], flip = [], cur = 'A';
+let audioA = null, audioB = null;
 PAIRS.forEach(() => flip.push(Math.random() < 0.5));
 const $ = id => document.getElementById(id);
-function play(which){
-  if (audio) { audio.pause(); audio = null; }
-  const p = PAIRS[i]; const swapped = flip[i];
-  const file = (which === 'A') === !swapped ? p.aWav : p.bWav;
-  audio = new Audio(file); audio.play();
+
+function load(){
+  stop();
+  const p = PAIRS[i], swapped = flip[i];
+  // Blind: which physical file sits behind the A button is shuffled per pair.
+  audioA = new Audio(swapped ? p.bWav : p.aWav);
+  audioB = new Audio(swapped ? p.aWav : p.bWav);
+  for (const a of [audioA, audioB]) { a.loop = true; a.preload = 'auto'; }
+  cur = 'A'; applyGain();
+  Promise.all([audioA.play(), audioB.play()]).catch(() => {});
+  // Keep them locked together — if either drifts, pull B onto A's clock.
+  clearInterval(window.__syncTimer);
+  window.__syncTimer = setInterval(() => {
+    if (!audioA || !audioB) return;
+    if (Math.abs(audioA.currentTime - audioB.currentTime) > 0.06) audioB.currentTime = audioA.currentTime;
+    const d = audioA.duration || 1;
+    $('bar').style.width = ((audioA.currentTime / d) * 100).toFixed(1) + '%';
+  }, 120);
+}
+function applyGain(){
+  if (!audioA || !audioB) return;
+  audioA.volume = cur === 'A' ? 1 : 0;
+  audioB.volume = cur === 'B' ? 1 : 0;
+  $('tabA').className = cur === 'A' ? 'on' : '';
+  $('tabB').className = cur === 'B' ? 'on' : '';
+}
+function stop(){
+  clearInterval(window.__syncTimer);
+  for (const a of [audioA, audioB]) { if (a) { a.pause(); } }
+  audioA = audioB = null;
 }
 function choose(which){
   const p = PAIRS[i], swapped = flip[i];
   let chosen = which === 'same' ? 'same' : ((which === 'A') === !swapped ? p.aId : p.bId);
-  results.push({ pair: p.aId + ' vs ' + p.bId, chose: chosen, changed: p.bLabel });
-  if (audio) { audio.pause(); audio = null; }
+  results.push({ chose: chosen, changed: p.bLabel });
   i++; render();
 }
 function render(){
   if (i >= PAIRS.length){
+    stop();
     $('card').style.display='none'; $('done').style.display='block';
-    const box = $('results');
-    box.textContent = '';
+    const box = $('results'); box.textContent = '';
     for (const r of results){
       const line = document.createElement('div');
       const c = document.createElement('code'); c.textContent = r.chose;
@@ -250,12 +287,24 @@ function render(){
     return;
   }
   $('prog').textContent = 'Pair ' + (i+1) + ' of ' + PAIRS.length;
+  load();
 }
-$('playA').onclick=()=>play('A'); $('playB').onclick=()=>play('B');
-$('pickA').onclick=()=>choose('A'); $('pickB').onclick=()=>choose('B');
-$('same').onclick=()=>choose('same');
+$('tabA').onclick = () => { cur='A'; applyGain(); };
+$('tabB').onclick = () => { cur='B'; applyGain(); };
+$('pickA').onclick = () => choose('A');
+$('pickB').onclick = () => choose('B');
+$('same').onclick  = () => choose('same');
+addEventListener('keydown', e => {
+  if (e.key === 'a' || e.key === 'A') { cur='A'; applyGain(); }
+  if (e.key === 'b' || e.key === 'B') { cur='B'; applyGain(); }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!audioA) return;
+    if (audioA.paused) { audioA.play(); audioB.play(); } else { audioA.pause(); audioB.pause(); }
+  }
+});
 render();
 </script>`
 }
 
-main().catch((e) => { console.error('[ab] FATAL', e); process.exit(1) })
+main().catch((e) => { console.error("[ab] FATAL", e); process.exit(1) })
