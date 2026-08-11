@@ -706,8 +706,15 @@ export class BassGenerator extends GeneratorBase {
       return true
     }
 
+    // Pass the loop length EXPLICITLY. quantizeGridTime wraps times modulo this
+    // value and defaults to 4, which happens to match the '4m' loopEnd below — so
+    // bass is correct today by coincidence, not by construction. DrumGenerator had
+    // the same call without an argument and an 8-bar loopEnd, and played four bars
+    // of silence every pass as a result. Stating it keeps the two in step if the
+    // bass loop length ever changes.
+    const BASS_LOOP_BARS = 4
     const events = cappedNotes.map(n => ({
-      time: quantizeGridTime(n.time),
+      time: quantizeGridTime(n.time, BASS_LOOP_BARS),
       note: n.pitch,
       dur:  n.duration,
       vel:  n.velocity,
@@ -827,7 +834,7 @@ export class BassGenerator extends GeneratorBase {
     }, events)
 
     this.part.loop      = true
-    this.part.loopEnd   = '4m'
+    this.part.loopEnd   = `${BASS_LOOP_BARS}m`
     // Phase-aligned: continue the 4-bar pattern from the current musical bar
     // instead of restarting at bar 0 on every chord-change rebuild.
     this.part.start(startAt, livePartStartOffset(startAt, 4))

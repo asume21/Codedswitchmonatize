@@ -1725,7 +1725,35 @@ export class GeneratorOrchestrator {
       // STEADY means "plays through like a produced beat", so the band should
       // behave as if the performer is in flow: 0.55 lands in the Lead band
       // (>=0.5) while leaving REACTIVE mode's real, mic-driven depth untouched.
-      organism = { ...organism, flowDepth: Math.max(organism.flowDepth, 0.55) }
+      // ...and FLOOR THE ALIVENESS ENVELOPE, which was the other half again.
+      //
+      // Every generator's level curve switches on the organism STATE:
+      //   Dormant   -> 0                      (literal silence)
+      //   Awakening -> 0.25 * awakeningProgress
+      //   Breathing -> 0.56 * breathingWarmth
+      //   Flow      -> 0.88
+      // So when the creature settles, the BAND STOPS. Measured live in jam mode:
+      // the drum Part stayed `started` with 117 events and never rebuilt, while its
+      // output gain rode 0.31 -> 0.00 for five seconds -> 0.26 -> 0.53 -> 0.00.
+      // Rendered, that is 2.5s of beat, 5.25s of digital silence, 2.5s of beat.
+      // The user: "no way you can build a beat from drums that start and stop".
+      //
+      // The Part was never the problem, which is why instrumenting it found
+      // nothing — the notes fire the whole time into a gain of zero.
+      //
+      // STEADY means "plays through like a produced beat", so the envelope may
+      // still SHAPE dynamics but may not silence the band: Dormant is lifted to
+      // Breathing, and warmth/progress are floored. Breathing now bottoms out at
+      // 0.56 * 0.85 = 0.48 rather than zero. REACTIVE mode keeps the real,
+      // mic-driven envelope untouched — a live band settling when nobody raps is
+      // the whole point there.
+      organism = {
+        ...organism,
+        flowDepth: Math.max(organism.flowDepth, 0.55),
+        current: organism.current === OState.Dormant ? OState.Breathing : organism.current,
+        breathingWarmth: Math.max(organism.breathingWarmth, 0.85),
+        awakeningProgress: Math.max(organism.awakeningProgress, 1),
+      }
     }
 
     // Throttle: physics fires at ~30fps but generators only need ~14fps.

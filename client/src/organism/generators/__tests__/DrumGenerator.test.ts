@@ -11,6 +11,9 @@ vi.mock('tone', () => createToneMock())
 
 import * as Tone from 'tone'
 import { DrumGenerator } from '../DrumGenerator'
+// Imported AFTER vi.mock('tone') — CompositionClock imports Tone, and a top-level
+// import above the mock breaks vitest's hoisting.
+import { quantizeGridTime } from '../CompositionClock'
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -181,6 +184,20 @@ describe('DrumGenerator', () => {
     // the backbeat plus the CLOSED hat pulse (42) and drops the loud decoration:
     // perc and open-hat accents.
     expect(events.map(event => event.pitch)).toEqual([36, 38, 42])
+  })
+
+
+  it('keeps hits in the LAST bar of a long pattern — the loop must not fold', () => {
+    // quantizeGridTime wraps times modulo its loopBars argument and DEFAULTS TO 4.
+    // Called without it, an 8-bar pattern folded onto bars 0-3 while loopEnd stayed
+    // at 8 bars, so the Part played four bars of drums and four bars of SILENCE
+    // forever. Measured live: loopEnd 13.33s with hitsPerBar [22,26,22,26].
+    // The user: "no way you can build a beat from drums that start and stop".
+    const eightBars = quantizeGridTime('7:0:0', 8)
+    expect(eightBars.startsWith('7:')).toBe(true)
+
+    // ...and the default really does fold, which is why it must be passed.
+    expect(quantizeGridTime('7:0:0').startsWith('3:')).toBe(true)
   })
 
   it('keeps default runtime pocket tight instead of dragging the kit late', async () => {

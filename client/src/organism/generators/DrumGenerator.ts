@@ -410,6 +410,16 @@ export class DrumGenerator extends GeneratorBase {
       sectionDensity: Number(this.sectionDensity.toFixed(2)),
       msSinceRebuild: Math.round(performance.now() - this.lastRebuildTime),
       samples: this.sampledKit?.getDebug() ?? null,
+      // WHERE the hits sit inside the loop window. A Part can be `started` with a
+      // healthy event count and full gain and still produce silence for bars at a
+      // time if its events are clustered in part of the window — the loop dutifully
+      // replays the empty half. Counting events per bar is the only way to see it;
+      // every other field looks perfectly healthy while it happens.
+      hitsPerBar: this.currentHits.reduce<number[]>((acc, h) => {
+        const bar = Number(h.time.split(':')[0])
+        if (Number.isFinite(bar)) acc[bar] = (acc[bar] ?? 0) + 1
+        return acc
+      }, []),
     }
   }
 
@@ -583,9 +593,31 @@ export class DrumGenerator extends GeneratorBase {
     
     const thinned = hits.filter(h => keepAtDensity(h, this.sectionDensity))
 
+    // THE PATTERN'S OWN LENGTH, computed BEFORE quantizing — because quantizeGridTime
+    // WRAPS times modulo its loopBars argument, which defaults to 4.
+    //
+    // Calling it without that argument folded every 8-bar pattern onto bars 0-3 while
+    // loopEnd was still set to 8 bars from the unwrapped hits. The Part then played
+    // four bars of drums and four bars of SILENCE, forever. Measured live: loopEnd
+    // 13.33s (8 bars at 144) with hitsPerBar [22,26,22,26] — ninety-six events, none
+    // of them past bar 3. The user heard it as "drums that start and stop", and no
+    // beat can be built on that.
+    //
+    // It hid well: the Part reports started, 96 events, gain 0.88, activity 0.88,
+    // state FLOW. Every diagnostic reads healthy while the loop faithfully replays
+    // its empty half. It also destroyed the section turnaround, which
+    // buildFreeplaySectionDrumHits writes on the LAST bar — folded on top of bar 3.
+    //
+    // ChordGenerator and MelodyGenerator already pass their loop length here; only
+    // the rhythm section did not.
+    const patternBars = Math.max(
+      1,
+      ...hits.map(h => Number(h.time.split(':')[0]) + 1).filter(Number.isFinite),
+    )
+
     const quantizedHits = thinned.map(h => ({
       ...h,
-      time: quantizeGridTime(h.time),
+      time: quantizeGridTime(h.time, patternBars),
     }))
     this.currentHits = [...quantizedHits]   // snapshot for lockPattern()
     this.broadcastToBeatMaker(quantizedHits)
@@ -672,10 +704,8 @@ export class DrumGenerator extends GeneratorBase {
     // would replay the first cycle forever, so the turnaround would never sound.
     // Measured from the RAW hits, not the density-thinned set, so a sparse
     // section whose last bar is all perc can't silently shorten the loop.
-    const patternBars = Math.max(
-      1,
-      ...hits.map(h => Number(h.time.split(':')[0]) + 1).filter(Number.isFinite),
-    )
+    // (Computed once above, before quantizing — the quantizer needs it too, and the
+    // two MUST agree or the loop window and the events describe different lengths.)
     this.part.loop    = true
     this.part.loopEnd = `${patternBars}m`
     this.part.start(startAt, livePartStartOffset(startAt, patternBars))
