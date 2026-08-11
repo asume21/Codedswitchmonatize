@@ -1764,16 +1764,21 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         detail: { quickStart: true, presetId, preset: preset.label },
       }))
 
+      // Reference-first presets deliberately start from the recorded pack. This
+      // gives Violin Trap a stable musical foundation instead of immediately
+      // asking five live generators to compete. Existing Loops/Hybrid choices
+      // still retain their selected row switches when the user made one.
+      const useReferenceFoundation = preset.startWithReferenceLoops === true
       // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared.
       // PRESERVE the user's hybrid row switches: a bare reload defaulted to ALL
       // rows looping, which is how "I turned on Hybrid (texture only) and later
       // every row was on loop" happened — Hybrid piggybacks loopsModeEnabled,
       // so any preset apply re-loaded the pack with loopRows=undefined.
-      if (loopsModeEnabledRef.current) {
+      if (loopsModeEnabledRef.current || useReferenceFoundation) {
         const src = orchestr.getRowSources()
         const rows = (Object.keys(src) as Array<'drums' | 'bass' | 'melody' | 'chords' | 'texture'>)
           .filter(r => src[r] === 'loop')
-        void loadLoops(true, preset, rows.length > 0 ? rows : undefined)
+        await loadLoops(true, preset, rows.length > 0 ? rows : undefined)
       } else {
         orchestr.clearLoopPack()
       }
@@ -1809,7 +1814,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
         setIsStarting(false)
       }
     }
-  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts])
+  }, [inputSource, transcriptionEnabled, scheduleSilentStartRecovery, applyStablePlaybackDefaults, seedSongRamp, waitForStartupParts, loadLoops])
 
   /**
    * Live preset swap — change the beat's genre + BPM without restarting.
@@ -1938,14 +1943,18 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // listener and is idempotent, so re-dispatching just re-applies voicing.
       window.dispatchEvent(new CustomEvent('organism:started', { detail: { presetId } }))
 
+      // Keep a reference-first preset on its recorded foundation through a live
+      // preset swap too. If the user already selected a Hybrid row set, preserve
+      // that exact set; otherwise activate the whole reference pack.
+      const useReferenceFoundation = preset.startWithReferenceLoops === true
       // Reload loops if loops mode is enabled, otherwise ensure loop playback is cleared.
       // Same row-preserving reload as quickStart — see the comment there (the
       // "all rows silently flipped to loop" hybrid bug).
-      if (loopsModeEnabledRef.current) {
+      if (loopsModeEnabledRef.current || useReferenceFoundation) {
         const src = orchestr.getRowSources()
         const rows = (Object.keys(src) as Array<'drums' | 'bass' | 'melody' | 'chords' | 'texture'>)
           .filter(r => src[r] === 'loop')
-        void loadLoops(true, preset, rows.length > 0 ? rows : undefined)
+        await loadLoops(true, preset, rows.length > 0 ? rows : undefined)
       } else {
         orchestr.clearLoopPack()
       }
@@ -1957,7 +1966,7 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       endSwap({ presetId, error: err instanceof Error ? err.message : String(err) })
       setError(err instanceof Error ? err.message : 'Preset swap failed')
     }
-  }, [quickStart, applyStablePlaybackDefaults, waitForStartupParts])
+  }, [quickStart, applyStablePlaybackDefaults, waitForStartupParts, loadLoops])
 
   /**
    * Real Beat — curated one-click start for the given rap sub-genre.

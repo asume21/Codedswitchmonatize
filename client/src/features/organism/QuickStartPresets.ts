@@ -31,6 +31,10 @@ export interface QuickStartPreset {
   icon:        string
   physics:     PhysicsState
   loopPackId?: string    // ID of the LoopPack to load when Loops Mode is ON
+  /** Start from the recorded loop pack rather than all five live generators.
+   * Use this only for a curated reference preset where the recorded foundation
+   * is the product decision, not as a workaround for a broken generator. */
+  startWithReferenceLoops?: boolean
   /** Explicit band members. A preset NAMED after an instrument must audibly
    *  produce that instrument — before this field, "Violin Trap" only set
    *  mode=Glow, where violin was one of four router candidates re-rolled every
@@ -117,6 +121,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     // the recorded Violin Trap / Orchestral Trap reference without copying it
     // verbatim.
     loopPackId: 'cymatics-trap-150',
+    // The reference-first listening path: recorded trap foundation at native
+    // tempo; individual rows can still be switched back to BAND for audition.
+    startWithReferenceLoops: true,
     label:    'Violin Trap',
     genre:    'Reference / Orchestral Trap',
     bpm:      130,

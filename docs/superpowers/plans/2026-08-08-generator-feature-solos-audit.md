@@ -353,3 +353,20 @@ its scale vocabulary is now minor pentatonic and its pitch contours use a
 small hook-oriented call/answer bank rather than the generic scale walk. This
 is a change inside `MelodyImproviser`, not a duplicate generator. TypeScript
 and the eight existing MelodyImproviser tests pass.
+
+### 2026-08-10 — reference-first stability path
+
+The immediate problem is playback stability, not another new melody system. A
+capture exposed two independent causes of silence in generated drums: an
+eight-bar pattern was quantized into a four-bar event window, and the steady
+playback envelope could fall to zero. The regression-tested fixes are in the
+shared generator path.
+
+For the Violin Trap reference preset, the app now starts from the existing
+`cymatics-trap-150` recorded loop pack at its native BPM. This is a deliberate
+foundation: the user can switch any individual row back to `BAND` to audition a
+live generator, rather than starting five live sources together. No duplicate
+sequencer or new sound engine was added. The preset test asserts this contract;
+the DrumGenerator regression suite passes. A full production Vite build began
+successfully but exceeded the local one-minute command window before completion,
+so it must not be recorded as a completed build verification.
