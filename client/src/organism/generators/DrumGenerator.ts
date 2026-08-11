@@ -328,6 +328,31 @@ export class DrumGenerator extends GeneratorBase {
 
   getLockedHits(): DrumHit[] { return this.lockedHits }
 
+  /**
+   * Replace ONE voice's hits and keep the rest of the kit playing.
+   *
+   * A CSBL vibe names one part — trap.hats("2-step") is a hi-hat instruction, not a
+   * whole kit. Loading its four hats as the entire pattern replaced the kick and
+   * snare with nothing, so selecting a hat vibe produced four quiet closed hats a
+   * bar and read as "I can't even hear any drums".
+   *
+   * Merging also means vibes STACK: pick a kick, then a hat, then a snare, and you
+   * are assembling a kit one named part at a time — which is what the vocabulary is
+   * for. Falls back to the live pattern when nothing is locked yet.
+   */
+  applyRoleHits(instrument: DrumInstrument, hits: DrumHit[]): void {
+    const base = this.lockedHits.length > 0 ? this.lockedHits : this.currentHits
+    const kept = base.filter(h => h.instrument !== instrument)
+    const merged = [...kept, ...hits].sort((a, b) => {
+      const bar = (t: string) => Number(t.split(':')[0]) || 0
+      const beat = (t: string) => Number(t.split(':')[1]) || 0
+      const sub = (t: string) => Number(t.split(':')[2]) || 0
+      return (bar(a.time) - bar(b.time)) || (beat(a.time) - beat(b.time)) || (sub(a.time) - sub(b.time))
+    })
+    this.loadGeneratedPattern(merged, true)
+    this.lockPattern()
+  }
+
   // ── Reactive mutation methods (Section 05) ────────────────────────
 
   setHatDensityMultiplier(multiplier: number): void {

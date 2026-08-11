@@ -12,6 +12,7 @@ import type { PhysicsState }   from '../physics/types'
 import type { OrganismState }  from '../state/types'
 import { OState }              from '../state/types'
 import type { GeneratorOutput, MelodyBehavior, DrumHit } from './types'
+import { DrumInstrument } from './types'
 import { MusicalDirector }     from '../state/MusicalDirector'
 import type { MusicalState, HipHopSubGenre } from '../state/MusicalState'
 import { SUBGENRE_BPM } from '../state/MusicalState'
@@ -45,6 +46,14 @@ import {
 } from './featuredPerformance'
 import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
 import { compileCsbl } from '../csbl/csblToOrganism'
+
+/** CSBL role name -> the kit voice it controls. */
+const CSBL_ROLE_TO_DRUM: Record<string, DrumInstrument | undefined> = {
+  kick:  DrumInstrument.Kick,
+  snare: DrumInstrument.Snare,
+  hats:  DrumInstrument.Hat,
+  perc:  DrumInstrument.Perc,
+}
 import { LINDSEY_TRAP_RECIPE } from '../csbl/csbl-vibes'
 
 /** The five loop "rows" the arranger controls — matches LoopPack.loops keys
@@ -1407,9 +1416,16 @@ export class GeneratorOrchestrator {
     if (!result.ok) return result
 
     if (result.kind === 'drums') {
-      this.drum.loadGeneratedPattern(result.hits, true)
-      this.drum.lockPattern()
-      orgLog('csbl:audition', { kind: 'drums', role: result.role, vibe: result.vibe, hits: result.hits.length })
+      // Replace only THIS voice and leave the rest of the kit playing. A vibe names
+      // one part: trap.hats("2-step") is a hi-hat instruction, not a whole kit.
+      // Loading its four hats as the entire pattern wiped the kick and snare, so
+      // picking a hat vibe gave four quiet closed hats a bar — "i cant even hear any
+      // drums if i select 2 step". Merging also lets vibes STACK, so a kit can be
+      // assembled one named part at a time.
+      const voice = CSBL_ROLE_TO_DRUM[result.role]
+      if (!voice) return { ok: false, role: result.role, error: `No drum voice for role "${result.role}"` }
+      this.drum.applyRoleHits(voice, result.hits)
+      orgLog('csbl:audition', { kind: 'drums', role: result.role, voice, vibe: result.vibe, hits: result.hits.length })
       return result
     }
 
