@@ -180,6 +180,23 @@ async function renderVariant(browser, variant) {
 
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true })
+
+  // REBUILD_ONLY=1 regenerates ab.html from captures already on disk. The audio
+  // takes ~4 minutes to render and is the expensive half; a fault in the PLAYER
+  // (autoplay blocking, a broken control) should not cost a re-capture, and
+  // re-rendering would also change the takes being compared.
+  if (process.env.REBUILD_ONLY === '1') {
+    const present = VARIANTS
+      .map((v) => ({ ...v, wav: fs.existsSync(path.join(OUT_DIR, `${v.id}.wav`)) ? `${v.id}.wav` : null }))
+      .filter((v) => v.wav)
+    if (!present.length) { log('no wavs in', OUT_DIR); process.exit(1) }
+    const ctl = present.find((r) => r.id === 'control')
+    if (!ctl) { log('no control.wav — cannot pair'); process.exit(1) }
+    const prs = present.filter((r) => r.id !== 'control').map((r) => ({ a: ctl, b: r }))
+    fs.writeFileSync(path.join(OUT_DIR, 'ab.html'), buildPlayer(prs, SEED))
+    log(`rebuilt ${prs.length} pairs from disk. Open:  ${path.resolve(OUT_DIR, 'ab.html')}`)
+    return
+  }
   const browser = await chromium.launch({
     headless: true,
     args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream', '--mute-audio=false'],
@@ -235,6 +252,8 @@ to switch which one you hear — it does not restart, so you can flip mid-bar an
 difference straight away. It loops. Take as long as you like.</p>
 <div class="card" id="card">
   <div class="prog" id="prog"></div>
+  <div id="err" style="display:none;background:#3a1d1d;border:1px solid #6b2f2f;color:#ffb4b4;padding:10px 14px;border-radius:9px;margin:10px 0;font-size:13px"></div>
+  <button id="start" style="display:block;width:100%;padding:18px;margin:10px 0;border-radius:10px;border:1px solid #3ba55d;background:#0e4429;color:#7ee2a8;font:800 17px system-ui;cursor:pointer">▶ Start playback</button>
   <div class="ab">
     <button id="tabA" class="on">A</button>
     <button id="tabB">B</button>
@@ -263,7 +282,15 @@ function load(){
   audioB = new Audio(swapped ? p.aWav : p.bWav);
   for (const a of [audioA, audioB]) { a.loop = true; a.preload = 'auto'; }
   cur = 'A'; applyGain();
-  Promise.all([audioA.play(), audioB.play()]).catch(() => {});
+  // Autoplay is BLOCKED without a user gesture — and hardest on file://, which is
+  // exactly how this page is opened. The old code called play() on script load and
+  // swallowed the rejection with an empty catch, so the whole bench was silent and
+  // said nothing about why. Never start without a gesture, and never hide the error.
+  Promise.all([audioA.play(), audioB.play()]).catch((e) => {
+    $('err').textContent = 'Playback blocked by the browser (' + e.name + '). Click Start.';
+    $('err').style.display = 'block';
+    $('start').style.display = 'block';
+  });
   // Keep them locked together — if either drifts, pull B onto A's clock.
   clearInterval(window.__syncTimer);
   window.__syncTimer = setInterval(() => {
@@ -314,6 +341,18 @@ function render(){
   $('prog').textContent = 'Pair ' + (i+1) + ' of ' + PAIRS.length;
   load();
 }
+// The gesture that unblocks audio. After the first successful start the browser
+// trusts the page for the rest of the session, so later pairs autoplay fine.
+$('start').onclick = () => {
+  if (!audioA || !audioB) return;
+  Promise.all([audioA.play(), audioB.play()]).then(() => {
+    $('start').style.display = 'none';
+    $('err').style.display = 'none';
+  }).catch((e) => {
+    $('err').textContent = 'Still blocked: ' + e.name + ' — ' + e.message;
+    $('err').style.display = 'block';
+  });
+};
 $('tabA').onclick = () => { cur='A'; applyGain(); };
 $('tabB').onclick = () => { cur='B'; applyGain(); };
 $('pickA').onclick = () => choose('A');
