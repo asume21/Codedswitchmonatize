@@ -20,6 +20,7 @@ import { bassPatternToHits } from './csbl-compiler-bass'
 import { parseChordPattern } from './csbl-chords-degrees'
 import { parseRomanNumeral } from '../generators/patterns/ChordProgressionBank'
 import type { ChordEvent } from '../generators/patterns/ChordProgressionBank'
+import { validateSoundParams, type CsblSoundParams } from './csbl-sound-design'
 
 export interface CsblCompileResult {
   ok: boolean
@@ -46,10 +47,13 @@ export interface CsblBassStep {
   sustain?: boolean
 }
 
+/** Validated Section 8 params, carried alongside the notes. Always present on a
+ *  successful compile (empty when the line declared none) so consumers never
+ *  have to distinguish "no params" from "not checked". */
 export type CsblAudition =
-  | { ok: true; kind: 'drums'; hits: DrumHit[]; role: string; vibe?: string; genre?: string }
-  | { ok: true; kind: 'bass'; steps: CsblBassStep[]; role: string; vibe?: string; genre?: string }
-  | { ok: true; kind: 'chords'; degrees: ChordEvent[]; role: string; vibe?: string; genre?: string }
+  | { ok: true; kind: 'drums'; hits: DrumHit[]; sound: CsblSoundParams; role: string; vibe?: string; genre?: string }
+  | { ok: true; kind: 'bass'; steps: CsblBassStep[]; sound: CsblSoundParams; role: string; vibe?: string; genre?: string }
+  | { ok: true; kind: 'chords'; degrees: ChordEvent[]; sound: CsblSoundParams; role: string; vibe?: string; genre?: string }
   | { ok: false; error: string; role?: string }
 
 const CHORD_ROLES = new Set(['chords', 'chord', 'harmony'])
@@ -65,10 +69,16 @@ export function compileCsbl(source: string): CsblAudition {
     const role = block.role
     if (!block.pattern) return { ok: false, role, error: 'No pattern — expected >> "…"' }
 
+    // Section 8 params are checked BEFORE any note is produced. A line with a bad
+    // param fails whole rather than playing and quietly ignoring half of what the
+    // user asked for — the parser previously accepted and discarded these.
+    const sound = validateSoundParams(role, block.params)
+    if (!sound.ok) return { ok: false, role, error: sound.error }
+
     if (BASS_ROLES.has(role)) {
       const steps = bassPatternToHits(block.pattern)
       if (steps.length === 0) return { ok: false, role, error: 'Pattern produced zero bass hits' }
-      return { ok: true, kind: 'bass', steps, role, vibe: block.vibe, genre: block.genre }
+      return { ok: true, kind: 'bass', steps, sound: sound.params, role, vibe: block.vibe, genre: block.genre }
     }
 
     if (CHORD_ROLES.has(role)) {
@@ -78,13 +88,13 @@ export function compileCsbl(source: string): CsblAudition {
       const tokens = parseChordPattern(block.pattern)
       const degrees = tokens.map((t) => parseRomanNumeral(t.raw))
       if (degrees.length === 0) return { ok: false, role, error: 'No chord degrees found' }
-      return { ok: true, kind: 'chords', degrees, role, vibe: block.vibe, genre: block.genre }
+      return { ok: true, kind: 'chords', degrees, sound: sound.params, role, vibe: block.vibe, genre: block.genre }
     }
 
     if (PLAYABLE_ROLES.has(role)) {
       const hits = compileDrumBlockToHits({ role, pattern: block.pattern })
       if (hits.length === 0) return { ok: false, role, error: 'Pattern produced zero hits' }
-      return { ok: true, kind: 'drums', hits, role, vibe: block.vibe, genre: block.genre }
+      return { ok: true, kind: 'drums', hits, sound: sound.params, role, vibe: block.vibe, genre: block.genre }
     }
 
     return {
