@@ -25,10 +25,15 @@ export class AudioAnalysisEngine {
   private silentSink: GainNode | null = null
   private stream: MediaStream | null = null
 
-  private readonly rmsAnalyzer: RmsAnalyzer
-  private readonly pitchDetector: PitchDetector
-  private readonly onsetDetector: OnsetDetector
-  private readonly spectralAnalyzer: SpectralAnalyzer
+  // Not readonly: these are rebuilt by syncSampleRate() once the real device
+  // rate is known. Every one of them turns samples into Hz, so a wrong rate is
+  // a wrong note, not a rounding error.
+  // The `!` is because buildAnalyzers() assigns all four and TypeScript cannot
+  // see through the helper call. The constructor does invoke it.
+  private rmsAnalyzer!: RmsAnalyzer
+  private pitchDetector!: PitchDetector
+  private onsetDetector!: OnsetDetector
+  private spectralAnalyzer!: SpectralAnalyzer
 
   private readonly callbacks: Set<AnalysisFrameCallback> = new Set()
 
@@ -65,33 +70,44 @@ export class AudioAnalysisEngine {
     }
     this.adaptiveVoiceThreshold = this.config.voiceActivityThreshold
 
-    this.rmsAnalyzer = new RmsAnalyzer(
-      this.config.sampleRate,
-      this.config.frameSize,
-      this.config.smoothingAttackMs,
-      this.config.smoothingReleaseMs,
-    )
-
-    this.pitchDetector = new PitchDetector(
-      this.config.sampleRate,
-      this.config.frameSize,
-      this.config.pitchMinHz,
-      this.config.pitchMaxHz,
-    )
-
-    this.onsetDetector = new OnsetDetector(
-      this.config.sampleRate,
-      this.config.frameSize,
-      this.config.onsetThreshold,
-    )
-
-    this.spectralAnalyzer = new SpectralAnalyzer(
-      this.config.sampleRate,
-      this.config.frameSize,
-    )
+    this.buildAnalyzers()
 
     this.frequencyData = new Float32Array(new ArrayBuffer(this.config.frameSize / 2 * Float32Array.BYTES_PER_ELEMENT))
     this.linearSpectrumData = new Float32Array(new ArrayBuffer(this.config.frameSize / 2 * Float32Array.BYTES_PER_ELEMENT))
+  }
+
+  /** Every analyzer converts samples to Hz, so all four share one rate. */
+  private buildAnalyzers(): void {
+    const sr = this.config.sampleRate
+    this.rmsAnalyzer = new RmsAnalyzer(
+      sr, this.config.frameSize, this.config.smoothingAttackMs, this.config.smoothingReleaseMs,
+    )
+    this.pitchDetector = new PitchDetector(
+      sr, this.config.frameSize, this.config.pitchMinHz, this.config.pitchMaxHz,
+    )
+    this.onsetDetector = new OnsetDetector(sr, this.config.frameSize, this.config.onsetThreshold)
+    this.spectralAnalyzer = new SpectralAnalyzer(sr, this.config.frameSize)
+  }
+
+  getSampleRate(): number {
+    return this.config.sampleRate
+  }
+
+  /**
+   * Adopt the rate the audio actually arrives at.
+   *
+   * The analyzers are built in the constructor, before any AudioContext exists,
+   * from DEFAULT_ANALYSIS_CONFIG's assumed 44100. But createMediaStreamSource
+   * resamples the mic INTO the shared context's rate, which is the device rate —
+   * 48000 on this hardware (measured 2026-07-16). So the analyzers were reading
+   * 48 kHz audio while doing 44.1 kHz arithmetic: every detected pitch came out
+   * flat by the rate ratio, about 1.5 semitones. Enough to name the wrong note.
+   */
+  syncSampleRate(rate: number): void {
+    if (!Number.isFinite(rate) || rate <= 0) return
+    if (rate === this.config.sampleRate) return
+    this.config = { ...this.config, sampleRate: rate }
+    this.buildAnalyzers()
   }
 
   async start(): Promise<void> {
@@ -99,9 +115,17 @@ export class AudioAnalysisEngine {
       return
     }
 
+    // NO forced sampleRate. This is the same rule audioContext.ts already applies
+    // to the OUTPUT, measured 2026-07-16: pinning 44100 when the hardware runs at
+    // 48000 makes Chrome resample every quantum forever, on exactly the audio
+    // thread whose missed deadlines ARE the crackle. Asking for it on the INPUT is
+    // worse, because on Windows input and output share one WASAPI device session —
+    // a mismatched input forces the whole device to renegotiate, which is what
+    // OrganismProvider's own comment calls "Windows suspends it due to audio
+    // session contention". That is why the ENTIRE mix distorted when the mic came
+    // on, not just the vocal. Let the browser hand us the device's own rate.
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        sampleRate: this.config.sampleRate,
         channelCount: 1,
         echoCancellation: true,
         noiseSuppression: true,
@@ -111,6 +135,10 @@ export class AudioAnalysisEngine {
 
     await resumeAudioContext()
     this.audioContext = getAudioContext()
+
+    // The stream is resampled INTO this context, so the context's rate is the one
+    // the analyzers will actually see — never the constant they were built with.
+    this.syncSampleRate(this.audioContext.sampleRate)
 
     await this.audioContext.audioWorklet.addModule('/organism/worklets/analysis-worklet-processor.js')
 
