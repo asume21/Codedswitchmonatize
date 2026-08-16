@@ -17,40 +17,17 @@ import {
 import { useLocation } from 'wouter';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { getAudioContext } from '@/lib/audioContext';
+import {
+  startMicMonitor,
+  stopMicMonitor,
+  setMonitorVolume as setMonitorGainVolume,
+} from '@/lib/micMonitor';
 import { useOrganismActivation, useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
 
-// ─── Mic Monitor (hear yourself in headphones) ───────────────────────────────
-let monitorStream: MediaStream | null = null;
-let monitorSource: MediaStreamAudioSourceNode | null = null;
-let monitorGain: GainNode | null = null;
-let monitorCtx: AudioContext | null = null;
-
-async function startMicMonitor(volume: number): Promise<void> {
-  if (monitorStream) return; // already running
-  monitorCtx = getAudioContext();
-  monitorStream = await navigator.mediaDevices.getUserMedia({ audio: {
-    echoCancellation: false,
-    noiseSuppression: false,
-    autoGainControl: false,
-  }});
-  monitorSource = monitorCtx.createMediaStreamSource(monitorStream);
-  monitorGain = monitorCtx.createGain();
-  monitorGain.gain.value = volume;
-  monitorSource.connect(monitorGain);
-  monitorGain.connect(monitorCtx.destination);
-}
-
-function stopMicMonitor(): void {
-  monitorGain?.disconnect();
-  monitorSource?.disconnect();
-  monitorStream?.getTracks().forEach(t => t.stop());
-  // Do NOT close the shared AudioContext
-  monitorStream = null;
-  monitorSource = null;
-  monitorGain = null;
-  monitorCtx = null;
-}
-// ─────────────────────────────────────────────────────────────────────────────
+// Mic monitoring lives in lib/micMonitor.ts — it is audio plumbing, not UI, and
+// as module globals in here it could not be tested. The version that lived here
+// opened its OWN mic stream with echo cancellation off and fed it to the speakers,
+// which is what made the whole mix distort whenever monitoring was on.
 
 interface TrackedAudio {
   id: number;
@@ -304,30 +281,34 @@ export default function FloatingAudioMonitor() {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [monitorVolume, setMonitorVolume] = useState(0.8);
 
+  // Read organism state for the floating button appearance — and, importantly, for
+  // the mic stream the analyser already has open.
+  const organism = useOrganismSafe();
+
   const toggleMonitor = useCallback(async () => {
     if (isMonitoring) {
       stopMicMonitor();
       setIsMonitoring(false);
     } else {
       try {
-        await startMicMonitor(monitorVolume);
+        // Borrow the analyser's stream when the Organism is listening. Opening a
+        // second one here — with the OPPOSITE processing constraints — is what
+        // made the entire mix distort while monitoring was on.
+        await startMicMonitor(monitorVolume, organism?.analysisEngine?.getStream() ?? null);
         setIsMonitoring(true);
       } catch {
         alert('Could not access microphone. Check browser permissions.');
       }
     }
-  }, [isMonitoring, monitorVolume]);
+  }, [isMonitoring, monitorVolume, organism]);
 
   // Sync volume changes live
   useEffect(() => {
-    if (monitorGain) monitorGain.gain.value = monitorVolume;
+    setMonitorGainVolume(monitorVolume);
   }, [monitorVolume]);
 
   // Stop monitor if component unmounts
   useEffect(() => () => stopMicMonitor(), []);
-
-  // Read organism state for the floating button appearance
-  const organism = useOrganismSafe();
   const organismRunning = organism?.isRunning ?? false;
   const organismRecording = organism?.isRecording ?? false;
 
