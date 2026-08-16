@@ -43,10 +43,19 @@ export function createMixToneMock() {
         getValue: vi.fn().mockReturnValue(new Float32Array(1024)),
       })
     }),
-    Filter: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+    // Tone.Filter exposes `frequency` and `gain` as Params with a `.value`, and
+    // takes both as constructor options. The mock used to hardcode them, so a
+    // strip's configured EQ was invisible to tests and `gain` did not exist at
+    // all — reading opts here is what makes per-band assertions mean anything.
+    Filter: vi.fn().mockImplementation(function (
+      this: Record<string, unknown>,
+      opts?: { frequency?: number; gain?: number; Q?: number },
+    ) {
       return Object.assign(this, {
         ...makeDisposable(),
-        frequency: { value: 400, rampTo: vi.fn() },
+        frequency: { value: opts?.frequency ?? 400, rampTo: vi.fn() },
+        gain: { value: opts?.gain ?? 0, rampTo: vi.fn() },
+        Q: { value: opts?.Q ?? 1, rampTo: vi.fn() },
       })
     }),
     Distortion: vi.fn().mockImplementation(function (this: Record<string, unknown>) {

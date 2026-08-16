@@ -43,33 +43,50 @@ const OUT_DIR = path.join('marketing', 'output', 'ab', LABEL)
  * extends it next.)
  */
 const VARIANTS = [
-  // TASK #4 — the drum loop itself. Everything is SOLOED to drums so the judgement
-  // is about the loop and not about the band around it.
-  { id: 'control', label: 'Control — current drums', tweak: { solo: 'drum' } },
+  // THE FOUR MEASURED GAPS. Against audio/reference-beats, note density and tempo
+  // already MATCH; what differs is tone, dynamics and feel:
+  //
+  //     sub    20-80Hz    ours  5%     reference 8.7%    no weight
+  //     lowMid 250-2k     ours 51%     reference 32%     congested
+  //     high   6k-20k     ours 13%     reference 22%     dull
+  //     onset timing SD   ours 6.0ms   reference 8.6ms   too precise
+  //
+  // One variant per gap, one change each, judged on the FULL MIX — these are
+  // whole-mix balance measurements, so soloing a role would hide the very thing
+  // being tested.
+  { id: 'control', label: 'Control — current mix', tweak: {} },
+  {
+    id: 'more-sub',
+    label: 'More sub (bass low shelf +4 dB)',
+    // The bass channel already lifts the low shelf +4 and still measures 5% sub
+    // against 8.7%. This asks whether the shelf simply is not far enough, and it
+    // has never been testable at runtime before today.
+    tweak: { eq: [['bass', 'low', 8]] },
+  },
+  {
+    id: 'less-lowmid',
+    label: 'Less low-mid congestion (harmony mid -6 dB)',
+    // The harmony trio is the measured cause of 51% low-mid, and pulling it back
+    // by GAIN already won two blind rounds (-4 and -2 dB; -7 was a wash). This
+    // tests the same idea surgically — scoop the congested band instead of
+    // turning the whole part down, which should cost less of what the harmony
+    // contributes. Chord and melody move together because the earlier rounds
+    // established they are one variable: "all three move or none do".
+    tweak: { eq: [['chord', 'mid', -9], ['melody', 'mid', -8]] },
+  },
+  {
+    id: 'brighter',
+    label: 'Brighter top end (master brightness +0.5)',
+    // "Brighter master" already WON a blind round. 13% vs 22% says there is more
+    // room; this looks for where the win stops.
+    tweak: { brightness: 0.5 },
+  },
   {
     id: 'looser',
     label: 'Looser timing (humanize x2.5)',
-    // Measured: our onset spread is 6.0ms against 8.6ms in audio/reference-beats.
-    // We are MORE metronomic than real hip-hop. This is the "mechanical" complaint
-    // as a number, and it has never been tested by ear.
-    tweak: { solo: 'drum', humanize: 2.5 },
-  },
-  {
-    id: 'straight',
-    label: 'Dead straight (humanize 0)',
-    // The opposite direction. If this wins, the loop wants MORE grid, not less,
-    // and the measurement was pointing the wrong way.
-    tweak: { solo: 'drum', humanize: 0 },
-  },
-  {
-    id: 'more-hats',
-    label: 'Busier hats (density x1.35)',
-    tweak: { solo: 'drum', hatDensity: 1.35 },
-  },
-  {
-    id: 'harder-kick',
-    label: 'Harder kick (velocity x1.2)',
-    tweak: { solo: 'drum', kickVelocity: 1.2 },
+    // We are MORE metronomic than real hip-hop — the "mechanical" complaint as a
+    // number. The humanize control shipped but its amount was never tuned by ear.
+    tweak: { humanize: 2.5 },
   },
 ]
 
@@ -119,6 +136,14 @@ async function renderVariant(browser, variant) {
     if (!m) return 'no __organismMix'
     try {
       if (tweak.gains) for (const [ch, db] of Object.entries(tweak.gains)) m.setChannelGainDb(ch, db)
+      // Per-band EQ. Added 2026-08-16: three of the four measured gaps are
+      // SPECTRAL, and until setChannelEqGainDb existed none of them could be
+      // varied at runtime — only gain, brightness and parallel compression were
+      // reachable, and none of those move a single band.
+      if (tweak.eq) {
+        if (typeof m.setChannelEqGainDb !== 'function') throw new Error('setChannelEqGainDb missing — stale build?')
+        for (const [ch, band, db] of tweak.eq) m.setChannelEqGainDb(ch, band, db)
+      }
       if (tweak.feature) window.__orgSetFeature?.(tweak.feature)
       if (tweak.parallelComp) m.setParallelCompression(...tweak.parallelComp)
       if (typeof tweak.brightness === 'number') m.setMasterBrightness(tweak.brightness)

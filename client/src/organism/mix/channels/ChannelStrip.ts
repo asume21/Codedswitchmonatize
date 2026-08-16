@@ -158,6 +158,35 @@ export class ChannelStrip {
     this.fader.gain.rampTo(Tone.dbToGain(db), 0.15)
   }
 
+  /**
+   * Runtime EQ, so the SPECTRAL gaps can be judged by ear.
+   *
+   * The gaps measured against audio/reference-beats are all spectral — sub 5% vs
+   * 8.7%, lowMid 51% vs 32%, high 13% vs 22% — but the only knobs reachable at
+   * runtime were gain, master brightness and parallel compression. A channel's
+   * EQ was fixed at construction, so the sub and low-mid gaps could not be
+   * blind-A/B'd at all: testing them meant editing mix/types.ts and rebuilding,
+   * which is slow enough that it never happened.
+   *
+   * This changes no tuned value. It only makes the existing ones reachable while
+   * the engine is running, which is what scripts/render-ab-variants.mjs needs.
+   *
+   * Clamped to +/-24 dB and NaN-guarded: a stray value here writes straight into
+   * the audio graph, and a NaN in a filter gain silences the channel in a way
+   * that looks like a bug somewhere else entirely.
+   */
+  setEqGainDb(band: 'low' | 'mid' | 'high', db: number): void {
+    if (!Number.isFinite(db)) return
+    const clamped = Math.max(-24, Math.min(24, db))
+    const node = band === 'low' ? this.lowShelf : band === 'mid' ? this.midPeak : this.highShelf
+    node.gain.value = clamped
+  }
+
+  getEqGainDb(band: 'low' | 'mid' | 'high'): number {
+    const node = band === 'low' ? this.lowShelf : band === 'mid' ? this.midPeak : this.highShelf
+    return node.gain.value
+  }
+
   /** Whether this strip is currently silenced by a solo elsewhere. */
   get muted(): boolean {
     return this._muted

@@ -92,6 +92,17 @@ describe('MixEngine', () => {
     expect(mockGainRampTo).toHaveBeenCalled()
   })
 
+  it('setChannelEqGainDb reaches one channel without touching another', () => {
+    // The bass sub shelf and the chord low-mid are two of the four measured gaps.
+    // They must move independently or an A/B tells you nothing about which caused
+    // the preference.
+    engine.setChannelEqGainDb('bass', 'low', 8)
+    engine.setChannelEqGainDb('chord', 'mid', -6)
+    expect(engine.getChannelEqGainDb('bass', 'low')).toBe(8)
+    expect(engine.getChannelEqGainDb('chord', 'mid')).toBe(-6)
+    expect(engine.getChannelEqGainDb('bass', 'mid')).not.toBe(-6)
+  })
+
   it('setChannelPan applies to melody channel only', () => {
     vi.clearAllMocks()
     engine.setChannelPan('melody', 0.3)

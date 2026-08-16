@@ -205,6 +205,28 @@ export class MixEngine {
     this.getChannel(channel).setPan(pan)
   }
 
+  /**
+   * Runtime per-channel EQ. Exists so the three SPECTRAL gaps measured against
+   * audio/reference-beats (sub 5% vs 8.7%, lowMid 51% vs 32%, high 13% vs 22%)
+   * can be blind-A/B'd without a rebuild — until now the only runtime knobs were
+   * gain, master brightness and parallel compression, none of which move a single
+   * band. Changes no tuned default; only reaches the ones already there.
+   */
+  setChannelEqGainDb(
+    channel: 'drum' | 'bass' | 'melody' | 'texture' | 'chord',
+    band: 'low' | 'mid' | 'high',
+    db: number,
+  ): void {
+    this.getChannel(channel).setEqGainDb(band, db)
+  }
+
+  getChannelEqGainDb(
+    channel: 'drum' | 'bass' | 'melody' | 'texture' | 'chord',
+    band: 'low' | 'mid' | 'high',
+  ): number {
+    return this.getChannel(channel).getEqGainDb(band)
+  }
+
   setMasterGainDb(db: number): void {
     this.master.setGainDb(db)
   }

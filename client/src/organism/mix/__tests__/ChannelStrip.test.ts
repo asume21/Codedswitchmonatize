@@ -40,6 +40,42 @@ describe('ChannelStrip', () => {
     expect(mockPanRampTo).toHaveBeenCalledWith(1, 0.1)
   })
 
+  // The four measured gaps against audio/reference-beats are SPECTRAL (sub 5% vs
+  // 8.7%, lowMid 51% vs 32%, high 13% vs 22%), but the only runtime knobs were
+  // gain, brightness and parallel compression — so the sub and low-mid gaps could
+  // not be blind-A/B'd at all. These setters exist to make them testable by ear.
+  describe('setEqGainDb — runtime EQ for blind A/B', () => {
+    it('sets the low shelf gain', () => {
+      strip.setEqGainDb('low', 6)
+      expect(strip.getEqGainDb('low')).toBe(6)
+    })
+
+    it('sets the mid peak gain independently of the low shelf', () => {
+      strip.setEqGainDb('low', 6)
+      strip.setEqGainDb('mid', -8)
+      expect(strip.getEqGainDb('mid')).toBe(-8)
+      expect(strip.getEqGainDb('low')).toBe(6)
+    })
+
+    it('sets the high shelf gain', () => {
+      strip.setEqGainDb('high', 4)
+      expect(strip.getEqGainDb('high')).toBe(4)
+    })
+
+    it('clamps to +/-24 dB so a typo cannot destroy the mix', () => {
+      strip.setEqGainDb('low', 900)
+      expect(strip.getEqGainDb('low')).toBe(24)
+      strip.setEqGainDb('low', -900)
+      expect(strip.getEqGainDb('low')).toBe(-24)
+    })
+
+    it('ignores a non-finite value rather than writing NaN into the graph', () => {
+      strip.setEqGainDb('low', 5)
+      strip.setEqGainDb('low', Number.NaN)
+      expect(strip.getEqGainDb('low')).toBe(5)
+    })
+  })
+
   it('dispose() cleans up all Tone.js nodes without error', () => {
     expect(() => strip.dispose()).not.toThrow()
     // 10 nodes: input, highpass, lowShelf, midPeak, highShelf, compressor, panner, fader, analyser, output
