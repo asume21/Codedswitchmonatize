@@ -470,6 +470,41 @@ Blind A/B results so far (scripts/render-ab-variants.mjs), judged by the user's 
 That last line is the standing lesson: a confident measurement was overturned by one
 blind listen. Calibrate CSBL's vibe words against A/B results rather than intuition.
 
+## ⚠️ 2026-08-16 — THE REFERENCE-BEATS GAP IS NOT A TUNING TARGET
+
+One variant per measured gap, single-variable, full mix, blind. Every one lost:
+
+    SAME    more sub          bass low shelf +4 -> +8 dB
+    CONTROL less low-mid      harmony mid -9/-8 dB
+    CONTROL brighter top      master brightness +0.5
+    CONTROL looser timing     humanize x2.5
+
+Control won three and drew the fourth. **Closing the measured gaps made the beat
+worse by the only judge that counts.** The gap table in 13.8 describes a real
+difference between our spectrum and the reference set's; it does NOT follow that
+the difference is a defect, and four blind comparisons now say it is not.
+
+Read each result precisely — the amounts were deliberately large:
+
+- **Sub was a WASH at +4 dB.** A 5% vs 8.7% "deficit" that is inaudible when
+  doubled is not a deficit. Stop citing it.
+- **Low-mid: the LEVEL pull-back won twice, the EQ SCOOP lost.** These are not the
+  same move. Turning the harmony down helps; hollowing its mids out removes what
+  the harmony is for. Do not treat the earlier win as licence to scoop.
+- **Brightness +0.5 lost, though "brighter master" won earlier.** So the earlier
+  win had a ceiling and 0.5 is past it. The answer to "where does the win stop" is
+  "before here", which is exactly what the round was for.
+- **Looser timing lost outright, and this one is a DIRECTION, not an amount.** Our
+  6.0ms onset SD against the reference's 8.6ms was read as "too metronomic". It is
+  not a bug, it is the product: the user freestyles over these beats, and he has
+  said plainly that to freestyle you have to know where the beat is GOING to go.
+  Predictability is the requirement. Every future "add human looseness" proposal
+  should be checked against this result first.
+
+Standing conclusion: the mix is at a local optimum for this user's ear. Do not
+re-open spectral tuning without a NEW reason — and never on the strength of the
+reference-spectrum table alone.
+
 ## 13.9 — Definition of done for slice 1
 
     parseCSBL('trap.hats("2-step")')  ->  16 DrumHit objects, instrument Hat,
