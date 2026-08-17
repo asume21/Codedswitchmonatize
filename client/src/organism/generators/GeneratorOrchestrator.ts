@@ -20,6 +20,7 @@ import { getProducerArrangementTotalBars, getProducerArrangementSlot, setArrange
 import { buildSubGenrePattern, mutatePattern, swingForSubGenre } from './patterns/DrumPatternLibrary'
 import { setBassSwingFromSubGenre } from './patterns/BassPatternLibrary'
 import { orgLog } from '../../lib/perf/organismLog'
+import { pickIntroLead, introMultipliers, type IntroRole } from './introBuild'
 import type { InstrumentPerformerId } from '../performers'
 import { reseedPerformerSelection } from '../performers'
 import { getConductor } from '../conductor/Conductor'
@@ -253,18 +254,13 @@ export class GeneratorOrchestrator {
   private progressiveIntroEnabled: boolean = true
   private introStartBar: number = -1
 
-  private static readonly INTRO_STACK: ReadonlyArray<{
-    atBar: number; drum: number; bass: number; chord: number; melody: number; texture: number
-  }> = [
-    // Bar 0-1: melody + chords + pad bed play alone — the idea, the seed
-    { atBar: 0, drum: 0.0, bass: 0.0, chord: 1.0, melody: 1.0, texture: 0.45 },
-    // Bar 2-3: bass enters — the foundation grounds the melody
-    { atBar: 2, drum: 0.0, bass: 0.9, chord: 1.0, melody: 1.0, texture: 0.45 },
-    // Bar 4-5: drums enter softly — the pulse begins
-    { atBar: 4, drum: 0.5, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
-    // Bar 6+: full groove — everything playing and building
-    { atBar: 6, drum: 1.0, bass: 1.0, chord: 1.0, melody: 1.0, texture: 0.4 },
-  ]
+  /**
+   * Which single generator opens the build. Chosen from the session salt at the
+   * first bar of the intro, so it varies between takes and is stable within one.
+   * The schedule itself lives in introBuild.ts — see there for why entries are
+   * quantised to bar lines rather than to seconds.
+   */
+  private introLead: IntroRole = 'drums'
 
   // AI Director overrides — keyed by section name, applied next time that section starts
   private aiDirectiveOverrides: Map<string, {
@@ -2239,14 +2235,15 @@ export class GeneratorOrchestrator {
       // Progressive intro: stagger instrument entry like a real musician building a beat.
       // Only when not in melody-only mode (which has its own multiplier logic).
       if (this.progressiveIntroEnabled && !this.melodyOnlyMode) {
-        if (this.introStartBar === -1) this.introStartBar = barNumber
-        const barsElapsed = barNumber - this.introStartBar
-        const stack = GeneratorOrchestrator.INTRO_STACK
-        let stage = stack[0]
-        for (const s of stack) {
-          if (barsElapsed >= s.atBar) stage = s
+        if (this.introStartBar === -1) {
+          this.introStartBar = barNumber
+          // Any of the five can open it — the user's own call. Salt-seeded so a
+          // take opens the same way throughout and differently next time.
+          this.introLead = pickIntroLead(getSessionSalt())
         }
-        this.drum.applyArrangementMultiplier(stage.drum)
+        const barsElapsed = barNumber - this.introStartBar
+        const stage = introMultipliers(this.introLead, barsElapsed, transport.bpm.value)
+        this.drum.applyArrangementMultiplier(stage.drums)
         this.bass.applyArrangementMultiplier(stage.bass)
         this.chord.applyArrangementMultiplier(stage.chord)
         this.melody.applyArrangementMultiplier(stage.melody)

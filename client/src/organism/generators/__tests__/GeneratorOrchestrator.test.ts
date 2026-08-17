@@ -254,16 +254,31 @@ describe('GeneratorOrchestrator', () => {
     expect(mockPhysics.registerGeneratorLevel).toHaveBeenCalled()
   })
 
-  it('default progressive intro keeps the texture pad audible', async () => {
+  // REQUIREMENT CHANGED 2026-08-16. This used to assert the pad stayed audible
+  // through the intro, because the old INTRO_STACK opened with THREE parts
+  // (chords + melody + pad). The user asked for the opposite: "i want it to only
+  // be one generator and then within maybe 10-15 sec get all five going". So the
+  // contract is now "exactly one role sounds on the first bar" — which for four
+  // of the five possible leads means the pad is silent there, deliberately.
+  it('progressive intro opens with exactly ONE generator', async () => {
     const tone = await import('tone')
     tone.getTransport().position = '0:0:0'
-    const textureSpy = vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier')
+    const spies = {
+      drum:    vi.spyOn((orchestrator as any).drum,    'applyArrangementMultiplier'),
+      bass:    vi.spyOn((orchestrator as any).bass,    'applyArrangementMultiplier'),
+      chord:   vi.spyOn((orchestrator as any).chord,   'applyArrangementMultiplier'),
+      melody:  vi.spyOn((orchestrator as any).melody,  'applyArrangementMultiplier'),
+      texture: vi.spyOn((orchestrator as any).texture, 'applyArrangementMultiplier'),
+    }
 
     ;(orchestrator as any).running = true
     ;(orchestrator as any).applyArrangement()
 
-    expect(textureSpy).toHaveBeenCalledWith(expect.any(Number))
-    expect(textureSpy.mock.calls[0][0]).toBeGreaterThan(0)
+    const audible = Object.entries(spies)
+      .filter(([, s]) => s.mock.calls.length > 0 && s.mock.calls[0][0] > 0)
+      .map(([role]) => role)
+
+    expect(audible).toHaveLength(1)
   })
 
   it('disabling progressive intro restores texture with the rest of the band (jam mode)', () => {
