@@ -54,14 +54,14 @@ function toWav(buf: Buffer): Promise<Buffer> {
   });
 }
 
-async function describeWithGemini(wavBase64: string): Promise<string> {
+async function describeWithGemini(wavBase64: string, prompt: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const errors: string[] = [];
   for (const modelName of GEMINI_MODEL_CANDIDATES) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
       const result = await model.generateContent([
-        { text: DESCRIBE_PROMPT },
+        { text: prompt },
         { inlineData: { mimeType: 'audio/wav', data: wavBase64 } },
       ]);
       return result.response.text();
@@ -76,14 +76,14 @@ async function describeWithGemini(wavBase64: string): Promise<string> {
   throw new Error(`No Gemini model accepted the request — ${errors.join(' | ')}`);
 }
 
-async function describeWithOpenAI(wavBase64: string): Promise<string> {
+async function describeWithOpenAI(wavBase64: string, prompt: string): Promise<string> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
   const result = await openai.chat.completions.create({
     model: OPENAI_AUDIO_MODEL,
     messages: [{
       role: 'user',
       content: [
-        { type: 'text', text: DESCRIBE_PROMPT },
+        { type: 'text', text: prompt },
         { type: 'input_audio', input_audio: { data: wavBase64, format: 'wav' } },
       ],
     }],
@@ -101,7 +101,14 @@ export function isAudioDescribeConfigured(): boolean {
  * captured buffer (any ffmpeg-decodable format) and returns a plain-English
  * description. Throws only if every configured provider fails.
  */
-export async function describeAudio(inputBuffer: Buffer): Promise<string> {
+/**
+ * `prompt` lets a caller ask a specific question of the same ears. mix_coach
+ * uses it to ask about masking and balance rather than genre and mood: a
+ * measurement can say the low-mids hold 33% of the energy, but only listening
+ * can say WHICH instruments are fighting there. Defaults to the general
+ * description used by describe_audio.
+ */
+export async function describeAudio(inputBuffer: Buffer, prompt: string = DESCRIBE_PROMPT): Promise<string> {
   if (!isAudioDescribeConfigured()) {
     throw new Error(
       'No audio-describe provider configured. Set GEMINI_API_KEY (free at ' +
@@ -117,7 +124,7 @@ export async function describeAudio(inputBuffer: Buffer): Promise<string> {
 
   if (process.env.GEMINI_API_KEY) {
     try {
-      return await describeWithGemini(wavBase64);
+      return await describeWithGemini(wavBase64, prompt);
     } catch (err: any) {
       errors.push(`Gemini: ${err?.message ?? err}`);
     }
@@ -125,7 +132,7 @@ export async function describeAudio(inputBuffer: Buffer): Promise<string> {
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      return await describeWithOpenAI(wavBase64);
+      return await describeWithOpenAI(wavBase64, prompt);
     } catch (err: any) {
       errors.push(`OpenAI: ${err?.message ?? err}`);
     }
