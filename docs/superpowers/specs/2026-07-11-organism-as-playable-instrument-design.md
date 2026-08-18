@@ -285,3 +285,113 @@ restored the drum gain but not the drum *density*, stranding the thinning so
 jam mode inherited a kick+snare skeleton from the last sparse section forever
 (captured live as `arr:1` / `sectionDensity:0.30`, 96 raw hits → 31 events).
 That is the "drums are very sparse" report, and it is fixed independently.
+
+#### A.3 — Beat Mode IS the beat machine (designed 2026-08-17, supersedes parts of A.2)
+
+**The report that opened this.** "When I enable it I hear nothing change at all.
+It's not like I start it and the generators start producing fixed loops that fit
+together." Both halves of that are accurate, and both were by design:
+
+1. With Song Mode OFF, Beat Mode executes **zero lines** — `beatModeMultiplier`
+   and `beatModeDrumDensity` are called at `GeneratorOrchestrator:2441-2448`,
+   below the `if (!this.arrangementEnabled) return` early-exit at 2252.
+2. With Song Mode ON it is a **negative** feature — it only *prevents* the duck,
+   the thinning and the breakdown. Toggled mid-verse there is nothing yet to
+   prevent, so nothing changes for what can be minutes.
+
+A.2 was built on the premise that Song Mode was already "~6 sections, each a
+locked loop." The 2026-08-17 debugging session found that premise was partly
+false: bass and chords seeded from the section NAME alone, so they replayed one
+identical 4-bar phrase for a whole 16-bar section and the entire form rewound
+note-for-note on the wrap; `cypher-flow` never fired a section change at all.
+Those are fixed separately. A.3 is what Beat Mode itself becomes.
+
+**Decisions the user revised in this session — these override A.2:**
+
+- A.2: "with the arrangement off, Beat Mode is simply inert." **Now: with the
+  arrangement off, Beat Mode is the whole feature.** It stops being a modifier
+  of Song Mode and becomes the beat machine in its own right.
+- `introBuild.ts`: "aim for the middle of the user's 10-15s window." **Retired.**
+  The user's revision, verbatim: "it doesn't matter exactly when they all come
+  in, what matters is that it comes in where it fits — if that takes 100min or
+  if that takes 10 secs, as long as it sounds good it's fine." `TARGET_BUILD_
+  SECONDS` and the tempo term go away; entries are driven by the harmony.
+
+**What Beat Mode does when enabled.**
+
+1. **Build the band in, drums first.** The five parts are REVEALED, not started
+   (already true in `introBuild.ts` — every generator runs its loop from bar 0
+   and is merely inaudible, so nothing re-phases when a part arrives). The lead
+   is no longer a random pick of five: Beat Mode names `drums`, and the existing
+   `entryOrder(lead)` then yields drums → bass → chord → melody → texture.
+   "Foundation before colour" was already the priority table; only the random
+   lead is removed. Re-armed on every toggle, so the build is audible each time
+   rather than only at session start. (The user said "then same with melody and
+   chords" without separating them; the existing table puts CHORD third and
+   melody fourth, and that order is kept. Swap it if the ear disagrees.)
+2. **Entries land where they fit** — see the entry rules below.
+3. **Cohesion is structural, not added.** Every part already seeds from the same
+   `songCell` and reads harmony from one authority (`Conductor`:
+   `BassGenerator.rootMidi = conductor.currentChord().rootMidi`,
+   `ChordGenerator.voicing = conductor.currentChord().pitches`). Beat Mode adds
+   no harmony logic; it chooses the MOMENT the band commits to a fresh
+   consistent set, via the `sectionVariantKey(lock, pass)` mechanism.
+4. **Growth without an arc.** Jam mode has no sections, so it has had no unit of
+   change — every previous attempt invented a timer, which the user has rejected
+   (clock-driven rotation reads as drift). Beat Mode now has a musical clock:
+   the **trip around the progression**. After the build completes, the band
+   advances its variant every N trips (A → A' → A → A'), landing on a
+   progression boundary so the change is ANNOUNCED. Default N = 2 (~86s at
+   90 BPM with a 4-chord progression); a by-ear constant, not a tuned value.
+
+**Explicitly NOT in scope:** an energy arc that ramps intensity over minutes
+(intro→build→drop without sections). That is the song-arc gap; two blind
+attempts at it have already failed by ear. Beat Mode's growth is variation on a
+locked idea. The dramatic arc remains Song Mode's job.
+
+##### Entry rules — encode the facts, audition the taste
+
+The user's correction, and the reason this is a vocabulary rather than a rule:
+"I don't know if I would say never mid-chord, because there are some loops that
+can actually drop mid-chord and sound like it fits — so we need to be able to
+teach this stuff to the generators or whoever."
+
+Four candidate explanations were put to the user for WHY a mid-chord entry can
+work. He could not say which were true ("I really don't know"), which is the
+correct answer and the reason this ships as A-then-B rather than as a guess:
+
+| Candidate | Status | Why |
+|---|---|---|
+| The part carries no harmony (drums, texture) | **Fact — encode now** | Nothing to clash with. Not a taste call. |
+| The loop's own phrase divides the chord evenly | **Fact — encode now** | Arithmetic, not opinion. |
+| It's a pickup / anticipation into the next chord | **Already exists — reuse** | `ChordImproviser` anticipation + `Conductor.nextChord()`, documented "for anticipatory fills and voiceleading". |
+| It's deliberate tension | **Taste — do NOT encode** | Would be invention. |
+
+**Approach A (this spec).** A small pure table of entry rules, in the shape of
+`beatMode.ts` / `featuredPerformance.ts` / `introBuild.ts` — no Tone.js, no
+state, no scheduling, unit-testable without an AudioContext. Unpitched parts may
+enter on any bar; pitched parts enter on a chord boundary, or on their own phrase
+boundary when that phrase divides the chord evenly; pickups route through the
+existing anticipation. Every gesture gets an **audition hook**, the same move
+`__csbl()` already makes — a vocabulary you cannot hear cannot be judged.
+
+**Approach B (the road this opens, not built here).** The gestures that survive
+the user's ear earn a NAME in CSBL: `bass.enter("pickup")`,
+`melody.enter("half-bar late")`. CSBL is where this belongs — "the vocabulary is
+the interface; the grid notation is for the machine" — but naming gestures before
+knowing which sound good produces a vocabulary of words nobody uses. CSBL itself
+got an ear before it got more grammar; this follows that sequence.
+
+Rejected: letting the brain pick each entry per situation. Most flexible, least
+predictable — and predictability is the product. It also fights the standing
+design that generators make zero network calls.
+
+**Files.** `introBuild.ts` (lead override, harmonic clock, retire the seconds
+target), a new pure entry-rules module beside it, `GeneratorOrchestrator.ts`
+(wire Beat Mode into the jam-mode branch; re-arm and restore on toggle). No new
+scheduler, no second arrangement system.
+
+**Acceptance is by ear.** The tests prove no pitched part enters somewhere the
+rules disallow, and that the build advances on the harmonic clock. They cannot
+prove it sounds like a real tune — that is the user's ear, and it is the only
+acceptance test that counts.
