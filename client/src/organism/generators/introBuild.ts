@@ -9,12 +9,29 @@
  * works", then "it can start with any of them", then the line that decides the
  * shape: "as long as what it is playing is a loop".
  *
- * WHY ENTRIES SIT ON BAR LINES
+ * WHY THE UNIT IS THE ROUND (revised 2026-08-17)
  *
  * That last constraint rules out a wall-clock ramp. A part revealed 3.2 seconds in
- * starts halfway through its own figure, and the result is not a loop. So the
- * spacing is a whole number of BARS, chosen from the tempo, and every entry lands
- * on a downbeat.
+ * starts halfway through its own figure, and the result is not a loop. The first
+ * version answered that with whole BARS chosen from the tempo, aimed at a 10-15s
+ * window. Both of those are now gone, because the user described what he actually
+ * means: "the way i think of it in my head is how i play groove pads. i start one
+ * of the pads and it starts looping, i usually let it play one or two rounds then
+ * bring in something else."
+ *
+ * So the unit is the ROUND — the loop's own cycle. It is tempo-independent and
+ * harmony-independent, which is exactly why a launcher never lands wrong, and it
+ * is why this file no longer knows what BPM is. The caller counts rounds (the
+ * engine's locked core is DRUM_CORE_BARS long); this only decides who has arrived.
+ *
+ * The seconds target is retired, in the user's words: "it doesn't matter exactly
+ * when they all come in, what matters is that it comes in where it fits — if that
+ * takes 100min or if that takes 10 secs, as long as it sounds good it's fine."
+ * Do not reintroduce a duration here; see spec A.3.
+ *
+ * Entries land mid-chord routinely, and that is CORRECT, not a defect to fix by
+ * waiting: a round is not a multiple of the harmonic cycle. How a part lands when
+ * the harmony is mid-phrase is the landing craft's job, not this file's.
  *
  * Nothing here starts or stops a generator. Every one of them is already running
  * its loop from bar 0 and is merely inaudible; this only resolves the per-role gain
@@ -35,9 +52,6 @@ export type IntroRole = 'drums' | 'bass' | 'chord' | 'melody' | 'texture'
 /** Fixed order — this is the identity of the five, not the entry order. */
 export const INTRO_ROLES: readonly IntroRole[] = ['drums', 'bass', 'chord', 'melody', 'texture']
 
-/** Aim for the middle of the user's 10-15s window. */
-const TARGET_BUILD_SECONDS = 12
-
 /**
  * How the remaining four arrive once the lead has stated itself.
  *
@@ -56,16 +70,11 @@ export function pickIntroLead(seed: number): IntroRole {
 }
 
 /**
- * Bars between entries. Integer by design: entries must land on a downbeat, so the
- * achievable total moves in one-bar steps and at some tempos the nearest choice
- * falls a little outside 10-15s. Landing on the beat matters more than hitting the
- * window exactly — an off-grid entry is audible, a 16s build is not.
+ * Rounds each part gets to itself before the next one lands. The user's range was
+ * "one or two rounds"; this starts at one and is a by-ear constant, not a tuned
+ * value — raise it if the build feels rushed.
  */
-export function introSpacingBars(bpm: number): number {
-  const barSeconds = (60 / Math.max(1, bpm)) * 4
-  const gaps = INTRO_ROLES.length - 1
-  return Math.max(1, Math.round(TARGET_BUILD_SECONDS / (gaps * barSeconds)))
-}
+export const ROUNDS_PER_ENTRY = 1
 
 /** The order parts arrive in for a given lead. */
 function entryOrder(lead: IntroRole): IntroRole[] {
@@ -73,20 +82,19 @@ function entryOrder(lead: IntroRole): IntroRole[] {
 }
 
 /**
- * Per-role arrangement multipliers at `barsElapsed` since the build began.
+ * Per-role arrangement multipliers at `roundsElapsed` since the build began.
  * A role is either silent or full — no partial fades. A part easing in over several
- * bars reads as a mix problem rather than an arrangement one, and the loop is
- * clearest when each entry is a definite event.
+ * rounds reads as a mix problem rather than an arrangement one, and the loop is
+ * clearest when each entry is a definite event: a pad is in, or it is not.
  */
 export function introMultipliers(
   lead: IntroRole,
-  barsElapsed: number,
-  bpm: number,
+  roundsElapsed: number,
 ): Record<IntroRole, number> {
-  const spacing = introSpacingBars(bpm)
   const order = entryOrder(lead)
-  // Entries are quantised DOWN to the spacing, so nothing changes mid-phrase.
-  const arrived = Math.floor(Math.max(0, barsElapsed) / spacing) + 1
+  const safeRounds = Number.isFinite(roundsElapsed) ? Math.max(0, roundsElapsed) : 0
+  // Quantised DOWN, so nothing arrives part-way through a round.
+  const arrived = Math.floor(safeRounds / ROUNDS_PER_ENTRY) + 1
 
   const out = {} as Record<IntroRole, number>
   for (const role of INTRO_ROLES) {

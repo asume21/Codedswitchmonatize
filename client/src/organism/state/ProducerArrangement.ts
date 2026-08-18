@@ -292,19 +292,29 @@ export function getProducerArrangementSlot(barNumber: number): {
   slot: ProducerArrangementSlot
   cycleBar: number
   sectionBar: number
+  /** Position in the slot list. Templates repeat section NAMES (back-and-forth
+   *  is verse/drop/verse/drop/...), so the name alone cannot tell one section
+   *  from the next — callers detecting a section change must compare this. */
+  slotIndex: number
+  /** Which time through the whole form this bar falls in. The form is a
+   *  modulo cycle with no end; without this the wrap replays the previous pass
+   *  note for note. Derived from the bar, never counted, so it cannot drift. */
+  cycle: number
 } {
   const slots = planSlots ?? currentSlots
   const totalBars = planSlots ? planTotalBars : currentTotalBars
   const safeBar = Math.max(0, Math.floor(Number.isFinite(barNumber) ? barNumber : 0))
   const cycleBar = safeBar % totalBars
+  const cycle = Math.floor(safeBar / totalBars)
   let accumulated = 0
-  for (const slot of slots) {
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i]
     if (cycleBar < accumulated + slot.bars) {
-      return { slot, cycleBar, sectionBar: cycleBar - accumulated }
+      return { slot, cycleBar, sectionBar: cycleBar - accumulated, slotIndex: i, cycle }
     }
     accumulated += slot.bars
   }
-  return { slot: slots[0], cycleBar: 0, sectionBar: 0 }
+  return { slot: slots[0], cycleBar: 0, sectionBar: 0, slotIndex: 0, cycle }
 }
 
 // ── Plan → arrangement conversion (Phase 5) ───────────────────────────

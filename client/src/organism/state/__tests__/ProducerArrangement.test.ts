@@ -112,3 +112,45 @@ describe('setArrangementFromPlan', () => {
     expect(getProducerArrangementTotalBars()).toBe(templateBars)
   })
 })
+
+// ── Slot identity and pass counting ──────────────────────────────────
+// The form is a modulo cycle with no end, so "which slot" and "which time
+// through the form" are what the band needs to avoid replaying itself
+// verbatim on the wrap. Both are derived from the bar number rather than
+// counted, so they cannot drift out of sync with playback.
+describe('getProducerArrangementSlot — slot identity and pass', () => {
+  afterEach(() => {
+    clearArrangementFromPlan()
+    setActiveArrangementTemplate('classic')
+  })
+
+  it('reports the slot INDEX, so repeated section names stay distinct', () => {
+    setArrangementFromPlan([
+      section({ name: 'verse', bars: 2 }),
+      section({ name: 'drop', bars: 4 }),
+      section({ name: 'verse', bars: 2 }),
+    ])
+    expect(getProducerArrangementSlot(0).slotIndex).toBe(0)
+    expect(getProducerArrangementSlot(2).slotIndex).toBe(1)
+    // Same NAME as slot 0, but a different slot — must not read as "no change".
+    expect(getProducerArrangementSlot(6).slotIndex).toBe(2)
+    expect(getProducerArrangementSlot(6).slot.name).toBe('verse')
+  })
+
+  it('counts the pass through the form, incrementing only on the wrap', () => {
+    setArrangementFromPlan([
+      section({ name: 'verse', bars: 4 }),
+      section({ name: 'drop', bars: 4 }),
+    ])
+    expect(getProducerArrangementSlot(0).cycle).toBe(0)
+    expect(getProducerArrangementSlot(7).cycle).toBe(0)
+    expect(getProducerArrangementSlot(8).cycle).toBe(1)
+    expect(getProducerArrangementSlot(16).cycle).toBe(2)
+  })
+
+  it('never reports a negative pass for a bogus bar number', () => {
+    setArrangementFromPlan([section({ name: 'verse', bars: 4 })])
+    expect(getProducerArrangementSlot(-5).cycle).toBe(0)
+    expect(getProducerArrangementSlot(NaN).cycle).toBe(0)
+  })
+})

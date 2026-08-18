@@ -1319,6 +1319,33 @@ async function handleMcpMessage(
           lines.push(`- **Coach Advice:** ⚠ **DC Offset is present.** This is a sub-audible constant voltage bias. It reduces headroom and can cause pops during playback/edits. Apply a high-pass filter (HPF) at 10-20 Hz on the master bus or on the offending hardware/synth track to resolve it.`);
         }
 
+        // ── The half a measurement cannot reach ──
+        // Everything above is arithmetic on the numbers: any LLM handed the
+        // report could produce it, which is exactly why the free tier does not
+        // hand over the report. What cannot be derived from numbers is WHAT IS
+        // MAKING them — which instrument owns the muddy band, whether the
+        // masking is the pad or the bass. That needs ears, and ears are what
+        // this tool charges for.
+        try {
+          const heard = await describeAudio(
+            blob.buffer,
+            'You are a mix engineer listening to a short excerpt. Say WHICH instruments ' +
+            'are fighting each other and in what frequency range, whether anything is ' +
+            'masked or buried, and whether the low end is one instrument or several ' +
+            'competing. Name the instruments you actually hear. Be specific and brief — ' +
+            'no general mixing advice, only what you can hear in THIS audio.',
+          );
+          lines.push(``);
+          lines.push(`#### What it actually sounds like`);
+          lines.push(heard.trim());
+        } catch (err: any) {
+          // The measured coaching above stands on its own, so a missing or
+          // failing describe provider must not fail the whole tool.
+          lines.push(``);
+          lines.push(`#### What it actually sounds like`);
+          lines.push(`_Listening unavailable (${err?.message ?? err}). Measured coaching above is unaffected._`);
+        }
+
         lines.push(``);
         lines.push(`#### Summary Evaluation`);
         lines.push(`*${report.summary}*`);

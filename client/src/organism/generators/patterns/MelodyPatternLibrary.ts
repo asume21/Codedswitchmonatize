@@ -70,8 +70,19 @@ export function getMelodyBehavior(
   // No voice, deep flow → melody leads (full melodic phrase)
   if (flowDepth >= 0.5) return MelodyBehavior.Lead
 
-  // Low flow, no voice → still hint so there's always something playing
-  return MelodyBehavior.Hint
+  // NO VOICE AT ALL → the melody LEADS. This used to return Hint, whose density
+  // is 0.22 — roughly four notes in sixteen bars, which the user heard across
+  // several presets ("the melody literally have 4 notes every 16 bars").
+  //
+  // `flowDepth` only rises while a human is PERFORMING, so with no mic it sits
+  // at 0 and every auto take fell through to here. The melody was playing the
+  // stay-out-of-the-MC's-way part while there was no MC — and auto with no mic
+  // is the demo scenario that matters most.
+  //
+  // Hint is correct when `voiceActive` (handled above): the MC is the melody,
+  // and the band gets out of the way. Silence-because-nobody-is-rapping is not
+  // the same situation and should not share the same answer.
+  return MelodyBehavior.Lead
 }
 
 // ── NEW: Hip-Hop Motif Bank For True Harmonic Flow ────────────────────

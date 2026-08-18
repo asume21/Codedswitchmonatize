@@ -170,3 +170,45 @@ export function extractKickSlots(
   }
   return [...slots].sort((a, b) => a - b)
 }
+
+// ── Section seed vocabulary (2026-08-17) ─────────────────────────────
+//
+// 473eebba locked the loop by making the rhythm section a pure function of the
+// SECTION — same section, byte-identical pattern, no matter how many rebuilds
+// fire. That killed the drift, but it left the form replaying itself: the
+// arrangement is a modulo cycle with no end, so on the wrap every part whose
+// seed was the section NAME played the previous pass again note for note. Only
+// the drums moved, because only they carried an occurrence counter.
+//
+// Two numbers now key every locked loop, and they live here so drums, bass and
+// chords cannot drift apart on their meaning:
+//
+//   lock — which occurrence of this section WITHIN one pass. A/A': verse 2
+//          answers verse 1, verse 3 is verse 1 again.
+//   pass — which time through the whole form. Increments only on the wrap, so
+//          a restart is new music rather than a rewind.
+//
+// Both change ONLY at a section boundary. Nothing may fold a value into these
+// that moves mid-section — that is the drift that defeated grooveLock.
+
+/** How many distinct locks a returning section rotates through. 2 = A / A'.
+ *  Higher would make every verse unique, which stops it being one beat. */
+export const SECTION_LOCKS = 2
+
+/** The `<lock>:<pass>` half of a section's seed key. */
+export function sectionVariantKey(occurrence: number, pass: number): string {
+  const safeOcc = Number.isFinite(occurrence) ? Math.trunc(occurrence) : 0
+  const safePass = Number.isFinite(pass) ? Math.max(0, Math.trunc(pass)) : 0
+  const lock = ((safeOcc % SECTION_LOCKS) + SECTION_LOCKS) % SECTION_LOCKS
+  return `${lock}:${safePass}`
+}
+
+/** Full motif key for one part's locked section loop. */
+export function sectionMotifKey(
+  part: string,
+  section: string,
+  variant: string,
+  subGenre: string,
+): string {
+  return `${part}:${section}:${variant}:${subGenre}`
+}

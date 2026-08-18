@@ -6,7 +6,7 @@
 
 import { DrumInstrument, type DrumHit } from '../types'
 import type { FreeplayContext } from './types'
-import { swungTime, jitterVel } from './utils'
+import { swungTime, jitterVel, sectionMotifKey, sectionVariantKey } from './utils'
 import { getSongCell } from './songCell'
 
 /** Immutable per-genre backbone (16th slots 0..15). Slot 4 = beat 2, 12 = beat 4.
@@ -52,11 +52,6 @@ function push(hits: DrumHit[], inst: DrumInstrument, bar: number, slot: number, 
   hits.push({ instrument: inst, time: swungTime(bar, slot, swing), velocity: jitterVel(vel, rng) })
 }
 
-/** How many distinct locks a returning section rotates through. 2 = A / A':
- *  verse 2 answers verse 1, verse 3 is verse 1 again. Higher would make every
- *  verse unique, which stops it being one beat. */
-const SECTION_LOCKS = 2
-
 /**
  * Seed key for a section's drum phrase. `occurrence` is how many times the song
  * has ENTERED this named section — it must be counted on section change only,
@@ -65,9 +60,13 @@ const SECTION_LOCKS = 2
  * counter that moves on build re-rolls the pocket mid-section, which is the drift
  * that defeated grooveLock before.
  */
-export function drumSectionSeedKey(section: string, subGenre: string, occurrence: number): string {
-  const lock = ((occurrence % SECTION_LOCKS) + SECTION_LOCKS) % SECTION_LOCKS
-  return `drums:${section}:${lock}:${subGenre}`
+export function drumSectionSeedKey(
+  section: string,
+  subGenre: string,
+  occurrence: number,
+  pass = 0,
+): string {
+  return sectionMotifKey('drums', section, sectionVariantKey(occurrence, pass), subGenre)
 }
 
 /** The locked phrase every section is built from. Four bars is what the ear

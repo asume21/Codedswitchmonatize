@@ -1,4 +1,8 @@
 import { useState, useRef } from 'react';
+import {
+  startWebEarTabListening,
+  stopWebEarTabListening,
+} from '@/lib/audioDebugBridge';
 
 interface PerceptionResult {
   bpm: number | null;
@@ -57,6 +61,22 @@ export default function DemoPage() {
   const [result, setResult] = useState<PerceptionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [captureSeconds, setCaptureSeconds] = useState(5);
+  // Persistent tab sharing for the connected MCP client — separate from the
+  // one-shot Perceive flow above, which stops its stream as soon as it is done.
+  const [listening, setListening] = useState(false);
+  const [listenError, setListenError] = useState<string | null>(null);
+
+  async function handleStartListening() {
+    setListenError(null);
+    const res = await startWebEarTabListening();
+    if (res.ok) setListening(true);
+    else setListenError(res.error ?? 'Could not share the tab.');
+  }
+
+  function handleStopListening() {
+    stopWebEarTabListening();
+    setListening(false);
+  }
   const streamRef = useRef<MediaStream | null>(null);
 
   async function runPerception() {
@@ -341,6 +361,38 @@ export default function DemoPage() {
   }
 }`}</pre>
         </div>
+        {/* Share a tab so the connected AI has something to hear. Without this,
+            capture_audio can only record CodedSwitch's own audio graph — which
+            is nothing on this page, and nothing at all for anyone who is not
+            running the app. This button is what makes the MCP above useful to
+            a stranger. */}
+        <div className="mt-6 bg-zinc-900 border border-zinc-800 rounded-xl p-5 text-left">
+          <h3 className="font-bold mb-1">Give it something to hear</h3>
+          <p className="text-zinc-400 text-sm mb-4">
+            Share a browser tab and the AI you connected above can listen to it on demand —
+            any track, any site. Pick a <strong>tab</strong> (not a window) and tick{' '}
+            <strong>Share tab audio</strong>. Sharing continues until you stop it.
+          </p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={listening ? handleStopListening : handleStartListening}
+              className={`px-5 py-2.5 font-bold rounded-xl text-sm transition-colors ${
+                listening
+                  ? 'bg-red-500 hover:bg-red-400 text-white'
+                  : 'bg-cyan-500 hover:bg-cyan-400 text-black'
+              }`}
+            >
+              {listening ? 'Stop sharing' : 'Share a tab with the AI'}
+            </button>
+            {listening && (
+              <span className="text-emerald-400 text-sm">
+                ● Listening — ask your AI to capture audio
+              </span>
+            )}
+            {listenError && <span className="text-red-400 text-sm">{listenError}</span>}
+          </div>
+        </div>
+
         <div className="mt-6 flex justify-center gap-4">
           <a
             href="/studio"

@@ -15,7 +15,7 @@ import {
   getBassSwing,
 }                              from './patterns/BassPatternLibrary'
 import { buildFreeplayBassNotes } from './freeplay/BassImproviser'
-import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt, swungTime, sectionMotifKey } from './freeplay/utils'
 import type { HipHopSubGenre } from '../state/MusicalState'
 import { getLivePartStart, livePartStartOffset, quantizeGridTime } from './CompositionClock'
 // ChordProgressionBank is no longer a direct dependency — Bass reads its
@@ -891,7 +891,11 @@ export class BassGenerator extends GeneratorBase {
     // and WALKS when it moves (chord-movement driven), so it is not one of the
     // Claude-composed score seats — no bassNotes path here on purpose.
     if (this.freeplayEnabled) {
-      const seed = hashString(`bass:${this.currentSectionName}:${this.currentSubGenre ?? 'none'}`)
+      // Keyed on the section's lock/pass as well as its name: the same drop
+      // coming round again must answer the first one, not replay it.
+      const seed = hashString(sectionMotifKey(
+        'bass', this.currentSectionName, this.currentSectionVariant, this.currentSubGenre ?? 'none',
+      ))
       return buildFreeplayBassNotes({
         rootMidi: this.rootMidi,
         nextRootMidi: this.nextBassRoot(),

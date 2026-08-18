@@ -560,6 +560,28 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       // measurement is meaningless (this produced a "+11 dB" melody reading
       // after its gain was LOWERED). The bench pins this false.
       w.songMode = (on: boolean) => orchestr.setArrangementEnabled(on)
+      // Which seat carries the repeating hook: __hookSeat('chord') (default) or
+      // __hookSeat('melody'). A by-ear A/B, so it must be flippable while the
+      // beat is playing rather than needing a restart.
+      // Bars each chord holds in jam mode — 1, 2 or 4. Reference loops sit at
+      // 1-2; the engine shipped at 4. By ear, live, no restart.
+      w.__barsPerChord = (bars: number) => orchestr.setBarsPerChord(bars)
+      // Does the melody repeat, or keep moving? Reference loops say repeat;
+      // the user's instinct said let it move. His ear settles it.
+      w.__melodyLoops = (loops: boolean) => orchestr.setMelodyLoops(loops)
+      // Loops a melody phrase holds before it varies (A A A A'). Lower = it
+      // moves more; higher = it settles harder. By ear.
+      w.__melodyEvolve = (loops: number) => orchestr.setMelodyEvolveLoops(loops)
+      // Don't like this take? Roll another. Returns the seed so a keeper can be
+      // pinned with setFreeplaySeed(seed).
+      w.__reimagine = () => orchestr.reimagine()
+      // Reroll one seat: __reimagineSeat('melody' | 'chord' | 'bass' | 'drums' | 'texture')
+      w.__reimagineSeat = (seat: 'drums' | 'bass' | 'melody' | 'chord' | 'texture') =>
+        orchestr.reimagineSeat(seat)
+      w.__hookSeat = (seat: 'chord' | 'melody') => {
+        orchestr.setHookSeat(seat)
+        return orchestr.getHookSeat()
+      }
       // Quality-audit helper: restart through the Provider's existing lifecycle
       // owner so repeated stem captures begin on the same Transport timeline.
       w.__orgRestartForAudit = async () => {
@@ -3826,6 +3848,8 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       orchestrRef.current?.clearCsbl()
       setCsblActive(null)
     },
+    reimagine: () => orchestrRef.current?.reimagine() ?? null,
+    reimagineSeat: (seat) => orchestrRef.current?.reimagineSeat(seat) ?? null,
     beatModeEnabled,
     setBeatModeEnabled: (enabled: boolean) => {
       setBeatModeEnabledState(enabled)

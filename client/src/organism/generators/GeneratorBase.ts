@@ -208,8 +208,17 @@ export abstract class GeneratorBase {
    *  Freeplay improvisers key their committed motif on this. */
   protected currentSectionName = 'verse'
 
-  setSectionName(name: string): void {
+  /** `<lock>:<pass>` for the section being played — which occurrence of it
+   *  within this pass, and which pass through the form. Folded into the motif
+   *  seed so a returning section answers the last one instead of replaying it,
+   *  and the wrap opens new material rather than rewinding. Set on section
+   *  change ONLY; anything that moves mid-section re-rolls the locked loop.
+   *  Empty in jam mode, where there are no sections to return to. */
+  protected currentSectionVariant = ''
+
+  setSectionName(name: string, variant = ''): void {
     this.currentSectionName = name
+    this.currentSectionVariant = variant
   }
 
   protected _loopBpm = 120
@@ -288,6 +297,12 @@ export abstract class GeneratorBase {
       }
 
       this.ensureLoopGain()
+      // Re-assert the gain at the moment of the flip. The gain node is created
+      // once, with whatever `arrangementMultiplier` happened to be true then —
+      // and with Song Mode OFF nothing rewrites the multipliers per bar, so a
+      // node born during a quiet moment stayed quiet forever and the row read
+      // as "flipped to loop and the drums turned off".
+      this.rampLoopGain(this.loopGainTarget())
       if (this._activePlayer) {
         const player = this._activePlayer
         const id = Tone.getTransport().scheduleOnce((scheduledTime) => {
@@ -394,11 +409,22 @@ export abstract class GeneratorBase {
     }
   }
 
-  /** Stop active/preloaded loop players and clear pending loop callbacks. */
+  /** Stop active/preloaded loop players and clear pending loop callbacks.
+   *
+   *  BOTH player pairs, deliberately. Loop playback has two implementations —
+   *  `_loopPlayer`/`_loopNextPlayer` under NODE_ENV==='test', and the
+   *  double-buffered `_activePlayer`/`_idlePlayer` in a real browser — and this
+   *  only ever stopped the test pair. In the browser it therefore stopped
+   *  NOTHING: `loadLoop` calls it and then reassigns `.buffer` on a player that
+   *  is still running, and a full stop left the loop audible. Stopping all four
+   *  is unconditional rather than branched, so the two worlds cannot drift
+   *  apart again. */
   stopLoopPlayback(): void {
     this.clearLoopEvents()
     try { this._loopPlayer?.stop() } catch { /* already stopped */ }
     try { this._loopNextPlayer?.stop() } catch { /* already stopped */ }
+    try { this._activePlayer?.stop() } catch { /* already stopped */ }
+    try { this._idlePlayer?.stop() } catch { /* already stopped */ }
   }
 
   /** Dispose loop players/gain. Subclasses call this from dispose(). */

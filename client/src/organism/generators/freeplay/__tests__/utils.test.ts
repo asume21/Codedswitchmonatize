@@ -1,6 +1,6 @@
 // client/src/organism/generators/freeplay/__tests__/utils.test.ts
 import { describe, it, expect } from 'vitest'
-import { durationToSixteenths, extractBusySlots16ths } from '../utils'
+import { durationToSixteenths, extractBusySlots16ths, sectionMotifKey, sectionVariantKey } from '../utils'
 
 describe('durationToSixteenths', () => {
   it('maps Tone notation to slot counts', () => {
@@ -35,5 +35,40 @@ describe('extractBusySlots16ths', () => {
 
   it('swing fractions floor to the slot', () => {
     expect(extractBusySlots16ths([{ time: '0:1:1.35', dur: '16n' }])).toEqual([5])
+  })
+})
+
+// ── Section seed vocabulary ──────────────────────────────────────────
+// The whole rhythm section keys its locked loop off these two numbers, so
+// they live in one place: `lock` = which occurrence of this section within a
+// pass, `pass` = which time through the whole form.
+describe('sectionVariantKey', () => {
+  it('rotates a returning section through A / A\'', () => {
+    expect(sectionVariantKey(1, 0)).not.toBe(sectionVariantKey(0, 0))
+    expect(sectionVariantKey(2, 0)).toBe(sectionVariantKey(0, 0))
+  })
+
+  it('gives every pass through the form its own material', () => {
+    expect(sectionVariantKey(0, 1)).not.toBe(sectionVariantKey(0, 0))
+    expect(sectionVariantKey(0, 2)).not.toBe(sectionVariantKey(0, 1))
+  })
+
+  it('never produces a negative lock from a bogus occurrence', () => {
+    expect(sectionVariantKey(-1, 0)).toBe(sectionVariantKey(1, 0))
+  })
+})
+
+describe('sectionMotifKey', () => {
+  it('separates parts, sections, variants and sub-genres', () => {
+    const base = sectionMotifKey('bass', 'verse', '0:0', 'trap')
+    expect(sectionMotifKey('chord', 'verse', '0:0', 'trap')).not.toBe(base)
+    expect(sectionMotifKey('bass', 'drop', '0:0', 'trap')).not.toBe(base)
+    expect(sectionMotifKey('bass', 'verse', '1:0', 'trap')).not.toBe(base)
+    expect(sectionMotifKey('bass', 'verse', '0:0', 'drill')).not.toBe(base)
+  })
+
+  it('is stable for the same inputs — the loop must not move inside a section', () => {
+    expect(sectionMotifKey('bass', 'verse', '0:0', 'trap'))
+      .toBe(sectionMotifKey('bass', 'verse', '0:0', 'trap'))
   })
 })
