@@ -172,6 +172,15 @@ interface PillToggleProps {
   loading?: boolean
 }
 
+/** The five seats, in the order they read on the panel. */
+const REIMAGINE_SEATS = [
+  { seat: 'drums'   as const, label: 'Drums' },
+  { seat: 'bass'    as const, label: 'Bass' },
+  { seat: 'chord'   as const, label: 'Chords' },
+  { seat: 'melody'  as const, label: 'Melody' },
+  { seat: 'texture' as const, label: 'Texture' },
+]
+
 const PillToggle = React.memo(function PillToggle({
   active,
   label,
@@ -341,6 +350,7 @@ export function OrganismCommandCenter() {
     reactToVoiceEnabled, setReactToVoiceEnabled,
     songModeEnabled, setSongModeEnabled,
     beatModeEnabled, setBeatModeEnabled,
+    reimagine, reimagineSeat,
     auditionCsbl, clearCsbl, csblActive,
     loopsModeEnabled, setLoopsModeEnabled, isLoopsLoading,
     loopRowSources, setHybridModeEnabled, setLoopRowSource,
@@ -993,6 +1003,8 @@ export function OrganismCommandCenter() {
   const toggleSongMode = useCallback(() => {
     setSongModeEnabled(!songModeEnabled)
   }, [songModeEnabled, setSongModeEnabled])
+
+  const handleReimagineAll = useCallback(() => { reimagine() }, [reimagine])
 
   const toggleBeatMode = useCallback(() => {
     setBeatModeEnabled(!beatModeEnabled)
@@ -2388,6 +2400,40 @@ export function OrganismCommandCenter() {
               isolation: 'isolate',
               transformStyle: 'flat',
             }}>
+              {/* REIMAGINE — roll another take. The user's framing: "its never
+                  going to produce a fire beat to my or anyone's ear all the
+                  time, so if we don't like it we just hit reimagine." A
+                  generator does not have to hit every time; the reroll has to
+                  be one click. The per-seat buttons matter more than the
+                  global one — a take is rarely all bad, and rerolling
+                  everything throws away the parts that were working. */}
+              <button
+                type="button"
+                onClick={handleReimagineAll}
+                title="Roll a new take — new patterns and harmony, same tempo, key, preset and switches"
+                style={{
+                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                  border: `1px solid ${C.purple}`, background: 'transparent',
+                  color: C.purple, fontSize: 11, fontWeight: 700, letterSpacing: 0.3,
+                }}
+              >
+                ↻ Reimagine
+              </button>
+              {REIMAGINE_SEATS.map(({ seat, label }) => (
+                <button
+                  key={seat}
+                  type="button"
+                  onClick={() => reimagineSeat(seat)}
+                  title={`Reroll only the ${label.toLowerCase()} — the other four stay exactly as they are`}
+                  style={{
+                    padding: '4px 8px', borderRadius: 999, cursor: 'pointer',
+                    border: `1px solid ${C.purple}55`, background: 'transparent',
+                    color: `${C.purple}cc`, fontSize: 10, fontWeight: 600,
+                  }}
+                >
+                  ↻ {label}
+                </button>
+              ))}
               <PillToggle active={reactToVoiceEnabled}  label="React to Voice" onToggle={toggleReactToVoice}  color={C.green} />
               <PillToggle active={songModeEnabled}      label="Song Mode"     onToggle={toggleSongMode}      color={C.amber} />
               <PillToggle active={beatModeEnabled}      label="Beat Mode"     onToggle={toggleBeatMode}      color={C.cyan} />

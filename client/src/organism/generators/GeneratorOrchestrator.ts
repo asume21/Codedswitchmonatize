@@ -34,7 +34,7 @@ import { GeneratorBase } from './GeneratorBase'
 import type { GeneratorEvent } from '../session/types'
 import type { MelodicLoopPlayer } from '../loops/MelodicLoopPlayer'
 import type { AceStemLayer } from '../loops/AceStemLayer'
-import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt } from './freeplay/utils'
+import { extractKickSlots, hashString, mulberry32, getSessionSalt, rerollSessionSalt, sectionVariantKey } from './freeplay/utils'
 import { clearMotifs } from './freeplay/motif'
 import { setSampleCell, cellFromOnsetGrid, setSongCellStyle } from './freeplay/songCell'
 import { buildFreeplaySectionDrumHits, drumSectionSeedKey, DRUM_CORE_BARS } from './freeplay/DrumImproviser'
@@ -42,10 +42,19 @@ import { logPart } from './partLog'
 import { clearCompCounters } from './freeplay/ChordImproviser'
 import {
   featuredArrangementMultiplier,
+  isFeaturedRole,
   resolveFeaturedRole,
   type FeaturedPerformance,
 } from './featuredPerformance'
 import { beatModeDrumDensity, beatModeMultiplier } from './beatMode'
+
+/** How many distinct melody phrases a take rotates through: A and A'. Two, for
+ *  the same reason the drums use two — more makes every loop unique, which
+ *  stops it being one tune. */
+const MELODY_VARIATIONS = 2
+
+/** A seat that can be reimagined on its own. */
+export type ReimagineSeat = 'drums' | 'bass' | 'melody' | 'chord' | 'texture'
 import { compileCsbl } from '../csbl/csblToOrganism'
 
 /** CSBL role name -> the kit voice it controls. */
@@ -174,6 +183,23 @@ export class GeneratorOrchestrator {
   // incremented inside buildDrumHits.
   private sectionEntryCounts = new Map<string, number>()
   private currentSectionOccurrence = 0
+  // Which pass through the whole form is playing. The arrangement is a modulo
+  // cycle with no end, so without this the wrap replays the previous pass note
+  // for note — "it gets to a part, plays it three times, then starts over".
+  // Occurrence counts reset on a new pass so `lock` stays A/A' WITHIN a pass.
+  private currentSectionPass = 0
+  /** How many times each seat has been REIMAGINED. Folded into that seat's
+   *  motif key, so rerolling the melody leaves the drums and bass byte-identical.
+   *  The whole point of a per-seat reroll: keep what is working. */
+  private seatRolls: Record<ReimagineSeat, number> = {
+    drums: 0, bass: 0, melody: 0, chord: 0, texture: 0,
+  }
+  /** Bars each chord holds in jam mode. See the harmonic-rhythm note in
+   *  applyArrangement; tune by ear with window.__barsPerChord(n). */
+  private barsPerChord = 2
+  // `<lock>:<pass>` handed to every generator on section change, so the whole
+  // band agrees on which version of this section it is playing.
+  private currentSectionVariantKey = sectionVariantKey(0, 0)
   private sectionDensityLevel = 0.7
 
   // Groove lock (2026-07-11 fire-beats) — when true (default), the core groove
@@ -380,12 +406,20 @@ export class GeneratorOrchestrator {
     })
 
     // When director changes section, dispatch event for AI pattern generation
-    this.unsubDirectorSection = this.director.onSectionChange((section, slot) => {
+    this.unsubDirectorSection = this.director.onSectionChange((section, slot, ctx) => {
       const transport = Tone.getTransport()
       const position = transport.position as string
       const barNumber = parseInt(position.split(':')[0], 10) || 0
       // Freeplay improvisers key their committed motifs on the section name.
       this.currentSectionName = section
+      // A new pass through the form starts the section counts over, so the
+      // lock means "second verse of THIS pass" rather than drifting upward
+      // forever. The pass itself is what makes the restart new music.
+      const pass = Math.max(0, ctx?.cycle ?? 0)
+      if (pass !== this.currentSectionPass) {
+        this.currentSectionPass = pass
+        this.sectionEntryCounts.clear()
+      }
       // Build the drums for the section's REAL length, and give a returning
       // section its own lock (A / A'). Both are read by buildDrumHits, which is
       // called from several places during the section — so they are set once,
@@ -402,9 +436,11 @@ export class GeneratorOrchestrator {
       const entries = (this.sectionEntryCounts.get(section) ?? 0)
       this.sectionEntryCounts.set(section, entries + 1)
       this.currentSectionOccurrence = entries
-      this.bass.setSectionName(section)
-      this.melody.setSectionName(section)
-      this.chord.setSectionName(section)
+      this.currentSectionVariantKey = sectionVariantKey(entries, pass)
+      this.pushSeatVariants()
+      // The whole rhythm section gets the SAME variant, so bass and chords
+      // stop replaying a section the drums have already moved on from.
+
       orgLog('arrangement:section', {
         section,
         bars: slot.bars,
@@ -787,6 +823,84 @@ export class GeneratorOrchestrator {
     return this.running
   }
 
+  /**
+   * REIMAGINE — throw this take away and roll another one.
+   *
+   * The user's framing, and it reframes the whole problem: "its never going to
+   * produce a fire beat to my or anyone's ear all the time, so if we don't like
+   * it we just hit reimagine." A generator does not have to hit every time; it
+   * has to be CHEAP TO REROLL until it does. One good take out of five is a
+   * good instrument if the reroll costs one click.
+   *
+   * Three things change, which is everything that makes a take a take:
+   *   - the session salt      → every improviser draws a different stream
+   *   - the progression       → new harmony from the Conductor's bank
+   *   - all generator patterns → drums, bass, chords, melody, texture rebuild
+   *
+   * What does NOT change: tempo, key centre, preset, sub-genre, instruments,
+   * and every switch the user has set. A reroll is a new take of the same
+   * SONG, not a new song — otherwise the button would undo his choices, and
+   * user choices are obeyed exactly.
+   *
+   * Returns the new seed so a take worth keeping can be pinned with
+   * setFreeplaySeed(seed).
+   */
+  /** Hand each pitched seat its variant WITH that seat's reroll count, so the
+   *  seats can be rerolled independently. */
+  private pushSeatVariants(): void {
+    const v = this.currentSectionVariantKey
+    const name = this.currentSectionName
+    this.bass.setSectionName(name, `${v}:r${this.seatRolls.bass}`)
+    this.melody.setSectionName(name, `${v}:r${this.seatRolls.melody}`)
+    this.chord.setSectionName(name, `${v}:r${this.seatRolls.chord}`)
+  }
+
+  /**
+   * Reimagine ONE seat. The rest of the band is untouched — byte-identical,
+   * because their motif keys did not move.
+   *
+   * This is the version that matters in practice. A take is rarely all bad:
+   * the user's report tonight was "bass is awesomely expressive, drums killing
+   * it, chords still too sparse". A global reroll would have thrown away the
+   * two parts that were working to fix the two that were not.
+   */
+  reimagineSeat(seat: ReimagineSeat): number {
+    this.seatRolls[seat] += 1
+    this.pushSeatVariants()
+    const roll = this.seatRolls[seat]
+    orgLog('reimagine:seat', { seat, roll })
+
+    const dirState = this.director.getState()
+    switch (seat) {
+      case 'drums':
+        this.drum.loadGeneratedPattern(
+          this.buildDrumHits(dirState.subGenre as HipHopSubGenre, dirState.drums.variantIndex),
+          true,
+        )
+        break
+      case 'bass':    this.replayStateToGenerator(this.bass); break
+      case 'melody':  this.replayStateToGenerator(this.melody); break
+      case 'chord':   this.replayStateToGenerator(this.chord); break
+      case 'texture': this.replayStateToGenerator(this.texture); break
+    }
+    return roll
+  }
+
+  reimagine(): number {
+    const seed = rerollSessionSalt()
+    getConductor().pickNewProgression()
+    // Section counts start over: the new take's first verse is ITS first
+    // verse, not the fourth of a take that no longer exists.
+    this.sectionEntryCounts.clear()
+    this.currentSectionOccurrence = 0
+    this.currentSectionVariantKey = sectionVariantKey(0, this.currentSectionPass)
+    for (const seat of Object.keys(this.seatRolls) as ReimagineSeat[]) this.seatRolls[seat] += 1
+    this.pushSeatVariants()
+    this.regenerateAll()
+    orgLog('reimagine', { seed })
+    return seed
+  }
+
   /** Force all generators to rebuild their patterns with current physics. */
   regenerateAll(): void {
     if (!this.lastPhysics) return
@@ -872,6 +986,8 @@ export class GeneratorOrchestrator {
     this.chord.setLeadPocketed(leadIsForeground)
     this.texture.setLeadPocketed(leadIsForeground || feature === 'chord')
     this.texture.setFeaturedTexture(feature === 'texture')
+    // Featuring a part is what lets it solo out of the locked loop.
+    this.applyPhraseLocks()
     this.updateSoloStates()
     if (feature !== 'none') {
       // A Full Song feature uses the existing producer section arc.
@@ -1243,6 +1359,9 @@ export class GeneratorOrchestrator {
     this.bass.setSoloMode(bassSolo)
     this.drum.setSoloMode(drumSolo)
     this.chord.setSoloMode(chordSolo)
+    // Solo state decides whether a part is locked to its loop, so the locks are
+    // resolved here too rather than only on the Beat Mode / feature toggles.
+    this.applyPhraseLocks()
   }
 
   /** Enable or disable the texture generator entirely. */
@@ -1384,6 +1503,50 @@ export class GeneratorOrchestrator {
     if (this.beatModeEnabled === enabled) return
     this.beatModeEnabled = enabled
     orgLog('beatMode:toggle', { enabled })
+    // Loops are the DEFAULT for every part; soloing is a role a part takes.
+    // The melody's phrase counter was the one part still re-rolling on every
+    // chord change, so it never read as a loop. It locks with the rest — unless
+    // it is the featured performer, in which case it is supposed to develop.
+    this.applyPhraseLocks()
+    // Force applyArrangement to re-evaluate on the next call rather than
+    // short-circuiting on an unchanged bar number.
+    this.lastArrangementBar = -1
+
+    // ── Jam mode: Beat Mode IS the beat machine (spec A.3) ──
+    if (!this.arrangementEnabled) {
+      if (enabled) {
+        // Re-arm the build so it is audible on EVERY flip, not only at session
+        // start — the user's report was that enabling it changed nothing.
+        this.introStartBar = -1
+        // Commit the band to a fresh, mutually consistent set of loops at the
+        // moment he asked for one. Same lock/pass mechanism the sectioned path
+        // uses, so cohesion comes from the existing song cell + Conductor
+        // rather than five independent re-rolls.
+        this.currentSectionPass++
+        this.currentSectionVariantKey = sectionVariantKey(
+          this.currentSectionOccurrence, this.currentSectionPass,
+        )
+        this.bass.setSectionName(this.currentSectionName, this.currentSectionVariantKey)
+        this.melody.setSectionName(this.currentSectionName, this.currentSectionVariantKey)
+        this.chord.setSectionName(this.currentSectionName, this.currentSectionVariantKey)
+      } else {
+        // Leaving mid-build must not strand a part silent — nothing else writes
+        // these multipliers in jam mode. Same class of bug as the density that
+        // setArrangementEnabled(false) used to leave behind (spec A.2).
+        this.introStartBar = -1
+        this.drum.applyArrangementMultiplier(1)
+        this.drum.setSectionDensity(1)
+        this.sectionDensityLevel = 1
+        this.bass.applyArrangementMultiplier(1)
+        this.chord.applyArrangementMultiplier(1)
+        this.melody.applyArrangementMultiplier(1)
+        this.lastTextureArrangementMultiplier = 1
+        this.texture.applyArrangementMultiplier(this.textureEnabled ? 1 : 0)
+      }
+      return
+    }
+
+    // ── Song Mode: the A.2 behaviour, unchanged ──
     if (!enabled) return
     // Apply now rather than waiting for the next bar tick, so the floor comes
     // back the moment it is asked for instead of one section later.
@@ -1394,6 +1557,99 @@ export class GeneratorOrchestrator {
   }
 
   isBeatModeEnabled(): boolean { return this.beatModeEnabled }
+
+  /** How many bars a chord holds in jam mode (1, 2 or 4). By ear only. */
+  setBarsPerChord(bars: number): number {
+    const n = Math.max(1, Math.min(8, Math.round(bars)))
+    this.barsPerChord = n
+    orgLog('harmonicRhythm', { barsPerChord: n })
+    return n
+  }
+
+  getBarsPerChord(): number { return this.barsPerChord }
+
+  /** Who is playing a locked loop and who is developing.
+   *
+   *  In Beat Mode every part is a loop by default — that is what makes it a
+   *  tune the ear can learn, and the user's report ("i cant tell if they are
+   *  playing a loop... not actually a tune") was the melody being the lone
+   *  exception. A FEATURED part is the one that gets to solo, so it keeps its
+   *  developing stream. Outside Beat Mode nothing is locked: the melody is the
+   *  soloist by default, as before.
+   *
+   *  Only the melody has a develop-vs-lock stream today. Featuring chords or
+   *  texture changes their role and level but cannot yet make them solo, and
+   *  drums/bass cannot be featured at all — `FeaturedPerformance` has no case
+   *  for them. See spec A.3; that is the next piece, not a silent omission. */
+  /** Which seat carries the repeating hook. The other one is free to move.
+   *
+   *  Decided by ear 2026-08-17: with the melody locked, the user heard it
+   *  "loop and evolve at the same time" and proposed the flip — "maybe its the
+   *  chords that should have this loop and we allow melody to do its thing."
+   *  That is the chords-as-the-hook model: most beats use keys/pads as the
+   *  hook and let the lead answer around it, while the Organism was built
+   *  melody-led. The chord seat already defaults to 'lead' in jam mode for the
+   *  same reason.
+   *
+   *  Chords need no lock — their comp is already stable per section (the
+   *  A-A-A' compCounter only fires on the legacy bars<=1 path, and the live
+   *  comp is built with bars: 4). So this seat choice reduces to: does the
+   *  MELODY hold still? */
+  /** Does the melody repeat its phrase, or keep moving? */
+  private melodyLoops = true
+  /** How many 4-bar loops a melody phrase holds before it varies.
+   *
+   *  Not a switch between frozen and free — both of those have been tried and
+   *  rejected. An EVOLVER: the same figure for this many loops, then a
+   *  variation of it, then back. 4 loops = 16 bars at the default, long enough
+   *  to learn and short enough to stay alive. By ear: __melodyEvolve(n). */
+  private melodyEvolveLoops = 4
+
+  private hookSeat: 'chord' | 'melody' = 'chord'
+
+  /** Move the hook to the other seat. One line by design — this is a by-ear
+   *  choice, not a tuned constant, and it should stay trivial to A/B. */
+  setHookSeat(seat: 'chord' | 'melody'): void {
+    if (this.hookSeat === seat) return
+    this.hookSeat = seat
+    orgLog('hookSeat', { seat })
+    this.applyPhraseLocks()
+  }
+
+  getHookSeat(): 'chord' | 'melody' { return this.hookSeat }
+
+  /** Loops a melody phrase holds before varying (1 = vary every loop). */
+  setMelodyEvolveLoops(loops: number): number {
+    this.melodyEvolveLoops = Math.max(1, Math.min(32, Math.round(loops)))
+    orgLog('melodyEvolve', { loops: this.melodyEvolveLoops })
+    return this.melodyEvolveLoops
+  }
+
+  getMelodyEvolveLoops(): number { return this.melodyEvolveLoops }
+
+  /** Melody repeats its phrase (true) or keeps developing (false). By ear. */
+  setMelodyLoops(loops: boolean): boolean {
+    this.melodyLoops = loops
+    orgLog('melodyLoops', { loops })
+    this.applyPhraseLocks()
+    return this.melodyLoops
+  }
+
+  getMelodyLoops(): boolean { return this.melodyLoops }
+
+  private applyPhraseLocks(): void {
+    // Soloing arrives by TWO doors: `featured`, and updateSoloStates' rule that
+    // the last player standing is soloing. A locked soloist is a contradiction,
+    // so both doors unlock the phrase.
+    const melodySolos =
+      isFeaturedRole(this.featuredPerformance, 'melody') || this.melody.isSoloMode
+    // Every reference loop repeats its melody phrase IDENTICALLY each cycle —
+    // 13/13, whether the melody or the chords carried the hook. So the lock is
+    // no longer tied to the hook seat: in Beat Mode the melody repeats unless
+    // it is SOLOING, the one case where developing is the entire point.
+    // hookSeat still decides who LEADS; it no longer decides who repeats.
+    this.melody.setPhraseLocked(this.melodyLoops && this.beatModeEnabled && !melodySolos)
+  }
 
   /**
    * Audition a CSBL line on the live drums.
@@ -1950,7 +2206,12 @@ export class GeneratorOrchestrator {
     let hits: DrumHit[]
     if (this.drumFreeplay) {
       const seed = hashString(
-        drumSectionSeedKey(this.currentSectionName, subGenre as string, this.currentSectionOccurrence),
+        drumSectionSeedKey(
+          this.currentSectionName,
+          subGenre as string,
+          this.currentSectionOccurrence,
+          this.currentSectionPass,
+        ),
       )
       hits = buildFreeplaySectionDrumHits({
         rootMidi: 0, chordIntervals: [0],           // drums don't use pitch
@@ -2228,21 +2489,63 @@ export class GeneratorOrchestrator {
       const barNumber = parseInt(String(transport.position).split(':')[0], 10) || 0
       if (barNumber === this.lastArrangementBar) return
       this.lastArrangementBar = barNumber
-      // Advance on the bar before each 4-bar boundary so the new harmony
-      // lands exactly on the even downbeat (see arrangement path comment).
-      if (barNumber % 4 === 3) getConductor().advanceChord()
+      // HARMONIC RHYTHM. Advance on the bar BEFORE the boundary so the new
+      // harmony lands exactly on the even downbeat (see arrangement path).
+      //
+      // Was hardcoded to 4 bars per chord, which with a 4-chord progression
+      // means the harmony takes SIXTEEN bars to come back around. Two reference
+      // loops captured 2026-08-18 both complete in 4 bars — one moves every bar,
+      // the other every two. The user, on the 4-bar version: "it might be
+      // looping but its a long loop." Two is the middle of the two references
+      // and half our old value; it is a by-ear constant, so hear 1, 2 and 4
+      // before treating any of them as settled.
+      if (barNumber % this.barsPerChord === this.barsPerChord - 1) {
+        const conductor = getConductor()
+        conductor.advanceChord()
+        // THE 4-BAR LOOP. Thirteen reference loops, thirteen agreements: the
+        // loop resolves in four bars. Two chords of two, or four of one — the
+        // chord COUNT varies between records, the loop LENGTH does not.
+        // Wrapping here rather than at the end of the progression means a long
+        // progression simply contributes its first N chords, and the loop still
+        // returns where the ear expects. Structural only: the Conductor still
+        // chooses the key and the chords, this decides when they come back.
+        // DRUM_CORE_BARS is already "the phrase the ear recognises as the beat"
+        // (4). The loop length and the locked drum phrase are the same idea, so
+        // this reuses it rather than introducing a second constant named 4.
+        const chordsPerLoop = Math.max(1, Math.round(DRUM_CORE_BARS / this.barsPerChord))
+        if (conductor.getChordIndex() >= chordsPerLoop) conductor.resetChordIndex()
+      }
 
-      // Progressive intro: stagger instrument entry like a real musician building a beat.
-      // Only when not in melody-only mode (which has its own multiplier logic).
-      if (this.progressiveIntroEnabled && !this.melodyOnlyMode) {
+      // MELODY EVOLVER. The phrase holds for melodyEvolveLoops loops, then
+      // takes a variation, then returns — A A A A' rather than one frozen
+      // figure or a fresh one every rebuild. Derived from the bar count, so it
+      // can only change ON a loop boundary and never part-way through a phrase.
+      const loopIndex = Math.floor(barNumber / DRUM_CORE_BARS)
+      const variation = Math.floor(loopIndex / this.melodyEvolveLoops) % MELODY_VARIATIONS
+      this.melody.setPhraseVariation(variation)
+      // Chords evolve on the SAME clock, so the band varies together rather
+      // than each seat drifting on its own schedule.
+      this.chord.setPhraseVariation(variation)
+
+      // The build: bring the band in one part at a time, like starting groove
+      // pads. Beat Mode owns this in jam mode — it is what makes Beat Mode the
+      // beat machine rather than a Song Mode modifier (spec A.3). Progressive
+      // Intro keeps driving it too, with its own randomly-picked lead.
+      // Not in melody-only mode, which has its own multiplier logic.
+      if ((this.beatModeEnabled || this.progressiveIntroEnabled) && !this.melodyOnlyMode) {
         if (this.introStartBar === -1) {
           this.introStartBar = barNumber
-          // Any of the five can open it — the user's own call. Salt-seeded so a
-          // take opens the same way throughout and differently next time.
-          this.introLead = pickIntroLead(getSessionSalt())
+          // Beat Mode does not roll for a lead: the user asked for drums first,
+          // so the pocket is the thing you hear open. Progressive Intro still
+          // picks any of the five, salt-seeded, so a take opens the same way
+          // throughout and differently next time.
+          this.introLead = this.beatModeEnabled ? 'drums' : pickIntroLead(getSessionSalt())
         }
-        const barsElapsed = barNumber - this.introStartBar
-        const stage = introMultipliers(this.introLead, barsElapsed, transport.bpm.value)
+        // The ROUND is the unit, not the bar and not the second: a part gets a
+        // round or two to itself before the next lands. The round is the locked
+        // core's own cycle, so an entry can never fall part-way through a loop.
+        const roundsElapsed = Math.floor((barNumber - this.introStartBar) / DRUM_CORE_BARS)
+        const stage = introMultipliers(this.introLead, roundsElapsed)
         this.drum.applyArrangementMultiplier(stage.drums)
         this.bass.applyArrangementMultiplier(stage.bass)
         this.chord.applyArrangementMultiplier(stage.chord)

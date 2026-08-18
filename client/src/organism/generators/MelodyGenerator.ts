@@ -148,6 +148,23 @@ export class MelodyGenerator extends GeneratorBase {
   private lastNoteEndSec: number = 0
   private groovePocket: number[] = Array(16).fill(0)
   setGroovePocket(pocket: number[]): void { this.groovePocket = [...pocket] }
+
+  /** Lock the melody to one repeating phrase (Beat Mode) or let it develop
+   *  phrase to phrase (the soloist, everywhere else). */
+  setPhraseLocked(locked: boolean): void { this.phraseLocked = locked }
+
+  /** Which variation of the locked phrase to play. A change here is a musical
+   *  event, so it marks the phrase dirty and the new figure lands at the next
+   *  rebuild rather than part-way through the current one. */
+  setPhraseVariation(variation: number): void {
+    const v = Number.isFinite(variation) ? Math.max(0, Math.trunc(variation)) : 0
+    if (v === this.phraseVariation) return
+    this.phraseVariation = v
+    this.phraseDirty = true
+  }
+
+  getPhraseVariation(): number { return this.phraseVariation }
+  isPhraseLocked(): boolean { return this.phraseLocked }
   // Set by onSectionChange: bias the chorus/hook to a contrasting bank.
   private preferredMotifBankKey: string | null = null
   // ── Freeplay (2026-07-04) ── melody now uses the shared improviser by
@@ -155,6 +172,25 @@ export class MelodyGenerator extends GeneratorBase {
   // fallback/style source via setFreeplay(false).
   private freeplayEnabled = true
   private freeplayPhraseCounter = 0
+  // Beat Mode makes the melody a PAD, not a soloist (spec A.3). The phrase
+  // counter below advances the random stream on every rebuild — and rebuilds
+  // fire on every chord change — so the contour stayed but the notes, rests and
+  // accents moved every four bars. The user's report: "i cant tell if they are
+  // playing a loop... its not very musical, not actually a tune." A loop the ear
+  // never hears twice is not a loop. When locked, the phrase is byte-identical
+  // every cycle and the melody becomes a figure you can learn.
+  private phraseLocked = false
+  /** Which VARIATION of the locked phrase is playing — A (0) or A' (1).
+   *
+   *  A frozen phrase and a re-rolled phrase are the two things already tried
+   *  and rejected ("killing the loop made it worse"; "not actually a tune").
+   *  This is the third option and the one the rhythm section already uses:
+   *  the SAME phrase for several loops, then a variation of it, then back.
+   *  The ear learns the figure because it repeats, and the take stays alive
+   *  because it moves — at a boundary, where the change is announced.
+   *
+   *  Set by the orchestrator from the bar count; never advanced mid-phrase. */
+  private phraseVariation = 0
   // Section instrument hand-off (piano verse -> strings chorus) is BUILT but OFF
   // by default: timbre variety only pays off once the LINE is good, and we don't
   // want to debug a jumping voice while the note logic is still settling.
@@ -906,7 +942,21 @@ export class MelodyGenerator extends GeneratorBase {
     if (!lengths || lengths.length === 0) return true
 
     const currentBar = getConductor().getScoreFrame().bar
-    const seedVal = this.sessionSeed + this.rootPitchClass + (this.currentChordTones[0] ?? 0) + currentBar
+    // PHRASE LENGTH — and why the bar and the chord are excluded when locked.
+    //
+    // This hash picks how long the phrase is. It used to fold in `currentBar`
+    // and the current chord tone unconditionally, so every rebuild chose a
+    // DIFFERENT length: 2 bars, then 4, then 3. Locking the note RNG could
+    // never make that repeat, because the figure itself changed shape each
+    // time. The user's report: "no its not repeating, at least not like a loop."
+    //
+    // Same bug class as the counter-in-the-seed that 473eebba removed from the
+    // rhythm section — a value that moves on every rebuild, folded into a seed
+    // that is supposed to identify the loop. When locked, the length is a pure
+    // function of the take, so the phrase keeps its shape and the ear can learn
+    // it. Unlocked (the soloist) it still varies, which is what a soloist does.
+    const lengthDrift = this.phraseLocked ? 0 : (this.currentChordTones[0] ?? 0) + currentBar
+    const seedVal = this.sessionSeed + this.rootPitchClass + lengthDrift
     const lengthHash = Math.sin(seedVal * 12.34) * 1000
     const lengthRand = lengthHash - Math.floor(lengthHash)
     const selectedLength = lengths[Math.floor(lengthRand * lengths.length)]
@@ -915,8 +965,22 @@ export class MelodyGenerator extends GeneratorBase {
     // bars fills with a developing statement→answer idea (the motif-chaining below)
     // that lines up with the 2-bar chord cycle. Same fix the bowed strings already
     // had; now applied to guitar and every other lead.
+    // HOOK LENGTH when locked. A 4-bar lead phrase over a 4-bar chord means the
+    // figure only truly repeats when the whole progression comes back — 16 bars
+    // with four chords. The user heard exactly that: "it might be looping but
+    // its a long loop." A hook is short; you learn it because you hear it two or
+    // four times per chord, not once.
+    //
+    // 32 sixteenths = 2 bars, which divides the 4-bar chord cycle EVENLY — so
+    // the reason the shorter options were removed (they "were guaranteed to
+    // start mid-chord-cycle 50% of the time") does not apply here. The Part
+    // loops at loopEnd, so the figure simply plays twice per chord.
+    // Try 16 (one bar) if two bars still reads as long.
+    const HOOK_PHRASE_16THS = 32
     let phraseLength = this.currentBehavior === MelodyBehavior.Lead
-      ? Math.max(this.isSoloMode ? 64 : 32, selectedLength)
+      ? (this.phraseLocked
+          ? HOOK_PHRASE_16THS
+          : Math.max(this.isSoloMode ? 64 : 32, selectedLength))
       : selectedLength
     let notes          = this.generatePhrase(phraseLength, physics)
     if (this.isSoloMode && this.currentScale.length > 0) {
@@ -1276,7 +1340,14 @@ export class MelodyGenerator extends GeneratorBase {
       const behavior = this.currentBehavior === MelodyBehavior.Hint
         ? 'hint'
         : this.currentBehavior === MelodyBehavior.Respond ? 'respond' : 'lead'
-      const seed = hashString(`melody:${this.currentSectionName}:${score.subGenre}:${behavior}`)
+      // The variation belongs in the MOTIF seed, not only in the rng stream.
+      // pitchIdeaFor caches the phrase's IDENTITY (anchor degree, contour,
+      // answer shift) under this seed, so leaving it out meant A' reused the
+      // same contour and shifted only its rests — inaudible. The user: "this
+      // melody is just a 4 bar loop that never changes."
+      const seed = hashString(
+        `melody:${this.currentSectionName}:${score.subGenre}:${behavior}:v${this.phraseLocked ? this.phraseVariation : 0}`,
+      )
 
       return buildFreeplayMelodyNotes({
         rootMidi: chord.rootMidi,
@@ -1291,7 +1362,17 @@ export class MelodyGenerator extends GeneratorBase {
         sectionName: this.currentSectionName,
         motifSeed: seed,
         kickTimes16ths: [],
-        rng: mulberry32(seed + getSessionSalt() + this.freeplayPhraseCounter++),
+        // Locked: the SAME stream every rebuild, so the phrase repeats exactly.
+        // Unlocked: the counter advances and the soloist develops. Note the
+        // increment must not happen while locked, or unlocking would jump.
+        // Locked: the stream is a pure function of the VARIATION, so the phrase
+        // is byte-identical for as long as the variation holds, then becomes a
+        // different-but-related figure when it flips. Unlocked: the counter
+        // advances every rebuild and the soloist never repeats itself.
+        rng: mulberry32(
+          seed + getSessionSalt()
+          + (this.phraseLocked ? this.phraseVariation * 7919 : this.freeplayPhraseCounter++),
+        ),
         scaleIntervals: this.currentScale,
         keyPitchClass: this.rootPitchClass,
         chordDegrees: chordDegs,

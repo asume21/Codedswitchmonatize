@@ -98,3 +98,36 @@ describe('MusicalDirector arrangement masks', () => {
     expect(sections).toEqual([])
   })
 })
+
+// ── Repeated section names ───────────────────────────────────────────
+// Detecting a section change by NAME merges adjacent same-name slots into one
+// long block: cypher-flow (verse/verse/verse) never changed section at all,
+// so the locked loop played unbroken for the whole form and the wrap was
+// silent. The slot INDEX is what actually identifies a section.
+describe('MusicalDirector section identity', () => {
+  beforeEach(() => {
+    setActiveArrangementTemplate('cypher-flow')
+  })
+
+  it('fires a change for each same-named slot, and again on the wrap', () => {
+    const director = new MusicalDirector()
+    director.setArrangementEnabled(true)
+    const physics = makePhysics()
+    const organism = makeOrganism()
+
+    const fired: Array<{ section: string; cycle: number }> = []
+    director.onSectionChange((section, _slot, ctx) => {
+      fired.push({ section, cycle: ctx?.cycle ?? -1 })
+    })
+
+    // cypher-flow is three 4-bar verses, scaled x4 => 16 live bars each, 48 total.
+    for (const bar of [0, 8, 16, 24, 32, 40, 48, 56]) {
+      director.update(physics, organism, bar)
+    }
+
+    // Bars 0/16/32 are the three slots of pass 0; bar 48 wraps to slot 0 of
+    // pass 1. Bar 56 is still inside that slot, so it correctly does not fire.
+    expect(fired.map(f => f.section)).toEqual(['verse', 'verse', 'verse', 'verse'])
+    expect(fired.map(f => f.cycle)).toEqual([0, 0, 0, 1])
+  })
+})

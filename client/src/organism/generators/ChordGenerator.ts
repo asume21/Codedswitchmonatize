@@ -6,7 +6,7 @@
 
 import * as Tone from 'tone'
 import { buildFreeplayCompPlan } from './freeplay/ChordImproviser'
-import { hashString, mulberry32, getSessionSalt, swungTime } from './freeplay/utils'
+import { hashString, mulberry32, getSessionSalt, swungTime, sectionMotifKey } from './freeplay/utils'
 import { slotsToDur, compVoicingForHit } from './freeplay/score'
 import { logPart } from './partLog'
 import type { LoopClip } from '@shared/loopPack'
@@ -744,18 +744,50 @@ export class ChordGenerator extends GeneratorBase {
     } else if (this.freeplayEnabled) {
       // Energy from the current behavior — the behavior resolver already maps
       // organism state to intensity, so reuse it instead of a second signal.
-      const energy = this.currentBehavior === ChordBehavior.Pad ? 0.3
+      const behaviorEnergy = this.currentBehavior === ChordBehavior.Pad ? 0.3
         : this.currentBehavior === ChordBehavior.Stab ? 0.85 : 0.6
+      // A HOOK IS A STATEMENT, NOT A WASH. `density` drives how many hits the
+      // comp plays, and a Pad behaviour asks for 0.3 — correct for a background
+      // bed, far too thin for the part carrying the beat. The chord seat leads
+      // by default in jam mode, so it was leading at background density: the
+      // user's report was "chords is still too sparse".
+      //
+      // Floored only when this seat LEADS. A supporting comp keeps its 0.3 and
+      // stays out of the way, which is its job.
+      const energy = this.role === 'lead' ? Math.max(0.62, behaviorEnergy) : behaviorEnergy
       const score = conductor.getScoreFrame()
-      const seed = hashString(`chord:${this.currentSectionName}:${score.subGenre}`)
+      // Lock/pass keyed — see BassGenerator. The comp stays byte-identical for
+      // the whole section and changes only at the boundary.
+      // Same evolver as the melody: the comp figure holds for several loops,
+      // then varies, then returns. The user asked for it after hearing the
+      // melody evolve ("maybe the chords need 4 too"). Variation rides in the
+      // seed so the FIGURE changes, not just its accents.
+      const seed = hashString(sectionMotifKey(
+        'chord',
+        this.currentSectionName,
+        `${this.currentSectionVariant}:v${this.phraseVariation}`,
+        score.subGenre,
+      ))
       const plan = buildFreeplayCompPlan({
         rootMidi: parsedCurrent.rootMidi,
         chordIntervals: parsedCurrent.intervals ?? [0, 4, 7],
-        // 4 bars: statement -> echo -> development -> answer. The old 2-bar
-        // loop was still small enough to read as a style cell repeating. Notes
-        // stay the current voicing throughout, so the longer plan is chord-safe:
-        // a chord change rebuilds the part at the boundary exactly as before.
-        bars: 4,
+        // 4 bars gives statement -> echo -> development -> answer: four DIFFERENT
+        // bars, a developing phrase. 2 bars gives statement -> development, so
+        // the figure comes back around inside the chord.
+        //
+        // REVERSED 2026-08-17, by ear. The 4-bar plan was chosen because a 2-bar
+        // loop "was still small enough to read as a style cell repeating" — but
+        // when the chord seat is the HOOK, repeating is the entire job. A hook
+        // is a figure you learn because you hear it twice per chord, not a
+        // four-bar essay restated on schedule. The user, on the 4-bar version:
+        // "it feel like sometimes the loop change is to close together", "it
+        // almost sounds like a mess up", "its almost like its forced" — which is
+        // what a develop-every-phrase scheme sounds like when nothing asked it
+        // to develop.
+        //
+        // Supporting comps keep the 4-bar plan: answering in the gaps is a
+        // different job, and there the development is the point.
+        bars: this.role === 'lead' ? 2 : 4,
         swing: this.currentSwing,
         subGenre: score.subGenre,
         energy,
@@ -981,6 +1013,21 @@ export class ChordGenerator extends GeneratorBase {
    *   verse           → rolled chord  (gentle arpeggio, rhythmic but airy)
    *   build/drop/drop2 → mode default (punchy stab or block chord)
    */
+  /** Which variation of the comp figure is playing — A (0) or A' (1). Set by
+   *  the orchestrator from the loop count, so it can only change on a loop
+   *  boundary. Repetition that DEVELOPS: the same figure for several loops,
+   *  then a related one, then back. */
+  private phraseVariation = 0
+
+  setPhraseVariation(variation: number): void {
+    const v = Number.isFinite(variation) ? Math.max(0, Math.trunc(variation)) : 0
+    if (v === this.phraseVariation) return
+    this.phraseVariation = v
+    this.conductorChordDirty = true   // rebuild at the next safe point
+  }
+
+  getPhraseVariation(): number { return this.phraseVariation }
+
   onSectionChange(sectionName: string, aiTechnique?: string): void {
     // Phase 4: progression rotation moved to the Orchestrator (which calls
     // conductor.pickNewProgression() on section boundaries — see

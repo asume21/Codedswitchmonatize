@@ -1,36 +1,34 @@
 /**
- * The intro build-up, in beat mode with song mode off.
+ * The intro build-up — Beat Mode's build phase.
  *
- * User: "when i start the music i put it in beat mode and turn off song mode and
- * at that point is where it need to decide its intro which i want to only be one
- * generator and then within maybe 10-15 sec get all five going but its a build up
- * and it just works" — then "it can start with any of them", then the constraint
- * that decides the shape: "as long as what it is playing is a loop".
+ * The model is a loop launcher, in the user's words: "the way i think of it in my
+ * head is how i play groove pads. i start one of the pads and it starts looping,
+ * i usually let it play one or two rounds then bring in something else."
  *
- * That last one is why entries are quantised to BAR BOUNDARIES rather than to a
- * wall-clock interval. A part revealed 3.2s in would start halfway through its own
- * figure, and the thing stops being a loop. Every generator is already running from
- * bar 0 and merely inaudible, so parts are REVEALED, not started, and the loop
- * underneath never re-phases.
+ * So the unit is the ROUND — the loop's own cycle — not a wall-clock interval and
+ * not the chord. A round is tempo-independent and harmony-independent, which is
+ * why a launcher never lands wrong, and it is why this module no longer knows
+ * what BPM is. The caller counts rounds; this decides who has arrived.
  *
- * Replaces GeneratorOrchestrator.INTRO_STACK, which was a hardcoded 4-row table
- * that opened with THREE parts (chords + melody + pad) and measured its build in
- * bars — so it ran 10s at 144 BPM and 16s at 90.
+ * The earlier 10-15 second target is retired, by the user: "it doesn't matter
+ * exactly when they all come in, what matters is that it comes in where it fits."
+ * Do not restore a seconds-based assertion here — see spec A.3.
+ *
+ * Every generator is already running from bar 0 and merely inaudible, so parts are
+ * REVEALED, not started, and the loop underneath never re-phases.
  */
 
 import { describe, it, expect } from 'vitest'
 import {
   pickIntroLead,
-  introSpacingBars,
   introMultipliers,
+  ROUNDS_PER_ENTRY,
   INTRO_ROLES,
   type IntroRole,
 } from '../introBuild'
 
-const barSeconds = (bpm: number) => (60 / bpm) * 4
-
-/** The bar at which every role has arrived, for a given spacing. */
-const finalEntryBar = (spacing: number) => spacing * (INTRO_ROLES.length - 1)
+/** The round by which every role has arrived. */
+const finalEntryRound = (INTRO_ROLES.length - 1) * ROUNDS_PER_ENTRY
 
 describe('pickIntroLead', () => {
   it('can pick any of the five', () => {
@@ -44,55 +42,30 @@ describe('pickIntroLead', () => {
   })
 })
 
-describe('introSpacingBars', () => {
-  it('is always a whole number of bars, so entries land on the downbeat', () => {
-    for (let bpm = 70; bpm <= 180; bpm += 1) {
-      const s = introSpacingBars(bpm)
-      expect(Number.isInteger(s)).toBe(true)
-      expect(s).toBeGreaterThanOrEqual(1)
-    }
-  })
-
-  it('lands the full band in roughly 8-17s across every usable tempo', () => {
-    // The user asked for 10-15s. Entries must sit on bar lines, so the spacing is
-    // an integer and the achievable total moves in steps of a bar — at some tempos
-    // the nearest choice falls just outside the window. This asserts the real
-    // guarantee rather than pretending the window is exact.
-    for (let bpm = 70; bpm <= 180; bpm += 1) {
-      const total = finalEntryBar(introSpacingBars(bpm)) * barSeconds(bpm)
-      expect(total).toBeGreaterThanOrEqual(8)
-      expect(total).toBeLessThanOrEqual(17)
-    }
-  })
-})
-
 describe('introMultipliers', () => {
-  const bpm = 144
-  const spacing = introSpacingBars(bpm)
-
   it.each(INTRO_ROLES)('opens with %s ALONE when it leads', (lead) => {
-    const m = introMultipliers(lead, 0, bpm)
+    const m = introMultipliers(lead, 0)
     expect(m[lead]).toBeGreaterThan(0)
     for (const r of INTRO_ROLES) {
       if (r !== lead) expect(m[r]).toBe(0)
     }
   })
 
-  it.each(INTRO_ROLES)('has every role at full by the final entry — lead %s', (lead) => {
-    const m = introMultipliers(lead, finalEntryBar(spacing), bpm)
+  it.each(INTRO_ROLES)('has every role at full by the final round — lead %s', (lead) => {
+    const m = introMultipliers(lead, finalEntryRound)
     for (const r of INTRO_ROLES) expect(m[r]).toBe(1)
   })
 
   it('stays at full after the build finishes', () => {
-    const m = introMultipliers('drums', finalEntryBar(spacing) + 40, bpm)
+    const m = introMultipliers('drums', finalEntryRound + 40)
     for (const r of INTRO_ROLES) expect(m[r]).toBe(1)
   })
 
   it('never removes a part once it has entered', () => {
     for (const lead of INTRO_ROLES) {
       const arrived = new Set<IntroRole>()
-      for (let bar = 0; bar <= finalEntryBar(spacing) + 4; bar++) {
-        const m = introMultipliers(lead, bar, bpm)
+      for (let round = 0; round <= finalEntryRound + 4; round++) {
+        const m = introMultipliers(lead, round)
         for (const r of INTRO_ROLES) {
           if (m[r] > 0) arrived.add(r)
           else expect(arrived.has(r)).toBe(false)  // came in, then vanished
@@ -101,20 +74,30 @@ describe('introMultipliers', () => {
     }
   })
 
-  it('only changes on a spacing boundary — no part appears mid-phrase', () => {
+  it('adds exactly one part per entry — a launcher brings in one pad at a time', () => {
+    const lead: IntroRole = 'drums'
+    let previous = 0
+    for (let round = 0; round <= finalEntryRound; round += ROUNDS_PER_ENTRY) {
+      const m = introMultipliers(lead, round)
+      const playing = INTRO_ROLES.filter(r => m[r] > 0).length
+      expect(playing).toBe(previous + 1)
+      previous = playing
+    }
+  })
+
+  it('holds the line between entries — nothing changes mid-round', () => {
+    if (ROUNDS_PER_ENTRY === 1) return  // no gap to hold when every round admits one
     const lead: IntroRole = 'melody'
-    for (let bar = 0; bar < finalEntryBar(spacing); bar++) {
-      if (bar % spacing === 0) continue
-      const prev = introMultipliers(lead, bar - 1, bpm)
-      const here = introMultipliers(lead, bar, bpm)
-      expect(here).toEqual(prev)
+    for (let round = 0; round < finalEntryRound; round++) {
+      if (round % ROUNDS_PER_ENTRY === 0) continue
+      expect(introMultipliers(lead, round)).toEqual(introMultipliers(lead, round - 1))
     }
   })
 
   it('brings the pocket in before the decoration when melody leads', () => {
     const order: IntroRole[] = []
-    for (let bar = 0; bar <= finalEntryBar(spacing); bar += spacing) {
-      const m = introMultipliers('melody', bar, bpm)
+    for (let round = 0; round <= finalEntryRound; round += ROUNDS_PER_ENTRY) {
+      const m = introMultipliers('melody', round)
       for (const r of INTRO_ROLES) if (m[r] > 0 && !order.includes(r)) order.push(r)
     }
     expect(order[0]).toBe('melody')
@@ -122,5 +105,23 @@ describe('introMultipliers', () => {
     expect(order.indexOf('drums')).toBeLessThan(order.indexOf('texture'))
     expect(order.indexOf('bass')).toBeLessThan(order.indexOf('texture'))
     expect(order).toHaveLength(INTRO_ROLES.length)
+  })
+
+  it('opens with drums alone when Beat Mode names the lead', () => {
+    // Beat Mode does not roll for a lead — the user asked for drums first, so the
+    // caller passes it. This is the whole of the "drums first" requirement.
+    const m = introMultipliers('drums', 0)
+    expect(m.drums).toBe(1)
+    expect(m.bass).toBe(0)
+    expect(m.chord).toBe(0)
+    expect(m.melody).toBe(0)
+    expect(m.texture).toBe(0)
+  })
+
+  it('treats a negative or bogus round as the opening', () => {
+    const m = introMultipliers('drums', -3)
+    expect(m.drums).toBe(1)
+    expect(m.texture).toBe(0)
+    expect(introMultipliers('drums', NaN)).toEqual(m)
   })
 })

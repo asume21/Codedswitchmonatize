@@ -81,6 +81,26 @@ function rootMidiFromPitchClass(pitchClass: number): number {
 //  MUSICAL DIRECTOR
 // ══════════════════════════════════════════════════════════════════════
 
+/** Where in the form a section change happened.
+ *  `slotIndex` — position in the slot list, which is what identifies a section
+ *  (names repeat). `cycle` — which pass through the whole form, so a returning
+ *  section can answer the last one instead of replaying it. */
+export interface SectionChangeContext {
+  slotIndex: number
+  cycle: number
+}
+
+export type SectionChangeListener = (
+  section: ArrangementSection,
+  slot: ProducerArrangementSlot,
+  ctx: SectionChangeContext,
+) => void
+
+/** Bars in a jam-mode loop. Four, because thirteen reference loops captured
+ *  2026-08-18 resolved in four bars without exception — and because it matches
+ *  DRUM_CORE_BARS, the phrase the ear already recognises as "the beat". */
+const JAM_LOOP_BARS = 4
+
 export class MusicalDirector {
   private state: MusicalState = createDefaultMusicalState()
   private lastArrangementBar = -1
@@ -91,7 +111,12 @@ export class MusicalDirector {
 
   // ── Change listeners ────────────────────────────────────────────
   private subGenreChangeListeners: Array<(subGenre: HipHopSubGenre) => void> = []
-  private sectionChangeListeners: Array<(section: ArrangementSection, slot: ProducerArrangementSlot) => void> = []
+  private sectionChangeListeners: Array<SectionChangeListener> = []
+  // Which slot of the form is playing. Section changes are detected by INDEX,
+  // not by name: templates repeat names (back-and-forth is verse/drop/verse/
+  // drop/...), and a name comparison merges adjacent same-name slots into one
+  // unbroken block. -1 = nothing entered yet / jam mode.
+  private lastSlotIndex = -1
   private mutationListeners: Array<() => void> = []
 
   // ── Public API ──────────────────────────────────────────────────
@@ -188,14 +213,28 @@ export class MusicalDirector {
       if (!this.arrangementEnabled) {
         this.state.section = 'none'
         this.state.sectionBar = 0
+        this.lastSlotIndex = -1
         this.state.drums.dropout = false
         this.state.bass.dropout = false
         this.state.melody.dropout = false
-        this.state.drums.fillRequested = false
+        // THE TURNAROUND (reference-backed 2026-08-18). Thirteen captured loops
+        // all put a small fill — hat roll, double snare, a hat-pattern change —
+        // in the LAST BAR of the four-bar loop, cueing the reset. That is how a
+        // 4-bar loop repeats indefinitely without feeling stuck: it announces
+        // its own return.
+        //
+        // Jam mode used to force this flag off, so the announcement fired only
+        // at section boundaries — sixteen-plus bars apart in Song Mode, and
+        // never at all with the arrangement off. This is the user's oldest
+        // stated requirement ("to freestyle you have to know where the beat is
+        // GOING to go... change must be ANNOUNCED — that's what a turnaround is
+        // for"), and the engine simply was not saying it.
+        this.state.drums.fillRequested = (currentBar % JAM_LOOP_BARS) === JAM_LOOP_BARS - 1
       } else {
-        const { slot, sectionBar } = getProducerArrangementSlot(currentBar)
+        const { slot, sectionBar, slotIndex, cycle } = getProducerArrangementSlot(currentBar)
 
-        if (slot.name !== this.state.section) {
+        if (slotIndex !== this.lastSlotIndex) {
+          this.lastSlotIndex = slotIndex
           this.state.section = slot.name
           this.state.sectionBar = 0
           needsRebuild = true
@@ -209,7 +248,7 @@ export class MusicalDirector {
           this.state.drums.fillRequested = (sectionBar === slot.bars - 1)
 
           // Notify section change listeners after state is complete.
-          for (const cb of this.sectionChangeListeners) cb(slot.name, slot)
+          for (const cb of this.sectionChangeListeners) cb(slot.name, slot, { slotIndex, cycle })
 
           // Check for pattern mutation on section change
           if (!isFlow && !this.isGrooveLocked && Math.random() < this.state.mutationProbability) {
@@ -331,7 +370,7 @@ export class MusicalDirector {
   }
 
   /** Subscribe to arrangement section changes. Returns unsubscribe function. */
-  onSectionChange(cb: (section: ArrangementSection, slot: ProducerArrangementSlot) => void): () => void {
+  onSectionChange(cb: SectionChangeListener): () => void {
     this.sectionChangeListeners.push(cb)
     return () => {
       this.sectionChangeListeners = this.sectionChangeListeners.filter(c => c !== cb)

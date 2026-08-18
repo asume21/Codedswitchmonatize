@@ -246,6 +246,13 @@ export interface OrganismContextValue {
   // freestyling over: the change is announced, the floor holds.
   beatModeEnabled:        boolean
   setBeatModeEnabled:     (enabled: boolean) => void
+  // Reimagine — throw this take away and roll another. No generator hits every
+  // time; what matters is that a reroll costs one click. Same song (tempo, key,
+  // preset, switches) — new take. Returns the new seed, or null if not running.
+  reimagine:              () => number | null
+  // Reroll ONE seat and leave the other four byte-identical — the version that
+  // matters when the bass and drums are already right.
+  reimagineSeat:          (seat: 'drums' | 'bass' | 'melody' | 'chord' | 'texture') => number | null
   // CSBL — play a named vibe on the drums. The vocabulary is the interface; the
   // grid notation is for the machine. Returns why it failed rather than silence.
   auditionCsbl:           (source: string) => { ok: boolean; error?: string }

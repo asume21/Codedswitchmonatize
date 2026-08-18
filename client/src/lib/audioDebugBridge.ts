@@ -14,6 +14,9 @@ declare global {
     __audioDebug?: {
       startCapture: (durationMs?: number) => Promise<string>
       getLastCaptureId: () => string | null
+      listenToTab: () => Promise<{ ok: boolean; error?: string }>
+      stopListening: () => void
+      captureSource: () => 'external' | 'app'
       status: () => 'connected' | 'disconnected' | 'capturing'
       webearStatus: () => WebEarBridgeStatus
     }
@@ -77,6 +80,119 @@ function setWebEarStatus(state: WebEarBridgeState, message: string) {
  * records as pure silence — explicit registration is the only live path.
  * Returns an unregister function; call it when the source stops/unmounts.
  */
+// ── External capture source (tab audio) ──────────────────────────────
+//
+// WebEar shipped able to hear exactly one thing: audio routed through THIS
+// app's Tone.js graph. That made the published MCP useless to anyone who is not
+// running CodedSwitch — the relay would dispatch a capture command and the only
+// connected bridge would record an empty tap.
+//
+// Everything else in this file is already source-agnostic: the key exchange,
+// the SSE channel, the MediaRecorder, the blob upload. Only the SOURCE was
+// hardcoded. A page that has obtained a MediaStream by any means —
+// getDisplayMedia tab audio, a mic, an <audio> element — registers it here and
+// WebEar records that instead, with no other change to the protocol.
+//
+// Takes precedence over the Tone tap while set, because a page that explicitly
+// hands us a stream is stating what it wants recorded.
+let externalStream: MediaStream | null = null
+
+/**
+ * Record THIS stream on the next WebEar capture instead of the app's audio
+ * graph. Pass null to hand capture back to the Tone tap. The caller owns the
+ * stream's lifetime — clear it when the stream ends, or captures will record a
+ * dead track.
+ */
+export function setWebEarCaptureStream(stream: MediaStream | null): void {
+  externalStream = stream
+  log(stream
+    ? `External capture source registered (${stream.getAudioTracks().length} audio track(s))`
+    : 'External capture source cleared — back to the app audio graph')
+}
+
+/** What WebEar would record right now, for diagnostics. */
+export function getWebEarCaptureSource(): 'external' | 'app' {
+  return externalStream ? 'external' : 'app'
+}
+
+/**
+ * Share a browser tab's audio with WebEar until the user stops it.
+ *
+ * This is the difference between a one-shot "analyse 5 seconds" button and a
+ * LISTENING SESSION: an external Claude calls capture_audio whenever it likes,
+ * and each call records whatever is playing in the shared tab at that moment.
+ * The existing demo/studio panels stop their stream as soon as their own
+ * capture finishes, which is correct for them and useless for the relay.
+ *
+ * Chrome requires video: true for getDisplayMedia, so the video tracks are
+ * requested and immediately stopped — only audio is kept.
+ */
+export async function startWebEarTabListening(): Promise<{ ok: boolean; error?: string }> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
+    return { ok: false, error: 'This browser cannot share tab audio.' }
+  }
+  stopWebEarTabListening()
+  let stream: MediaStream
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      audio: { echoCancellation: false, noiseSuppression: false },
+      video: true,
+    } as MediaStreamConstraints)
+  } catch (e) {
+    const err = e as { name?: string; message?: string }
+    return {
+      ok: false,
+      error: err.name === 'NotAllowedError' || err.name === 'AbortError'
+        ? 'Sharing was cancelled.'
+        : err.message ?? 'Could not capture tab audio.',
+    }
+  }
+  stream.getVideoTracks().forEach(t => t.stop())
+  if (stream.getAudioTracks().length === 0) {
+    stream.getTracks().forEach(t => t.stop())
+    return {
+      ok: false,
+      error: 'No audio track — pick a browser TAB (not a window or screen) and tick "Share tab audio".',
+    }
+  }
+  // The user can end sharing from Chrome's own banner, which fires 'ended' on
+  // the track rather than telling us. Without this the bridge would keep a dead
+  // stream registered and every capture would return silence.
+  stream.getAudioTracks().forEach(t => {
+    t.addEventListener('ended', () => stopWebEarTabListening(), { once: true })
+  })
+  listeningStream = stream
+  setWebEarCaptureStream(stream)
+  return { ok: true }
+}
+
+/** Stop sharing the tab and hand capture back to the app's own audio. */
+export function stopWebEarTabListening(): void {
+  if (!listeningStream) return
+  listeningStream.getTracks().forEach(t => { try { t.stop() } catch { /* already stopped */ } })
+  listeningStream = null
+  setWebEarCaptureStream(null)
+}
+
+/** True while a tab is shared with WebEar. */
+export function isWebEarTabListening(): boolean {
+  return listeningStream !== null
+}
+
+let listeningStream: MediaStream | null = null
+
+/** The stream a capture should record: an explicitly registered one, else the
+ *  app's own tap. Null when neither is available. */
+async function resolveCaptureStream(): Promise<MediaStream | null> {
+  if (externalStream) {
+    const live = externalStream.getAudioTracks().some(t => t.readyState === 'live')
+    if (live) return externalStream
+    log('External capture source has no live audio track — falling back to the app tap')
+  }
+  const tap = await ensureTap()
+  return tap ? tap.stream : null
+}
+
 export function registerAudioDebugSource(source: AudioDebugTapSource): () => void {
   registeredSources.add(source)
   if (tapNode) {
@@ -318,9 +434,9 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
   isCapturing   = true
   lastCaptureId = captureId
 
-  const tap = await ensureTap()
-  if (!tap) {
-    log(`Aborting capture ${captureId} — Tone.js not yet initialized or context suspended`)
+  const stream = await resolveCaptureStream()
+  if (!stream) {
+    log(`Aborting capture ${captureId} — no capture source (no tab stream registered, and Tone.js is not initialized or its context is suspended)`)
     isCapturing = false
     return
   }
@@ -329,7 +445,7 @@ async function doCapture(captureId: string, durationMs: number): Promise<void> {
     : 'audio/webm'
 
   const chunks: Blob[] = []
-  recorder = new MediaRecorder(tap.stream, { mimeType })
+  recorder = new MediaRecorder(stream, { mimeType })
 
   recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
 
@@ -458,9 +574,12 @@ async function doLocalCapture(captureId: string, durationMs: number): Promise<vo
   isCapturing   = true
   lastCaptureId = captureId
 
-  const tap = await ensureTap()
-  if (!tap) {
-    log(`Aborting local capture ${captureId} — Tone.js not yet initialized`)
+  // Same source resolution as the WebEar path: a registered tab stream wins,
+  // otherwise the app's own graph. Without this the local audio-debug MCP would
+  // keep recording CodedSwitch while the user had shared a different tab.
+  const stream = await resolveCaptureStream()
+  if (!stream) {
+    log(`Aborting local capture ${captureId} — no tab stream registered and Tone.js is not initialized`)
     isCapturing = false
     return
   }
@@ -470,7 +589,7 @@ async function doLocalCapture(captureId: string, durationMs: number): Promise<vo
     : 'audio/webm'
 
   const chunks: Blob[] = []
-  const localRecorder = new MediaRecorder(tap.stream, { mimeType })
+  const localRecorder = new MediaRecorder(stream, { mimeType })
 
   localRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
 
@@ -556,6 +675,11 @@ export function initAudioDebugBridge(): void {
       return captureId
     },
     getLastCaptureId: () => lastCaptureId,
+    // Share any browser tab's audio with WebEar, so an MCP client that is not
+    // CodedSwitch has something to hear.
+    listenToTab: startWebEarTabListening,
+    stopListening: stopWebEarTabListening,
+    captureSource: getWebEarCaptureSource,
     status: () => isCapturing ? 'capturing' : isConnected ? 'connected' : 'disconnected',
     webearStatus: () => status,
   }
