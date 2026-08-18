@@ -474,7 +474,8 @@ target), a new pure entry-rules module beside it, `GeneratorOrchestrator.ts`
 (wire Beat Mode into the jam-mode branch; re-arm and restore on toggle). No new
 scheduler, no second arrangement system.
 
-**Acceptance is by ear.** The tests prove no pitched part enters somewhere the
-rules disallow, and that the build advances on the harmonic clock. They cannot
-prove it sounds like a real tune — that is the user's ear, and it is the only
-acceptance test that counts.
+**Acceptance is by ear.** The tests prove that a part arrives on a round
+boundary, and that a pitched part landing mid-chord lands on a tone of the chord
+that is sounding rather than from the top of its own phrase. They cannot prove
+it sounds like a real tune, and they cannot prove a move was made at the right
+moment — that is the user's ear, and it is the only acceptance test that counts.
