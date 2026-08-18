@@ -315,7 +315,78 @@ Those are fixed separately. A.3 is what Beat Mode itself becomes.
   The user's revision, verbatim: "it doesn't matter exactly when they all come
   in, what matters is that it comes in where it fits — if that takes 100min or
   if that takes 10 secs, as long as it sounds good it's fine." `TARGET_BUILD_
-  SECONDS` and the tempo term go away; entries are driven by the harmony.
+  SECONDS` and the tempo term go away.
+- A first draft of A.3 replaced the seconds target with a CHORD-boundary rule.
+  **Also wrong**, and the user's next answer is the one that matters: "the way I
+  think of it in my head is how I play groove pads. I start one of the pads and
+  it starts looping, I usually let it play one or two rounds then bring in
+  something else." The unit is neither seconds nor chords. It is the **ROUND** —
+  the loop's own cycle. See below.
+
+##### The model: a loop launcher, not an arrangement
+
+Beat Mode is a groove-pad performance. The user's own description is the spec:
+
+> "I start one of the pads and it starts looping. I usually let it play one or
+> two rounds then bring in something else, and then after I have everything in I
+> let it play for a bit, then I might drop something or start and stop something
+> quickly or go back and forth between two — but I can hear the beat and know
+> when to do it."
+
+Three consequences, and each kills an assumption an earlier draft made:
+
+1. **The unit of time is the ROUND**, not the bar, the second, or the chord. A
+   round is however long the playing loop takes to come back around — already a
+   quantity the engine knows (`DRUM_CORE_BARS = 4`). It is tempo-independent and
+   harmony-independent by construction, which is why a launcher never lands
+   wrong. Entries are "one or two rounds," not "10-15 seconds" and not "on the
+   chord change."
+2. **Mid-chord entries are NORMAL, not an exception to be avoided.** Entries a
+   round apart do not align to a 4-chord harmonic cycle, so parts routinely
+   arrive mid-chord. That is the user's correction ("I don't know if I would say
+   never mid-chord") and it is the *consequence* of the launcher model, not a
+   separate note. Entry rules therefore shape HOW a part lands, never WHEN it is
+   allowed to.
+3. **There are two phases, not one.** BUILD (parts arrive until all five are in)
+   and PERFORM (ride, then drop a part, stop-start one quickly, trade between
+   two). The second is not a variant advance on a timer — it is a vocabulary of
+   MOVES. An earlier draft of this section proposed advancing a variant every N
+   trips around the progression (~86s); that is a scheduled change, which is the
+   clock-driven rotation the user has rejected before. Removed.
+
+##### Control model — the user plays first, the Organism learns after
+
+Decided by the user: **both**, built user-first.
+
+Beat Mode gives the user the pads: five parts he can drop and bring back, on the
+beat, quantised to the round so a move cannot land wrong. The Organism holds the
+loop, the harmony and the cohesion; the performance is his. Once a move can be
+TRIGGERED and heard, the Organism can be taught to reach for it on its own, and
+any move the user makes takes over.
+
+The reason for this order is the reason A-then-B was chosen for entries: the
+moves are identical either way, and the hard part is not performing a drop — it
+is knowing WHEN, which is exactly the judgement the user described as "I can
+hear the beat and know when to do it." Encoding that judgement before either of
+us has heard the moves in isolation would be invention. Make it playable, hear
+which moves are good, then teach the timing.
+
+Note the standing constraint this must respect: the user is freestyling while
+this plays. Hands-busy is a real cost, and it is the argument for the Organism
+eventually taking over — not for skipping the playable stage.
+
+##### The move vocabulary (phase 2 — playable first)
+
+From the user's description, three moves, all quantised to the round:
+
+- **Drop** — take a part out; bring it back.
+- **Stop-start** — remove and return a part quickly, inside a round.
+- **Trade** — alternate between two parts across rounds.
+
+These are the same shape as the entry gestures: named, pure, auditionable. They
+are NOT a new scheduler — they resolve to the per-part gain the orchestrator
+already applies at one choke point, exactly as `beatMode.ts` and `introBuild.ts`
+do today.
 
 **What Beat Mode does when enabled.**
 
@@ -329,20 +400,20 @@ Those are fixed separately. A.3 is what Beat Mode itself becomes.
    rather than only at session start. (The user said "then same with melody and
    chords" without separating them; the existing table puts CHORD third and
    melody fourth, and that order is kept. Swap it if the ear disagrees.)
-2. **Entries land where they fit** — see the entry rules below.
+2. **A new part arrives every one or two ROUNDS** of what is already playing,
+   quantised to the round so it cannot land wrong. Where the harmony happens to
+   be at that moment is handled by the landing craft below, not by waiting.
 3. **Cohesion is structural, not added.** Every part already seeds from the same
    `songCell` and reads harmony from one authority (`Conductor`:
    `BassGenerator.rootMidi = conductor.currentChord().rootMidi`,
    `ChordGenerator.voicing = conductor.currentChord().pitches`). Beat Mode adds
    no harmony logic; it chooses the MOMENT the band commits to a fresh
    consistent set, via the `sectionVariantKey(lock, pass)` mechanism.
-4. **Growth without an arc.** Jam mode has no sections, so it has had no unit of
-   change — every previous attempt invented a timer, which the user has rejected
-   (clock-driven rotation reads as drift). Beat Mode now has a musical clock:
-   the **trip around the progression**. After the build completes, the band
-   advances its variant every N trips (A → A' → A → A'), landing on a
-   progression boundary so the change is ANNOUNCED. Default N = 2 (~86s at
-   90 BPM with a 4-chord progression); a by-ear constant, not a tuned value.
+4. **Then it rides, and the moves are available.** No scheduled variation, no
+   timer. Once all five are in, the beat holds — and change comes from a MOVE
+   (drop / stop-start / trade), triggered by the user in phase 2 and by the
+   Organism only once the moves have earned it. Riding unchanged is a valid and
+   expected state: repetition is the product.
 
 **Explicitly NOT in scope:** an energy arc that ramps intensity over minutes
 (intro→build→drop without sections). That is the song-arc gap; two blind
@@ -367,13 +438,25 @@ correct answer and the reason this ships as A-then-B rather than as a guess:
 | It's a pickup / anticipation into the next chord | **Already exists — reuse** | `ChordImproviser` anticipation + `Conductor.nextChord()`, documented "for anticipatory fills and voiceleading". |
 | It's deliberate tension | **Taste — do NOT encode** | Would be invention. |
 
-**Approach A (this spec).** A small pure table of entry rules, in the shape of
+**Approach A (this spec).** A small pure table of LANDING rules, in the shape of
 `beatMode.ts` / `featuredPerformance.ts` / `introBuild.ts` — no Tone.js, no
-state, no scheduling, unit-testable without an AudioContext. Unpitched parts may
-enter on any bar; pitched parts enter on a chord boundary, or on their own phrase
-boundary when that phrase divides the chord evenly; pickups route through the
-existing anticipation. Every gesture gets an **audition hook**, the same move
-`__csbl()` already makes — a vocabulary you cannot hear cannot be judged.
+state, no scheduling, unit-testable without an AudioContext.
+
+The rules answer "the round is up, this part is coming in NOW, how does it land
+so it fits the chord that happens to be sounding?" — never "may it come in yet?"
+Nothing is ever delayed to wait for the harmony; that would break the launcher
+model, which is the whole point.
+
+- Unpitched parts (drums, texture) land as-is. Nothing to clash with — fact.
+- A pitched part whose own phrase divides the chord evenly may start its phrase
+  from the top; the cycles agree — arithmetic, not opinion.
+- Otherwise a pitched part enters on a chord tone of the chord that is ACTUALLY
+  SOUNDING, or as a pickup into the next change via the anticipation that
+  already exists. What it must never do is start its phrase from the top as
+  though the harmony were starting too — that is the audible failure.
+
+Every gesture gets an **audition hook**, the same move `__csbl()` already makes —
+a vocabulary you cannot hear cannot be judged.
 
 **Approach B (the road this opens, not built here).** The gestures that survive
 the user's ear earn a NAME in CSBL: `bass.enter("pickup")`,
