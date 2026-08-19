@@ -446,14 +446,27 @@ export default function SongUploader() {
 
     try {
       const speechSignal = getSpeechCorrectionAbortSignal();
-      // First, create a voiceprint from the original audio for voice cloning
-      const voiceprintResponse = await apiRequest("POST", "/api/speech-correction/voiceprint", {
-        songId: song.id,
-      }, { signal: speechSignal });
-      const voiceprintData = await voiceprintResponse.json();
-      if (voiceprintData.voiceId) {
-        setSpeechVoiceId(voiceprintData.voiceId);
-        console.log('🎤 Voice ID created:', voiceprintData.voiceId);
+      // Voiceprint is for CLONING and transcription does not need it, so its
+      // failure must not take the transcript with it. It did: voiceprint runs
+      // first, rejects a converted-file URL with a 400 ("Cannot create
+      // voiceprint from converted file URL"), and the shared catch reported
+      // "Could not get word-level transcript" — for a transcription that had
+      // never been attempted. A song uploaded through this very component has a
+      // converted URL, so the two features were in a catch-22.
+      let voiceprintNote = '';
+      try {
+        const voiceprintResponse = await apiRequest("POST", "/api/speech-correction/voiceprint", {
+          songId: song.id,
+        }, { signal: speechSignal });
+        const voiceprintData = await voiceprintResponse.json();
+        if (voiceprintData.voiceId) {
+          setSpeechVoiceId(voiceprintData.voiceId);
+          console.log('🎤 Voice ID created:', voiceprintData.voiceId);
+        }
+      } catch (voiceprintError) {
+        if (isAbortError(voiceprintError)) return;
+        console.warn('Voiceprint unavailable (transcription continues):', voiceprintError);
+        voiceprintNote = ' Voice cloning unavailable for this file.';
       }
 
       // Then transcribe the audio
@@ -469,14 +482,16 @@ export default function SongUploader() {
       }
       toast({
         title: "Speech transcript ready",
-        description: "Word-level transcript loaded for editing. Voice sample captured for cloning.",
+        description: `Word-level transcript loaded for editing.${voiceprintNote || ' Voice sample captured for cloning.'}`,
       });
     } catch (error) {
       if (isAbortError(error)) return;
       console.error("Speech correction transcribe error:", error);
       toast({
         title: "Transcription failed",
-        description: "Could not get word-level transcript.",
+        description: error instanceof Error && error.message
+          ? error.message
+          : "Could not get word-level transcript.",
         variant: "destructive",
       });
     } finally {

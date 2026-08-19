@@ -3298,8 +3298,19 @@ ${code}
             const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
             targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
           } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
-            // Skip converted files - they may not exist yet
-            return sendError(res, 400, "Cannot create voiceprint from converted file URL. Use original audio.");
+            // Resolve converted files the same way /transcribe and the
+            // accessibleUrl branch above already do.
+            //
+            // This used to hard-fail with "Use original audio" on the grounds
+            // that converted files "may not exist yet" — but a song uploaded
+            // through the Song Uploader HAS a converted URL and no other, so
+            // voiceprint could never run on the very files it exists for. The
+            // fs.existsSync check below is the correct answer to "may not exist
+            // yet": a 404 when it is genuinely absent, rather than a blanket
+            // refusal of the normal case.
+            const fileId = fileUrl.split("/api/songs/converted/")[1];
+            const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
+            targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
           } else {
             return sendError(res, 400, "Unsupported fileUrl for voiceprint");
           }
