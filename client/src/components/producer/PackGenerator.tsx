@@ -163,8 +163,8 @@ const PROVIDER_OPTIONS = [
   },
   {
     value: "musicgen",
-    label: "🎵 MusicGen AI (Audio)",
-    description: "Replicate-powered generation with real audio when tokens are configured.",
+    label: "🎵 ACE-Step AI (Audio)",
+    description: "ACE-Step generates the loops, falling back to MusicGen Looper then the local library.",
   },
   {
     value: "jasco",
