@@ -53,32 +53,62 @@ export function resolveLocalAudioPath(
 ): string | null {
   if (!url) return null;
   const root = objectsDir();
-  const exists = (candidate: string): string | null =>
-    options.allowMissing || fs.existsSync(candidate) ? candidate : null;
+
+  // CONTAINMENT. `url` is client-supplied — voice-convert jobs take sourceUrl
+  // straight from the request body — so "/api/internal/uploads/../../../etc/
+  // passwd" resolves outside the objects directory unless it is checked. The
+  // resolved file is then handed to stem separation and UPLOADED to Replicate /
+  // ElevenLabs, which turns an arbitrary file read into arbitrary exfiltration.
+  //
+  // The two route copies this function replaced did guard themselves; the
+  // jobQueue copy never did, and extracting it unchanged would have spread the
+  // hole rather than removed it. Every branch is contained here, once.
+  const contain = (candidate: string): string | null => {
+    if (!isInsideObjectsDir(candidate)) return null;
+    if (options.allowMissing) return candidate;
+    if (!fs.existsSync(candidate)) return null;
+    // Re-check after resolving symlinks: a link INSIDE the objects dir can
+    // still point outside it, and the containment test above only sees the
+    // link's own path.
+    try {
+      const real = fs.realpathSync(candidate);
+      return isInsideObjectsDir(real) ? real : null;
+    } catch {
+      return null;
+    }
+  };
 
   if (url.startsWith('/api/internal/uploads/')) {
     const relative = decodeURIComponent(url.replace('/api/internal/uploads/', ''));
-    return exists(path.resolve(root, relative));
+    return contain(path.resolve(root, relative));
   }
 
   if (url.startsWith('/api/stems/')) {
     const fileName = path.basename(decodeURIComponent(url.replace('/api/stems/', '')));
-    return exists(path.resolve(root, 'stems', fileName));
+    return contain(path.resolve(root, 'stems', fileName));
   }
 
   if (url.includes('/api/songs/converted/')) {
     const fileId = url.split('/api/songs/converted/')[1];
     if (!fileId) return null;
-    return exists(path.resolve(root, 'converted', `${safeSegment(fileId)}.mp3`));
+    return contain(path.resolve(root, 'converted', `${safeSegment(fileId)}.mp3`));
   }
 
-  if (path.isAbsolute(url)) return exists(url);
+  // Absolute paths are accepted ONLY inside the objects directory. The previous
+  // jobQueue implementation accepted any absolute path a caller sent, which
+  // from an HTTP body is simply "read me that file". Internal callers that pass
+  // real object paths are unaffected.
+  if (path.isAbsolute(url)) return contain(path.resolve(url));
 
   return null;
 }
 
-/** True when the path sits inside the objects directory — traversal guard. */
+/** True when the path sits inside the objects directory — traversal guard.
+ *  Compares WITH a trailing separator so a sibling directory whose name merely
+ *  starts with the root ("/dataEVIL" against "/data") cannot pass. */
 export function isInsideObjectsDir(candidate: string): boolean {
   const root = path.resolve(objectsDir());
-  return path.resolve(candidate).startsWith(root);
+  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+  const resolved = path.resolve(candidate);
+  return resolved === root || resolved.startsWith(rootWithSep);
 }
