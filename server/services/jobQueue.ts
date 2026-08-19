@@ -9,6 +9,7 @@ import {
   type PipelineResult,
 } from "./pipelineRunner";
 import { getUserApiKeyService } from "./userApiKeys";
+import { resolveLocalAudioPath } from "./audioPathResolver";
 
 const LOCAL_OBJECTS_DIR = fs.existsSync("/data")
   ? path.resolve("/data", "objects")
@@ -165,26 +166,11 @@ class JobQueue {
 }
 
 function resolveInputPath(job: VoiceConvertJob): string | null {
-  if (job.sourceUrl) {
-    if (job.sourceUrl.startsWith("/api/internal/uploads/")) {
-      const relative = job.sourceUrl.replace("/api/internal/uploads/", "");
-      const candidate = path.resolve(LOCAL_OBJECTS_DIR, relative);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-
-    if (job.sourceUrl.startsWith("/api/stems/")) {
-      const encoded = job.sourceUrl.replace("/api/stems/", "");
-      const fileName = path.basename(decodeURIComponent(encoded));
-      const candidate = path.resolve(LOCAL_OBJECTS_DIR, "stems", fileName);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-
-    if (path.isAbsolute(job.sourceUrl) && fs.existsSync(job.sourceUrl)) {
-      return job.sourceUrl;
-    }
-  }
-
-  return null;
+  // Was a local copy that knew uploads, stems and absolute paths but NOT
+  // /api/songs/converted/ — the form every uploaded song actually has. Jobs
+  // failed with "Could not resolve source audio file path" on the app's most
+  // common input. See audioPathResolver for the full story.
+  return resolveLocalAudioPath(job.sourceUrl);
 }
 
 export const jobQueue = new JobQueue();

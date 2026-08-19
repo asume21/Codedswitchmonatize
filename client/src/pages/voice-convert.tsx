@@ -49,6 +49,8 @@ import {
   useServicesHealth,
   type VoiceConvertJobSummary,
   type ServiceStatus,
+  useMyVoices,
+  useMySongs,
 } from "@/hooks/use-voice-convert";
 
 const STAGE_ORDER = ["queued", "separating", "converting", "correcting", "remixing", "done"];
@@ -443,6 +445,24 @@ function ServiceHealthPanel() {
   );
 }
 
+/** A song's display name.
+ *
+ *  The real column is `name` (shared/schema.ts). Falling back to `song.id`
+ *  showed a raw UUID in the picker, which tells the user nothing about which
+ *  track it is. Duration is appended when known, because uploads are often
+ *  named take1/take2 and the length is what distinguishes them.
+ */
+function songLabel(song: {
+  id: string; name?: string; title?: string; originalName?: string; duration?: number
+}): string {
+  const base = song.name || song.title || song.originalName;
+  const label = base ? base.replace(/\.(wav|mp3|m4a|flac|ogg)$/i, '') : `Untitled (${song.id.slice(0, 8)})`;
+  if (!song.duration || !Number.isFinite(song.duration)) return label;
+  const mins = Math.floor(song.duration / 60);
+  const secs = String(Math.floor(song.duration % 60)).padStart(2, '0');
+  return `${label} · ${mins}:${secs}`;
+}
+
 export default function VoiceConvertPage() {
   const { toast } = useToast();
   const auth = useAuth();
@@ -464,6 +484,10 @@ export default function VoiceConvertPage() {
   const costCheck = useCostCheck();
   const { data: jobListData, isLoading: jobsLoading } = useJobList();
   const { data: healthData } = useServicesHealth();
+  const { data: myVoicesData } = useMyVoices();
+  const { data: mySongsData } = useMySongs();
+  const myVoices = myVoicesData?.voices ?? [];
+  const mySongs = Array.isArray(mySongsData) ? mySongsData : [];
 
   const rvcAvailable = healthData?.services?.rvc?.available ?? false;
   const pitchCorrectionAvailable = healthData?.services?.audioAnalysis?.available ?? false;
@@ -572,24 +596,68 @@ export default function VoiceConvertPage() {
                 <CardTitle className="text-lg">New Conversion</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Voice ID was free text — you had to know an ElevenLabs ID from
+                    memory. The account's voices are one endpoint away, so pick
+                    one. The text field stays for IDs not on this account. */}
                 <div className="space-y-2">
-                  <Label>Voice ID</Label>
+                  <Label>Target Voice</Label>
+                  {myVoices.length > 0 && (
+                    <Select value={voiceId} onValueChange={setVoiceId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose one of your voices" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {myVoices.map((v) => (
+                          <SelectItem key={v.voiceId} value={v.voiceId}>
+                            {v.name}{v.category ? ` — ${v.category}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Input
-                    placeholder="ElevenLabs or RVC voice ID"
+                    placeholder="…or paste a voice ID"
                     value={voiceId}
                     onChange={(e) => setVoiceId(e.target.value)}
                   />
                 </div>
 
+                {/* The old hint told you to "upload a song first, then paste its
+                    URL here" — and nothing in the app ever showed you that URL.
+                    Pick the song instead; the URL and filename come with it. */}
                 <div className="space-y-2">
-                  <Label>Source Audio URL</Label>
+                  <Label>Source Audio</Label>
+                  {mySongs.length > 0 && (
+                    <Select
+                      value={sourceUrl}
+                      onValueChange={setSourceUrl}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose one of your uploaded songs" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {mySongs
+                          .filter((song) => song.url || song.accessibleUrl || song.originalUrl)
+                          .map((song) => {
+                            const url = (song.url || song.accessibleUrl || song.originalUrl) as string;
+                            return (
+                              <SelectItem key={song.id} value={url}>
+                                {songLabel(song)}
+                              </SelectItem>
+                            );
+                          })}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <Input
-                    placeholder="/api/internal/uploads/songs/... or absolute path"
+                    placeholder="…or paste a path: /api/internal/uploads/songs/…"
                     value={sourceUrl}
                     onChange={(e) => setSourceUrl(e.target.value)}
                   />
                   <p className="text-xs text-white/40">
-                    Upload a song first, then paste its URL here.
+                    {mySongs.length > 0
+                      ? "Pick an uploaded song, or paste a path."
+                      : "No uploaded songs found — upload one in the Studio first."}
                   </p>
                 </div>
 

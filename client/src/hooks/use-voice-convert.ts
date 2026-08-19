@@ -79,6 +79,39 @@ export function useCostCheck() {
   });
 }
 
+/** The user's ElevenLabs / RVC voices, for the target picker.
+ *  Voice ID was a free-text field: you had to know an ElevenLabs ID by heart. */
+export function useMyVoices() {
+  return useQuery<{ success: boolean; voices: Array<{ voiceId: string; name: string; category?: string }> }>({
+    queryKey: ["/api/voice-convert/my-voices"],
+    staleTime: 60_000,
+  });
+}
+
+/** The user's uploaded songs, for the source picker.
+ *  Source Audio URL was a free-text field whose own hint said "upload a song
+ *  first, then paste its URL here" — with nothing in the app that shows the
+ *  URL. The songs list has it; this just hands it over. */
+export function useMySongs() {
+  // `name` is the real column (shared/schema.ts songs.name) — the uploaded
+  // file's name. The others are tolerated because various code paths decorate
+  // song objects differently, but name is the one that is always there.
+  return useQuery<Array<{
+    id: string
+    name?: string
+    title?: string
+    originalName?: string
+    format?: string
+    duration?: number
+    url?: string
+    accessibleUrl?: string
+    originalUrl?: string
+  }>>({
+    queryKey: ["/api/songs"],
+    staleTime: 30_000,
+  });
+}
+
 export function useJobList(limit = 20) {
   return useQuery<{ success: boolean; jobs: VoiceConvertJobSummary[] }>({
     queryKey: ["/api/voice-convert/jobs", `?limit=${limit}`],
