@@ -165,15 +165,18 @@ if (referenceBeatsPath) {
 
 // Serve stem separation output files (include musicgen-stems subfolder)
 const stemsRoot = LOCAL_OBJECTS_DIR;
-app.use("/api/stems", express.static(stemsRoot, {
-  maxAge: '1d',
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.wav') || filePath.endsWith('.mp3')) {
-      res.set('Cache-Control', 'public, max-age=86400');
-    }
-    res.set('Accept-Ranges', 'bytes');
+const stemHeaders = (res: any, filePath: string) => {
+  if (filePath.endsWith('.wav') || filePath.endsWith('.mp3')) {
+    res.set('Cache-Control', 'public, max-age=86400');
   }
-}));
+  res.set('Accept-Ranges', 'bytes');
+};
+app.use("/api/stems", express.static(stemsRoot, { maxAge: '1d', setHeaders: stemHeaders }));
+// Second root: stemSeparation.ts:103 writes to objects/stems/ but returns
+// /api/stems/<file>, which resolves against the objects ROOT above and misses by
+// one path segment. MusicGen stems (objects/musicgen-stems/) need the root, so
+// both are mounted rather than one being changed. Kept in step with index.prod.ts.
+app.use("/api/stems", express.static(path.join(stemsRoot, 'stems'), { maxAge: '1d', setHeaders: stemHeaders }));
 
 // Serve sample library files — check env var first, then bundled audio/samples/
 const sampleLibraryPath = [

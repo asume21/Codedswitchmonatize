@@ -167,6 +167,34 @@ app.use("/assets", express.static(assetsRoot, {
 }));
 console.log(`📂 Audio assets served from: ${assetsRoot}`);
 
+// Serve separated / generated stems. Dev (index.ts:168) mounted this and
+// production never did, so every /api/stems/* url this server hands out —
+// stem separation, MusicGen stems, and anything downstream that plays them —
+// 404'd in production while working perfectly on localhost. Same shape as the
+// /assets gap fixed above.
+//
+// TWO roots, because the writers disagree about where a stem lives:
+//   stemGeneration.ts:66  writes objects/musicgen-stems/x.wav → /api/stems/musicgen-stems/x.wav
+//   stemSeparation.ts:103 writes objects/stems/x.mp3         → /api/stems/x.mp3
+// The first resolves against the objects root, the second against objects/stems.
+// Mounting the root first preserves dev's exact behaviour; the stems dir is a
+// fallback for the urls that would otherwise miss by one path segment.
+app.use("/api/stems", express.static(LOCAL_OBJECTS_DIR, {
+  maxAge: "1d",
+  setHeaders: (res) => {
+    res.set("Cache-Control", "public, max-age=86400");
+    res.set("Accept-Ranges", "bytes");
+  },
+}));
+app.use("/api/stems", express.static(path.join(LOCAL_OBJECTS_DIR, "stems"), {
+  maxAge: "1d",
+  setHeaders: (res) => {
+    res.set("Cache-Control", "public, max-age=86400");
+    res.set("Accept-Ranges", "bytes");
+  },
+}));
+console.log(`📂 Stems served from: ${LOCAL_OBJECTS_DIR} and ${path.join(LOCAL_OBJECTS_DIR, "stems")}`);
+
 const referenceBeatsPath = [
   path.resolve(process.cwd(), "audio", "reference-beats"),
   path.resolve(process.cwd(), "..", "audio", "reference-beats"),

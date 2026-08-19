@@ -24,10 +24,19 @@ import path from 'path';
  * at once.
  */
 
-/** Where uploaded objects live. Set by index.ts at boot; falls back for tests. */
+/** Where uploaded objects live. Set by index.ts / index.prod.ts at boot; the
+ *  fallback exists for tests and for any code path that runs before boot.
+ *
+ *  The fallback must match what every other module computes, which is
+ *  `/data/objects` — NOT `/data`. This file originally fell back to bare
+ *  `/data`, one directory too high; harmless while LOCAL_OBJECTS_DIR is set,
+ *  but it would have silently resolved every path to the wrong root the moment
+ *  it was not. Same rule as index.ts:22, index.prod.ts:144, routes.ts:764. */
 function objectsDir(): string {
   return process.env.LOCAL_OBJECTS_DIR
-    || (fs.existsSync('/data') ? '/data' : path.resolve(process.cwd(), 'objects'));
+    || (fs.existsSync('/data')
+      ? path.resolve('/data', 'objects')
+      : path.resolve(process.cwd(), 'objects'));
 }
 
 /** Keep a URL segment safe to use as a filename — same rule the routes used. */
@@ -92,6 +101,12 @@ export function resolveLocalAudioPath(
     const fileId = url.split('/api/songs/converted/')[1];
     if (!fileId) return null;
     return contain(path.resolve(root, 'converted', `${safeSegment(fileId)}.mp3`));
+  }
+
+  // /objects/… — the multitrack mix route accepts track urls in this form.
+  if (url.startsWith('/objects/')) {
+    const relative = decodeURIComponent(url.replace('/objects/', ''));
+    return contain(path.resolve(root, relative));
   }
 
   // Absolute paths are accepted ONLY inside the objects directory. The previous

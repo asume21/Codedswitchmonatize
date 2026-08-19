@@ -8,6 +8,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { resolveLocalAudioPath } from "./audioPathResolver";
 
 const STEMS_STORAGE_DIR = path.resolve(process.cwd(), 'objects', 'stems');
 
@@ -306,14 +307,24 @@ export class StemSeparationService {
       return this.separateFromFile(audioInput, { twoStems: stemCount === 2 });
     }
 
-    // Check if it's a local API URL - convert to file path
-    if (audioInput.startsWith('/api/internal/uploads/')) {
-      const objectKey = decodeURIComponent(audioInput.replace('/api/internal/uploads/', ''));
-      const objectsDir = process.env.LOCAL_OBJECTS_DIR || path.join(process.cwd(), 'objects');
-      const filePath = path.join(objectsDir, objectKey);
-      
-      console.log(`🔄 Converting local URL to file path: ${audioInput} → ${filePath}`);
-      return this.separateFromFile(filePath, { twoStems: stemCount === 2 });
+    // Local API url → file path, via the shared resolver.
+    //
+    // Two bugs here before: it knew ONLY /api/internal/uploads/, so separating a
+    // song uploaded through the Song Uploader (a /api/songs/converted/ url) fell
+    // through to the "external URL" branch below and tried to fetch() a relative
+    // path, which cannot succeed. And it built the path with a bare path.join on
+    // a caller-supplied key — no containment at all, so "../../.." escaped the
+    // objects directory into a file this service then reads and uploads.
+    if (audioInput.startsWith('/api/')) {
+      const filePath = resolveLocalAudioPath(audioInput);
+      if (filePath) {
+        console.log(`🔄 Converting local URL to file path: ${audioInput} → ${filePath}`);
+        return this.separateFromFile(filePath, { twoStems: stemCount === 2 });
+      }
+      return {
+        success: false,
+        error: `Could not resolve local audio url: ${audioInput}`,
+      };
     }
 
     // External URL - we need to download it first

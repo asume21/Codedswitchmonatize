@@ -60,7 +60,7 @@ import os from "os";
 import crypto from "crypto";
 import ffmpeg from "fluent-ffmpeg";
 import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID, resolveAudioPath } from "./utils/security";
-import { classifyLocalAudioPath } from "./services/audioPathResolver";
+import { classifyLocalAudioPath, resolveLocalAudioPath } from "./services/audioPathResolver";
 import { insertPlaylistSchema } from "@shared/schema";
 import { resolveGenerationConstraints } from "@shared/aiProviderCapabilities";
 import { z } from "zod";
@@ -3449,20 +3449,16 @@ ${code}
 
         const selectedProvider = typeof provider === "string" ? provider.toLowerCase() : "rvc";
         const resolvedSourcePath = (() => {
-          const resolved = resolveAudioPath({ objectKey, fileUrl: fileUrl || audioUrl }, LOCAL_OBJECTS_DIR);
-          if (resolved) return resolved;
-
-          const stemUrl = typeof audioUrl === "string" && audioUrl.startsWith("/api/stems/")
-            ? decodeURIComponent(audioUrl.replace("/api/stems/", ""))
-            : null;
-          if (!stemUrl) return null;
-
-          const stemFileName = path.basename(stemUrl);
-          const candidate = path.resolve(LOCAL_STEMS_DIR, stemFileName);
-          if (!candidate.startsWith(path.resolve(LOCAL_STEMS_DIR))) {
-            return null;
+          // objectKey is a storage key, not a url, so it keeps its own resolver.
+          if (objectKey) {
+            const byKey = sanitizePath(objectKey, LOCAL_OBJECTS_DIR);
+            if (byKey && fs.existsSync(byKey)) return byKey;
           }
-          return fs.existsSync(candidate) ? candidate : null;
+          // Everything url-shaped goes through the shared resolver, which knows
+          // stems natively — this hand-rolled stem branch existed precisely
+          // because resolveAudioPath knew only uploads, and it still left
+          // /api/songs/converted/ (the form every upload has) unresolvable.
+          return resolveLocalAudioPath(fileUrl || audioUrl);
         })();
 
         let sourceUrl = audioUrl;
@@ -4579,18 +4575,17 @@ ${code}
         let targetPath: string;
 
         if (objectKey) {
+           // objectKey is a storage key, not a url — sanitizePath is its resolver.
            targetPath = sanitizePath(objectKey, LOCAL_OBJECTS_DIR) || '';
         } else if (fileUrl) {
-           // Try to extract path from fileUrl if it's a local URL
-           if (fileUrl.includes('/api/internal/uploads/')) {
-              const extractedKey = fileUrl.split('/api/internal/uploads/')[1];
-              targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
-           } else if (fileUrl.includes('/api/songs/converted/')) {
-              // Handle converted MP3 files
-              const fileId = fileUrl.split('/api/songs/converted/')[1];
-              const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_\.]/g, '_');
-              targetPath = sanitizePath(path.join('converted', `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
-              console.log('🎤 Using converted file for transcription:', targetPath);
+           // The shared resolver, so this route knows stems and /objects/ too —
+           // not just the two forms it happened to have learned.
+           const found = classifyLocalAudioPath(fileUrl);
+           if ('path' in found) {
+              targetPath = found.path;
+              console.log('🎤 Resolved file for transcription:', targetPath);
+           } else if (found.error === 'missing') {
+              return sendError(res, 404, "Audio file not found on server");
            } else {
               return sendError(res, 400, "External URLs not yet supported for transcription");
            }
@@ -4871,17 +4866,14 @@ ${code}
       
       for (let i = 0; i < activeTracks.length; i++) {
         const track = activeTracks[i];
-        let audioPath = track.audioUrl;
-        
-        // Convert URL to local path
-        if (audioPath.startsWith('/api/internal/uploads/')) {
-          audioPath = sanitizePath(audioPath.split('/api/internal/uploads/')[1], LOCAL_OBJECTS_DIR) || '';
-        } else if (audioPath.startsWith('/objects/')) {
-          audioPath = sanitizePath(audioPath.split('/objects/')[1], LOCAL_OBJECTS_DIR) || '';
-        }
-        
-        if (!fs.existsSync(audioPath)) {
-          console.warn(`Track file not found: ${audioPath}`);
+        // Shared resolver: this knew only uploads and /objects/, so a track
+        // sourced from a converted song or a separated stem resolved to nothing
+        // and was silently dropped from the mix — a quietly WRONG render rather
+        // than an error.
+        const audioPath = resolveLocalAudioPath(track.audioUrl) || '';
+
+        if (!audioPath) {
+          console.warn(`Track file not found or unsupported url: ${track.audioUrl}`);
           continue;
         }
         

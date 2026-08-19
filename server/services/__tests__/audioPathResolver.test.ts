@@ -141,3 +141,23 @@ describe('classifyLocalAudioPath — 400-vs-404 for the routes', () => {
     expect(classifyLocalAudioPath(outside)).toEqual({ error: 'unsupported' });
   });
 });
+
+/**
+ * /objects/… is a fifth form, used by the multitrack mix route where a track's
+ * audioUrl can arrive as a direct objects path rather than an API url.
+ */
+describe('resolveLocalAudioPath — the /objects/ form', () => {
+  it('resolves an /objects/ url', async () => {
+    const { resolveLocalAudioPath } = await load();
+    expect(resolveLocalAudioPath('/objects/converted/123.mp3')).toBe(
+      fs.realpathSync(path.join(root, 'converted', '123.mp3')),
+    );
+  });
+
+  it('contains traversal through the /objects/ form', async () => {
+    const { resolveLocalAudioPath } = await load();
+    expect(
+      resolveLocalAudioPath('/objects/../../../etc/passwd', { allowMissing: true }),
+    ).toBeNull();
+  });
+});

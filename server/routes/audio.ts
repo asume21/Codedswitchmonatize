@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { resolveLocalAudioPath } from "../services/audioPathResolver";
 import { requireAuth } from "../middleware/auth";
 import { unifiedMusicService } from "../services/unifiedMusicService";
 import { patternGenerator } from "../services/patternGenerator";
@@ -1302,23 +1303,13 @@ Create complete lyrics with verses, chorus, and bridge.`;
         const audioUrl: string = track.audioUrl || track.url || '';
         let filePath = '';
 
-        if (audioUrl.includes('/api/internal/uploads/')) {
-          const key = audioUrl.split('/api/internal/uploads/')[1];
-          const safePath = sanitizePath(decodeURIComponent(key), OBJECTS_DIR);
-          if (!safePath) {
-            console.warn(`⚠️ Track "${track.name || 'unnamed'}" rejected: path traversal attempt`);
-            continue;
-          }
-          filePath = safePath;
-        } else if (audioUrl.includes('/api/songs/converted/')) {
-          const fileId = audioUrl.split('/api/songs/converted/')[1];
-          const safeId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9\-_.]/g, '_');
-          const safePath = sanitizePath(path.join('converted', `${safeId}.mp3`), OBJECTS_DIR);
-          if (!safePath) {
-            console.warn(`⚠️ Track "${track.name || 'unnamed'}" rejected: invalid converted path`);
-            continue;
-          }
-          filePath = safePath;
+        // Shared resolver — uploads, converted, stems, /objects/ and contained
+        // absolute paths. This route knew only the first two, so exporting a
+        // master containing a separated stem silently dropped that track and
+        // produced a mix that was missing a part with no error shown.
+        const resolved = resolveLocalAudioPath(audioUrl);
+        if (resolved) {
+          filePath = resolved;
         } else if (audioUrl.startsWith('/assets/') || audioUrl.startsWith('./assets/')) {
           // Only allow assets directory for relative paths
           const safePath = sanitizePath(audioUrl.replace(/^\.?\//, ''), process.cwd());
