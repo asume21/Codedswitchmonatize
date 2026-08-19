@@ -55,6 +55,14 @@ const MELODY_VARIATIONS = 2
 
 /** A seat that can be reimagined on its own. */
 export type ReimagineSeat = 'drums' | 'bass' | 'melody' | 'chord' | 'texture'
+
+/** Which seat carries the repeating hook — the figure the ear learns.
+ *
+ *  Was chord|melody. The user: "sometimes it should lead, same with melody and
+ *  even bass — they all need to be able to do that." Bass-led beats are a whole
+ *  genre; there was no reason the seat list excluded it beyond the order the
+ *  code happened to be written in. */
+export type HookSeat = 'chord' | 'melody' | 'bass'
 import { compileCsbl } from '../csbl/csblToOrganism'
 
 /** CSBL role name -> the kit voice it controls. */
@@ -1605,18 +1613,19 @@ export class GeneratorOrchestrator {
    *  to learn and short enough to stay alive. By ear: __melodyEvolve(n). */
   private melodyEvolveLoops = 4
 
-  private hookSeat: 'chord' | 'melody' = 'chord'
+  private hookSeat: HookSeat = 'chord'
 
   /** Move the hook to the other seat. One line by design — this is a by-ear
    *  choice, not a tuned constant, and it should stay trivial to A/B. */
-  setHookSeat(seat: 'chord' | 'melody'): void {
+  setHookSeat(seat: HookSeat): void {
     if (this.hookSeat === seat) return
     this.hookSeat = seat
     orgLog('hookSeat', { seat })
+    this.applyHookRoles()
     this.applyPhraseLocks()
   }
 
-  getHookSeat(): 'chord' | 'melody' { return this.hookSeat }
+  getHookSeat(): HookSeat { return this.hookSeat }
 
   /** Loops a melody phrase holds before varying (1 = vary every loop). */
   setMelodyEvolveLoops(loops: number): number {
@@ -1636,6 +1645,18 @@ export class GeneratorOrchestrator {
   }
 
   getMelodyLoops(): boolean { return this.melodyLoops }
+
+  /** The seat holding the hook LEADS; the other two support.
+   *
+   *  Role is what the generators already read to decide foreground vs
+   *  background — chord density floors on 'lead', the comp switches to hook
+   *  mode, the melody pockets itself when it is not the lead. So moving the
+   *  hook is enough to move who is playing the tune; nothing new is needed. */
+  private applyHookRoles(): void {
+    this.chord.setRole(this.hookSeat === 'chord' ? 'lead' : 'support')
+    this.melody.setRole(this.hookSeat === 'melody' ? 'lead' : 'support')
+    this.bass.setRole(this.hookSeat === 'bass' ? 'lead' : 'support')
+  }
 
   private applyPhraseLocks(): void {
     // Soloing arrives by TWO doors: `featured`, and updateSoloStates' rule that

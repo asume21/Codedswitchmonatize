@@ -74,6 +74,7 @@ import { bridgeOrganismToStore } from '../../stores/organismToStudioBridge'
 import { orgLog, orgPhase, startOrgHeartbeat } from '../../lib/perf/organismLog'
 import { interpretVibeRuleBased, type VibeParams } from './ArtistReferenceBank'
 import { registerAudioDebugSource } from '../../lib/audioDebugBridge'
+import { getSessionSalt, mulberry32 } from '../../organism/generators/freeplay/utils'
 import type { OrganismV2Status } from './OrganismContext'
 import { MelodicLoopPlayer } from '../../organism/loops/MelodicLoopPlayer'
 import { getConductor } from '../../organism/conductor/Conductor'
@@ -177,6 +178,18 @@ function applyPresetBand(
   orchestr.setInstrumentPerformer('bass',  userPicks.bass  ?? preset.performers?.bass  ?? null)
   orchestr.setInstrumentPerformer('texture', userPicks.texture ?? null)
   orchestr.setMelodyEmotionalIntent(preset.emotionalIntent ?? null)
+
+  // WHO CARRIES THE HOOK. Each preset states its own rules — the same shape as
+  // allowedTemplateIds — and if it permits more than one seat, the take picks
+  // from them. So two runs of the same preset can be keys-led or bass-led
+  // without becoming a different preset, and a preset that only makes sense one
+  // way simply lists one seat.
+  //
+  // Salt-seeded, so a take opens the same way throughout and differently next
+  // time, and Reimagine (which rerolls the salt) can hand the hook to another
+  // seat. Absent = chords, the engine's long-standing default.
+  const seats = preset.allowedHookSeats?.length ? preset.allowedHookSeats : ['chord' as const]
+  orchestr.setHookSeat(seats[Math.floor(mulberry32(getSessionSalt())() * seats.length) % seats.length])
 }
 
 export function OrganismProvider({ children, userId, isGuest = false }: Props) {

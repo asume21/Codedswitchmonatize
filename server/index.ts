@@ -1,5 +1,7 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// FIRST. Loads .env before any other module body runs — see server/env.ts for
+// why the previous `import dotenv; dotenv.config()` here did not, and what it
+// silently disabled.
+import { logEnvPresence } from './env';
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -51,6 +53,8 @@ process.on('uncaughtException', (err) => {
   logger.error({ err }, 'Uncaught exception — exiting');
   process.exit(1);
 });
+
+logEnvPresence();
 
 const app = express();
 

@@ -27,6 +27,14 @@ export interface QuickStartPreset {
   subGenre?:   HipHopSubGenre
   allowedTemplateIds?: string[]
   allowedStyleIds?:    string[]
+  /** Which seats this preset will let carry the hook — the repeating figure the
+   *  ear learns. The preset states its own rules; if it permits more than one,
+   *  a take picks from them, so two runs of the same preset can be keys-led or
+   *  bass-led without becoming a different preset.
+   *
+   *  Omitted = chords, which is the default the engine has always used and the
+   *  seat most hip-hop hooks sit in. */
+  allowedHookSeats?: Array<'chord' | 'melody' | 'bass'>
   energy:      'low' | 'medium' | 'high'
   icon:        string
   physics:     PhysicsState
@@ -75,6 +83,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     id:       'ref-lucid-dreams-80',
     loopPackId: 'cymatics-vintage-80',
     label:    'Lucid',
+    // Melodic emo trap on a nylon guitar lead — the LEAD is the identity here, so
+    // the melody carries it. Chords allowed as the alternative reading.
+    allowedHookSeats: ['melody', 'chord'],
     genre:    'Reference / Melodic Emo Trap',
     performers: { lead: 'guitar-nylon' },
     emotionalIntent: 'sad',
@@ -98,6 +109,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     id:       'ref-dababy-140',
     loopPackId: 'cymatics-trap-140',
     label:    'DaBaby',
+    // Hard rap: the low end is the hook. Bass or chords, never a lead melody
+    // sitting over the top of a rapper who is the melody.
+    allowedHookSeats: ['bass', 'chord'],
     genre:    'Reference / Bounce Trap',
     bpm:      140,
     mode:     OrganismMode.Heat,
@@ -125,6 +139,9 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     // tempo; individual rows can still be switched back to BAND for audition.
     startWithReferenceLoops: true,
     label:    'Violin Trap',
+    // The violin IS the preset. If the melody does not carry it, it is not
+    // Violin Trap.
+    allowedHookSeats: ['melody'],
     genre:    'Reference / Orchestral Trap',
     bpm:      130,
     mode:     OrganismMode.Glow,
@@ -148,6 +165,8 @@ export const QUICK_START_PRESETS: QuickStartPreset[] = [
     id:       'ref-weekend-110',
     loopPackId: 'cymatics-soul-115',
     label:    'Weekend',
+    // R&B pop trap — keys-led, with the bass as the alternate reading.
+    allowedHookSeats: ['chord', 'bass'],
     genre:    'Reference / R&B Pop Trap',
     bpm:      110,
     mode:     OrganismMode.Glow,
