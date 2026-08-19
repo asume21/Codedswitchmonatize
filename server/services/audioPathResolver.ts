@@ -112,3 +112,33 @@ export function isInsideObjectsDir(candidate: string): boolean {
   const resolved = path.resolve(candidate);
   return resolved === root || resolved.startsWith(rootWithSep);
 }
+
+export type ClassifiedAudioPath =
+  | { path: string }
+  | { error: 'missing' }
+  | { error: 'unsupported' };
+
+/**
+ * Same resolution, but distinguishing the two reasons it can fail — which the
+ * HTTP routes need and jobQueue did not.
+ *
+ * The speech-correction routes answer 400 for a URL form they do not
+ * understand and 404 for a form they DO understand whose file is absent.
+ * resolveLocalAudioPath returns null for both, so migrating the routes onto it
+ * directly would have turned every "file not found" into "unsupported url".
+ *
+ * A contained path — traversal, or an absolute path outside the objects
+ * directory — reports 'unsupported', never 'missing'. 'missing' would be an
+ * existence oracle: it would tell a caller probing for /etc/passwd whether the
+ * escape landed on a real file. Rejected forms must look identical to forms we
+ * never understood.
+ */
+export function classifyLocalAudioPath(
+  url: string | null | undefined,
+): ClassifiedAudioPath {
+  const resolved = resolveLocalAudioPath(url);
+  if (resolved) return { path: resolved };
+  return resolveLocalAudioPath(url, { allowMissing: true })
+    ? { error: 'missing' }
+    : { error: 'unsupported' };
+}

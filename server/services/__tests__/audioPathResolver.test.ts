@@ -89,3 +89,55 @@ describe('resolveLocalAudioPath — containment', () => {
     expect(isInsideObjectsDir(root)).toBe(true);
   });
 });
+
+/**
+ * The routes need one more thing than jobQueue did: they answer 400 for a URL
+ * form they do not understand and 404 for a form they DO understand whose file
+ * is absent. resolveLocalAudioPath returns null for both, so migrating the
+ * routes onto it would have collapsed those two answers into one.
+ */
+describe('classifyLocalAudioPath — 400-vs-404 for the routes', () => {
+  it('returns the resolved path when the file is there', async () => {
+    const { classifyLocalAudioPath } = await load();
+    expect(classifyLocalAudioPath('/api/songs/converted/123')).toEqual({
+      path: fs.realpathSync(path.join(root, 'converted', '123.mp3')),
+    });
+  });
+
+  it('reports a known form with no file as missing, not unsupported', async () => {
+    const { classifyLocalAudioPath } = await load();
+    expect(classifyLocalAudioPath('/api/songs/converted/nope')).toEqual({
+      error: 'missing',
+    });
+  });
+
+  it('reports an external URL as unsupported', async () => {
+    const { classifyLocalAudioPath } = await load();
+    expect(classifyLocalAudioPath('https://evil.example.com/x.mp3')).toEqual({
+      error: 'unsupported',
+    });
+  });
+
+  it('reports an absent url as unsupported', async () => {
+    const { classifyLocalAudioPath } = await load();
+    expect(classifyLocalAudioPath(null)).toEqual({ error: 'unsupported' });
+    expect(classifyLocalAudioPath('')).toEqual({ error: 'unsupported' });
+  });
+
+  it('reports a traversal attempt as unsupported, never as missing', async () => {
+    // 'missing' would be an existence oracle: it would tell a caller probing
+    // /etc/passwd whether the escape reached a real file. Contained paths must
+    // be indistinguishable from a form we never understood.
+    const { classifyLocalAudioPath } = await load();
+    expect(classifyLocalAudioPath('/api/internal/uploads/../../../../etc/passwd')).toEqual({
+      error: 'unsupported',
+    });
+  });
+
+  it('reports an absolute path outside the objects directory as unsupported', async () => {
+    const { classifyLocalAudioPath } = await load();
+    const outside = path.join(os.tmpdir(), 'classify-outside.txt');
+    fs.writeFileSync(outside, 'secret');
+    expect(classifyLocalAudioPath(outside)).toEqual({ error: 'unsupported' });
+  });
+});

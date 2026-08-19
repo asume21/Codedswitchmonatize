@@ -60,6 +60,7 @@ import os from "os";
 import crypto from "crypto";
 import ffmpeg from "fluent-ffmpeg";
 import { sanitizePath, sanitizeObjectKey, sanitizeHtml, isValidUUID, resolveAudioPath } from "./utils/security";
+import { classifyLocalAudioPath } from "./services/audioPathResolver";
 import { insertPlaylistSchema } from "@shared/schema";
 import { resolveGenerationConstraints } from "@shared/aiProviderCapabilities";
 import { z } from "zod";
@@ -3086,40 +3087,34 @@ ${code}
             const songAudioUrl = (song as any)?.audioUrl || song?.accessibleUrl || song?.originalUrl;
             if (songAudioUrl) {
               console.log(`🎵 Found song for transcription: ${song?.name || songId}, audioUrl: ${songAudioUrl}`);
-              if (songAudioUrl.includes("/api/internal/uploads/")) {
-                const extractedKey = songAudioUrl.split("/api/internal/uploads/")[1];
-                targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
-              }
-            } else if (song) {
-              // Song exists but has no audioUrl - check accessibleUrl for converted file
-              console.log(`⚠️ Song ${songId} has no audioUrl for transcription, checking accessibleUrl: ${song.accessibleUrl}`);
-              if (song.accessibleUrl && song.accessibleUrl.includes("/api/songs/converted/")) {
-                const fileId = song.accessibleUrl.split("/api/songs/converted/")[1];
-                const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-                targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
-                console.log(`✅ Using converted file for transcription: ${targetPath}`);
+              const found = classifyLocalAudioPath(songAudioUrl);
+              if ('path' in found) {
+                targetPath = found.path;
               } else {
-                console.warn(`❌ Song ${songId} has no audioUrl and accessibleUrl doesn't point to converted file`);
+                console.warn(`❌ Song ${songId} audio url did not resolve (${found.error}): ${songAudioUrl}`);
               }
+            } else {
+              console.warn(`❌ Song ${songId} has no audioUrl, accessibleUrl or originalUrl`);
             }
           } catch (dbError) {
             console.warn("Could not fetch song from database for transcription:", dbError);
           }
         }
-        
+
         // Fallback to objectKey or fileUrl
         if (!targetPath) {
           if (objectKey) {
+            // objectKey is a storage key, not a URL — sanitizePath is its resolver.
             targetPath = sanitizePath(objectKey, LOCAL_OBJECTS_DIR) || '';
-          } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-            const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-            targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
-          } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
-            const fileId = fileUrl.split("/api/songs/converted/")[1];
-            const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-            targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
           } else if (fileUrl) {
-            return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+            const found = classifyLocalAudioPath(fileUrl);
+            if ('path' in found) {
+              targetPath = found.path;
+            } else if (found.error === 'missing') {
+              return sendError(res, 404, "Audio file not found on server");
+            } else {
+              return sendError(res, 400, "External URLs not supported for speech-correction transcription");
+            }
           }
         }
         
@@ -3267,52 +3262,42 @@ ${code}
             const songAudioUrl2 = (song as any)?.audioUrl || song?.accessibleUrl || song?.originalUrl;
             if (songAudioUrl2) {
               console.log(`🎵 Found song in DB: ${song?.name || songId}, audioUrl: ${songAudioUrl2}`);
-              // Extract path from audio_url
-              if (songAudioUrl2.includes("/api/internal/uploads/")) {
-                const extractedKey = songAudioUrl2.split("/api/internal/uploads/")[1];
-                targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
+              const found = classifyLocalAudioPath(songAudioUrl2);
+              if ('path' in found) {
+                targetPath = found.path;
                 console.log(`📁 Extracted target path: ${targetPath}`);
-              }
-            } else if (song) {
-              // Song exists but has no audioUrl - check accessibleUrl for converted file
-              console.log(`⚠️ Song ${songId} has no audioUrl, checking accessibleUrl: ${song.accessibleUrl}`);
-              if (song.accessibleUrl && song.accessibleUrl.includes("/api/songs/converted/")) {
-                const fileId = song.accessibleUrl.split("/api/songs/converted/")[1];
-                const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-                targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
-                console.log(`✅ Using converted file from accessibleUrl: ${targetPath}`);
               } else {
-                console.warn(`❌ Song ${songId} has no audioUrl and accessibleUrl doesn't point to converted file`);
+                console.warn(`❌ Song ${songId} audio url did not resolve (${found.error}): ${songAudioUrl2}`);
               }
+            } else {
+              console.warn(`❌ Song ${songId} has no audioUrl, accessibleUrl or originalUrl`);
             }
           } catch (dbError) {
             console.warn("Could not fetch song from database:", dbError);
           }
         }
-        
+
         // Fallback to objectKey or fileUrl
         if (!targetPath) {
           if (objectKey) {
+            // objectKey is a storage key, not a URL — sanitizePath is its resolver.
             targetPath = sanitizePath(objectKey, LOCAL_OBJECTS_DIR) || '';
-          } else if (fileUrl && fileUrl.includes("/api/internal/uploads/")) {
-            const extractedKey = fileUrl.split("/api/internal/uploads/")[1];
-            targetPath = sanitizePath(decodeURIComponent(extractedKey), LOCAL_OBJECTS_DIR) || '';
-          } else if (fileUrl && fileUrl.includes("/api/songs/converted/")) {
-            // Resolve converted files the same way /transcribe and the
-            // accessibleUrl branch above already do.
-            //
-            // This used to hard-fail with "Use original audio" on the grounds
-            // that converted files "may not exist yet" — but a song uploaded
-            // through the Song Uploader HAS a converted URL and no other, so
-            // voiceprint could never run on the very files it exists for. The
-            // fs.existsSync check below is the correct answer to "may not exist
-            // yet": a 404 when it is genuinely absent, rather than a blanket
-            // refusal of the normal case.
-            const fileId = fileUrl.split("/api/songs/converted/")[1];
-            const safeFileId = decodeURIComponent(fileId).replace(/[^a-zA-Z0-9-_.]/g, "_");
-            targetPath = sanitizePath(path.join("converted", `${safeFileId}.mp3`), LOCAL_OBJECTS_DIR) || '';
           } else {
-            return sendError(res, 400, "Unsupported fileUrl for voiceprint");
+            // Converted URLs resolve here like everywhere else. This branch used
+            // to hard-fail with "use original audio" on the grounds that
+            // converted files "may not exist yet" — but a song uploaded through
+            // the Song Uploader HAS a converted URL and no other, so voiceprint
+            // could never run on the very files it exists for. 'missing' is the
+            // correct answer to "may not exist yet": a 404 when it is genuinely
+            // absent, rather than a blanket refusal of the normal case.
+            const found = classifyLocalAudioPath(fileUrl);
+            if ('path' in found) {
+              targetPath = found.path;
+            } else if (found.error === 'missing') {
+              return sendError(res, 404, "Audio file not found on server");
+            } else {
+              return sendError(res, 400, "Unsupported fileUrl for voiceprint");
+            }
           }
         }
 
