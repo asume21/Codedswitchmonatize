@@ -764,7 +764,6 @@ Return ONLY valid JSON:
   const LOCAL_OBJECTS_DIR = fs.existsSync('/data') 
     ? path.resolve('/data', 'objects')
     : path.resolve(process.cwd(), "objects");
-  const LOCAL_STEMS_DIR = path.resolve(process.cwd(), "objects", "stems");
   
   try {
     fs.mkdirSync(LOCAL_OBJECTS_DIR, { recursive: true });
@@ -3521,16 +3520,6 @@ ${code}
             ? Math.max(0, Math.min(1, correctionStrength))
             : 0.48;
 
-        const resolveStemPath = (url: unknown): string | null => {
-          if (typeof url !== "string" || !url.startsWith("/api/stems/")) return null;
-          const stemName = path.basename(decodeURIComponent(url.replace("/api/stems/", "")));
-          const candidate = path.resolve(LOCAL_STEMS_DIR, stemName);
-          if (!candidate.startsWith(path.resolve(LOCAL_STEMS_DIR))) {
-            return null;
-          }
-          return fs.existsSync(candidate) ? candidate : null;
-        };
-
         const resolveOutputPath = (url: string): string | null => {
           if (url.startsWith("/api/internal/uploads/voices/outputs/")) {
             const name = path.basename(decodeURIComponent(url.replace("/api/internal/uploads/voices/outputs/", "")));
@@ -3546,7 +3535,7 @@ ${code}
         };
 
         const resolvedVocalPath =
-          resolveAudioPath({ objectKey, fileUrl: fileUrl || audioUrl }, LOCAL_OBJECTS_DIR) || resolveStemPath(audioUrl);
+          resolveAudioPath({ objectKey, fileUrl: fileUrl || audioUrl }, LOCAL_OBJECTS_DIR);
 
         if (!resolvedVocalPath) {
           return sendError(res, 400, "Unable to resolve source vocal path from audioUrl/objectKey/fileUrl");
@@ -3585,7 +3574,7 @@ ${code}
               fileUrl: instrumentalFileUrl || instrumentalUrl,
             },
             LOCAL_OBJECTS_DIR,
-          ) || resolveStemPath(instrumentalUrl);
+          );
 
         let resolvedRoot: number = typeof root === "number" ? ((Math.round(root) % 12) + 12) % 12 : 0;
         if (typeof root !== "number" && resolvedInstrumentalPath) {

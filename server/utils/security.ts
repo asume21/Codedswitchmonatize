@@ -4,6 +4,8 @@
  */
 
 import path from 'path';
+import fs from 'fs';
+import { resolveLocalAudioPath } from '../services/audioPathResolver';
 
 /**
  * Sanitize a file path to prevent path traversal attacks
@@ -197,23 +199,34 @@ export function resolveAudioPath(
 ): string | null {
   const { objectKey, fileUrl } = params;
 
-  let relativePart: string | undefined;
+  // This knew exactly ONE url form: /api/internal/uploads/. It is the resolver
+  // behind five routes — create voice, voice convert, duet, extract pitch and
+  // pitch correct — and a song uploaded through the Song Uploader has a
+  // /api/songs/converted/ url and no other. So all five answered "Invalid or
+  // missing objectKey/fileUrl" for the app's most common input. Delegating to
+  // the shared resolver teaches every one of them all the forms at once.
+  //
+  // objectKey is a storage key rather than a url, so it is resolved against
+  // baseDir first and then contained the same way.
+  const target =
+    objectKey && typeof objectKey === 'string'
+      ? path.resolve(baseDir, objectKey)
+      : (fileUrl && typeof fileUrl === 'string' ? fileUrl : null);
 
-  if (objectKey && typeof objectKey === 'string') {
-    relativePart = objectKey;
-  } else if (fileUrl && typeof fileUrl === 'string' && fileUrl.includes('/api/internal/uploads/')) {
-    const afterPrefix = fileUrl.split('/api/internal/uploads/')[1];
-    if (!afterPrefix) return null;
-    try {
-      relativePart = decodeURIComponent(afterPrefix);
-    } catch {
-      return null;
-    }
-  }
+  if (!target) return null;
 
-  if (!relativePart) return null;
+  // Fully validated (including symlink containment) when the file is present.
+  const strict = resolveLocalAudioPath(target);
+  if (strict) return strict;
 
-  return sanitizePath(relativePart, baseDir);
+  // Absent file: hand back the contained candidate so the callers keep their
+  // "400 for a bad reference, 404 for a real reference with no file" split.
+  // Only ever returned when the file does NOT exist, so a symlink that escapes
+  // the objects directory cannot be reached through this branch.
+  const candidate = resolveLocalAudioPath(target, { allowMissing: true });
+  if (candidate && !fs.existsSync(candidate)) return candidate;
+
+  return null;
 }
 
 /**
