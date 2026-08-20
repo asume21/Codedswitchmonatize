@@ -3351,8 +3351,8 @@ export default function UnifiedStudioWorkspace() {
         />
       </React.Suspense>
       {/* Top Bar */}
-      <div className="h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center px-2 sm:px-4 justify-between flex-shrink-0 astutely-header relative z-[1000]">
-        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+      <div className="min-h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center gap-x-2 gap-y-1 flex-wrap px-2 sm:px-4 py-1 justify-between flex-shrink-0 astutely-header relative z-[1000]">
+        <div className="flex items-center gap-x-2 sm:gap-x-4 gap-y-1 flex-wrap min-w-0">
           <h1 className="text-base sm:text-xl font-black tracking-[0.2em] sm:tracking-[0.3em] astutely-gradient-text uppercase hidden sm:block">CodedSwitch</h1>
           <DesktopBridgeToggle />
           <Button
@@ -3364,7 +3364,15 @@ export default function UnifiedStudioWorkspace() {
           >
             ☰
           </Button>
-          <div className={cn("space-x-0.5 flex-wrap md:flex-nowrap", menuBarExpanded ? "flex" : "hidden")} ref={menuBarRef}>
+          <div className={cn(
+              // Wrap at EVERY width, and let the bar grow to fit. With
+              // `md:flex-nowrap` these eight menu buttons could neither wrap nor
+              // shrink (no min-w-0), so on desktop the row overflowed its flex
+              // parent and printed straight over the right-hand controls —
+              // "Listen" and "MIDI" rendered on top of each other.
+              "gap-0.5 flex-wrap min-w-0",
+              menuBarExpanded ? "flex" : "hidden",
+            )} ref={menuBarRef}>
             <div className="relative">
               <Button variant="ghost" size="sm" className="astutely-button" onClick={() => setOpenMenu(openMenu === 'file' ? null : 'file')}>File ▼</Button>
               {openMenu === 'file' && (

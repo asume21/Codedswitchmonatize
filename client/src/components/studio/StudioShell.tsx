@@ -194,10 +194,11 @@ function DesktopSurfaceRail({
   return (
     <nav
       data-testid="studio-shell-rail"
-      // Controls are pinned to the RIGHT so they never sit under the global
-      // floating nav (App.tsx renders <GlobalNav> fixed top-4 left-4), which is
-      // a wide cluster that previously covered the surface tabs. Left side is
-      // intentionally left for that global nav.
+      // Controls are pinned to the RIGHT. This originally dodged the global
+      // floating nav; that nav is now suppressed on /studio entirely (App.tsx,
+      // ROUTES_WITH_OWN_NAV) because at ~54px it could not fit this 48px band
+      // and always overhung the bar below. The right alignment is kept — it
+      // matches the toolbars underneath, which are also right-weighted.
       className="sticky top-0 z-40 flex items-center justify-end gap-3 border-b border-border bg-background/95 backdrop-blur px-4 h-12"
     >
       <ul className="flex items-center gap-1">

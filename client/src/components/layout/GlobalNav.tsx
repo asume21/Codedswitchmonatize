@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
+import { cn } from '@/lib/utils';
 
 // Primary items: always visible in all nav variants
 const PRIMARY_NAV = [
@@ -50,7 +51,18 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
     refetchOnWindowFocus: true,
   });
 
-  const currentCredits = creditData?.balance ?? null;
+  // The owner/infinite plan reports Number.MAX_SAFE_INTEGER as its balance, which
+  // rendered literally as "9007199254740991 Credits" in the top bar. The API
+  // already flags the case — honour it, and group the digits for real balances
+  // so five- and six-figure numbers stay readable.
+  const isInfiniteCredits = Boolean(creditData?.creditInfinite);
+  const rawCredits: number | null =
+    typeof creditData?.balance === 'number' ? creditData.balance : null;
+  const creditsLabel = isInfiniteCredits
+    ? '∞'
+    : rawCredits === null
+      ? null
+      : rawCredits.toLocaleString();
 
   const currentPage = NAV_ITEMS.find(item => item.path === location)?.label || 'CodedSwitch';
 
@@ -84,7 +96,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
           >
             <Coins className="w-4 h-4 text-cyan-300" />
             <span className="hidden md:inline">
-              {currentCredits === null ? 'Credits' : `${currentCredits} Credits`}
+              {creditsLabel === null ? 'Credits' : `${creditsLabel} Credits`}
             </span>
           </button>
         )}
@@ -120,7 +132,12 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
 
   // Default: Dropdown variant
   return (
-    <div className={`relative flex items-center gap-2 ${className}`}>
+    // cn() runs tailwind-merge, so a caller passing `fixed top-4 left-4`
+    // actually overrides the default `relative` here. With plain string
+    // concatenation both position utilities survived and CSS source order
+    // decided: `relative` won, the nav never left the flow, it stretched to
+    // full width, and the surface nav below painted over its bottom edge.
+    <div className={cn('relative flex items-center gap-2', className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/80 border border-cyan-500/40 hover:border-cyan-400/70 shadow-[0_0_20px_rgba(6,182,212,0.2)] backdrop-blur-md transition-all astutely-panel"
@@ -140,7 +157,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
           onClick={() => navigate('/pricing')}
         >
           <Coins className="w-4 h-4 text-cyan-300" />
-          {currentCredits === null ? 'Credits' : currentCredits}
+          {creditsLabel === null ? 'Credits' : creditsLabel}
         </Button>
       )}
 

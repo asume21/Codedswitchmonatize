@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useTracks } from "@/hooks/useTracks";
 import { packSynthesizer } from "@/lib/packAudioSynthesizer";
+import { useStudioStore } from "@/stores/useStudioStore";
 import { professionalAudio } from "@/lib/professionalAudio";
 import { getAudioContext } from "@/lib/audioContext";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,6 +31,8 @@ interface GeneratedPack {
   bpm: number;
   key: string;
   genre: string;
+  /** Engine that actually rendered the audio — not the provider requested. */
+  generator?: 'ace-step' | 'musicgen-looper' | 'local-musicgen';
   samples: {
     id: string;
     name: string;
@@ -206,8 +209,27 @@ const PROMPT_TEMPLATES: Record<string, string[]> = {
   ],
 };
 
+// The requested provider is only a preference: ACE-Step falls back to the
+// looper, which falls back to the local generator. Showing the request made the
+// UI claim "ACE-Step" for packs ACE never rendered, which sent real debugging
+// down the wrong path. Always label a pack with the engine that made it.
+const GENERATOR_LABELS: Record<string, string> = {
+  'ace-step': 'ACE-Step',
+  'musicgen-looper': 'MusicGen Looper',
+  'local-musicgen': 'Local Generator',
+};
+
 function getSamplePlaybackUrl(sample: GeneratedPack['samples'][number]): string | null {
-  return sample.audioUrl || sample.url || null;
+  // Runtime check, not just the type: packs generated before the FileOutput fix
+  // stored `"audioUrl": {}` (a serialised Replicate FileOutput). An object is
+  // truthy, so the old `||` chain handed it straight to fetch() and Audio(),
+  // which coerce it to "[object Object]" and request a file that cannot exist.
+  // Those packs still sit in localStorage history and the saved library, so
+  // guard here rather than trusting the declared type.
+  const candidate = [sample.audioUrl, sample.url].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+  return candidate ?? null;
 }
 
 export default function PackGenerator() {
@@ -373,7 +395,7 @@ export default function PackGenerator() {
     };
   }, []);
 
-  const generateMutation = useMutation<GeneratedPack[], Error, { prompt: string; count: number; provider: string }>({
+  const generateMutation = useMutation<GeneratedPack[], Error, { prompt: string; count: number; provider: string; bpm: number }>({
     mutationFn: async (body) => {
       const response = await apiRequest("POST", "/api/packs/generate", body);
       const data = await response.json();
@@ -386,7 +408,15 @@ export default function PackGenerator() {
         return;
       }
       saveHistory(packs);
-      toast({ title: `Generated ${packs.length} packs` });
+      const enginesUsed = Array.from(
+        new Set(packs.map((p) => p.generator).filter(Boolean) as string[]),
+      );
+      toast({
+        title: `Generated ${packs.length} packs`,
+        description: enginesUsed.length
+          ? `Rendered by ${enginesUsed.map((g) => GENERATOR_LABELS[g] ?? g).join(' + ')}`
+          : undefined,
+      });
 
       // NOTE (2026-07-20): removed the automatic second render + auto-play that
       // used to fire here. It kicked off an unrequested ~30s generateRealAudio()
@@ -503,6 +533,27 @@ export default function PackGenerator() {
       .filter((url): url is string => Boolean(url));
     const volume = (previewVolume[0] ?? 75) / 100;
 
+    // The synthesizer plays a canned, hardcoded drum/bass pattern — it is NOT
+    // this pack. Substituting it for a pack whose real audio failed produced
+    // generic noise that the user reasonably heard as the product being broken,
+    // with nothing on screen to say the audio had been swapped out. So it is
+    // only ever used for packs that were never meant to carry audio: the
+    // pattern-based providers (intelligent / structure) return `pattern` or
+    // `aiData` and no URLs, and the synthesizer IS their intended playback.
+    const isPatternPack = pack.samples.some(
+      (sample) => Boolean(sample.pattern) || Boolean(sample.aiData),
+    );
+
+    const reportUnplayable = (reason: string) => {
+      playlistRef.current = null;
+      stopPreview();
+      toast({
+        variant: 'destructive',
+        title: 'This pack has no playable audio',
+        description: `${reason} Generate a new pack — this one's audio is gone.`,
+      });
+    };
+
     if (audioUrls.length) {
       try {
         const premixUrl = await getPremixedPackUrl(pack.id, audioUrls);
@@ -511,23 +562,26 @@ export default function PackGenerator() {
           audio.loop = true;
           audio.volume = volume;
           audioRef.current = audio;
-          audio.play().catch(() => {
-            playlistRef.current = null;
-            packSynthesizer.playPack(pack, volume, { loop: true }).catch(() => stopPreview());
-          });
+          audio.play().catch(() => reportUnplayable('The audio could not be played.'));
           return;
         }
       } catch (premixError) {
         console.warn('Premix generation failed, falling back to playlist preview', premixError);
       }
 
-      const started = startSamplePlaylist(audioUrls, volume, () => {
-        playlistRef.current = null;
-        packSynthesizer.playPack(pack, volume, { loop: true }).catch(() => stopPreview());
-      });
+      const started = startSamplePlaylist(audioUrls, volume, () =>
+        reportUnplayable('The audio files could not be loaded.'),
+      );
       if (started) return;
+
+      reportUnplayable('The audio files could not be loaded.');
+      return;
     }
 
+    if (!isPatternPack) {
+      reportUnplayable('No audio was saved for it.');
+      return;
+    }
     await packSynthesizer.playPack(pack, volume, { loop: true });
   };
 
@@ -551,7 +605,17 @@ export default function PackGenerator() {
     if (!prompt.trim()) return;
     stopPreview();
     setGeneratedPacks([]);
-    generateMutation.mutate({ prompt: prompt.trim(), count: packCount, provider: aiProvider });
+    // Send the session tempo. Omitting it left the server on its own bpm=120
+    // default, which contradicted the prompt and made the looper fail outright
+    // ("Failed to generate a loop in the requested 120.0 bpm"). A tempo written
+    // into the prompt still wins server-side — this is the fallback for prompts
+    // that name no tempo.
+    generateMutation.mutate({
+      prompt: prompt.trim(),
+      count: packCount,
+      provider: aiProvider,
+      bpm: useStudioStore.getState().bpm,
+    });
   };
 
   const applyGenreTemplate = (genre: string) => {
@@ -763,7 +827,14 @@ export default function PackGenerator() {
                           )}
                           <p className="text-[10px] font-medium text-white/40 uppercase tracking-widest mt-2">{pack.description}</p>
                         </div>
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[9px] font-black uppercase px-3 rounded-full mt-1 shrink-0">{pack.genre}</Badge>
+                        <div className="flex flex-col items-end gap-1.5 mt-1 shrink-0">
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[9px] font-black uppercase px-3 rounded-full">{pack.genre}</Badge>
+                          {pack.generator && (
+                            <Badge variant="outline" className="bg-white/5 text-white/40 border-white/10 text-[8px] font-black uppercase px-2.5 rounded-full tracking-wider">
+                              {GENERATOR_LABELS[pack.generator] ?? pack.generator}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6 relative z-10">

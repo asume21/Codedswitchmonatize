@@ -172,6 +172,50 @@ function StudioProviders({ children }: { children: React.ReactNode }) {
 }
 
 
+/**
+ * The floating brand/credits/account cluster.
+ *
+ * It is `fixed`, so it paints OVER page content and reserves no space of its
+ * own — every page that shows it must leave a gutter, which is what the spacer
+ * below provides.
+ *
+ * It is suppressed on routes that already own their chrome (see
+ * ROUTES_WITH_OWN_NAV). On the studio it was a second, competing nav that at
+ * ~54px could not fit the rail's 48px band, so it always overhung the bar below
+ * and got sliced by it. On the landing page it collided with the marketing nav,
+ * overlapping the wordmark into an unreadable jumble.
+ */
+/**
+ * Routes that already render their own top-level navigation. Adding the
+ * floating cluster on top of these produces two overlapping navs, not two
+ * useful ones:
+ *   /         — landing.tsx has a full marketing nav fixed across the top
+ *   /studio*  — StudioShell's surface rail + the CODEDSWITCH menu bar
+ */
+const ROUTES_WITH_OWN_NAV = ['/studio', '/'];
+
+function hasOwnNav(pathname: string): boolean {
+  return ROUTES_WITH_OWN_NAV.some(
+    (route) => pathname === route || (route !== '/' && pathname.startsWith(`${route}/`)),
+  );
+}
+
+function FloatingGlobalNav() {
+  const [location] = useLocation();
+
+  if (hasOwnNav(location)) return null;
+
+  return (
+    <>
+      <GlobalNav className="fixed top-4 left-4 z-40" />
+      {/* Gutter for the fixed nav above. Without it the cluster lands on top of
+          the page heading — the Dashboard's <h1> sits at y=24, the nav spans
+          y=16–70. */}
+      <div className="h-[72px] shrink-0" aria-hidden="true" />
+    </>
+  );
+}
+
 function App() {
   // Initialize Google Analytics when app loads
   useEffect(() => {
@@ -243,7 +287,7 @@ function App() {
             <Toaster />
             {/* Cmd/Ctrl+K command palette — available everywhere, mounts only the dialog shell until invoked */}
             <CommandPalette />
-            {/* GLOBAL NAVIGATION - Available on ALL pages.
+            {/* GLOBAL NAVIGATION — every page EXCEPT the studio (see FloatingGlobalNav).
                 z-index scale (keep these tiers coordinated app-wide):
                   z-40  persistent chrome  — GlobalNav, studio rail, transport bar
                   z-50  modal overlays     — Radix dialog/sheet/popover, command palette
@@ -251,7 +295,7 @@ function App() {
                   z-200 dev/util floats   — FloatingAudioMonitor
                 GlobalNav lives in the chrome tier so open modals correctly cover it
                 (it was z-[9999], which floated the nav over every dialog). */}
-            <GlobalNav className="fixed top-4 left-4 z-40" />
+            <FloatingGlobalNav />
             <Suspense fallback={<LoadingFallback />}>
               <Switch>
               {/* ============================================
