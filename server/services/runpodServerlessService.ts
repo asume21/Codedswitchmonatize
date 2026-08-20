@@ -1,13 +1,12 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { AceStepJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from './aceStepService'
+import { GENERATED_AUDIO_DIR, generatedAudioUrl } from './generatedAudioStore'
 
 const RUNPOD_API_BASE = 'https://api.runpod.ai/v2'
-// Honor ACE_STEP_OUTPUT_DIR in prod (points at a Railway Volume mount path so
-// rendered audio survives redeploys). Falls back to the local dev path.
-const OUTPUT_DIR = process.env.ACE_STEP_OUTPUT_DIR
-  ? path.resolve(process.env.ACE_STEP_OUTPUT_DIR)
-  : path.resolve(process.cwd(), 'private', 'ace-step', 'output')
+// Shared with every other writer and with the route that serves these files
+// (Railway Volume mount in prod so renders survive redeploys, local dir in dev).
+const OUTPUT_DIR = GENERATED_AUDIO_DIR
 
 const apiKey = process.env.RUNPOD_API_KEY ?? ''
 const endpointId = process.env.RUNPOD_SERVERLESS_ENDPOINT_ID ?? ''
@@ -235,7 +234,7 @@ export async function pollServerlessJob(jobId: string): Promise<AceStepJob> {
       jobId,
       status: 'done',
       outputPath: audioBase64 ? outputPath : undefined,
-      outputUrl: audioBase64 ? `/api/ai-music/audio/${filename}` : remoteAudioUrl,
+      outputUrl: audioBase64 ? generatedAudioUrl(filename) : remoteAudioUrl,
       durationS: data.output?.duration_s ?? msToSeconds(data.executionTime),
       generationS: data.output?.generation_s ?? msToSeconds(data.executionTime),
       taskType: data.output?.task_type,

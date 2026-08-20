@@ -14,15 +14,15 @@ import * as fs from 'fs'
 import { isWorkerReady, submitGeneration, pollJob, AceStepRequest, AceStepTaskType, AceStepTrackName } from '../services/aceStepService'
 import { ensureWorkerReady, jobCompleted } from '../services/runpodService'
 import { isServerlessConfigured, getServerlessEndpointId } from '../services/runpodServerlessService'
+import { GENERATED_AUDIO_DIR } from '../services/generatedAudioStore'
 import { localAI } from '../services/localAI'
 import { composer } from '../services/composer'
 import type { ArrangementPlan, ComposerInput } from '../../shared/arrangement'
 
-// Keep in sync with runpodServerlessService.OUTPUT_DIR — both point at the
-// same dir (Railway Volume in prod via ACE_STEP_OUTPUT_DIR, local in dev).
-const OUTPUT_DIR = process.env.ACE_STEP_OUTPUT_DIR
-  ? path.resolve(process.env.ACE_STEP_OUTPUT_DIR)
-  : path.resolve(process.cwd(), 'private', 'ace-step', 'output')
+// One shared constant with every writer (ACE via Replicate, RunPod Serverless,
+// and the sample-pack looper), so this route can never look somewhere the
+// renders were not written.
+const OUTPUT_DIR = GENERATED_AUDIO_DIR
 const WORKER_URL = (process.env.ACE_STEP_WORKER_URL || 'http://127.0.0.1:8008').replace(/\/$/, '')
 
 interface AcePromptOptions {

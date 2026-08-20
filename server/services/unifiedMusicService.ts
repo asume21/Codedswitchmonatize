@@ -8,6 +8,9 @@ import { localMusicGenService, LocalMusicGenPack, LocalMusicGenSample } from "./
 import { ObjectStorageService } from "../objectStorage";
 import { getGenreSpec, enhancePromptWithGenre } from "../ai/knowledge/genreDatabase";
 import { tryAceFirst } from "./aceFirst";
+import { toReplicateUrl } from "./replicateOutput";
+import { persistRemoteAudio } from "./generatedAudioStore";
+import { resolveBpm, buildVariationPrompt } from "./bpmResolution";
 
 const LOCAL_OBJECTS_DIR =
   fs.existsSync("/data") && fs.statSync("/data").isDirectory()
@@ -113,6 +116,13 @@ export interface MusicPack {
   key: string;
   genre: string;
   samples: MusicSample[];
+  /**
+   * Which engine actually rendered this pack's audio. The requested provider
+   * is only a preference — ACE-Step silently falls back to the looper, which
+   * falls back to the local generator. Reporting the request instead of the
+   * result told the user "ACE-Step generated this" for packs ACE never touched.
+   */
+  generator?: 'ace-step' | 'musicgen-looper' | 'local-musicgen';
   metadata: {
     energy: number;
     mood: string;
@@ -753,8 +763,13 @@ export class UnifiedMusicService {
     bpm?: number;
     packCount?: number;
   } = {}): Promise<MusicPack[]> {
-    const { bpm = 120, packCount = 1 } = options;
-    console.log(`📦 UnifiedMusic: Generating sample packs for "${prompt}"`);
+    const { packCount = 1 } = options;
+    // ONE tempo for the whole request. A tempo written into the prompt wins over
+    // the caller's, because it is the more explicit statement of intent — and
+    // because sending a bpm that contradicts the prompt is what made the looper
+    // throw "Failed to generate a loop in the requested 120.0 bpm".
+    const bpm = resolveBpm(prompt, options.bpm);
+    console.log(`📦 UnifiedMusic: Generating sample packs for "${prompt}" @ ${bpm} BPM`);
 
     // ═══ ACE-Step first (our own worker) — silent fallback to the looper ═══
     const acePacks = await this.generateSamplePackWithAce(prompt, bpm, packCount);
@@ -781,9 +796,8 @@ export class UnifiedMusicService {
       for (let i = 0; i < packCount; i++) {
         // Add variation to prompt to ensure different results
         const variation = variations[i % variations.length];
-        const timestamp = Date.now();
         const randomSeed = Math.floor(Math.random() * 1000000);
-        const variedPrompt = `${prompt}, ${variation} style, ${bpm} bpm, session ${timestamp}-${randomSeed}`;
+        const variedPrompt = buildVariationPrompt(prompt, variation, bpm, randomSeed);
         
         console.log(`🎵 Pack ${i + 1}: "${variedPrompt}"`);
         
@@ -804,18 +818,44 @@ export class UnifiedMusicService {
         );
 
         if (typeof output === 'object' && output !== null) {
-          const samples: MusicSample[] = Object.entries(output)
+          // The looper's schema declares variation_01..variation_20 but only
+          // fills as many as `variations` asked for — the rest come back null.
+          // Resolve each value first (it is a FileOutput, not a string; a cast
+          // shipped `"audioUrl": {}` and packs with nothing to play), then drop
+          // the holes so the pack shows only samples that can actually sound.
+          const remoteUrls = Object.entries(output)
             .filter(([k]) => k.startsWith('variation_'))
-            .map(([k, url], idx) => ({
-              id: `sample_${randomUUID()}`,
-              name: `${prompt} Var ${idx + 1}`,
-              prompt,
-              audioUrl: url as string,
-              duration: 8,
-              type: 'loop',
-              instrument: 'mixed',
-              bpm
-            }));
+            .map(([, value]) => toReplicateUrl(value))
+            .filter((url): url is string => Boolean(url));
+
+          // Replicate deletes these files about an hour after the run, so a
+          // pack that stored the remote URL played during testing and was
+          // silent by the next day. Download each render into the persistent
+          // store first; keep the remote URL only if that fails, so a storage
+          // hiccup degrades to short-lived audio rather than no audio.
+          const playbackUrls = await Promise.all(
+            remoteUrls.map(async (remoteUrl) =>
+              (await persistRemoteAudio(remoteUrl, 'looper')) ?? remoteUrl,
+            ),
+          );
+
+          const samples: MusicSample[] = playbackUrls.map((audioUrl, idx) => ({
+            id: `sample_${randomUUID()}`,
+            name: `${prompt} Var ${idx + 1}`,
+            prompt,
+            audioUrl,
+            duration: 8,
+            type: 'loop',
+            instrument: 'mixed',
+            bpm
+          }));
+
+          // A pack with no playable sample is a card that does nothing. Skip it
+          // rather than render an empty shell the user has to discover by ear.
+          if (samples.length === 0) {
+            console.warn(`⚠️ Pack ${i + 1}: looper returned no usable audio URLs — skipping`);
+            continue;
+          }
 
           // Detect genre and key from prompt for accurate metadata
           const detectedGenre = this.detectGenreFromPrompt(prompt);
@@ -829,6 +869,7 @@ export class UnifiedMusicService {
             key: detectedKey,
             genre: detectedGenre,
             samples,
+            generator: 'musicgen-looper',
             metadata: {
               energy: 0.8,
               mood: variation,
@@ -849,6 +890,7 @@ export class UnifiedMusicService {
       // Adapt Local types to Unified types
       return localPacks.map(lp => ({
         ...lp,
+        generator: 'local-musicgen' as const,
         samples: lp.samples.map(ls => ({
           ...ls,
           type: ls.type, // compatible
@@ -873,7 +915,14 @@ export class UnifiedMusicService {
       const samples: MusicSample[] = [];
       for (let v = 0; v < 4; v++) {
         const ace = await tryAceFirst({
-          prompt: `${prompt}, ${moods[v]}, ${detectedGenre.toLowerCase()}, ${bpm} bpm, seamless loop, instrumental`,
+          // buildVariationPrompt appends the tempo only when the prompt does not
+          // already carry one — never two contradictory tempos in one string.
+          prompt: buildVariationPrompt(
+            `${prompt}, ${moods[v]}, ${detectedGenre.toLowerCase()}, seamless loop`,
+            moods[v],
+            bpm,
+            Math.floor(Math.random() * 2147483647),
+          ),
           audioDuration: 8,
           bpm,
           seed: Math.floor(Math.random() * 2147483647),
@@ -904,6 +953,7 @@ export class UnifiedMusicService {
         key: detectedKey,
         genre: detectedGenre,
         samples,
+        generator: 'ace-step',
         metadata: {
           energy: 0.8,
           mood: moods[0],
