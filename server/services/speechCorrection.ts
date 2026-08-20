@@ -9,6 +9,33 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
+function extractAudioUrl(output: unknown): string | undefined {
+  if (!output) return undefined;
+
+  if (typeof output === "string" && /^https?:\/\//i.test(output)) {
+    return output;
+  }
+
+  if (Array.isArray(output)) {
+    const first = output[0];
+    if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
+  }
+
+  if (typeof output === "object") {
+    const record = output as Record<string, unknown>;
+    for (const key of ["audio", "audio_url", "audio_out", "url", "output", "file"]) {
+      const val = record[key];
+      if (typeof val === "string" && /^https?:\/\//i.test(val)) return val;
+      if (Array.isArray(val)) {
+        const first = val[0];
+        if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 // Persistent storage directory for speech correction previews/finals
 const SPEECH_STORAGE_DIR = process.env.LOCAL_OBJECTS_DIR 
   ? path.join(process.env.LOCAL_OBJECTS_DIR, "speech-correction")
@@ -113,9 +140,10 @@ export async function generateSpeechPreview({
         }
       );
 
-      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
-      
+      const audioUrl = extractAudioUrl(output);
+
       if (!audioUrl) {
+        console.error(`❌ Could not extract audio URL from XTTS output:`, output);
         throw new Error("XTTS returned no audio URL");
       }
 
@@ -146,9 +174,10 @@ export async function generateSpeechPreview({
       }
     );
 
-    const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_out;
-    
+    const audioUrl = extractAudioUrl(output);
+
     if (!audioUrl) {
+      console.error(`❌ Could not extract audio URL from Bark output:`, output);
       throw new Error("Bark TTS returned no audio URL");
     }
 
@@ -271,9 +300,9 @@ export async function applyVoiceConversion(
 
       console.log(`🔍 XTTS output type: ${typeof output}`);
       console.log(`🔍 XTTS output:`, JSON.stringify(output, null, 2));
-      
-      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
-      
+
+      const audioUrl = extractAudioUrl(output);
+
       if (!audioUrl) {
         console.error(`❌ Could not extract audio URL from output:`, output);
         throw new Error("XTTS voice conversion returned no audio URL");
@@ -285,7 +314,7 @@ export async function applyVoiceConversion(
       // Multiple chunks - split by sentences and process first chunk only for preview
       console.log(`⚠️ Text too long (${textTrimmed.length} chars), using first ${maxChunkLength} chars for preview`);
       const previewText = textTrimmed.substring(0, maxChunkLength);
-      
+
       const output = await replicate.run(
         "lucataco/xtts-v2:684bc3855b37866c0c65add2ff39c78f3dea3f4ff103a436465326e0f438d55e",
         {
@@ -297,9 +326,10 @@ export async function applyVoiceConversion(
         }
       );
 
-      const audioUrl = typeof output === 'string' ? output : (output as any)?.audio_url || (output as any)?.[0];
-      
+      const audioUrl = extractAudioUrl(output);
+
       if (!audioUrl) {
+        console.error(`❌ Could not extract audio URL from preview output:`, output);
         throw new Error("XTTS voice conversion returned no audio URL");
       }
 

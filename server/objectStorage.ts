@@ -1,6 +1,8 @@
 import { Storage, File } from "@google-cloud/storage";
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
@@ -29,6 +31,17 @@ export class ObjectNotFoundError extends Error {
     this.name = "ObjectNotFoundError";
     Object.setPrototypeOf(this, ObjectNotFoundError.prototype);
   }
+}
+
+function getLocalObjectsDir(): string {
+  return process.env.LOCAL_OBJECTS_DIR
+    ? path.resolve(process.env.LOCAL_OBJECTS_DIR)
+    : path.resolve(process.cwd(), "objects");
+}
+
+function objectEntityUrl(relativePath: string): string {
+  const safeRelative = relativePath.replace(/^\/+/g, "");
+  return `/objects/${safeRelative}`;
 }
 
 // The object storage service is used to interact with the object storage service.
@@ -119,6 +132,54 @@ export class ObjectStorageService {
   // Gets the upload URL for an object entity (alias for getAudioUploadURL)
   async getObjectEntityUploadURL(): Promise<string> {
     return this.getAudioUploadURL();
+  }
+
+  /**
+   * Upload a local audio file to object storage, falling back to the local
+   * file system when the Replit object-storage sidecar is unavailable.
+   * Returns a public-ish path that the app's /objects/* route can serve.
+   */
+  async uploadLocalAudio(filePath: string, contentType: string = "audio/wav"): Promise<string> {
+    const fileBuffer = await fs.promises.readFile(filePath);
+    const ext = path.extname(filePath) || ".bin";
+    const objectId = `${randomUUID()}${ext}`;
+    const relativeKey = `audio/${objectId}`;
+
+    const privateObjectDir = process.env.PRIVATE_OBJECT_DIR?.trim();
+    if (privateObjectDir) {
+      try {
+        const fullPath = `${privateObjectDir}/${relativeKey}`;
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const signedUrl = await signObjectURL({
+          bucketName,
+          objectName,
+          method: "PUT",
+          ttlSec: 900,
+        });
+        const putResponse = await fetch(signedUrl, {
+          method: "PUT",
+          body: fileBuffer,
+          headers: { "Content-Type": contentType },
+        });
+        if (putResponse.ok) {
+          try {
+            return await this.getSignedPublicUrl(objectEntityUrl(relativeKey), 3600);
+          } catch (signError) {
+            console.warn(`⚠️ Signed GET URL failed, falling back to object path:`, signError);
+            return objectEntityUrl(relativeKey);
+          }
+        }
+        console.warn(`⚠️ Object storage PUT failed (${putResponse.status}), falling back to local file storage`);
+      } catch (error) {
+        console.warn(`⚠️ Object storage sidecar unavailable, falling back to local file storage:`, error);
+      }
+    }
+
+    const localDir = getLocalObjectsDir();
+    const destPath = path.join(localDir, relativeKey);
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.promises.writeFile(destPath, fileBuffer);
+    return objectEntityUrl(relativeKey);
   }
 
   // Normalizes object entity path from storage URL to accessible endpoint URL

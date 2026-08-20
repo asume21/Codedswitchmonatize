@@ -545,48 +545,15 @@ export class LocalMusicGenService {
   }
 
   /**
-   * Upload generated audio to object storage with better error handling
+   * Upload generated audio to object storage with better error handling.
+   * Falls back to local file storage when the Replit object-storage sidecar
+   * is not available.
    */
   private async uploadToObjectStorage(filePath: string, packId: string, sampleId: string): Promise<string> {
-    try {
-      console.log(`☁️ Starting upload for sample: ${sampleId}`);
-      
-      // Get upload URL
-      const uploadUrl = await this.objectStorage.getObjectEntityUploadURL();
-      console.log(`☁️ Got upload URL: ${uploadUrl}`);
-      
-      // Read and verify file
-      const fileBuffer = fs.readFileSync(filePath);
-      console.log(`☁️ File read successfully: ${fileBuffer.length} bytes`);
-
-      const response = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: fileBuffer,
-        headers: {
-          'Content-Type': 'audio/wav'
-        }
-      });
-
-      console.log(`☁️ Upload response status: ${response.status}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`☁️ Upload failed with status ${response.status}:`, errorText);
-        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-      }
-
-      const objectPath = `/objects/uploads/${sampleId}`;
-      console.log(`✅ Successfully uploaded real audio to: ${objectPath}`);
-      
-      // Object uploaded successfully
-      console.log(`✅ Upload completed for ${sampleId}`)
-      
-      return objectPath;
-
-    } catch (error) {
-      console.error(`❌ Object storage upload failed for ${sampleId}:`, error);
-      throw error;
-    }
+    console.log(`☁️ Starting upload for sample: ${sampleId}`);
+    const objectPath = await this.objectStorage.uploadLocalAudio(filePath, "audio/wav");
+    console.log(`✅ Upload completed for ${sampleId}: ${objectPath}`);
+    return objectPath;
   }
 
   private capitalizeFirst(str: string): string {
