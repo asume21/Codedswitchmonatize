@@ -3,37 +3,18 @@ import path from "path";
 import crypto from "crypto";
 import Replicate from "replicate";
 import { logPromptStart, logPromptResult } from "../ai/utils/promptLogger";
+import { extractReplicateAudioUrl } from "./replicateOutput";
 
 // Replicate client for voice cloning
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
 });
 
+// Delegates to the shared normaliser so a Replicate FileOutput (the default
+// shape from replicate.run since client v1) resolves instead of falling
+// through every key check and coming back undefined.
 function extractAudioUrl(output: unknown): string | undefined {
-  if (!output) return undefined;
-
-  if (typeof output === "string" && /^https?:\/\//i.test(output)) {
-    return output;
-  }
-
-  if (Array.isArray(output)) {
-    const first = output[0];
-    if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
-  }
-
-  if (typeof output === "object") {
-    const record = output as Record<string, unknown>;
-    for (const key of ["audio", "audio_url", "audio_out", "url", "output", "file"]) {
-      const val = record[key];
-      if (typeof val === "string" && /^https?:\/\//i.test(val)) return val;
-      if (Array.isArray(val)) {
-        const first = val[0];
-        if (typeof first === "string" && /^https?:\/\//i.test(first)) return first;
-      }
-    }
-  }
-
-  return undefined;
+  return extractReplicateAudioUrl(output);
 }
 
 // Persistent storage directory for speech correction previews/finals

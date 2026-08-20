@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import Replicate from "replicate";
+import { extractReplicateAudioUrl } from "./replicateOutput";
 
 // Storage directory for voice library
 const VOICES_DIR = path.resolve(process.cwd(), "objects", "voices");
@@ -325,7 +326,10 @@ async function convertWithReplicateRvc(
     { input: replicateInput }
   );
 
-  const outputUrl = typeof output === "string" ? output : (output as any)?.output;
+  // RVC returns a bare URI, which the Replicate client wraps in a FileOutput —
+  // an object with no `.output` key, so the old shape check always came up
+  // empty and every conversion threw. Resolve through the shared normaliser.
+  const outputUrl = extractReplicateAudioUrl(output);
   if (!outputUrl) {
     throw new Error("Replicate RVC returned no output audio");
   }
