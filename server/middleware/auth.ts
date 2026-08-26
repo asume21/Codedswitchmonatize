@@ -96,13 +96,21 @@ export function requireAuth() {
  * Blanket auth middleware — protects all /api/* routes except explicitly listed public paths.
  * Mount AFTER currentUser() so req.userId is already set.
  */
-export function requireAuthExcept(publicPrefixes: string[]) {
+/**
+ * `publicPrefixes` entries are startsWith prefixes. A RegExp entry is also
+ * accepted for the case a prefix cannot express: a path that must be exempt by
+ * its SUFFIX, where the prefix would over-open sibling routes. Anchor any
+ * RegExp you add — an unanchored one silently exempts more than it looks like.
+ */
+export function requireAuthExcept(publicPrefixes: Array<string | RegExp>) {
   return (req: Request, res: Response, next: NextFunction) => {
     // Allow non-API routes (static files, HTML pages) through
     if (!req.path.startsWith("/api")) return next();
 
     // Check if this path matches any public prefix
-    const isPublic = publicPrefixes.some((prefix) => req.path.startsWith(prefix));
+    const isPublic = publicPrefixes.some((prefix) =>
+      typeof prefix === "string" ? req.path.startsWith(prefix) : prefix.test(req.path),
+    );
     if (isPublic) return next();
 
     // Require authentication for everything else

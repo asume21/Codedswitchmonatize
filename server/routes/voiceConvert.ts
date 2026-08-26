@@ -36,6 +36,24 @@ const storeKeySchema = z.object({
   apiKey: z.string().min(1, "apiKey is required"),
 });
 
+/**
+ * The one voice-convert path that must bypass the global requireAuthExcept
+ * gate. An EventSource cannot read a JSON 401 — it aborts on the MIME type and
+ * fires onerror with no status and no message — and it treats ANY non-200 as an
+ * error regardless of content type. So the failure can only reach the client if
+ * the request reaches the handler, which answers 200 and reports the outcome as
+ * an SSE event.
+ *
+ * A RegExp, not a prefix: the gate matches with startsWith, but the exempt path
+ * is a suffix. The prefix "/api/voice-convert/jobs" would expose every job
+ * route, including other users' jobs. Anchored, and [^/]+ keeps it to exactly
+ * one path segment for the id.
+ *
+ * Safe to exempt: the handler authenticates itself and fails CLOSED on
+ * privilege — no userId is Unauthorized, another user's job is Forbidden.
+ */
+export const VOICE_CONVERT_STREAM_PATTERN = /^\/api\/voice-convert\/jobs\/[^/]+\/stream$/;
+
 export function createVoiceConvertRoutes(storage: IStorage) {
   const router = Router();
 
@@ -209,43 +227,71 @@ export function createVoiceConvertRoutes(storage: IStorage) {
   );
 
   // ─── SSE Stream for real-time job updates ──────────────────────────
+  // Every outcome on this route must be delivered inside the SSE envelope.
+  // An EventSource cannot read a JSON body: the browser aborts the connection
+  // ("MIME type application/json is not text/event-stream") and fires onerror
+  // with no status and no message — so a JSON 404/403/500, or the shortcut for
+  // an already-finished job, is invisible to the client. Open the stream first,
+  // then report the outcome as an event and close.
+  // Auth is checked inside the handler, not via requireAuth(): that middleware
+  // answers with a JSON 401, which an EventSource cannot read either.
   router.get(
     "/jobs/:jobId/stream",
-    requireAuth(),
     async (req: Request, res: Response) => {
-      try {
-        const job = await storage.getVoiceConvertJob(req.params.jobId);
-        if (!job) {
-          return res.status(404).json({ success: false, message: "Job not found" });
-        }
-        if (job.userId !== req.userId && req.userId !== "owner-user") {
-          return res.status(403).json({ success: false, message: "Forbidden" });
-        }
-
-        // If job is already terminal, return the final state immediately
-        if (job.status === "done" || job.status === "failed") {
-          return res.json({ success: true, job });
-        }
-
-        // Set up SSE
+      const openStream = () => {
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
           Connection: "keep-alive",
           "X-Accel-Buffering": "no",
         });
+      };
+      const send = (payload: unknown) => {
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      };
+
+      try {
+        if (!req.userId) {
+          openStream();
+          send({ status: "failed", error: "Unauthorized" });
+          return res.end();
+        }
+
+        const job = await storage.getVoiceConvertJob(req.params.jobId);
+        openStream();
+
+        if (!job) {
+          send({ status: "failed", error: "Job not found" });
+          return res.end();
+        }
+        if (job.userId !== req.userId && req.userId !== "owner-user") {
+          send({ status: "failed", error: "Forbidden" });
+          return res.end();
+        }
+
+        // Already terminal — send the final state as one event, then close.
+        // The client closes on done/failed, so it needs no special case here.
+        if (job.status === "done" || job.status === "failed") {
+          send({
+            status: job.status,
+            remixUrl: job.remixUrl,
+            error: job.error,
+            completedAt: job.completedAt,
+          });
+          return res.end();
+        }
 
         // Send initial state
-        res.write(`data: ${JSON.stringify({ status: job.status })}\n\n`);
+        send({ status: job.status });
 
         const unsubscribe = jobQueue.subscribe(req.params.jobId, (updated) => {
           try {
-            res.write(`data: ${JSON.stringify({
+            send({
               status: updated.status,
               remixUrl: updated.remixUrl,
               error: updated.error,
               completedAt: updated.completedAt,
-            })}\n\n`);
+            });
 
             if (updated.status === "done" || updated.status === "failed") {
               res.end();
@@ -260,9 +306,13 @@ export function createVoiceConvertRoutes(storage: IStorage) {
         });
       } catch (error) {
         console.error("[VoiceConvert] SSE stream error:", error);
-        if (!res.headersSent) {
-          return res.status(500).json({ success: false, message: "Stream setup failed" });
+        if (!res.headersSent) openStream();
+        try {
+          send({ status: "failed", error: "Stream setup failed" });
+        } catch {
+          // Client already gone
         }
+        res.end();
       }
     },
   );
@@ -542,8 +592,18 @@ export function createVoiceConvertRoutes(storage: IStorage) {
           if (userKey) apiKey = userKey;
         }
 
+        // An empty list is still a 200 — a settings problem is not a failed
+        // query — but the REASON has to ride along. Without it every failure
+        // (no key, rejected key, network) looked identical to "you own no
+        // voices", and the page hides the picker entirely on an empty list, so
+        // an invalid key silently deleted the control with nothing on screen.
+        const noVoices = (keyError: string) =>
+          res.json({ success: true, voices: [], keyError });
+
         if (!apiKey) {
-          return res.json({ success: true, voices: [] });
+          return noVoices(
+            "No ElevenLabs API key configured. Add one in Settings to list your voices.",
+          );
         }
 
         const elResponse = await fetch("https://api.elevenlabs.io/v1/voices", {
@@ -551,7 +611,19 @@ export function createVoiceConvertRoutes(storage: IStorage) {
         });
 
         if (!elResponse.ok) {
-          return res.json({ success: true, voices: [] });
+          // ElevenLabs puts the useful sentence in detail.message — e.g. the
+          // key ID vs key mix-up, which is otherwise indistinguishable from a
+          // revoked key.
+          let reason = `ElevenLabs returned ${elResponse.status} ${elResponse.statusText}`;
+          try {
+            const body = (await elResponse.json()) as any;
+            const detail = body?.detail;
+            const message = typeof detail === "string" ? detail : detail?.message;
+            if (typeof message === "string" && message.trim()) reason = message;
+          } catch {
+            // Non-JSON body — the status line above is all we have.
+          }
+          return noVoices(reason);
         }
 
         const data = await elResponse.json() as { voices: Array<{ voice_id: string; name: string; category: string; labels?: Record<string, string> }> };
@@ -565,7 +637,11 @@ export function createVoiceConvertRoutes(storage: IStorage) {
         return res.json({ success: true, voices });
       } catch (error: any) {
         console.error("[VoiceClone] List voices error:", error);
-        return res.json({ success: true, voices: [] });
+        return res.json({
+          success: true,
+          voices: [],
+          keyError: error?.message || "Could not reach ElevenLabs.",
+        });
       }
     },
   );

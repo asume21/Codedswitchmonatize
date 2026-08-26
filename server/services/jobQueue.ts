@@ -15,12 +15,6 @@ const LOCAL_OBJECTS_DIR = fs.existsSync("/data")
   ? path.resolve("/data", "objects")
   : path.resolve(process.cwd(), "objects");
 
-const BASE_URL = (
-  process.env.APP_BASE_URL ||
-  process.env.APP_URL ||
-  `http://localhost:${process.env.PORT || 4000}`
-).replace(/\/$/, "");
-
 type JobEventListener = (job: VoiceConvertJob) => void;
 
 class JobQueue {
@@ -130,7 +124,6 @@ class JobQueue {
       stemMode: (job.stemMode === 4 ? 4 : 2) as 2 | 4,
       provider: job.provider === "rvc" ? "rvc" : job.provider === "replicate-rvc" ? "replicate-rvc" : "elevenlabs",
       pitchCorrect: job.pitchCorrect ?? false,
-      baseUrl: BASE_URL,
       objectsDir: LOCAL_OBJECTS_DIR,
       overrideKeys: {
         elevenlabsApiKey: keys.elevenlabsApiKey ?? undefined,
@@ -171,6 +164,47 @@ function resolveInputPath(job: VoiceConvertJob): string | null {
   // failed with "Could not resolve source audio file path" on the app's most
   // common input. See audioPathResolver for the full story.
   return resolveLocalAudioPath(job.sourceUrl);
+}
+
+/**
+ * Fail jobs that were mid-flight when the process last stopped.
+ *
+ * The queue lives in memory: a restart (deploy, crash, or a dev server
+ * bounce) abandons whatever was running, but the DATABASE row keeps its last
+ * status forever. A real job sat at "remixing" indefinitely — the UI polled it
+ * with no timeout and no recovery, so it read as a permanent hang.
+ *
+ * Nothing can resume that work — the temp files and the in-memory state are
+ * gone — so the honest outcome is a failure the user can see and retry, not a
+ * spinner that never resolves. Run once at boot, BEFORE any new job starts, so
+ * it cannot race a live job into a false failure.
+ */
+export async function failOrphanedJobs(storage: {
+  getStaleInFlightVoiceConvertJobs?: () => Promise<Array<{ id: string }>>;
+  updateVoiceConvertJob: (id: string, data: any) => Promise<any>;
+}): Promise<number> {
+  if (!storage.getStaleInFlightVoiceConvertJobs) return 0;
+  let stale: Array<{ id: string }> = [];
+  try {
+    stale = await storage.getStaleInFlightVoiceConvertJobs();
+  } catch (err) {
+    console.error("[JobQueue] Could not look for orphaned jobs:", err);
+    return 0;
+  }
+  for (const job of stale) {
+    try {
+      await storage.updateVoiceConvertJob(job.id, {
+        status: "failed",
+        error: "Interrupted — the server restarted while this job was running. Please run it again.",
+        completedAt: new Date(),
+      });
+      console.log(`[JobQueue] Marked orphaned job ${job.id} as failed`);
+    } catch (err) {
+      console.error(`[JobQueue] Could not fail orphaned job ${job.id}:`, err);
+    }
+  }
+  if (stale.length) console.log(`[JobQueue] Recovered ${stale.length} orphaned job(s) after restart`);
+  return stale.length;
 }
 
 export const jobQueue = new JobQueue();

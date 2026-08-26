@@ -86,7 +86,7 @@ import {
 } from "@shared/schema";
 import { randomUUID, randomBytes } from "crypto";
 import { db } from "./db";
-import { eq, desc, sql, and, asc } from "drizzle-orm";
+import { eq, desc, sql, and, asc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -350,6 +350,8 @@ export interface IStorage {
   getVoiceConvertJob(id: string): Promise<VoiceConvertJob | undefined>;
   getUserVoiceConvertJobs(userId: string, limit?: number): Promise<VoiceConvertJob[]>;
   updateVoiceConvertJob(id: string, data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob>;
+  /** Jobs still marked in-flight — only reachable at boot, when nothing is running. */
+  getStaleInFlightVoiceConvertJobs?(): Promise<VoiceConvertJob[]>;
 
   // User API Keys
   getUserApiKeys(userId: string): Promise<UserApiKey[]>;
@@ -1450,6 +1452,7 @@ export class MemStorage implements IStorage {
   async getVoiceConvertJob(_id: string): Promise<VoiceConvertJob | undefined> { return undefined; }
   async getUserVoiceConvertJobs(_userId: string, _limit?: number): Promise<VoiceConvertJob[]> { return []; }
   async updateVoiceConvertJob(_id: string, _data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob> { throw new Error("Not implemented in MemStorage"); }
+  async getStaleInFlightVoiceConvertJobs(): Promise<VoiceConvertJob[]> { return []; }
 
   // User API Keys (MemStorage stubs)
   async getUserApiKeys(_userId: string): Promise<UserApiKey[]> { return []; }
@@ -2980,6 +2983,23 @@ export class DatabaseStorage implements IStorage {
       .where(eq(voiceConvertJobs.userId, userId))
       .orderBy(desc(voiceConvertJobs.createdAt))
       .limit(limit);
+  }
+
+  /** Rows still marked in-flight. Safe only at boot: the queue is in memory, so
+   *  after a restart nothing is running and any such row is an orphan. */
+  async getStaleInFlightVoiceConvertJobs(): Promise<VoiceConvertJob[]> {
+    return db
+      .select()
+      .from(voiceConvertJobs)
+      .where(
+        inArray(voiceConvertJobs.status, [
+          "queued",
+          "separating",
+          "converting",
+          "correcting",
+          "remixing",
+        ]),
+      );
   }
 
   async updateVoiceConvertJob(id: string, data: Partial<VoiceConvertJob>): Promise<VoiceConvertJob> {

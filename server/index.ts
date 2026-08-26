@@ -12,6 +12,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser, requireAuthExcept } from "./middleware/auth";
+import { VOICE_CONVERT_STREAM_PATTERN } from "./routes/voiceConvert";
 import { runMigrations } from "./migrations/runMigrations";
 import { ensureDataRoots } from "./services/localStorageService";
 import { globalLimiter } from "./middleware/rateLimiting";
@@ -318,17 +319,37 @@ const cookieConfig = {
   })()),
 };
 
-app.use(
-  session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET || "dev_session_secret_change_me",
-    resave: false,
-    saveUninitialized: false,
-    cookie: cookieConfig,
-    proxy: isProduction,
-    name: 'codedswitch.sid',
-  }),
-);
+const sessionMiddleware = session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || "dev_session_secret_change_me",
+  resave: false,
+  saveUninitialized: false,
+  cookie: cookieConfig,
+  proxy: isProduction,
+  name: 'codedswitch.sid',
+});
+
+// A session-store outage must not take the API down with it.
+// express-session forwards a store read failure to the error handler, which
+// turns EVERY request into a 500 — including /api/check-license, whose own
+// fail-open path never gets to run because the throw happens upstream of it.
+// Degrade instead: continue with no session, so the request is merely
+// unauthenticated-by-cookie. Bearer-token auth is unaffected and remains this
+// client's primary mechanism, and every req.session write downstream is
+// already guarded by `if (req.session)` for exactly this case.
+// Fails open on AVAILABILITY, closed on PRIVILEGE: no session means no userId.
+app.use((req, res, next) => {
+  sessionMiddleware(req, res, (err?: any) => {
+    if (err) {
+      logger.error(
+        { method: req.method, path: req.path, err },
+        "session store unavailable — continuing without a session",
+      );
+      return next();
+    }
+    next();
+  });
+});
 
 // Standard body parsers with size limits
 app.use(express.json({ limit: '10mb' }));
@@ -386,11 +407,27 @@ app.use((req, res, next) => {
     ? new DatabaseStorage()
     : new MemStorage();
 
+  // Any job still marked in-flight is an orphan: the job queue lives in memory,
+  // so a restart (deploy, crash, dev bounce) abandoned the work while the DB row
+  // kept its status forever. One sat at "remixing" indefinitely and read as a
+  // permanent hang in the UI — no timeout, nothing to resume it. Runs here,
+  // before any route is mounted and therefore before a new job can be accepted.
+  try {
+    const { failOrphanedJobs } = await import("./services/jobQueue");
+    await failOrphanedJobs(storage as any);
+  } catch (err) {
+    console.error("Orphaned-job recovery skipped:", err);
+  }
+
   // Attach current user middleware (dev falls back to default user)
   app.use(currentUser(storage));
 
   // Blanket auth: protect all /api/* routes except public endpoints
   app.use(requireAuthExcept([
+    // Pattern, not a prefix — see VOICE_CONVERT_STREAM_PATTERN. An EventSource
+    // cannot read a JSON 401, so this route has to reach its handler, which
+    // authenticates itself and reports the outcome inside the SSE envelope.
+    VOICE_CONVERT_STREAM_PATTERN,
     "/api/auth",              // login, register, logout
     "/api/health",            // health check
     "/api/subscription-status", // auth context check (returns isAuthenticated: false for guests)
