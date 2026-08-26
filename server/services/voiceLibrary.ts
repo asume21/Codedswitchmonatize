@@ -3,6 +3,14 @@ import path from "path";
 import crypto from "crypto";
 import Replicate from "replicate";
 import { extractReplicateAudioUrl } from "./replicateOutput";
+import ffmpeg from "fluent-ffmpeg";
+import os from "os";
+import {
+  planChunks,
+  parseSilences,
+  DEFAULT_MAX_SECONDS as CHUNK_MAX_SECONDS,
+  type SilenceInterval,
+} from "./voiceChunking";
 
 // Storage directory for voice library
 const VOICES_DIR = path.resolve(process.cwd(), "objects", "voices");
@@ -33,6 +41,42 @@ const ELEVENLABS_S2S_STABILITY = clamp01(Number.parseFloat(process.env.ELEVENLAB
 const ELEVENLABS_S2S_SIMILARITY = clamp01(Number.parseFloat(process.env.ELEVENLABS_S2S_SIMILARITY ?? "0.96"));
 const ELEVENLABS_S2S_STYLE = clamp01(Number.parseFloat(process.env.ELEVENLABS_S2S_STYLE ?? "0.0"));
 const ELEVENLABS_S2S_SPEAKER_BOOST = (process.env.ELEVENLABS_S2S_SPEAKER_BOOST ?? "true").toLowerCase() !== "false";
+
+/**
+ * A FIXED seed, not a random one.
+ *
+ * Speech-to-speech samples stochastically, so the same vocal converted twice
+ * came back different — the user's second attempt sounded worse than the first
+ * with nothing changed. Worse, once long audio is converted in chunks, each
+ * chunk is an independent draw, so the voice character shifted at every seam:
+ * six chunks, six subtly different voices in one song.
+ *
+ * One seed shared by every request makes the chunks agree with each other AND
+ * makes a re-run reproducible. ElevenLabs describes determinism as best-effort,
+ * so this reduces variation rather than abolishing it.
+ */
+/**
+ * Ask ElevenLabs to isolate the voice in the INPUT before converting it.
+ *
+ * The input here is never a clean recording — it is a vocal extracted from a
+ * finished mix by stem separation, so it carries bleed and smearing from the
+ * beat. Speech-to-speech is built for clean speech, and measured against the
+ * user's own stem the output was wrong for 31% of the track: swinging dark
+ * ("demon", worst 0.24x at 1:32) through the first half and bright ("nasal",
+ * worst 2.24x at 2:41) through the second. That is the model guessing where
+ * the input is muddiest — and the target voice was a clone of the user's OWN
+ * voice, the easiest possible conversion, which rules out the target.
+ *
+ * Cleaning the input is the one lever aimed directly at that cause.
+ */
+const ELEVENLABS_S2S_REMOVE_NOISE =
+  (process.env.ELEVENLABS_S2S_REMOVE_NOISE ?? "true").toLowerCase() !== "false";
+
+const ELEVENLABS_S2S_SEED = (() => {
+  const raw = Number.parseInt(process.env.ELEVENLABS_S2S_SEED ?? "20260822", 10);
+  if (!Number.isFinite(raw) || raw < 0 || raw > 4294967295) return 20260822;
+  return raw;
+})();
 
 export interface VoiceRecord {
   voiceId: string;
@@ -81,6 +125,150 @@ function inferAudioMime(sourcePath: string): string {
   return "audio/wav";
 }
 
+/** Duration of an audio file in seconds. */
+function probeDuration(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, data) => {
+      if (err) return reject(err);
+      const d = Number(data?.format?.duration);
+      resolve(Number.isFinite(d) ? d : 0);
+    });
+  });
+}
+
+/** Gaps between phrases, used as safe cut points. */
+function detectSilences(filePath: string): Promise<SilenceInterval[]> {
+  return new Promise((resolve) => {
+    let stderr = "";
+    ffmpeg(filePath)
+      // -30dB for 0.25s: a rap vocal gaps at nearly every bar line, and this is
+      // loose enough to catch breath gaps without treating quiet words as gaps.
+      .audioFilters("silencedetect=noise=-30dB:d=0.25")
+      .outputOptions(["-f", "null"])
+      .on("stderr", (line: string) => { stderr += line + String.fromCharCode(10); })
+      .on("end", () => resolve(parseSilences(stderr)))
+      .on("error", () => resolve([]))   // no silence data → planner hard-cuts
+      .save(process.platform === "win32" ? "NUL" : "/dev/null");
+  });
+}
+
+function runFfmpeg(build: (cmd: ffmpeg.FfmpegCommand) => ffmpeg.FfmpegCommand, output: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    build(ffmpeg())
+      .on("end", () => resolve())
+      .on("error", (err: Error) => reject(err))
+      .save(output);
+  });
+}
+
+/** One speech-to-speech request. Returns the converted audio. */
+async function elevenLabsRequest(
+  voiceId: string,
+  audio: Buffer,
+  mimeType: string,
+  fileName: string,
+): Promise<Buffer> {
+  const form = new FormData();
+  form.append("audio", new Blob([new Uint8Array(audio)], { type: mimeType }), fileName);
+  form.append("model_id", ELEVENLABS_S2S_MODEL_ID);
+  form.append("seed", String(ELEVENLABS_S2S_SEED));
+  form.append("remove_background_noise", String(ELEVENLABS_S2S_REMOVE_NOISE));
+  form.append(
+    "voice_settings",
+    JSON.stringify({
+      stability: ELEVENLABS_S2S_STABILITY,
+      similarity_boost: ELEVENLABS_S2S_SIMILARITY,
+      style: ELEVENLABS_S2S_STYLE,
+      use_speaker_boost: ELEVENLABS_S2S_SPEAKER_BOOST,
+    })
+  );
+
+  const response = await fetch(`${ELEVENLABS_API_URL}/speech-to-speech/${encodeURIComponent(voiceId)}/stream`, {
+    method: "POST",
+    headers: { "xi-api-key": ELEVENLABS_API_KEY, Accept: "audio/mpeg" },
+    body: form,
+    signal: AbortSignal.timeout(120000),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "Unknown ElevenLabs error");
+    throw new Error(`ElevenLabs conversion failed: ${errorText}`);
+  }
+
+  const out = await response.arrayBuffer();
+  if (!out || out.byteLength === 0) {
+    throw new Error("ElevenLabs returned empty audio output");
+  }
+  return Buffer.from(out);
+}
+
+/**
+ * Convert a long vocal in pieces.
+ *
+ * Each converted piece is forced back to the EXACT duration of the source
+ * piece it came from (pad with silence if short, trim if long) before the
+ * pieces are joined. ElevenLabs does not return audio of precisely the input
+ * length, and without this the error accumulates across chunks and slides the
+ * whole vocal against the beat. Because cuts land in silence, the padding or
+ * trimming happens where there is nothing to hear.
+ */
+async function convertLongAudioInChunks(
+  voiceId: string,
+  sourcePath: string,
+  duration: number,
+): Promise<Buffer> {
+  const silences = await detectSilences(sourcePath);
+  const chunks = planChunks(duration, silences);
+  const hardCuts = chunks.filter((c) => !c.cutAtSilence).length;
+  console.log(
+    `[VoiceLibrary] Converting ${duration.toFixed(1)}s in ${chunks.length} chunks ` +
+    `(${silences.length} silences found, ${hardCuts} cut mid-audio)`,
+  );
+
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "vc-chunk-"));
+  const fitted: string[] = [];
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      const { start, end } = chunks[i];
+      const span = end - start;
+      const rawPath = path.join(work, `src-${i}.wav`);
+      const convPath = path.join(work, `conv-${i}.mp3`);
+      const fitPath = path.join(work, `fit-${i}.wav`);
+
+      await runFfmpeg(
+        (cmd) => cmd.input(sourcePath).seekInput(start).duration(span)
+                    .audioFrequency(44100).audioChannels(1).audioCodec("pcm_s16le"),
+        rawPath,
+      );
+
+      const converted = await elevenLabsRequest(
+        voiceId, fs.readFileSync(rawPath), "audio/wav", path.basename(rawPath),
+      );
+      fs.writeFileSync(convPath, converted);
+
+      // apad then a hard -t: pad-or-trim to the source span in one pass.
+      await runFfmpeg(
+        (cmd) => cmd.input(convPath).audioFilters("apad").duration(span)
+                    .audioFrequency(44100).audioChannels(1).audioCodec("pcm_s16le"),
+        fitPath,
+      );
+      fitted.push(fitPath);
+    }
+
+    const joined = path.join(work, "joined.mp3");
+    await runFfmpeg((cmd) => {
+      fitted.forEach((f) => cmd.input(f));
+      return cmd
+        .complexFilter(`${fitted.map((_, i) => `[${i}:a]`).join("")}concat=n=${fitted.length}:v=0:a=1[out]`)
+        .outputOptions(["-map [out]", "-c:a libmp3lame", "-b:a 192k"]);
+    }, joined);
+
+    return fs.readFileSync(joined);
+  } finally {
+    try { fs.rmSync(work, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+}
+
 async function convertWithElevenLabs(
   voiceId: string,
   audioUrl: string,
@@ -95,44 +283,37 @@ async function convertWithElevenLabs(
     throw new Error("ElevenLabs conversion requires a valid uploaded source audio file");
   }
 
-  const sourceBuffer = fs.readFileSync(sourcePath);
-  const mimeType = inferAudioMime(sourcePath);
-  const sourceFileName = path.basename(sourcePath);
+  // ONE request by default — chunking is opt-in and off.
+  //
+  // Long clips do drift: measured on a 2:57 track, the single-request output
+  // was clean for ~1:55 and then ran up to 2.24x brighter than the source at
+  // two spots. Splitting into ~30s pieces fixed that drift, and the reassembly
+  // is timeline-exact (verified: 0.000s), but each piece is a separate draw of
+  // the voice, so the character shifted at every seam. The user's verdict was
+  // unambiguous: the single-request version with two bad spots beat the chunked
+  // versions, which he called "really bad".
+  //
+  // Two localised artifacts are better than six seams. Chunking stays behind
+  // ELEVENLABS_S2S_CHUNK_SECONDS (set it to a length in seconds to re-enable)
+  // because the approach is sound and only the per-chunk voice variance makes
+  // it unusable — if a future model or seed handling makes draws consistent,
+  // this becomes the better path again.
+  const chunkThreshold = Number.parseFloat(process.env.ELEVENLABS_S2S_CHUNK_SECONDS ?? "0");
+  if (Number.isFinite(chunkThreshold) && chunkThreshold > 0) {
+    const duration = await probeDuration(sourcePath).catch(() => 0);
+    if (duration > Math.max(chunkThreshold, CHUNK_MAX_SECONDS)) {
+      const joined = await convertLongAudioInChunks(voiceId, sourcePath, duration);
+      return saveConvertedOutput(joined, "mp3");
+    }
+  }
 
-  const form = new FormData();
-  form.append("audio", new Blob([sourceBuffer], { type: mimeType }), sourceFileName);
-  form.append("model_id", ELEVENLABS_S2S_MODEL_ID);
-  form.append(
-    "voice_settings",
-    JSON.stringify({
-      stability: ELEVENLABS_S2S_STABILITY,
-      similarity_boost: ELEVENLABS_S2S_SIMILARITY,
-      style: ELEVENLABS_S2S_STYLE,
-      use_speaker_boost: ELEVENLABS_S2S_SPEAKER_BOOST,
-    })
+  const converted = await elevenLabsRequest(
+    voiceId,
+    fs.readFileSync(sourcePath),
+    inferAudioMime(sourcePath),
+    path.basename(sourcePath),
   );
-
-  const response = await fetch(`${ELEVENLABS_API_URL}/speech-to-speech/${encodeURIComponent(voiceId)}/stream`, {
-    method: "POST",
-    headers: {
-      "xi-api-key": ELEVENLABS_API_KEY,
-      Accept: "audio/mpeg",
-    },
-    body: form,
-    signal: AbortSignal.timeout(120000),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown ElevenLabs error");
-    throw new Error(`ElevenLabs conversion failed: ${errorText}`);
-  }
-
-  const outputArrayBuffer = await response.arrayBuffer();
-  if (!outputArrayBuffer || outputArrayBuffer.byteLength === 0) {
-    throw new Error("ElevenLabs returned empty audio output");
-  }
-
-  return saveConvertedOutput(Buffer.from(outputArrayBuffer), "mp3");
+  return saveConvertedOutput(converted, "mp3");
 }
 
 function ensureVoicesDir() {
@@ -310,13 +491,22 @@ async function convertWithReplicateRvc(
     reverb_damping: 0.7,
   };
 
-  // Use custom RVC model URL if the voice has a downloadable model
-  if (voice?.localPath) {
-    // If localPath is a URL (e.g., HuggingFace), use it as custom model
-    if (voice.localPath.startsWith("http")) {
-      replicateInput.custom_rvc_model_download_url = voice.localPath;
-    }
+  // An RVC conversion is only meaningful with an RVC MODEL of the target voice.
+  // Without custom_rvc_model_download_url the Replicate model falls back to its
+  // own stock voice, so the job "succeeds" and returns a complete track in a
+  // stranger's voice — the worst kind of failure, because nothing reports it.
+  //
+  // Note the shape mismatch this guards: createVoice() stores a local sample
+  // WAV in `localPath`, which is NOT a model. Only an http(s) URL is.
+  const rvcModelUrl = voice?.localPath?.startsWith("http") ? voice.localPath : null;
+  if (!rvcModelUrl) {
+    throw new Error(
+      `RVC needs a trained RVC model for this voice, and "${voiceId}" has none. ` +
+      `ElevenLabs voices cannot be used with RVC — pick the ElevenLabs provider, ` +
+      `or train an RVC model for this voice first.`,
+    );
   }
+  replicateInput.custom_rvc_model_download_url = rvcModelUrl;
 
   console.log(`🎤 [Replicate RVC] Converting with voice ${voiceId}, pitch=${pitch}`);
 

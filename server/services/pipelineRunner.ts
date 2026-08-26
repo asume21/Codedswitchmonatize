@@ -6,6 +6,7 @@ import ffmpeg from "fluent-ffmpeg";
 import { stemSeparationService } from "./stemSeparation";
 import { convertWithVoice } from "./voiceLibrary";
 import { pitchCorrect } from "./audioAnalysis";
+import { masterAudioFile } from "./mastering";
 
 export type PipelineStage =
   | "queued"
@@ -22,7 +23,6 @@ export interface PipelineOptions {
   stemMode: 2 | 4;
   provider: "elevenlabs" | "rvc" | "replicate-rvc";
   pitchCorrect: boolean;
-  baseUrl: string;
   objectsDir: string;
   overrideKeys?: {
     elevenlabsApiKey?: string;
@@ -62,6 +62,77 @@ function resolveInternalUploadPath(
   return path.resolve(objectsDir, folder, fileName);
 }
 
+/**
+ * amix DIVIDES by the number of inputs unless told otherwise. The obvious way
+ * to stop that is `normalize=0` (with `weights`), and that is what these
+ * filters used — but both options are recent additions to amix, and the
+ * production image is node:20-bullseye, whose Debian ffmpeg is 4.3. There they
+ * do not exist, and ffmpeg aborts the whole graph with
+ * "Error initializing complex filters. Option not found".
+ *
+ * That killed four production jobs (2026-08-21/22) at the very last step, after
+ * stem separation and the paid voice conversion had already succeeded.
+ *
+ * So: let amix divide as it always has, then multiply the level back with
+ * `volume`. Identical math, and every option used here has been in ffmpeg since
+ * the 2.x era, so the graph builds on the old image and the new one alike.
+ */
+export function buildInstrumentalFilter(inputCount: number): string {
+  const inputLabels = Array.from({ length: inputCount }, (_, i) => `[${i}:a]`).join("");
+  // amix scales by 1/inputCount; volume=inputCount undoes it, giving the plain
+  // sum that weights='1 1…':normalize=0 produced.
+  return (
+    `${inputLabels}amix=inputs=${inputCount}:duration=longest,` +
+    `volume=${inputCount},alimiter=limit=0.95[out]`
+  );
+}
+
+/** Same substitution for the instrumental + vocal mix. Two inputs, so volume=2. */
+export function buildRemixFilter(): string[] {
+  return [
+    "[0:a]volume=0.98[a0]",
+    "[1:a]volume=0.90,highpass=f=85,acompressor=threshold=-20dB:ratio=1.9:attack=12:release=140,equalizer=f=6500:t=q:w=1.2:g=-1.0[a1]",
+    "[a0][a1]amix=inputs=2:duration=longest,volume=2,alimiter=limit=0.93[out]",
+  ];
+}
+
+/**
+ * A vocal stem this quiet has no vocal in it. Separation on an instrumental
+ * (or a separation that dumps everything into `other`) yields a vocals stem
+ * whose LOUDEST peak sits below the noise floor — the real case that prompted
+ * this was max -50.8 dBFS, mean -75.7.
+ *
+ * Handing that to ElevenLabs does not fail. The model generates a full-level
+ * voice out of near-silence — a hallucination with nothing driving it, which
+ * lands in the remix as passages that jump high-pitched and drop unpredictably
+ * in level. The job then reports "done" and bills for the conversion.
+ *
+ * A real vocal stem peaks near 0 dBFS; -40 sits far below anything audible and
+ * far above the observed silent case, so it separates the two cleanly.
+ */
+export const SILENT_STEM_PEAK_DB = -40;
+
+export function isEffectivelySilent(peakDb: number): boolean {
+  return !Number.isFinite(peakDb) || peakDb < SILENT_STEM_PEAK_DB;
+}
+
+/** Peak level of a file in dBFS via ffmpeg's volumedetect. -Infinity if digital silence. */
+export function measurePeakDb(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let stderr = "";
+    ffmpeg(filePath)
+      .audioFilters("volumedetect")
+      .outputOptions(["-f", "null"])
+      .on("stderr", (line: string) => { stderr += line + String.fromCharCode(10); })
+      .on("end", () => {
+        const m = stderr.match(/max_volume:\s*(-?[\d.]+) dB/);
+        resolve(m ? parseFloat(m[1]) : -Infinity);
+      })
+      .on("error", (err: Error) => reject(err))
+      .save(process.platform === "win32" ? "NUL" : "/dev/null");
+  });
+}
+
 async function buildInstrumentalFromStems(
   stemPaths: string[],
   outputPath: string,
@@ -74,9 +145,7 @@ async function buildInstrumentalFromStems(
     const cmd = ffmpeg();
     stemPaths.forEach((filePath) => cmd.input(filePath));
 
-    const inputLabels = stemPaths.map((_, i) => `[${i}:a]`).join("");
-    const weights = stemPaths.map(() => "1").join(" ");
-    const filter = `${inputLabels}amix=inputs=${stemPaths.length}:duration=longest:weights='${weights}':normalize=0,alimiter=limit=0.95[out]`;
+    const filter = buildInstrumentalFilter(stemPaths.length);
 
     cmd
       .complexFilter(filter)
@@ -96,13 +165,7 @@ async function remixAudio(
     ffmpeg()
       .input(instrumentalPath)
       .input(vocalPath)
-      .complexFilter(
-        [
-          "[0:a]volume=0.98[a0]",
-          "[1:a]volume=0.90,highpass=f=85,acompressor=threshold=-20dB:ratio=1.9:attack=12:release=140,equalizer=f=6500:t=q:w=1.2:g=-1.0[a1]",
-          "[a0][a1]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.93[out]",
-        ].join(";"),
-      )
+      .complexFilter(buildRemixFilter())
       .outputOptions(["-map [out]", "-c:a libmp3lame", "-b:a 320k"])
       .on("end", () => resolve())
       .on("error", (err: Error) => reject(err))
@@ -125,7 +188,7 @@ export async function runPipeline(
     remixUrl: null,
   };
 
-  const { inputPath, voiceId, stemMode, provider, baseUrl, objectsDir } =
+  const { inputPath, voiceId, stemMode, provider, objectsDir } =
     options;
 
   if (!fs.existsSync(inputPath)) {
@@ -180,6 +243,20 @@ export async function runPipeline(
   }
 
   // --- Stage 2: Voice Conversion ---
+  // Refuse to convert a silent vocal stem. ElevenLabs will happily invent a
+  // full-level voice from near-silence, so without this the job "succeeds",
+  // bills for the conversion, and produces a remix with a hallucinated vocal
+  // over the beat. Fail here instead, with a message that says what to do.
+  const vocalPeakDb = await measurePeakDb(vocalStemPath);
+  if (isEffectivelySilent(vocalPeakDb)) {
+    throw new Error(
+      `No vocals found to convert — the separated vocal track is silent ` +
+      `(peak ${Number.isFinite(vocalPeakDb) ? vocalPeakDb.toFixed(1) : "-inf"} dBFS). ` +
+      `Voice conversion needs a song with a vocal in it; an instrumental or ` +
+      `beat has nothing to convert.`,
+    );
+  }
+
   await onStage?.("converting", result);
 
   const convertedUrl = await convertWithVoice(voiceId, stemResult.vocals, {
@@ -224,7 +301,34 @@ export async function runPipeline(
   const remixPath = path.join(outputsDir, remixFilename);
   await remixAudio(instrumentalPath, finalVocalPath, remixPath);
 
-  result.remixUrl = `${baseUrl}/api/internal/uploads/voices/outputs/${remixFilename}`;
+  // Master the remix through the SAME chain generated audio already used
+  // (server/services/mastering.ts). Before this, a converted track came out at
+  // whatever level the mix landed on while generated audio was normalised —
+  // one product, two loudnesses. Failure here is not fatal: an unmastered
+  // remix is still the track the user paid for, so keep it rather than losing
+  // the whole job to a post-processing step.
+  if (process.env.VOICE_CONVERT_MASTER !== "false") {
+    const masteredPath = path.join(outputsDir, `mastered-${remixFilename}`);
+    try {
+      await masterAudioFile(remixPath, masteredPath);
+      fs.renameSync(masteredPath, remixPath);
+      console.log(`[Pipeline] Mastered remix ${remixFilename}`);
+    } catch (err) {
+      console.error("[Pipeline] Mastering failed, keeping the unmastered remix:", err);
+      try { fs.rmSync(masteredPath, { force: true }); } catch { /* best-effort */ }
+    }
+  }
+
+  // RELATIVE, like every other url this pipeline returns (vocalStemUrl,
+  // convertedVocalUrl, …). This was the one field stamped with an absolute
+  // baseUrl built from APP_URL, which in dev still said localhost:5000 — a port
+  // nothing listens on. The job reported "done", the remix was rendered
+  // correctly, and clicking play went to ERR_CONNECTION_REFUSED.
+  //
+  // A relative url resolves against whatever origin the browser is already on,
+  // so it is right in dev (5001), right in prod, and cannot rot when a host or
+  // port changes.
+  result.remixUrl = `/api/internal/uploads/voices/outputs/${remixFilename}`;
 
   await onStage?.("done", result);
 

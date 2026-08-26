@@ -11,6 +11,12 @@ import { tryAceFirst } from "./aceFirst";
 import { toReplicateUrl } from "./replicateOutput";
 import { persistRemoteAudio } from "./generatedAudioStore";
 import { resolveBpm, buildVariationPrompt } from "./bpmResolution";
+import { masterAudioFile } from "./mastering";
+import { planLoopGeneration } from "./loopPlan";
+import { sliceLoop } from "./loopSlicer";
+
+/** Loop length packs deliver. The user asked for 4-bar loops. */
+const LOOP_BARS = 4;
 
 const LOCAL_OBJECTS_DIR =
   fs.existsSync("/data") && fs.statSync("/data").isDirectory()
@@ -43,21 +49,10 @@ async function polishGeneratedAudio(sourceUrl: string): Promise<{ url: string; d
     await fs.promises.writeFile(inputPath, buffer);
 
     const duration = await getAudioDuration(inputPath);
-    const outFadeStart = Math.max(0, duration - 0.75);
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg(inputPath)
-        .audioFilters([
-          "loudnorm=I=-16:LRA=11:TP=-1.5",
-          "dynaudnorm",
-          "afade=t=in:st=0:d=0.3",
-          `afade=t=out:st=${outFadeStart}:d=0.5`,
-        ])
-        .audioCodec("libmp3lame")
-        .audioBitrate("192k")
-        .on("end", () => resolve())
-        .on("error", (err) => reject(err))
-        .save(outputPath);
-    });
+    // Shared chain — see server/services/mastering.ts. This was one of two
+    // identical copies; voice conversion had none, so the same product shipped
+    // at two different loudnesses.
+    await masterAudioFile(inputPath, outputPath, { durationSeconds: duration });
 
     const relativeKey = `generated/${randomUUID()}.mp3`;
     const destPath = path.join(LOCAL_OBJECTS_DIR, relativeKey);
@@ -904,11 +899,22 @@ export class UnifiedMusicService {
    * Sample packs via ACE-Step: 4 seeded loop renders per pack, mirroring the
    * looper's variation count. Returns null (→ caller falls back) if ACE is
    * down or the FIRST render fails; later failures just shrink the pack.
+   *
+   * Generates LONG and slices the loop out. ACE-Step is a song model: asked for
+   * a 4-bar clip directly it artifacts badly (the user's words: "an annoying
+   * high pitch dolphin"), while the same prompt and seed over ~21s sounds good.
+   * planLoopGeneration picks a length that clears that floor and stays a whole
+   * multiple of the loop, so the cut always lands on a bar line.
    */
   private async generateSamplePackWithAce(prompt: string, bpm: number, packCount: number): Promise<MusicPack[] | null> {
     const detectedGenre = this.detectGenreFromPrompt(prompt);
     const detectedKey = this.pickKeyForGenre(detectedGenre);
     const moods = ['energetic and driving', 'melodic and atmospheric', 'dark and moody', 'minimal and spacious'];
+    const plan = planLoopGeneration({ bpm, loopBars: LOOP_BARS });
+    console.log(
+      `🔁 Loop plan @ ${bpm} BPM: generate ${plan.generateBars} bars (${plan.requestSeconds.toFixed(2)}s requested), ` +
+      `cut ${plan.loopBars} bars (${plan.loopSeconds.toFixed(3)}s) at ${plan.startSeconds.toFixed(3)}s`,
+    );
 
     const packs: MusicPack[] = [];
     for (let i = 0; i < packCount; i++) {
@@ -923,7 +929,7 @@ export class UnifiedMusicService {
             bpm,
             Math.floor(Math.random() * 2147483647),
           ),
-          audioDuration: 8,
+          audioDuration: plan.requestSeconds,
           bpm,
           seed: Math.floor(Math.random() * 2147483647),
           instrumental: true,
@@ -933,12 +939,19 @@ export class UnifiedMusicService {
           if (i === 0 && v === 0) return null;
           continue;
         }
+        // Cut the bar-aligned loop out of the long render. If slicing fails the
+        // full-length render is still usable audio that was already paid for,
+        // so fall back to it rather than dropping the sample.
+        const sliced = ace.localPath
+          ? await sliceLoop(ace.localPath, { startS: plan.startSeconds, durationS: plan.loopSeconds })
+          : null;
+
         samples.push({
           id: `sample_${randomUUID()}`,
           name: `${prompt} Var ${v + 1}`,
           prompt,
-          audioUrl: ace.url,
-          duration: ace.durationS ?? 8,
+          audioUrl: sliced?.url ?? ace.url,
+          duration: sliced?.durationS ?? ace.durationS ?? plan.loopSeconds,
           type: 'loop',
           instrument: 'mixed',
           bpm,

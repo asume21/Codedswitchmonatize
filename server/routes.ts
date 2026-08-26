@@ -44,6 +44,7 @@ import { createCheckoutHandler } from "./api/create-checkout";
 import { stripeWebhookHandler } from "./api/webhook";
 import { checkLicenseHandler } from "./api/check-license";
 import { unifiedMusicService } from "./services/unifiedMusicService";
+import { masterAudioFile } from "./services/mastering";
 import { generateMelody, translateCode, getAIClient } from "./services/grok";
 import { callAI } from "./services/aiGateway";
 import { generateSongStructureWithAI } from "./services/ai-structure-grok";
@@ -167,22 +168,8 @@ async function polishGeneratedAudio(sourceUrl: string, objectsDir: string): Prom
     await fs.promises.writeFile(tmpIn, buf);
 
     const duration = await getAudioDuration(tmpIn);
-    const fadeOutStart = Math.max(0, duration - 0.75);
-
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg(tmpIn)
-        .audioFilters([
-          "loudnorm=I=-16:LRA=11:TP=-1.5",
-          "dynaudnorm",
-          "afade=t=in:st=0:d=0.3",
-          `afade=t=out:st=${fadeOutStart}:d=0.5`,
-        ])
-        .audioCodec("libmp3lame")
-        .audioBitrate("192k")
-        .on("end", () => resolve())
-        .on("error", (err: any) => reject(err))
-        .save(tmpOut);
-    });
+    // Shared chain — see server/services/mastering.ts.
+    await masterAudioFile(tmpIn, tmpOut, { durationSeconds: duration });
 
     const relativeKey = `generated/${crypto.randomUUID()}.mp3`;
     const destPath = path.join(objectsDir, relativeKey);
