@@ -33,6 +33,7 @@ import { useMIDI } from '@/hooks/use-midi';
 import { useInstrumentOptional } from '@/contexts/InstrumentContext';
 import { AVAILABLE_INSTRUMENTS } from './types/pianoRollTypes';
 import { realisticAudio } from '@/lib/realisticAudio';
+import { playEditorNote as playOrganismVoice, playEditorDrum as playOrganismDrum } from '@/lib/editorInstrumentPlayer';
 import { getAudioContext } from '@/lib/audioContext';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
@@ -1534,7 +1535,9 @@ export default function UnifiedStudioWorkspace() {
             name: generatorToName[gen],
             kind: gen === 'drum' ? 'beat' : 'midi',
             type: generatorToTrackType[gen] as any,
-            instrument: generatorToInstrument[gen],
+            // Prefer the voice the Organism ACTUALLY played through; the
+            // role→GM map is only a fallback for older snapshots.
+            instrument: snapshot.instruments?.[gen] ?? generatorToInstrument[gen],
             notes: notes as any[],
             volume: 0.8,
             pan: 0,
@@ -2172,18 +2175,29 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // Play a note with the REAL audio engines (Synthesis for instruments, realisticAudio for drums)
-  const playNote = async (note: string, octave: number, instrumentType?: string, durationSeconds: number = 0.5) => {
+  const playNote = async (note: string, octave: number, instrumentType?: string, durationSeconds: number = 0.5, velocity127?: number) => {
     try {
       const currentTrack = tracks.find(t => t.id === selectedTrack);
       const uiInstrument = instrumentType || currentTrack?.instrument || 'Grand Piano';
       const trackVolume = currentTrack?.volume ?? 0.8;
       const trackPan = currentTrack?.pan ?? 0;
 
+      const noteLevel01 = velocity127 === undefined
+        ? trackVolume
+        : (Math.min(127, Math.max(0, velocity127)) / 127) * trackVolume;
+
       const drumMap: Record<string, string> = { Kick: 'kick', Snare: 'snare', 'Hi-Hat': 'hihat', Tom: 'tom', Cymbal: 'crash', 'Full Kit': 'kick' };
-      if (drumMap[uiInstrument]) {
-        await realisticAudio.playDrumSound(drumMap[uiInstrument], trackVolume);
+      const drumType = drumMap[uiInstrument] ?? (currentTrack?.kind === 'beat' ? note.toLowerCase() : undefined);
+      if (drumType) {
+        // The Organism's sampled kit first — the same samples the performance
+        // used. realisticAudio's synth drum set is the fallback.
+        if (await playOrganismDrum(drumType, noteLevel01)) return;
+        await realisticAudio.playDrumSound(drumType, trackVolume);
         return;
       }
+
+      // Melodic: the multisample the Organism performed on, when there is one.
+      if (await playOrganismVoice(note, octave, durationSeconds, uiInstrument, noteLevel01)) return;
       
       // For melodic instruments, use the RealisticAudioEngine with General MIDI soundfonts.
       // If we were given an internal/soundfont key (e.g. electric_bass_pick), pass it through.
@@ -2197,13 +2211,16 @@ export default function UnifiedStudioWorkspace() {
         ? getTrackPanner(currentTrack.id, trackPan)
         : null;
 
-      // realisticAudio.playNote(note, octave, duration, instrument, velocity, targetNode)
+      // The engine's 5th argument is VELOCITY (0–1), not volume. Passing
+      // trackVolume there made every note play at the same level and threw away
+      // the performance's dynamics. Note velocity (0–127) scaled by the track
+      // fader is what that argument should carry.
       await realisticAudio.playNote(
         note,
         octave,
         durationSeconds,
         midiInstrument,
-        Math.min(1, Math.max(0, trackVolume)),
+        Math.min(1, Math.max(0, noteLevel01)),
         false,
         pannerNode ?? undefined
       );
@@ -2226,8 +2243,8 @@ export default function UnifiedStudioWorkspace() {
   };
 
   // Memoized callbacks for VerticalPianoRoll — prevents re-render on unrelated state changes
-  const pianoRollPlayNote = useCallback((note: string, octave: number, duration: number, instrument: string) => {
-    playNote(note, octave, instrument, duration);
+  const pianoRollPlayNote = useCallback((note: string, octave: number, duration: number, instrument: string, velocity?: number) => {
+    playNote(note, octave, instrument, duration, velocity);
   }, []);
   const pianoRollPlayNoteOff = useCallback((note: string, octave: number, instrument: string, releaseSeconds?: number) => {
     playNoteOff(note, octave, instrument, releaseSeconds);
@@ -3282,7 +3299,19 @@ export default function UnifiedStudioWorkspace() {
         {/* Mobile Content Views */}
         <div className="h-full overflow-auto">
           {activeView === 'piano-roll' && (
-            <VerticalPianoRoll />
+            /* Same props as the desktop mount below. Bare <VerticalPianoRoll />
+               falls back to its own internal track state, so Organism captures
+               merged into `tracks` were invisible here — the toast sent you to
+               a piano roll that could not see the notes it had just announced. */
+            <VerticalPianoRoll
+              {...({ tracks: tracks as any } as any)}
+              selectedTrack={selectedTrack || undefined}
+              isPlaying={transportPlaying}
+              currentTime={playheadPosition}
+              onPlayNote={pianoRollPlayNote}
+              onPlayNoteOff={pianoRollPlayNoteOff}
+              onNotesChange={pianoRollNotesChange}
+            />
           )}
           {activeView === 'beat-lab' && <BeatLab isActive={true} />}
           {activeView === 'lyrics' && <LyricLab />}

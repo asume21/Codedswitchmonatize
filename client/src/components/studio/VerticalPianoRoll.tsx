@@ -158,7 +158,8 @@ interface VerticalPianoRollProps {
   selectedTrack?: string;
   isPlaying?: boolean;
   currentTime?: number;
-  onPlayNote?: (note: string, octave: number, duration: number, instrument: string) => void;
+  /** velocity is 0–127 (StudioNote scale); omitted means "use the track default". */
+  onPlayNote?: (note: string, octave: number, duration: number, instrument: string, velocity?: number) => void;
   onPlayNoteOff?: (note: string, octave: number, instrument: string, releaseSeconds?: number) => void;
   onNotesChange?: (updatedNotes: any[]) => void;
 }
@@ -1035,7 +1036,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           
           if (onPlayNote) {
             // Use parent's playNote for centralized audio routing
-            onPlayNote(note.note, note.octave, noteDuration, track.instrument);
+            // Pass the NOTE's velocity. Without it every note played at the
+            // track's fixed volume, so a captured performance lost all of its
+            // dynamics the moment it reached the editor — the same phrase came
+            // back flat.
+            onPlayNote(note.note, note.octave, noteDuration, track.instrument, note.velocity);
           } else {
             // Fallback to direct playback
             const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
