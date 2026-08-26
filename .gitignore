@@ -133,3 +133,6 @@ credentials.json
 /dist-csbl/
 /dist-csbl-esm/
 tsconfig.csbl*.json
+
+# Local A/B render experiments (large audio, not source)
+ace-ab/

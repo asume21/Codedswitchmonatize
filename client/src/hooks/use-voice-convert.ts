@@ -82,7 +82,13 @@ export function useCostCheck() {
 /** The user's ElevenLabs / RVC voices, for the target picker.
  *  Voice ID was a free-text field: you had to know an ElevenLabs ID by heart. */
 export function useMyVoices() {
-  return useQuery<{ success: boolean; voices: Array<{ voiceId: string; name: string; category?: string }> }>({
+  // keyError explains an empty list. The picker renders only when there are
+  // voices, so without this an invalid key silently removed the control.
+  return useQuery<{
+    success: boolean;
+    voices: Array<{ voiceId: string; name: string; category?: string }>;
+    keyError?: string;
+  }>({
     queryKey: ["/api/voice-convert/my-voices"],
     staleTime: 60_000,
   });
@@ -142,9 +148,12 @@ export function useJobSSE(jobId: string | null) {
   useEffect(() => {
     if (!jobId) return;
 
-    const token = localStorage.getItem("authToken");
-    const url = `/api/voice-convert/jobs/${jobId}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
-    const es = new EventSource(url);
+    // No token in the URL: EventSource cannot set an Authorization header, and
+    // the server only reads the header, the session, or the owner key — a
+    // ?token= param was silently ignored. SSE auth rides the session cookie,
+    // which is same-origin in dev and same-site in prod.
+    const url = `/api/voice-convert/jobs/${jobId}/stream`;
+    const es = new EventSource(url, { withCredentials: true });
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {

@@ -473,7 +473,11 @@ export default function VoiceConvertPage() {
   const [voiceId, setVoiceId] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [stemMode, setStemMode] = useState<2 | 4>(2);
-  const [provider, setProvider] = useState<"elevenlabs" | "rvc" | "replicate-rvc">("replicate-rvc");
+  // Defaults to elevenlabs: it is the only provider with a usable voice today.
+  // RVC needs a trained RVC model whose URL lives on the voice record, and the
+  // voice picker lists ElevenLabs voices — so defaulting to RVC meant the
+  // common path silently converted to the Replicate model's stock voice.
+  const [provider, setProvider] = useState<"elevenlabs" | "rvc" | "replicate-rvc">("elevenlabs");
   const [pitchCorrect, setPitchCorrect] = useState(false);
   const [executionMode, setExecutionMode] = useState<"cloud" | "byo_keys">("cloud");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -487,6 +491,7 @@ export default function VoiceConvertPage() {
   const { data: myVoicesData } = useMyVoices();
   const { data: mySongsData } = useMySongs();
   const myVoices = myVoicesData?.voices ?? [];
+  const voicesKeyError = myVoicesData?.keyError;
   const mySongs = Array.isArray(mySongsData) ? mySongsData : [];
 
   const rvcAvailable = healthData?.services?.rvc?.available ?? false;
@@ -614,6 +619,11 @@ export default function VoiceConvertPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  )}
+                  {myVoices.length === 0 && voicesKeyError && (
+                    <p className="text-xs text-amber-500" role="status">
+                      Couldn't load your voices: {voicesKeyError}
+                    </p>
                   )}
                   <Input
                     placeholder="…or paste a voice ID"

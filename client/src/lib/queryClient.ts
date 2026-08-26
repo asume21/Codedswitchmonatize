@@ -225,6 +225,31 @@ export async function apiRequest(
 // ── TanStack Query integration ───────────────────────────────────────────────
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+/**
+ * Turn a TanStack queryKey into a URL.
+ *
+ * This was `queryKey.join("/")`, which double-slashes whenever a segment
+ * already starts with one: ["/api/voice-convert/jobs", "/abc"] became
+ * "/api/voice-convert/jobs//abc" and 404'd on every request. The job LIST
+ * survived only because its second segment is "?limit=20", where the stray
+ * slash lands before the query string and Express tolerates it — so the list
+ * rendered while every single-job poll failed, and running jobs looked frozen.
+ *
+ * Segments are joined with exactly one slash; a segment starting with ? or &
+ * is appended directly as a query string; empty segments are dropped so an
+ * optional id (`jobId ? \`/${jobId}\` : ""`) does not leave a trailing slash.
+ */
+export function buildQueryUrl(queryKey: readonly unknown[]): string {
+  return queryKey
+    .filter((part) => part !== null && part !== undefined && part !== "")
+    .map(String)
+    .reduce((acc, part) => {
+      if (!acc) return part;
+      if (part.startsWith("?") || part.startsWith("&")) return acc + part;
+      return `${acc.replace(/\/+$/, "")}/${part.replace(/^\/+/, "")}`;
+    }, "");
+}
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -239,7 +264,7 @@ export const getQueryFn: <T>(options: {
     // TanStack Query supplies an AbortSignal that fires when the query is
     // cancelled (component unmount, refetch, etc.) — wiring it here means
     // every useQuery automatically cancels its in-flight request.
-    const res = await fetch(queryKey.join("/") as string, {
+    const res = await fetch(buildQueryUrl(queryKey), {
       credentials: "include",
       headers,
       signal,
