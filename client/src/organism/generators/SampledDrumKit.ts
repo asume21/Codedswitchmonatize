@@ -397,6 +397,12 @@ export class SampledDrumKit {
     return false
   }
 
+  /** Which kit is loaded ('private:<id>' or the bundled default). Stamped onto
+   *  captured drum events so the editor can play the SAME kit back. */
+  getKitSource(): string {
+    return this.kitSource ?? 'bundled'
+  }
+
   dispose(): void {
     this.disposeVoices()
   }

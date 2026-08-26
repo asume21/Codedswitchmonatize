@@ -67,6 +67,11 @@ const MODE_SWING: Record<string, number> = {
 // hip-hop/R&B register. That register now lives in the Conductor's voicing
 // engine (conductor/voicing.ts), which ChordGenerator reads via currentVoicing().
 export class ChordGenerator extends GeneratorBase {
+  /** The performer's real multisample when it has one, else its sampler preset. */
+  protected currentVoiceId(): string | null {
+    return this.currentPerformer?.realInstrument ?? this.currentPerformer?.samplerPreset ?? null
+  }
+
   readonly output: Tone.Gain
 
   private synth:   Tone.PolySynth | LoadableSampler

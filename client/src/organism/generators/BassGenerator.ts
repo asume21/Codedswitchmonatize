@@ -45,6 +45,11 @@ import { getConductor } from '../conductor/Conductor'
 import { applyGroovePocket } from './groove'
 
 export class BassGenerator extends GeneratorBase {
+  /** The performer's real multisample when it has one, else its sampler preset. */
+  protected currentVoiceId(): string | null {
+    return this.currentPerformer?.realInstrument ?? this.currentPerformer?.samplerPreset ?? null
+  }
+
   readonly output: Tone.Gain
 
   private synth:      Tone.MonoSynth | LoadableSampler

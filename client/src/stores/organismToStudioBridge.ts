@@ -29,6 +29,8 @@ interface GeneratorEvent {
   velocity?:    number
   durationMs?:  number
   meta?:        string
+  /** Voice that sounded the note — kept in step with ../organism/session/types. */
+  instrument?:  string
 }
 
 // ── MIDI note → name/octave ────────────────────────────────────────
@@ -60,13 +62,14 @@ function drumTypeFromMidi(midi: number): 'kick' | 'snare' | 'hihat' | 'perc' {
 function eventsToStudioNotes(
   events: GeneratorEvent[],
   bpm: number,
-  generator: GeneratorType
+  generator: GeneratorType,
+  /** Shared across ALL roles — see bridgeOrganismToStore. */
+  sessionStartMs: number
 ): StudioNote[] {
   const noteOns = events.filter(e => e.eventType === 'note_on' && e.pitch !== undefined)
   if (noteOns.length === 0) return []
 
   const msPerStep = (60000 / bpm) / 4  // 16th note duration in ms
-  const sessionStartMs = noteOns[0].timestamp
 
   const notes: StudioNote[] = []
 
@@ -130,12 +133,46 @@ export function bridgeOrganismToStore(
     chord:   generatorEvents.filter(e => e.generator === 'chord'),
   }
 
+  // ONE session start for every role.
+  //
+  // This used to be computed inside eventsToStudioNotes, which runs once per
+  // generator — so each role was normalised to its OWN first note. Drums
+  // entering at bar 1 and a melody entering at bar 9 both landed on step 0, and
+  // the band arrived in the editor out of sync with itself. The earliest
+  // note_on across the whole session is the only shared origin, so it is taken
+  // here and passed down.
+  const allNoteOns = generatorEvents.filter(e => e.eventType === 'note_on' && e.pitch !== undefined)
+  const sessionStartMs = allNoteOns.length
+    ? Math.min(...allNoteOns.map(e => e.timestamp))
+    : 0
+
   const tracks: Record<GeneratorType, StudioNote[]> = {
-    drum:    eventsToStudioNotes(byGenerator.drum,    bpm, 'drum'),
-    bass:    eventsToStudioNotes(byGenerator.bass,    bpm, 'bass'),
-    melody:  eventsToStudioNotes(byGenerator.melody,  bpm, 'melody'),
-    texture: eventsToStudioNotes(byGenerator.texture, bpm, 'texture'),
-    chord:   eventsToStudioNotes(byGenerator.chord,   bpm, 'chord'),
+    drum:    eventsToStudioNotes(byGenerator.drum,    bpm, 'drum',    sessionStartMs),
+    bass:    eventsToStudioNotes(byGenerator.bass,    bpm, 'bass',    sessionStartMs),
+    melody:  eventsToStudioNotes(byGenerator.melody,  bpm, 'melody',  sessionStartMs),
+    texture: eventsToStudioNotes(byGenerator.texture, bpm, 'texture', sessionStartMs),
+    chord:   eventsToStudioNotes(byGenerator.chord,   bpm, 'chord',   sessionStartMs),
+  }
+
+  // The voice each role played through. A role can change voice mid-session, so
+  // take the one that sounded the most notes — that is what the capture mostly
+  // is, and a single track can only carry one instrument.
+  const dominantInstrument = (events: GeneratorEvent[]): string | undefined => {
+    const counts = new Map<string, number>()
+    for (const e of events) {
+      if (e.eventType !== 'note_on' || !e.instrument) continue
+      counts.set(e.instrument, (counts.get(e.instrument) ?? 0) + 1)
+    }
+    let best: string | undefined
+    let bestN = 0
+    for (const [id, n] of counts) if (n > bestN) { best = id; bestN = n }
+    return best
+  }
+
+  const instruments: Partial<Record<GeneratorType, string>> = {}
+  for (const gen of ['drum', 'bass', 'melody', 'texture', 'chord'] as GeneratorType[]) {
+    const id = dominantInstrument(byGenerator[gen])
+    if (id) instruments[gen] = id
   }
 
   const snapshot: OrganismSnapshot = {
@@ -146,6 +183,7 @@ export function bridgeOrganismToStore(
     keyMode: store.keyMode,
     source,
     tracks,
+    instruments,
   }
 
   store.pushOrganismSnapshot(snapshot)

@@ -60,6 +60,15 @@ export abstract class GeneratorBase {
     this.generatorEventSink = sink
   }
 
+  /**
+   * Id of the voice this generator is currently playing through, or null when
+   * it has none. Overridden by generators that carry a performer; the base
+   * returns null so a generator without one still emits, just unstamped.
+   */
+  protected currentVoiceId(): string | null {
+    return null
+  }
+
   protected emitNoteEvents(
     notes: Array<{ time: string; note: string | number; dur: string; vel: number }>,
   ): void {
@@ -76,6 +85,7 @@ export abstract class GeneratorBase {
         pitch,
         velocity: GeneratorBase.velocityToMidi(note.vel),
         durationMs: GeneratorBase.durationToMs(note.dur),
+        instrument: this.currentVoiceId() ?? undefined,
       })
     }
   }
@@ -95,6 +105,7 @@ export abstract class GeneratorBase {
         pitch,
         velocity: GeneratorBase.velocityToMidi(hit.velocity),
         durationMs: GeneratorBase.durationToMs('16n'),
+        instrument: this.currentVoiceId() ?? undefined,
       })
     }
   }

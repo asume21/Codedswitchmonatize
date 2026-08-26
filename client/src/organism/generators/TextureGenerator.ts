@@ -227,6 +227,13 @@ export class TextureGenerator extends GeneratorBase {
         featured: this.featuredTexture,
       })
       const notes = [...new Set(voiced)].map((m) => Tone.Frequency(m, 'midi').toNote())
+      // Capture sink. Texture has no Tone.Part — it re-voices per bar inside
+      // this scheduleRepeat — so it emits here, at the moment the voicing is
+      // decided, rather than at pattern-build time like the other roles.
+      // Emitted at grid 0 because each callback IS the downbeat of its own bar.
+      this.emitNoteEvents(
+        notes.map((n) => ({ time: '0:0:0', note: n, dur: `${hold}m`, vel: this.sectionPadVelocity })),
+      )
       try {
         this.padSampler.releaseAll(time)
         this.padSampler.triggerAttackRelease(notes, `${hold}m`, time, this.sectionPadVelocity)

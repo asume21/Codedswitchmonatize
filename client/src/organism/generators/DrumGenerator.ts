@@ -58,6 +58,12 @@ export function keepAtDensity(hit: DrumHit, density: number): boolean {
 }
 
 export class DrumGenerator extends GeneratorBase {
+  /** The loaded drum kit, so the editor can play the captured hits on the same
+   *  samples instead of falling back to its own synth drum set. */
+  protected currentVoiceId(): string | null {
+    return this.sampledKit?.getKitSource() ?? null
+  }
+
   readonly output: Tone.Gain
 
   // Kick: sub layer + click transient

@@ -103,6 +103,11 @@ export function snapNoteToScale(
 }
 
 export class MelodyGenerator extends GeneratorBase {
+  /** The performer's real multisample when it has one, else its sampler preset. */
+  protected currentVoiceId(): string | null {
+    return this.currentPerformer?.realInstrument ?? this.currentPerformer?.samplerPreset ?? null
+  }
+
   readonly output: Tone.Gain
 
   private synth: Tone.PolySynth | LoadableSampler
@@ -1139,6 +1144,12 @@ export class MelodyGenerator extends GeneratorBase {
     }, (() => {
       const events = notes.map((n, i) => ({ time: quantizeGridTime(n.time, loopBars), note: n.pitch, dur: n.duration, vel: n.velocity, art: guitarArtIds ? guitarArtIds[i] : undefined }));
       this.busySlots16ths = extractBusySlots16ths(events);
+      // Hand the phrase to the capture sink, exactly as bass and chords do.
+      // Without this the melody reached the speakers but never the editor:
+      // captureSession produced no melody events, the Organism→Studio bridge
+      // skipped the role entirely, and the piano roll showed a band with no
+      // lead — the most conspicuous part to be missing.
+      this.emitNoteEvents(events);
       return events;
     })())
 

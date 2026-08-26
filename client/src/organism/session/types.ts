@@ -32,6 +32,16 @@ export interface GeneratorEvent {
   velocity?:    number    // 0–127
   durationMs?:  number
   meta?:        string    // behavior name, pattern name, etc.
+  /**
+   * Which VOICE actually sounded this note — a realInstrument id
+   * ('SSO_Violins1'), a samplerPreset, or a drum kit id.
+   *
+   * Without this the editor could only guess from the role ('melody' → 'piano'),
+   * so a captured phrase came back on a GM soundfont instead of the multisample
+   * the Organism performed it on. Same notes, different instrument — the
+   * long-standing "it doesn't sound like the generation" complaint.
+   */
+  instrument?:  string
 }
 
 export interface TransitionSnapshot {

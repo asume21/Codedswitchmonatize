@@ -53,6 +53,12 @@ export interface OrganismSnapshot {
   keyMode: KeyMode
   source: 'organism' | 'astutely'
   tracks: Record<GeneratorType, StudioNote[]>
+  /**
+   * The voice each role actually played through — a realInstrument id, sampler
+   * preset, or drum kit source. Lets the editor reproduce the performance's
+   * sound instead of guessing a GM instrument from the role name.
+   */
+  instruments?: Partial<Record<GeneratorType, string>>
 }
 
 export type PlayMode = 'current' | 'all'
