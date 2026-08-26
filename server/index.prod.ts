@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { MemStorage, DatabaseStorage, type IStorage } from "./storage";
 import { currentUser, requireAuthExcept } from "./middleware/auth";
+import { VOICE_CONVERT_STREAM_PATTERN } from "./routes/voiceConvert";
 import { globalLimiter } from "./middleware/rateLimiting";
 import path from "path";
 import fs from "fs";
@@ -245,22 +246,38 @@ if (hasDatabase) {
   console.log('⚠️ DATABASE_URL not set - using MemoryStore (not recommended for production)');
 }
 
-app.use(
-  session({
-    store: sessionStore,
-    secret: sessionSecret,   // validated at boot — see validateEnv()
-    resave: false,
-    saveUninitialized: false,
-    proxy: true,
-    name: 'codedswitch.sid',
-    cookie: {
-      sameSite: "none" as const,
-      httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      secure: true,
-    },
-  }),
-);
+const sessionMiddleware = session({
+  store: sessionStore,
+  secret: sessionSecret,   // validated at boot — see validateEnv()
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  name: 'codedswitch.sid',
+  cookie: {
+    sameSite: "none" as const,
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    secure: true,
+  },
+});
+
+// A session-store outage must not take the API down with it. express-session
+// forwards a store read failure to the error handler, which turns EVERY request
+// into a 500. Degrade instead: continue with no session, so the request is
+// merely unauthenticated-by-cookie. Bearer-token auth is unaffected, and every
+// req.session write downstream is already guarded by `if (req.session)`.
+// Fails open on AVAILABILITY, closed on PRIVILEGE: no session means no userId.
+app.use((req, res, next) => {
+  sessionMiddleware(req, res, (err?: any) => {
+    if (err) {
+      console.error('session store unavailable — continuing without a session', {
+        method: req.method, path: req.path, err: err?.message,
+      });
+      return next();
+    }
+    next();
+  });
+});
 
 console.log(sessionStore ? '✅ Session middleware: PostgreSQL' : '⚠️ Session middleware: MemoryStore (temporary)');
 
@@ -331,11 +348,29 @@ app.use((req, res, next) => {
     ? new DatabaseStorage()
     : new MemStorage();
 
+  // Any job still marked in-flight is an orphan: the job queue lives in memory,
+  // so a DEPLOY abandons the work while the DB row keeps its status forever —
+  // a job sat at "remixing" indefinitely with no timeout and nothing to resume
+  // it. Matters more here than in dev: every production deploy strands whatever
+  // was running.
+  try {
+    const { failOrphanedJobs } = await import("./services/jobQueue");
+    await failOrphanedJobs(storage as any);
+  } catch (err) {
+    console.error("Orphaned-job recovery skipped:", err);
+  }
+
   // Attach current user middleware
   app.use(currentUser(storage));
 
   // Blanket auth: protect all /api/* routes except public endpoints
   app.use(requireAuthExcept([
+    // Pattern, not a prefix — see VOICE_CONVERT_STREAM_PATTERN. An EventSource
+    // cannot read a JSON 401, so this route has to reach its handler, which
+    // authenticates itself and reports the outcome inside the SSE envelope.
+    // NOTE: this list is duplicated in index.ts. esbuild builds THIS file, so a
+    // change made only there is invisible in production.
+    VOICE_CONVERT_STREAM_PATTERN,
     "/api/auth",
     "/api/health",
     "/api/subscription-status",
