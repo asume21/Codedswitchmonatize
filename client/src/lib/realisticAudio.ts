@@ -112,7 +112,9 @@ export class RealisticAudioEngine {
   private isLoading = false;
   
   // Voice limiting to prevent audio crackling
-  private maxPolyphony = 32; // Maximum simultaneous voices
+  private maxPolyphony = 48; // Maximum simultaneous voices (raised from 32 — a
+  // multi-track piano roll pre-schedules a lookahead window of notes, so the
+  // instantaneous count is higher than what you actually hear).
   private totalActiveVoices = 0;
   private voiceQueue: Array<{ node: any; startTime: number; key: string }> = [];
   private initPromise: Promise<void> | null = null;
@@ -259,15 +261,31 @@ export class RealisticAudioEngine {
   /**
    * Voice stealing - remove oldest voices when we exceed max polyphony
    */
-  private stealOldestVoices(count: number = 1) {
-    if (!this.audioContext || this.voiceQueue.length === 0) return;
-    
-    // Sort by start time (oldest first)
+  private stealOldestVoices(count: number = 1): number {
+    if (!this.audioContext || this.voiceQueue.length === 0) return 0;
+
+    const now = this.audioContext.currentTime;
+    // Sort by start time (oldest first).
     this.voiceQueue.sort((a, b) => a.startTime - b.startTime);
-    
-    // Remove oldest voices
-    const toRemove = this.voiceQueue.splice(0, count);
+
+    // Prefer stealing voices that are ALREADY SOUNDING. A note still sitting in
+    // the scheduler lookahead window (startTime a few ms in the future) hasn't
+    // been heard yet — killing it is a pure dropout with nothing gained. Only
+    // fall back to future voices if every tracked voice is still pending.
+    let stealIdxs = this.voiceQueue
+      .map((v, i) => ({ v, i }))
+      .filter(({ v }) => v.startTime <= now + 0.02)
+      .slice(0, count)
+      .map(({ i }) => i);
+    if (stealIdxs.length === 0) {
+      stealIdxs = this.voiceQueue.map((_, i) => i).slice(0, count);
+    }
+
+    const toRemove = stealIdxs.map(i => this.voiceQueue[i]);
+    this.voiceQueue = this.voiceQueue.filter((_, i) => !stealIdxs.includes(i));
+    let removed = 0;
     toRemove.forEach(voice => {
+      removed++;
       try {
         if (voice.node) {
           if (typeof voice.node.stop === 'function') {
@@ -287,24 +305,27 @@ export class RealisticAudioEngine {
         // Ignore cleanup errors
       }
     });
+    return removed;
   }
 
   /**
    * Track a new voice for polyphony management
    */
-  private trackVoice(node: any, key: string) {
+  private trackVoice(node: any, key: string, startTime?: number) {
     if (!this.audioContext) return;
-    
+
     // Steal one voice at a time when over the cap. Stealing 25% (8 voices) at
     // once produced audible chunks of silence — every voice-steal event killed
     // a fistful of mid-decay notes. One-at-a-time keeps the steal inaudible.
+    // Bail if a steal pass frees nothing (e.g. every voice is still pending) so
+    // we don't spin forever.
     while (this.totalActiveVoices >= this.maxPolyphony) {
-      this.stealOldestVoices(1);
+      if (this.stealOldestVoices(1) === 0) break;
     }
-    
+
     this.voiceQueue.push({
       node,
-      startTime: this.audioContext.currentTime,
+      startTime: startTime ?? this.audioContext.currentTime,
       key
     });
     this.totalActiveVoices++;
@@ -523,11 +544,17 @@ export class RealisticAudioEngine {
           }
           this.activeNotes.get(noteKey)?.push(audioNode);
           
-          // Track for polyphony management
-          this.trackVoice(audioNode, noteKey);
+          // Track for polyphony management — anchored to the SCHEDULED start, not
+          // "now", so a note sitting in the lookahead window isn't treated as the
+          // oldest voice and stolen before it sounds.
+          this.trackVoice(audioNode, noteKey, playAt);
 
-          // If duration is provided, automatically schedule removal from tracking & disconnect node
+          // If duration is provided, automatically schedule removal from tracking
+          // & disconnect node. Measured from the scheduled start, with a 0.5s
+          // release margin so the soundfont's natural tail isn't chopped (an
+          // abrupt disconnect mid-decay is itself an audible cut-out / click).
           if (duration > 0) {
+            const leadSecs = Math.max(0, playAt - this.audioContext.currentTime);
             setTimeout(() => {
               const nodes = this.activeNotes.get(noteKey);
               if (nodes) {
@@ -541,7 +568,7 @@ export class RealisticAudioEngine {
                   audioNode.disconnect();
                 }
               } catch {}
-            }, (duration + 0.15) * 1000);
+            }, (leadSecs + duration + 0.5) * 1000);
           }
           return;
         }

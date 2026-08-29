@@ -19,8 +19,11 @@
 
 import { getAudioContext } from './audioContext';
 
-// How far ahead to schedule audio (seconds)
-const LOOK_AHEAD_SECS = 0.12;
+// How far ahead to schedule audio (seconds). Generous headroom so a long React
+// re-render on the studio page can't stall the audio clock past the horizon —
+// notes carry an absolute `when`, so more lookahead only means "scheduled
+// earlier", never "plays at a different time".
+const LOOK_AHEAD_SECS = 0.3;
 // How often to run the scheduler loop (ms) — must be << LOOK_AHEAD_SECS * 1000
 const SCHEDULE_INTERVAL_MS = 25;
 
@@ -179,6 +182,17 @@ class PianoRollScheduler {
     if (!ctx) return;
 
     const horizon = ctx.currentTime + LOOK_AHEAD_SECS;
+
+    // Catch-up guard: if the loop was starved (tab backgrounded, multi-hundred-ms
+    // jank) `nextStepAudioTime` can fall far behind the clock. Firing the whole
+    // backlog synchronously freezes the thread and machine-guns every missed note
+    // at once. Skip the backlog and re-anchor to the live clock instead.
+    if (ctx.currentTime - this.nextStepAudioTime > 0.5) {
+      const missed = Math.floor((ctx.currentTime - this.nextStepAudioTime) / this.stepDuration);
+      this.currentStep = ((this.currentStep + missed) % this._patternSteps + this._patternSteps) % this._patternSteps;
+      this.rawStep += missed;
+      this.nextStepAudioTime = ctx.currentTime;
+    }
 
     while (this.nextStepAudioTime < horizon) {
       const step = this.currentStep;
