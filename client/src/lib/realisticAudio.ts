@@ -117,6 +117,10 @@ export class RealisticAudioEngine {
   // instantaneous count is higher than what you actually hear).
   private totalActiveVoices = 0;
   private voiceQueue: Array<{ node: any; startTime: number; key: string }> = [];
+  // Cache of the MIDI numbers a loaded soundfont instrument actually has samples
+  // for, so out-of-range notes can be pitch-shifted from the nearest real sample
+  // instead of dropping to a synthetic sine.
+  private instrumentSampleMidis = new WeakMap<object, number[]>();
   private initPromise: Promise<void> | null = null;
   public bassDrumDuration = 0.8;
   private instrumentLibrary: { [key: string]: string };
@@ -518,19 +522,30 @@ export class RealisticAudioEngine {
       await this.ensureInstrumentLoaded(realInstrument);
 
       if (this.instruments[realInstrument]) {
+        const inst = this.instruments[realInstrument];
         const noteName = `${note}${octave}`;
         const destination = targetNode || defaultDestination();
 
         const playAt = when !== undefined ? when : this.audioContext.currentTime;
-        const audioNode = this.instruments[realInstrument].play(
-          noteName,
-          playAt,
-          {
-            duration: duration > 0 ? duration : undefined,
-            gain: velocity,
-            destination: destination
+        const baseOpts = {
+          duration: duration > 0 ? duration : undefined,
+          gain: velocity,
+          destination: destination,
+        };
+        let audioNode = inst.play(noteName, playAt, baseOpts);
+
+        if (!audioNode) {
+          // No sample for this note (typical on the extreme high/low octaves).
+          // Pitch-shift the nearest real sample so it still sounds like the
+          // instrument instead of dropping to a synthetic sine.
+          const nearest = this.nearestSampledNote(inst, note, octave);
+          // Only pitch-shift within ~an octave. Beyond that the sample plays so
+          // much faster it collapses to a click — the synthetic tone (which
+          // sustains for the full note) is the better choice.
+          if (nearest && Math.abs(nearest.cents) <= 1200) {
+            audioNode = inst.play(nearest.name, playAt, { ...baseOpts, cents: nearest.cents });
           }
-        );
+        }
 
         if (audioNode) {
           // Track start time and duration for cleanup
@@ -575,11 +590,58 @@ export class RealisticAudioEngine {
       }
 
       // Fallback to synthetic if soundfont fails or is missing
-      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination());
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination(), when);
     } catch (error) {
       // Soundfont play failed, using synthetic fallback
-      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination());
+      await this.fallbackToSynthetic(note, octave, duration, velocity, targetNode || defaultDestination(), when);
     }
+  }
+
+  /** Note name + octave → MIDI number (C-1 = 0, C4 = 60). */
+  private noteToMidiNumber(note: string, octave: number): number {
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const idx = names.indexOf(String(note || 'C').toUpperCase());
+    return (octave + 1) * 12 + (idx < 0 ? 0 : idx);
+  }
+
+  /**
+   * When a soundfont instrument has no sample for the requested note (common on
+   * the top and bottom octaves), find the nearest note it DOES have. The caller
+   * plays that buffer with a `cents` detune so it still sounds like the real
+   * instrument, just transposed — never a bare sine.
+   */
+  private nearestSampledNote(inst: any, note: string, octave: number): { name: string; cents: number } | null {
+    const buffers = inst?.buffers;
+    if (!buffers) return null;
+
+    let midis = this.instrumentSampleMidis.get(inst);
+    if (!midis) {
+      const noteRe = /^([A-Ga-g])([#bB]?)(-?\d+)$/;
+      const semis: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+      midis = Object.keys(buffers)
+        .map((k) => {
+          if (/^\d+$/.test(k)) return parseInt(k, 10); // already a MIDI key
+          const m = noteRe.exec(k);
+          if (!m) return NaN;
+          const acc = m[2] === '#' ? 1 : (m[2] === 'b' || m[2] === 'B') ? -1 : 0;
+          return (parseInt(m[3], 10) + 1) * 12 + semis[m[1].toUpperCase()] + acc;
+        })
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
+      this.instrumentSampleMidis.set(inst, midis);
+    }
+    if (!midis.length) return null;
+
+    const target = this.noteToMidiNumber(note, octave);
+    let best = midis[0];
+    for (const m of midis) {
+      if (Math.abs(m - target) < Math.abs(best - target)) best = m;
+    }
+    if (best === target) return null; // exact sample exists — nothing to do
+
+    const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const name = names[((best % 12) + 12) % 12] + (Math.floor(best / 12) - 1);
+    return { name, cents: (target - best) * 100 };
   }
 
   private mapMidiPitchToDrumType(note: string, octave: number): string {
@@ -701,35 +763,60 @@ export class RealisticAudioEngine {
     }
   }
 
-  // Fallback to synthetic audio generation for unsupported octaves
-  private async fallbackToSynthetic(note: string, octave: number, duration: number, velocity: number, destination?: AudioNode): Promise<void> {
-    // Silent fallback - no logging needed as this is expected behavior for extreme octaves
-    if (!this.audioContext) {
-      return;
-    }
+  // Fallback tone for notes with no sample AND no near-enough sample to shift.
+  private async fallbackToSynthetic(
+    note: string,
+    octave: number,
+    duration: number,
+    velocity: number,
+    destination?: AudioNode,
+    when?: number,
+  ): Promise<void> {
+    if (!this.audioContext) return;
 
     try {
-      const currentTime = this.audioContext.currentTime;
+      const now = this.audioContext.currentTime;
+      // Honour the scheduled start. This used to always play at `now`, so with a
+      // lookahead scheduler every fallback note (i.e. every out-of-range high
+      // key) fired ~0.1–0.3s early — disconnected from the beat, which reads as
+      // a knock rather than a note.
+      const startAt = Math.max(now, when ?? now);
+      // A too-short high note is just a click ("key hitting wood"). Give it body.
+      const dur = Math.max(0.18, duration || 0.3);
 
-      // Convert note name and octave to frequency
       const frequency = this.noteToFrequency(note, octave);
 
-      const oscillator = this.audioContext.createOscillator();
+      const osc = this.audioContext.createOscillator();
+      const partial = this.audioContext.createOscillator();
       const gainNode = this.audioContext.createGain();
+      const partialGain = this.audioContext.createGain();
+      const lp = this.audioContext.createBiquadFilter();
 
-      oscillator.connect(gainNode);
-      gainNode.connect(destination || defaultDestination());
+      lp.type = 'lowpass';
+      lp.frequency.value = Math.min(this.audioContext.sampleRate / 2 - 1000, Math.max(2000, frequency * 6));
+      lp.Q.value = 0.4;
 
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'sine'; // Simple sine wave for fallback
+      osc.type = 'triangle';
+      osc.frequency.value = frequency;
+      partial.type = 'sine';
+      partial.frequency.value = frequency * 2;
+      partialGain.gain.value = 0.18;
 
-      // Envelope
-      gainNode.gain.setValueAtTime(0, currentTime);
-      gainNode.gain.linearRampToValueAtTime(velocity * 0.3, currentTime + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+      osc.connect(gainNode);
+      partial.connect(partialGain).connect(gainNode);
+      gainNode.connect(lp).connect(destination || defaultDestination());
 
-      oscillator.start(currentTime);
-      oscillator.stop(currentTime + duration);
+      const peak = Math.max(0.0001, velocity * 0.28);
+      const rel = 0.06; // smooth release so the stop never clicks
+      gainNode.gain.setValueAtTime(0.0001, startAt);
+      gainNode.gain.linearRampToValueAtTime(peak, startAt + 0.012);
+      gainNode.gain.setValueAtTime(peak, Math.max(startAt + 0.012, startAt + dur - rel));
+      gainNode.gain.linearRampToValueAtTime(0.0001, startAt + dur);
+
+      osc.start(startAt);
+      partial.start(startAt);
+      osc.stop(startAt + dur + 0.02);
+      partial.stop(startAt + dur + 0.02);
     } catch (error) {
       // Silent failure - synthetic fallback is best-effort
     }
