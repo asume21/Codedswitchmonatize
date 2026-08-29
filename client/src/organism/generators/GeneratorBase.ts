@@ -237,6 +237,11 @@ export abstract class GeneratorBase {
   protected _nextLoopClip: LoopClip | null = null
   private _loopEventIds: number[] = []
 
+  /** The loop clip this generator is currently playing (loop mode only). */
+  getCurrentLoopClip(): LoopClip | null {
+    return this._currentLoopClip
+  }
+
   private clearLoopEvents(): void {
     if (this._loopEventIds.length === 0) return
     const transport = Tone.getTransport()

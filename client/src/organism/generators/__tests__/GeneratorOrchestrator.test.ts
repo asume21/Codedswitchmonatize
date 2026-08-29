@@ -676,6 +676,69 @@ describe('GeneratorOrchestrator — hybrid row switches', () => {
       expect(muteSpies[g]).not.toHaveBeenCalled()
     }
   })
+
+  // ── Reimagine in hybrid: looped rows swap clips, band rows reroll ──────────
+
+  function packWith2(row: 'texture' | 'drums'): LoopPack {
+    const pack = makeTestPack()
+    ;(pack.loops as any)[row] = [
+      { id: `${row}-1`, url: `https://cdn.test/${row}-1.wav`, bars: 4 },
+      { id: `${row}-2`, url: `https://cdn.test/${row}-2.wav`, bars: 4 },
+    ]
+    return pack
+  }
+
+  it('reimagineSeat on a looped row swaps to a different clip in the pool', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    await orch.loadLoopPack(packWith2('texture'), ['texture'])
+    const swap = vi.spyOn((orch as any).texture, 'swapLoop').mockResolvedValue(undefined)
+
+    orch.reimagineSeat('texture')
+
+    expect(swap).toHaveBeenCalledTimes(1)
+    expect(swap.mock.calls[0][0].id).toBe('texture-2')
+  })
+
+  it('reimagineSeat on a band row never swaps a loop clip', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    await orch.loadLoopPack(packWith2('texture'), ['texture'])
+    const swap = vi.spyOn((orch as any).bass, 'swapLoop').mockResolvedValue(undefined)
+
+    orch.reimagineSeat('bass') // bass is still a 'band' row
+
+    expect(swap).not.toHaveBeenCalled()
+  })
+
+  it('global reimagine swaps every looped row and keeps the progression', async () => {
+    const orch = new GeneratorOrchestrator()
+    mockLoopPlumbing(orch)
+    const pack = packWith2('texture')
+    ;(pack.loops as any).drums = [
+      { id: 'drums-1', url: 'https://cdn.test/drums-1.wav', bars: 4 },
+      { id: 'drums-2', url: 'https://cdn.test/drums-2.wav', bars: 4 },
+    ]
+    await orch.loadLoopPack(pack, ['texture', 'drums'])
+    const swapT = vi.spyOn((orch as any).texture, 'swapLoop').mockResolvedValue(undefined)
+    const swapD = vi.spyOn((orch as any).drum, 'swapLoop').mockResolvedValue(undefined)
+    const pick = vi.spyOn(getConductor(), 'pickNewProgression').mockImplementation(() => {})
+
+    orch.reimagine()
+
+    expect(swapT).toHaveBeenCalledTimes(1)
+    expect(swapD).toHaveBeenCalledTimes(1)
+    expect(pick).not.toHaveBeenCalled() // harmony stays put while loops are in play
+  })
+
+  it('global reimagine still rolls a new progression when NO row is looped', () => {
+    const orch = new GeneratorOrchestrator()
+    const pick = vi.spyOn(getConductor(), 'pickNewProgression').mockImplementation(() => {})
+
+    orch.reimagine()
+
+    expect(pick).toHaveBeenCalled()
+  })
 })
 
 // ── Sample Leads: the band HEARS the loop ────────────────────────────

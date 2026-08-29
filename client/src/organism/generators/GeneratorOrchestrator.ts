@@ -878,6 +878,14 @@ export class GeneratorOrchestrator {
     const roll = this.seatRolls[seat]
     orgLog('reimagine:seat', { seat, roll })
 
+    // Hybrid: if this seat's row is playing a pack loop, "reimagine" means pick
+    // a different clip — rebuilding the muted generator would do nothing.
+    const row: LoopInstrument = seat === 'chord' ? 'chords' : seat
+    if (this._rowSources[row] === 'loop') {
+      this.reimagineLoopRow(row)
+      return roll
+    }
+
     const dirState = this.director.getState()
     switch (seat) {
       case 'drums':
@@ -896,7 +904,12 @@ export class GeneratorOrchestrator {
 
   reimagine(): number {
     const seed = rerollSessionSalt()
-    getConductor().pickNewProgression()
+    const loopRows = (Object.keys(this._rowSources) as LoopInstrument[])
+      .filter((r) => this._rowSources[r] === 'loop')
+    // With loops in play the harmonic bed is set by the clips (or locked by
+    // Sample Leads). Rolling a whole new progression would pull the band off
+    // the key the loops are in — keep the harmony, reroll the parts + clips.
+    if (loopRows.length === 0) getConductor().pickNewProgression()
     // Section counts start over: the new take's first verse is ITS first
     // verse, not the fourth of a take that no longer exists.
     this.sectionEntryCounts.clear()
@@ -904,8 +917,9 @@ export class GeneratorOrchestrator {
     this.currentSectionVariantKey = sectionVariantKey(0, this.currentSectionPass)
     for (const seat of Object.keys(this.seatRolls) as ReimagineSeat[]) this.seatRolls[seat] += 1
     this.pushSeatVariants()
-    this.regenerateAll()
-    orgLog('reimagine', { seed })
+    this.regenerateAll()          // rerolls the 'band' rows (loop rows skipped)
+    for (const r of loopRows) this.reimagineLoopRow(r) // fresh clip per looped row
+    orgLog('reimagine', { seed, loopRows })
     return seed
   }
 
@@ -919,28 +933,73 @@ export class GeneratorOrchestrator {
     // Drums use buildDrumHits (freeplay) so the pattern source is consistent
     // with start() and onSubGenreChange.  buildDrumHits auto-shares kick
     // anchors + pocket with bass/chords/melody.
+    // Hybrid: a row sourced to 'loop' plays its pack clip — rebuilding its
+    // generator part would either do nothing or double the loop. Only the
+    // 'band' rows re-derive here. (Loop rows are re-rolled by swapping clips —
+    // see reimagineLoopRow.)
+    const isBand = (r: LoopInstrument) => this._rowSources[r] === 'band'
+
     const dirState = this.director.getState()
-    this.drum.loadGeneratedPattern(
-      this.buildDrumHits(dirState.subGenre as HipHopSubGenre, dirState.drums.variantIndex),
-      true,
-    )
+    if (isBand('drums')) {
+      this.drum.loadGeneratedPattern(
+        this.buildDrumHits(dirState.subGenre as HipHopSubGenre, dirState.drums.variantIndex),
+        true,
+      )
+    }
 
     if (live) {
-      this.later(() => this.bass.onStateTransition(orgState, physics), 80)
-      this.later(() => this.melody.onStateTransition(orgState, physics), 160)
-      this.later(() => this.texture.onStateTransition(orgState, physics), 220)
-      this.later(() => {
+      if (isBand('bass'))    this.later(() => this.bass.onStateTransition(orgState, physics), 80)
+      if (isBand('melody'))  this.later(() => this.melody.onStateTransition(orgState, physics), 160)
+      if (isBand('texture')) this.later(() => this.texture.onStateTransition(orgState, physics), 220)
+      if (isBand('chords'))  this.later(() => {
         this.syncLeadBusyToChords()
         this.chord.onStateTransition(orgState, physics)
       }, 280)
       return
     }
 
-    this.bass.onStateTransition(orgState, physics)
-    this.melody.onStateTransition(orgState, physics)
-    this.texture.onStateTransition(orgState, physics)
-    this.syncLeadBusyToChords()
-    this.chord.onStateTransition(orgState, physics)
+    if (isBand('bass'))    this.bass.onStateTransition(orgState, physics)
+    if (isBand('melody'))  this.melody.onStateTransition(orgState, physics)
+    if (isBand('texture')) this.texture.onStateTransition(orgState, physics)
+    if (isBand('chords')) {
+      this.syncLeadBusyToChords()
+      this.chord.onStateTransition(orgState, physics)
+    }
+  }
+
+  /**
+   * Reimagine a row that's playing a pack loop: swap it to a DIFFERENT clip
+   * from the same pack (that row's pool). This is what "reimagine" means for a
+   * looped part — a band reroll would change nothing you can hear. Returns
+   * false when there's no pack, the row isn't looped, or the pool has only one
+   * clip (nothing else to pick).
+   */
+  private reimagineLoopRow(row: LoopInstrument): boolean {
+    const pack = this._loopPack
+    if (!pack || this._rowSources[row] !== 'loop') return false
+    const pool = pack.loops[row] ?? []
+    if (pool.length < 2) return false
+
+    const gen = this.generatorFor(row)
+    const currentId = gen.getCurrentLoopClip()?.id
+    const curIdx = Math.max(0, pool.findIndex((c) => c.id === currentId))
+    const seatKey: ReimagineSeat = row === 'chords' ? 'chord' : row
+    // Rotate by this seat's roll count so repeated presses walk the pool
+    // instead of flipping between the same two clips.
+    const roll = Math.max(1, this.seatRolls[seatKey] ?? 1)
+    let next = pool[(curIdx + roll) % pool.length]
+    if (!next || next.id === currentId) next = pool.find((c) => c.id !== currentId) ?? next
+    if (!next || next.id === currentId) return false
+
+    void gen.swapLoop(next)
+
+    // If this looped row is the Sample Lead, its analyzed DNA just changed —
+    // relock the Conductor + song cell to the new clip so the band follows it.
+    if (this._sampleLeadRow === row) {
+      this._currentScene = { ...(this._currentScene ?? {}), [row]: next.id } as LoopScene
+      this.setSampleLead(row)
+    }
+    return true
   }
 
   /** Band-awareness relay: the melody's occupied slots → the chords, so the
