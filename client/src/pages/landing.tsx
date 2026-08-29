@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { LogoMark } from "@/components/brand/Logo";
 import {
   Music, Zap, MessageSquare, Code, Shield, Sparkles, ChevronRight,
   CheckCircle2, Globe, Github, Twitter, Instagram, LogIn, UserPlus,
@@ -145,10 +146,13 @@ export default function Landing() {
       <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 ${scrolled ? 'bg-black/80 backdrop-blur-xl border-b border-white/10 py-3' : 'bg-transparent py-6'}`}>
         <div className="container mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-              <Music className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-black/70 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.35)]">
+              <LogoMark className="w-6 h-6 text-cyan-300" />
             </div>
-            <span className="text-2xl font-black tracking-tighter uppercase italic">CodedSwitch</span>
+            <span className="flex flex-col leading-none">
+              <span className="text-2xl font-black tracking-tighter uppercase italic">CodedSwitch</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-cyan-400/70">AI Godfather</span>
+            </span>
           </div>
           <div className="hidden md:flex items-center gap-8">
             <a href="#what-is-it" className="text-sm font-bold uppercase tracking-widest text-white/60 hover:text-cyan-400 transition-colors">Platform</a>

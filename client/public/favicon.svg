@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CodedSwitch">
+  <rect width="64" height="64" rx="14" fill="#0a0d12"/>
+  <g fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 32 H56 V16" opacity="0.5"/>
+    <path d="M14 32 H8 V48" opacity="0.5"/>
+    <path d="M14 32C20.5 21.5 43.5 21.5 50 32C43.5 42.5 20.5 42.5 14 32Z" stroke-width="2.6"/>
+    <circle cx="32" cy="32" r="7.6" stroke-width="2.6"/>
+    <circle cx="54" cy="12" r="3.8"/>
+    <circle cx="10" cy="52" r="3.8"/>
+  </g>
+  <circle cx="32" cy="32" r="3.2" fill="#d946ef"/>
+  <circle cx="29.6" cy="29.6" r="1" fill="#67e8f9"/>
+  <circle cx="54" cy="12" r="1.5" fill="#d946ef"/>
+  <circle cx="10" cy="52" r="1.5" fill="#06b6d4"/>
+</svg>

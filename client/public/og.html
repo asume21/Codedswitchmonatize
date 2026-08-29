@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CodedSwitch — social card</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;900&display=swap">
+<style>
+  html,body{margin:0}
+  /* 1200x630 social card. Render this page and screenshot #card to produce
+     client/public/og-image.png, then point <meta og:image> at it. */
+  #card{
+    width:1200px;height:630px;overflow:hidden;position:relative;
+    background:radial-gradient(ellipse at 30% 18%,#0e2a33 0%,#0a0d12 55%);
+    font-family:Poppins,system-ui,sans-serif;
+  }
+  #card .grid{position:absolute;inset:0;
+    background:
+      repeating-linear-gradient(0deg,transparent 0 39px,rgba(6,182,212,.05) 39px 40px),
+      repeating-linear-gradient(90deg,transparent 0 39px,rgba(6,182,212,.05) 39px 40px);
+  }
+  #card .lockup{position:absolute;left:96px;top:205px;display:flex;align-items:center;gap:40px}
+  #card svg{width:150px;height:150px;filter:drop-shadow(0 0 26px rgba(6,182,212,.45))}
+  #card .name{font-size:84px;font-weight:900;letter-spacing:-3px;color:#fff;line-height:1;font-style:italic;text-transform:uppercase}
+  #card .tag{font-size:22px;font-weight:700;letter-spacing:.42em;color:#22d3ee;margin-top:16px;text-transform:uppercase}
+  #card .sub{position:absolute;left:100px;top:435px;font-size:27px;color:#94a3b8;font-weight:500;max-width:1000px}
+</style>
+</head>
+<body>
+<div id="card">
+  <div class="grid"></div>
+  <div class="lockup">
+    <svg viewBox="0 0 64 64" fill="none">
+      <path d="M52 32 H58 V15" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+      <path d="M12 32 H6 V49" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+      <path d="M12 32C19 21 45 21 52 32C45 43 19 43 12 32Z" stroke="#22d3ee" stroke-width="2.6" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="8" stroke="#22d3ee" stroke-width="2.6"/>
+      <circle cx="32" cy="32" r="3.4" fill="#d946ef"/>
+      <circle cx="29.4" cy="29.4" r="1.05" fill="#67e8f9"/>
+      <circle cx="55" cy="11" r="4" stroke="#22d3ee" stroke-width="2"/><circle cx="55" cy="11" r="1.6" fill="#d946ef"/>
+      <circle cx="9" cy="53" r="4" stroke="#22d3ee" stroke-width="2"/><circle cx="9" cy="53" r="1.6" fill="#06b6d4"/>
+    </svg>
+    <div>
+      <div class="name">CodedSwitch</div>
+      <div class="tag">AI&nbsp;Godfather</div>
+    </div>
+  </div>
+  <div class="sub">AI music studio &mdash; speak a rhythm, the band plays.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 72" role="img" aria-label="CodedSwitch — AI Godfather">
+  <g transform="translate(4 4)">
+    <g fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M52 32 H58 V15" opacity="0.5"/>
+      <path d="M12 32 H6 V49" opacity="0.5"/>
+      <path d="M12 32C19 21 45 21 52 32C45 43 19 43 12 32Z" stroke-width="2.6"/>
+      <circle cx="32" cy="32" r="8" stroke-width="2.6"/>
+      <circle cx="55" cy="11" r="4"/>
+      <circle cx="9" cy="53" r="4"/>
+    </g>
+    <circle cx="32" cy="32" r="3.4" fill="#d946ef"/>
+    <circle cx="29.4" cy="29.4" r="1.05" fill="#67e8f9"/>
+    <circle cx="55" cy="11" r="1.6" fill="#d946ef"/>
+    <circle cx="9" cy="53" r="1.6" fill="#06b6d4"/>
+  </g>
+  <text x="76" y="34" font-family="Poppins, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="700" letter-spacing="-0.5" fill="#ffffff">CodedSwitch</text>
+  <text x="77" y="52" font-family="Poppins, 'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="600" letter-spacing="3.4" fill="#22d3ee">AI GODFATHER</text>
+</svg>

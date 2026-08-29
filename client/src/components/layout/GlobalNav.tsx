@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { globalAudioKillSwitch } from '@/lib/globalAudioKillSwitch';
 import { cn } from '@/lib/utils';
+import { LogoMark } from '@/components/brand/Logo';
 
 // Primary items: always visible in all nav variants
 const PRIMARY_NAV = [
@@ -143,7 +144,7 @@ export function GlobalNav({ variant = 'dropdown', className = '' }: GlobalNavPro
         className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-black/80 border border-cyan-500/40 hover:border-cyan-400/70 shadow-[0_0_20px_rgba(6,182,212,0.2)] backdrop-blur-md transition-all astutely-panel"
       >
         <div className="w-8 h-8 rounded-lg bg-black/80 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_18px_rgba(6,182,212,0.25)]">
-          <span className="text-cyan-200 font-black text-xs tracking-widest">CS</span>
+          <LogoMark className="w-5 h-5 text-cyan-300" />
         </div>
         <span className="text-cyan-100 font-black tracking-widest">{currentPage}</span>
         <ChevronDown className={`w-4 h-4 text-cyan-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -285,7 +286,7 @@ export function FloatingNavButton() {
             <div className="flex items-center justify-between px-4 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-black/80 border border-cyan-500/40 flex items-center justify-center shadow-[0_0_18px_rgba(6,182,212,0.25)]">
-                  <span className="text-cyan-200 font-black tracking-widest">CS</span>
+                  <LogoMark className="w-6 h-6 text-cyan-300" />
                 </div>
                 <span className="text-lg font-black text-cyan-100 tracking-widest">
                   CodedSwitch

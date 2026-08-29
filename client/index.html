@@ -12,6 +12,13 @@
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="googlebot" content="index, follow" />
     <link rel="canonical" href="https://www.codedswitch.com/" /><!-- updated dynamically by useCanonical hook -->
+
+    <!-- Brand mark. SVG favicon (client/public/favicon.svg) — the eye-and-nodes
+         mark on a dark rounded square so it reads on any tab colour. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="mask-icon" href="/favicon.svg" color="#06b6d4" />
+    <meta name="theme-color" content="#0a0d12" />
+
     <title>CodedSwitch - AI Music Production Studio | Create Professional Beats & Songs Online</title>
     
     <!-- Open Graph / Facebook -->
@@ -19,9 +26,12 @@
     <meta property="og:url" content="https://www.codedswitch.com/" />
     <meta property="og:title" content="CodedSwitch - AI Music Production Studio | Create Professional Beats & Songs" />
     <meta property="og:description" content="Professional AI-powered music production platform. Create studio-quality beats, melodies, and full songs with advanced AI tools. Free online DAW with real-time collaboration." />
-    <meta property="og:image" content="https://www.codedswitch.com/og-image.jpg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <!-- TODO: og-image.jpg / twitter-card.jpg never existed (404). Pointed at the
+         SVG logo as a non-broken stopgap; a rasterised 1200x630 card should be
+         generated from /og.html and dropped here as og-image.png. -->
+    <meta property="og:image" content="https://www.codedswitch.com/logo.svg" />
+    <meta property="og:image:width" content="300" />
+    <meta property="og:image:height" content="72" />
     <meta property="og:site_name" content="CodedSwitch" />
     <meta property="og:locale" content="en_US" />
     
@@ -30,7 +40,8 @@
     <meta name="twitter:url" content="https://www.codedswitch.com/" />
     <meta name="twitter:title" content="CodedSwitch - AI Music Production Studio" />
     <meta name="twitter:description" content="Create professional beats, melodies, and full songs with AI-powered music production tools. Free online DAW with collaboration features." />
-    <meta name="twitter:image" content="https://www.codedswitch.com/twitter-card.jpg" />
+    <meta name="twitter:image" content="https://www.codedswitch.com/logo.svg" /><!-- TODO: replace with rasterised card, see og:image note above -->
+    <meta name="twitter:image:alt" content="CodedSwitch — AI Godfather" />
     <meta name="twitter:creator" content="@codedswitch" />
     
     <!-- Structured Data - Organization -->
@@ -40,7 +51,7 @@
       "@type": "Organization",
       "name": "CodedSwitch",
       "url": "https://www.codedswitch.com",
-      "logo": "https://www.codedswitch.com/logo.png",
+      "logo": "https://www.codedswitch.com/logo.svg",
       "description": "Professional AI-powered music production platform",
       "sameAs": [
         "https://twitter.com/codedswitch",
