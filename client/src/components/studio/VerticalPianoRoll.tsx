@@ -259,9 +259,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     if (onNotesChange && propSelectedTrack) {
       const updatedTracks = typeof newTracks === 'function' ? newTracks(tracks) : newTracks;
       const currentTrackNotes = updatedTracks.find(t => t.id === propSelectedTrack)?.notes || [];
+      // NOTE: when driven by propTracks the `tracks` memo below reads ONLY from
+      // propTracks, so writing setInternalTracks here would be dead state. The
+      // parent (UnifiedStudioWorkspace) round-trips these notes back through
+      // propTracks within the same render pass.
       onNotesChange(currentTrackNotes);
-      // Optimistic update so notes appear immediately without waiting for parent re-render
-      setInternalTracks(updatedTracks as any);
     } else {
       setInternalTracks(newTracks as any);
     }
@@ -306,8 +308,11 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   const [clipboard, setClipboard] = useState<Note[]>([]);
   const [pianoRollTool, setPianoRollTool] = useState<'draw' | 'select' | 'erase' | 'slice'>('draw');
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
-  const [history, setHistory] = useState<Note[][]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  // Undo/redo history — kept PER TRACK (keyed by track id). A single shared
+  // stack meant undoing while track B was selected stamped track A's note list
+  // onto B.
+  const [history, setHistory] = useState<Record<string, Note[][]>>({});
+  const [historyIndex, setHistoryIndex] = useState<Record<string, number>>({});
   
   // EVEN MORE ADVANCED FEATURES
   const [arpeggioMode, setArpeggioMode] = useState<'off' | 'up' | 'down' | 'updown' | 'random'>('off');
@@ -386,6 +391,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       return next;
     });
   }, []);
+  // Refs so the mount-once keyboard listener records to the right tracks without
+  // re-subscribing every time the arm set or selection changes.
+  const armedTracksRef = useRef(armedTracks);
+  useEffect(() => { armedTracksRef.current = armedTracks; }, [armedTracks]);
 
   // ─── Scheduler visual step (replaces internalCurrentStep for playback) ──────
   // The scheduler fires the onVisualStep callback via RAF so the playhead moves
@@ -469,16 +478,26 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   // We only expand — never shrink automatically — so the user doesn't lose
   // grid space when deleting a note.
   useEffect(() => {
-    const allNoteEnds = tracks.flatMap(t => t.notes.map((n: Note) => n.step + n.length));
+    const allNoteEnds = tracks.flatMap(t => t.notes.map((n: Note) => Math.ceil(n.step + n.length)));
     if (allNoteEnds.length === 0) return;
     const needed = Math.max(...allNoteEnds);
     const rounded = Math.ceil(needed / 16) * 16;
+    // Grid only ever grows automatically — shrinking would pull space out from
+    // under the user mid-edit.
     if (rounded > patternStepsRef.current) {
-      patternStepsRef.current = rounded;
       setPatternSteps(rounded);
-      pianoRollScheduler.setPatternSteps(rounded);
     }
   }, [tracks]);
+
+  // pianoRollScheduler is a shared singleton — other surfaces (Beat Maker, etc.)
+  // set its patternSteps too. Re-assert OUR length whenever it changes so
+  // playback wraps where this grid ends, not where another view left it. Without
+  // this, opening a 64-step pattern after the Beat Maker left the scheduler at
+  // 16 made every note past step 16 silent and looped the playhead early.
+  useEffect(() => {
+    patternStepsRef.current = patternSteps;
+    pianoRollScheduler.setPatternSteps(patternSteps);
+  }, [patternSteps]);
 
   // Keep scheduler BPM in sync
   useEffect(() => {
@@ -509,10 +528,19 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       const currentTracks = tracksRef.current;
       currentTracks.forEach((track: Track) => {
         if (track.muted) return;
-        const notesAtStep = track.notes.filter((n: Note) => n.step === step);
+        // A note belongs to THIS step when its (possibly fractional) start lands
+        // in [step, step+1). Swing / humanize / arpeggiate all write fractional
+        // steps — the old `n.step === step` match silently dropped every one.
+        const notesAtStep = track.notes.filter((n: Note) => {
+          const frac = n.step - step;
+          return frac >= 0 && frac < 1;
+        });
+        if (notesAtStep.length === 0) return;
+        const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
         notesAtStep.forEach((note: Note) => {
           const noteDuration = note.length * stepDurationSecs;
-          const mixerChannel = professionalAudio.getChannels().find(ch => ch.id === track.id);
+          // Honour the sub-step offset so a swung note actually plays late.
+          const when = audioTime + (note.step - step) * stepDurationSecs;
           realisticAudio.playNote(
             note.note,
             note.octave,
@@ -521,7 +549,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             track.volume / 100,
             true,
             mixerChannel?.input,
-            audioTime,
+            when,
           );
         });
       });
@@ -625,18 +653,16 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     recordingNotesRef.current.push(newNote);
     activeRecordingRef.current.set(midiNote, { noteId, startStep: step, startTimeMs: Date.now() });
 
-    // Record to ALL armed MIDI tracks simultaneously (multi-track recording)
+    // Record to ALL armed MIDI tracks simultaneously (multi-track recording).
+    // No playNote here — the useMIDI hook already sounds the note on note-on;
+    // playing it again layered a second, slightly-delayed voice.
     setTracks(prev => prev.map((track, idx) => {
       const isTarget = armedTracks.size > 0
         ? armedTracks.has(track.id)
         : idx === selectedTrackIndex;
       return isTarget ? { ...track, notes: [...track.notes, newNote] } : track;
     }));
-
-    const instrument = selectedTrack?.instrument || 'piano';
-    const channel = professionalAudio.getChannels().find(ch => ch.id === selectedTrack?.id);
-    realisticAudio.playNote(noteName, octave, 0.3, instrument, (velocity / 127) * 0.8, true, channel?.input);
-  }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack, quantizeOnRecord, snapValue]);
+  }, [midiLastNote, isRecording, isPlaying, currentStep, patternSteps, selectedTrackIndex, selectedTrack, quantizeOnRecord, snapValue, armedTracks]);
 
   // 🎹 MIDI RECORDING — note-OFF: update the length of the held note based on elapsed steps
   useEffect(() => {
@@ -666,16 +692,24 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     }));
   }, [midiLastNoteOff, isRecording, isPlaying, bpm, patternSteps, selectedTrackIndex]);
 
-  // 🎹 MIDI LIVE PREVIEW — play instrument sound immediately on every MIDI key press
-  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  // 🎹 MIDI preview playback is owned by the useMIDI hook (handleNoteOn plays the
+  // note + tracks noteOff). The piano roll previously ALSO played every MIDI note
+  // through realisticAudio here — that layered a second voice, and because the
+  // useMIDI hook's instrument only synced on a manual instrument change you heard
+  // its default piano fighting the piano roll's real instrument on the first hit.
+  // Instead of double-triggering, keep the hook's instrument in lock-step with
+  // the selected track so its single preview is always the right sound.
+  const globalInstrumentRef = useRef(globalInstrument);
+  globalInstrumentRef.current = globalInstrument;
   useEffect(() => {
-    if (!midiLastNote) return;
-    const { note: midiNote, velocity } = midiLastNote;
-    const octave = Math.floor(midiNote / 12) - 1;
-    const noteName = noteNames[midiNote % 12];
-    const instrument = selectedTrack?.instrument || 'piano';
-    realisticAudio.playNote(noteName, octave, velocity / 127, instrument, 0.8);
-  }, [midiLastNote]);  
+    const instrument = selectedTrack?.instrument;
+    if (!instrument) return;
+    updateMIDISettings({ currentInstrument: instrument });
+    // Also drives InstrumentContext (which pre-loads the soundfont) so the first
+    // press isn't delayed waiting on a cold load.
+    globalInstrumentRef.current?.setCurrentInstrument?.(instrument);
+    realisticAudio.loadAdditionalInstrument(instrument).catch(() => {});
+  }, [selectedTrack?.instrument, updateMIDISettings]);
 
   // Update MIDI channel setting when changed
   useEffect(() => {
@@ -1030,7 +1064,10 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     // Play notes at the current step
     tracks.forEach(track => {
       if (!track.muted) {
-        const notesAtStep = track.notes.filter((note: Note) => note.step === newStep);
+        const notesAtStep = track.notes.filter((note: Note) => {
+          const frac = note.step - newStep;
+          return frac >= 0 && frac < 1;
+        });
         notesAtStep.forEach((note: Note) => {
           const noteDuration = note.length * stepDuration;
           
@@ -1069,6 +1106,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       // Play — delegate to transport; TransportContext starts pianoRollScheduler
       // and Tone.Transport simultaneously. Note playback happens in the
       // subscribe() effect above — no duplicate starts needed here.
+      // TransportContext.play() reads pianoRollScheduler.patternSteps directly,
+      // so make sure it reflects THIS grid before we hand off.
+      pianoRollScheduler.setPatternSteps(patternStepsRef.current);
       setIsPlaying(true);
       playTransport();
     }
@@ -1186,37 +1226,59 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     return Math.round(step / snapValue) * snapValue;
   }, [snapEnabled, snapValue]);
 
-  // Add to history for undo/redo
+  // Add to history for undo/redo — scoped to the currently selected track.
   const addToHistory = useCallback((notes: Note[]) => {
+    const tid = selectedTrack?.id;
+    if (!tid) return;
+    const snapshot = notes.map(n => ({ ...n }));
     setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push([...notes]);
-      return newHistory;
+      const stack = prev[tid] ?? [];
+      const idx = historyIndex[tid] ?? -1;
+      const trimmed = stack.slice(0, idx + 1);
+      trimmed.push(snapshot);
+      return { ...prev, [tid]: trimmed };
     });
-    setHistoryIndex(prev => prev + 1);
-  }, [historyIndex]);
+    setHistoryIndex(prev => ({ ...prev, [tid]: (prev[tid] ?? -1) + 1 }));
+  }, [selectedTrack, historyIndex]);
+
+  // Seed a baseline snapshot the first time a track is touched so the very first
+  // edit is undoable back to the track's original note list.
+  useEffect(() => {
+    const tid = selectedTrack?.id;
+    if (!tid) return;
+    if ((historyIndex[tid] ?? -1) >= 0) return;
+    setHistory(prev => ({ ...prev, [tid]: [ (selectedTrack.notes ?? []).map(n => ({ ...n })) ] }));
+    setHistoryIndex(prev => ({ ...prev, [tid]: 0 }));
+  }, [selectedTrack, historyIndex]);
 
   // Undo
   const undo = useCallback(() => {
-    if (historyIndex > 0) {
-      const previousState = history[historyIndex - 1];
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex ? { ...track, notes: previousState } : track
-      ));
-      setHistoryIndex(prev => prev - 1);
-    }
-  }, [historyIndex, history, selectedTrackIndex]);
+    const tid = selectedTrack?.id;
+    if (!tid) return;
+    const idx = historyIndex[tid] ?? -1;
+    if (idx <= 0) return;
+    const previousState = history[tid]?.[idx - 1];
+    if (!previousState) return;
+    setTracks(prev => prev.map(track =>
+      track.id === tid ? { ...track, notes: previousState.map(n => ({ ...n })) } : track
+    ));
+    setHistoryIndex(prev => ({ ...prev, [tid]: idx - 1 }));
+  }, [selectedTrack, history, historyIndex]);
 
   // Redo
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setTracks(prev => prev.map((track, index) =>
-        index === selectedTrackIndex ? { ...track, notes: nextState } : track
-      ));
-      setHistoryIndex(prev => prev + 1);
-    }
-  }, [historyIndex, history, selectedTrackIndex]);
+    const tid = selectedTrack?.id;
+    if (!tid) return;
+    const stack = history[tid] ?? [];
+    const idx = historyIndex[tid] ?? -1;
+    if (idx >= stack.length - 1) return;
+    const nextState = stack[idx + 1];
+    if (!nextState) return;
+    setTracks(prev => prev.map(track =>
+      track.id === tid ? { ...track, notes: nextState.map(n => ({ ...n })) } : track
+    ));
+    setHistoryIndex(prev => ({ ...prev, [tid]: idx + 1 }));
+  }, [selectedTrack, history, historyIndex]);
 
   // Copy selected notes
   const copySelected = useCallback(() => {
@@ -1322,8 +1384,25 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
   }, [playPreviewNote, isRecording, isPlaying, currentStep, selectedTrackIndex, quantizeOnRecord, snapValue]);
 
   // 🎹 KEYBOARD SHORTCUTS - Play piano with your QWERTY keyboard!
+  // The window listeners are attached ONCE (effect below) and dispatch through
+  // these refs, so the ~20-dependency closure rebuild here never re-attaches DOM
+  // listeners — and held-key state survives a dependency change mid-press.
+  const pressedKeysRef = useRef<Set<string>>(new Set());
+  const keyDownRef = useRef<(ev: KeyboardEvent) => void>(() => {});
+  const keyUpRef = useRef<(ev: KeyboardEvent) => void>(() => {});
   useEffect(() => {
-    const pressedKeys = new Set<string>();
+    const kd = (ev: KeyboardEvent) => keyDownRef.current(ev);
+    const ku = (ev: KeyboardEvent) => keyUpRef.current(ev);
+    window.addEventListener('keydown', kd);
+    window.addEventListener('keyup', ku);
+    return () => {
+      window.removeEventListener('keydown', kd);
+      window.removeEventListener('keyup', ku);
+    };
+  }, []);
+
+  useEffect(() => {
+    const pressedKeys = pressedKeysRef.current;
 
     const handleKeyDown = (ev: KeyboardEvent) => {
       // Don't capture if user is typing in an input field or if it's a repeating key event
@@ -1530,26 +1609,31 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
             // 🎹 CHORD TOLERANCE
             const CHORD_TOLERANCE_MS = 150;
             
+            const wrap = patternStepsRef.current || STEPS;
+            const ctx = getAudioContext();
+            const audioStep = ctx ? pianoRollScheduler.audioTimeToStep(ctx.currentTime) : -1;
             let step: number;
             const recentNotes = recordingNotesRef.current;
-            
+
             if (recentNotes.length > 0) {
               const lastNote = recentNotes[recentNotes.length - 1];
               const lastNoteTimestamp = parseInt(lastNote.id.split('-').pop() || '0');
               const timeSinceLastNote = now - lastNoteTimestamp;
-              
+
               if (timeSinceLastNote <= CHORD_TOLERANCE_MS) {
+                // Part of a chord — land on the same step as the previous note.
                 step = lastNote.step;
+              } else if (audioStep >= 0) {
+                step = audioStep;
               } else {
-                const rawStep = elapsedMs / msPerStep;
-                step = Math.round(rawStep) % STEPS;
+                step = Math.round(elapsedMs / msPerStep) % wrap;
               }
             } else {
-              step = 0;
+              step = audioStep >= 0 ? audioStep : 0;
             }
-            
-            step = step % STEPS;
-            
+
+            step = ((step % wrap) + wrap) % wrap;
+
             // Note starts with length 1, will be extended on keyUp
             const newNote: Note = {
               id: `rec-${pianoKey.key}-${now}`,
@@ -1559,10 +1643,23 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
               velocity: 100,
               length: 1
             };
-            
+
             recordingNotesRef.current.push(newNote);
+            // Persist onto the armed track(s) immediately. Previously the QWERTY
+            // recording path only pushed to recordingNotesRef and the notes never
+            // reached the grid — unlike the MIDI and on-screen-key paths.
+            activeRecordingRef.current.set(
+              -(pianoKey.note.charCodeAt(0) * 100 + pianoKey.octave),
+              { noteId: newNote.id, startStep: step, startTimeMs: now },
+            );
+            setTracks(prev => prev.map((track, idx) => {
+              const isTarget = armedTracksRef.current.size > 0
+                ? armedTracksRef.current.has(track.id)
+                : idx === selectedTrackIndex;
+              return isTarget ? { ...track, notes: [...track.notes, newNote] } : track;
+            }));
             setCurrentStep(step);
-          } 
+          }
           else if (chordMode) {
             setActiveKeys(prev => {
               const next = new Set(prev);
@@ -1621,12 +1718,8 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
+    keyDownRef.current = handleKeyDown;
+    keyUpRef.current = handleKeyUp;
   }, [handlePlay, handleNoteOff, isRecording, recordingStartTime, bpm, selectedTrack, chordMode, selectedProgression, currentKey, chordInversion, selectedTrackIndex, selectedNoteIds, deleteSelected, copySelected, pasteNotes, redo, undo, toast, playPreviewNote, liveArpEnabled]);
 
   const resizeNote = useCallback((noteId: string, newLength: number) => {
@@ -2321,19 +2414,26 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
 
   const renderNotesToAudioBuffer = async (notes: Note[], bpmValue: number) => {
     const secondsPerBeat = 60 / bpmValue;
-    // Cast notes to any to handle different note formats (some have time/duration, others have step/length)
+    // Piano-roll notes measure position/length in 1/16th-note STEPS, not beats.
+    // Treating step as beats bounced the pattern 4x too slow.
+    const secondsPerStep = secondsPerBeat / 4;
+    // Cast notes to any to handle different note formats (some have time/duration
+    // in seconds, others have step/length in steps).
     const anyNotes = notes as any[];
+    const noteStartSecs = (n: any) => (n.step != null ? n.step * secondsPerStep : (n.time ?? 0));
+    const noteLenSecs = (n: any) => (n.length != null ? n.length * secondsPerStep : (n.duration ?? 0.5));
     const duration = Math.max(
-      anyNotes.reduce((m, n) => Math.max(m, (n.time ?? n.step ?? 0) + (n.duration ?? n.length ?? 0.5)), 1) * secondsPerBeat,
+      anyNotes.reduce((m, n) => Math.max(m, noteStartSecs(n) + noteLenSecs(n)), 1),
       1
     );
     const sampleRate = 44100;
     const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
 
     anyNotes.forEach((n) => {
-      const start = (n.time ?? n.step ?? 0) * secondsPerBeat;
-      const len = (n.duration ?? n.length ?? 0.5) * secondsPerBeat;
-      const freq = 220 * Math.pow(2, ((n.midi ?? noteToMidi(n.key ?? `${n.note ?? 'C'}${n.octave ?? 4}`)) - 60) / 12);
+      const start = noteStartSecs(n);
+      const len = noteLenSecs(n);
+      // A4 (MIDI 69) = 440 Hz.
+      const freq = 440 * Math.pow(2, ((n.midi ?? noteToMidi(n.key ?? `${n.note ?? 'C'}${n.octave ?? 4}`)) - 69) / 12);
       const osc = offline.createOscillator();
       const gain = offline.createGain();
       osc.type = 'sine';
@@ -2552,17 +2652,32 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     // Build MIDI events
     const events: Array<{time: number; type: 'on' | 'off'; note: number; velocity: number}> = [];
     
+    const clampByte = (v: number) => Math.max(0, Math.min(127, Math.round(v)));
     allNotes.forEach(note => {
-      const midiNote = (note.octave + 1) * 12 + noteNames.indexOf(note.note);
-      const startTick = note.step * ticksPerStep;
-      const endTick = (note.step + note.length) * ticksPerStep;
-      
-      events.push({ time: startTick, type: 'on', note: midiNote, velocity: note.velocity });
+      const midiNote = clampByte((note.octave + 1) * 12 + noteNames.indexOf(note.note));
+      // Steps can be fractional (swing/humanize) — round ticks to whole integers
+      // so they don't get truncated when pushed into the byte stream.
+      const startTick = Math.round(note.step * ticksPerStep);
+      const endTick = Math.max(startTick + 1, Math.round((note.step + note.length) * ticksPerStep));
+
+      events.push({ time: startTick, type: 'on', note: midiNote, velocity: clampByte(note.velocity ?? 100) });
       events.push({ time: endTick, type: 'off', note: midiNote, velocity: 0 });
     });
-    
-    // Sort by time
-    events.sort((a, b) => a.time - b.time);
+
+    // Sort by time; on a tie, note-offs must come before note-ons.
+    events.sort((a, b) => a.time - b.time || (a.type === 'off' ? -1 : 1));
+
+    // Standard MIDI variable-length quantity encoder (handles deltas of any size).
+    const pushVLQ = (buf: number[], value: number) => {
+      let v = Math.max(0, Math.round(value));
+      const bytes = [v & 0x7f];
+      v >>= 7;
+      while (v > 0) {
+        bytes.unshift((v & 0x7f) | 0x80);
+        v >>= 7;
+      }
+      buf.push(...bytes);
+    };
     
     // Build MIDI binary
     const midiData: number[] = [];
@@ -2590,15 +2705,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     events.forEach(event => {
       const delta = event.time - lastTime;
       lastTime = event.time;
-      
-      // Variable length delta time
-      if (delta < 128) {
-        trackData.push(delta);
-      } else {
-        trackData.push(0x80 | ((delta >> 7) & 0x7F));
-        trackData.push(delta & 0x7F);
-      }
-      
+
+      pushVLQ(trackData, delta);
+
       // Note on/off
       trackData.push(event.type === 'on' ? 0x90 : 0x80);
       trackData.push(event.note);
@@ -2657,9 +2766,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           id: n.id,
           note: n.note,
           octave: n.octave,
-          step: n.step % STEPS, // Wrap to pattern length
+          step: n.step, // Keep absolute position — the grid auto-expands to fit
           velocity: n.velocity,
-          length: Math.min(n.length, STEPS - (n.step % STEPS)), // Clamp to grid
+          length: Math.max(1, n.length),
           drumType: n.drumType,
         }));
 
@@ -2718,9 +2827,9 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
           id: n.id,
           note: n.note,
           octave: n.octave,
-          step: n.step % STEPS,
+          step: n.step, // Keep absolute position — the grid auto-expands to fit
           velocity: n.velocity,
-          length: Math.min(n.length, STEPS - (n.step % STEPS)),
+          length: Math.max(1, n.length),
           drumType: n.drumType,
         }));
 

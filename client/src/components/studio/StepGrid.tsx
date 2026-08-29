@@ -87,6 +87,10 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
     onNotesChange(producer(current));
   }, [selectedTrack, onNotesChange]);
 
+  // Set true for one tick after a note drag so the trailing onClick doesn't also
+  // fire (which would toggle-delete or re-select the note the user just moved).
+  const justDraggedRef = useRef(false);
+
   const beatsPerBar = useMemo(() => Math.max(1, timeSignature?.numerator ?? 4), [timeSignature?.numerator]);
   const stepsPerBeat = useMemo(() => {
     const denominator = timeSignature?.denominator ?? 4;
@@ -348,6 +352,7 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                     title={`${note.note}${note.octave} vel:${note.velocity ?? 100}`}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (justDraggedRef.current) return;
                       const multiSelect = e.ctrlKey || e.metaKey || e.shiftKey;
                       if (multiSelect) {
                         onNoteSelect?.(note.id, true);
@@ -356,47 +361,54 @@ const StepGridComponent = forwardRef<HTMLDivElement, StepGridProps>(({
                       }
                     }}
                     onMouseDown={(e) => {
-                      if (tool !== 'select') return;
+                      // Drag works with the draw and select tools; erase/slice keep
+                      // their click semantics.
+                      if (tool !== 'select' && tool !== 'draw') return;
                       const target = e.target as HTMLElement;
                       if (target.classList.contains('resize-handle')) return;
-                      
+
                       e.stopPropagation();
                       const startX = e.clientX;
                       const startY = e.clientY;
                       const startStep = note.step;
                       const startKeyIndex = keyIndex;
                       let hasMoved = false;
-                      const isAltDrag = e.altKey; 
-                      
+                      const isAltDrag = e.altKey;
+                      // Honour the grid snap setting for horizontal movement.
+                      const snap = snapEnabled ? (snapValue && snapValue > 0 ? snapValue : 1) : 0;
+                      const snapSteps = (raw: number) => (snap > 0 ? Math.round(raw / snap) * snap : raw);
+
+                      const resolveTarget = (moveX: number, moveY: number) => {
+                        const deltaSteps = snapSteps((moveX - startX) / (stepWidth * zoom));
+                        const deltaKeys = Math.round((moveY - startY) / keyHeight);
+                        const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
+                        const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
+                        return { deltaSteps, deltaKeys, newStep, newKeyIndex };
+                      };
+
                       const handleMouseMove = (moveEvent: MouseEvent) => {
-                        const deltaX = moveEvent.clientX - startX;
-                        const deltaY = moveEvent.clientY - startY;
-                        const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
-                        const deltaKeys = Math.round(deltaY / keyHeight);
-                        
+                        const { deltaSteps, deltaKeys, newStep, newKeyIndex } = resolveTarget(moveEvent.clientX, moveEvent.clientY);
                         if (Math.abs(deltaSteps) > 0 || Math.abs(deltaKeys) > 0) {
                           hasMoved = true;
-                          const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
-                          const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
                           if (!isAltDrag) {
                             throttleMove(() => onNoteMove?.(note.id, newStep, newKeyIndex));
                           }
                         }
                       };
-                      
+
                       const handleMouseUp = (upEvent: MouseEvent) => {
                         document.removeEventListener('mousemove', handleMouseMove);
                         document.removeEventListener('mouseup', handleMouseUp);
                         if (isAltDrag && hasMoved && onNoteCopy) {
-                          const deltaX = upEvent.clientX - startX;
-                          const deltaY = upEvent.clientY - startY;
-                          const deltaSteps = Math.round(deltaX / (stepWidth * zoom));
-                          const deltaKeys = Math.round(deltaY / keyHeight);
-                          const newStep = Math.max(0, Math.min(steps - 1, startStep + deltaSteps));
-                          const newKeyIndex = Math.max(0, Math.min(pianoKeys.length - 1, startKeyIndex + deltaKeys));
+                          const { newStep, newKeyIndex } = resolveTarget(upEvent.clientX, upEvent.clientY);
                           onNoteCopy(note.id, newStep, newKeyIndex);
                         }
-                        if (!hasMoved && onNoteSelect) onNoteSelect(note.id, e.ctrlKey || e.metaKey);
+                        if (hasMoved) {
+                          justDraggedRef.current = true;
+                          setTimeout(() => { justDraggedRef.current = false; }, 0);
+                        } else if (onNoteSelect) {
+                          onNoteSelect(note.id, e.ctrlKey || e.metaKey);
+                        }
                       };
                       document.addEventListener('mousemove', handleMouseMove);
                       document.addEventListener('mouseup', handleMouseUp);

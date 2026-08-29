@@ -50,6 +50,9 @@ class PianoRollScheduler {
   private currentStep = 0;
   private rawStep = 0;
   private nextStepAudioTime = 0;
+  // Step duration (secs) as it was when `nextStepAudioTime` was last advanced.
+  // A mid-flight BPM change must not retroactively skew the visual interpolation.
+  private _pendingStepDuration = 60 / 120 / 4;
 
   // ─── Public getters ────────────────────────────────────────────────────────
 
@@ -66,9 +69,12 @@ class PianoRollScheduler {
    */
   get visualStep(): number {
     const ctx = getAudioContext();
-    if (!ctx || !this._isRunning) return this.currentStep;
-    const elapsed = ctx.currentTime - (this.nextStepAudioTime - this.stepDuration);
-    const frac = Math.min(1, Math.max(0, elapsed / this.stepDuration));
+    if (!ctx || !this._isRunning || this._patternSteps <= 0) return this.currentStep;
+    // Use the step duration captured when the pending step was scheduled — a
+    // mid-flight BPM change alters `stepDuration` but not `nextStepAudioTime`.
+    const dur = this._pendingStepDuration || this.stepDuration;
+    const elapsed = ctx.currentTime - (this.nextStepAudioTime - dur);
+    const frac = Math.min(1, Math.max(0, elapsed / dur));
     const base = ((this.currentStep - 1) + this._patternSteps) % this._patternSteps;
     return Math.floor(base + frac) % this._patternSteps;
   }
@@ -113,11 +119,12 @@ class PianoRollScheduler {
     if (!ctx) { console.warn('[Scheduler] No AudioContext'); return; }
     if (ctx.state === 'suspended') ctx.resume();
 
-    this._bpm = bpm;
-    this._patternSteps = patternSteps;
+    this._bpm = bpm > 0 ? bpm : 120;
+    this._patternSteps = patternSteps >= 1 ? Math.floor(patternSteps) : 64;
     this.currentStep = 0;
     this.rawStep = 0;
     this.nextStepAudioTime = startAudioTime ?? (ctx.currentTime + 0.05);
+    this._pendingStepDuration = this.stepDuration;
     this._isRunning = true;
 
     this.scheduleLoop();
@@ -140,14 +147,15 @@ class PianoRollScheduler {
   }
 
   setPatternSteps(steps: number) {
-    this._patternSteps = steps;
-    if (this.currentStep >= steps) this.currentStep = 0;
+    if (!(steps >= 1)) return; // ignore 0 / NaN / negative — would divide-by-zero
+    this._patternSteps = Math.floor(steps);
+    if (this.currentStep >= this._patternSteps) this.currentStep = 0;
   }
 
   seekToStep(step: number) {
     const ctx = getAudioContext();
-    if (!ctx) return;
-    this.currentStep = step % this._patternSteps;
+    if (!ctx || this._patternSteps <= 0) return;
+    this.currentStep = ((step % this._patternSteps) + this._patternSteps) % this._patternSteps;
     this.rawStep = step;
     this.nextStepAudioTime = ctx.currentTime + 0.05;
   }
@@ -157,7 +165,7 @@ class PianoRollScheduler {
    * Use this during MIDI/keyboard recording to get sample-accurate step positions.
    */
   audioTimeToStep(audioTime: number): number {
-    if (!this._isRunning) return -1;
+    if (!this._isRunning || this._patternSteps <= 0) return -1;
     const stepsFromNext = Math.floor((audioTime - this.nextStepAudioTime) / this.stepDuration);
     const raw = this.currentStep + stepsFromNext;
     return ((raw % this._patternSteps) + this._patternSteps) % this._patternSteps;
@@ -182,6 +190,7 @@ class PianoRollScheduler {
         try { cb(step, audioTime, raw); } catch (e) { console.error('[Scheduler] subscriber error', e); }
       });
 
+      this._pendingStepDuration = this.stepDuration;
       this.nextStepAudioTime += this.stepDuration;
       this.currentStep = (this.currentStep + 1) % this._patternSteps;
       this.rawStep++;
