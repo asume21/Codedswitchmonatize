@@ -88,7 +88,7 @@ function ToolCard({ href, title, desc, icon: Icon, color }: {
 }
 
 export default function Dashboard() {
-  const { subscription, isPro } = useAuth();
+  const { subscription, isPro, isAuthenticated } = useAuth();
   const tier = subscription?.tier ?? "free";
 
   const { data: credits } = useQuery<CreditBalance>({
@@ -111,11 +111,13 @@ export default function Dashboard() {
   const creditsLow = creditBalance !== null && !credits?.isOwner && creditBalance < 10;
   const recentSongs = (songs ?? []).slice(0, 5);
 
+  // "Astutely" (chat) is a hero card above — not repeated here. "Lyrics" points
+  // straight at the surface that now owns it rather than the /lyric-lab redirect.
   const secondaryTools = [
     { href: "/studio",               title: "Full Studio",       desc: "Beat maker, piano roll, mixer", icon: Music,         color: "bg-violet-600" },
-    { href: "/lyric-lab",            title: "Lyric Lab",         desc: "Write & generate lyrics",       icon: Mic2,          color: "bg-orange-500" },
+    { href: "/studio/make",          title: "Lyrics",            desc: "Write & generate lyrics",       icon: Mic2,          color: "bg-orange-500" },
     { href: "/voice-convert",        title: "Voice Convert",     desc: "Transform vocals with AI",      icon: Mic,           color: "bg-blue-500"   },
-    { href: "/studio/mix?modal=assistant", title: "AI Assistant",      desc: "Chat about music and code",     icon: MessageSquare, color: "bg-pink-500"   },
+    { href: "/recording-booth",      title: "Recording Booth",   desc: "Record vocals over a live beat", icon: Circle,       color: "bg-pink-500"   },
     { href: "/vulnerability-scanner",title: "Code Scanner",      desc: "Scan for vulnerabilities",      icon: Shield,        color: "bg-green-500"  },
     { href: "/sample-library",       title: "Sample Library",    desc: "Browse & use samples",          icon: Headphones,    color: "bg-teal-600"   },
     { href: "/pricing",              title: "Upgrade",           desc: "Unlock Pro features",           icon: ShoppingBag,   color: "bg-amber-500"  },
@@ -194,12 +196,12 @@ export default function Dashboard() {
         <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground mb-3">Start Creating</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <HeroCard
-            href="/organism"
-            label="WOW Mode"
-            title="Organism AI"
+            href={isAuthenticated ? "/studio/make" : "/organism"}
+            label="Live AI"
+            title="Organism"
             desc="Speak a rhythm — the AI generates drums, bass, chords, and melody in real time."
             icon={Radio}
-            cta="Launch Organism"
+            cta="Open Organism"
             accent={{
               border: "border-cyan-500/40",
               bg: "bg-gradient-to-br from-cyan-950/40 to-black",
@@ -229,7 +231,7 @@ export default function Dashboard() {
           />
           <HeroCard
             href="/studio/mix?modal=assistant"
-            label="AI Brain"
+            label="Assistant"
             title="Astutely"
             desc="Your creative director. Ask anything — beat ideas, song structures, lyric rewrites, music theory."
             icon={Brain}

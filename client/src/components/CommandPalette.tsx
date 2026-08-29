@@ -51,9 +51,9 @@ const OVERLAYS: PaletteEntry[] = [
     keywords: "code translate language javascript python convert programming",
   },
   {
-    label: "AI Assistant",
+    label: "Astutely (AI assistant)",
     path: "/studio/mix?modal=assistant",
-    keywords: "chat help ai astutely",
+    keywords: "chat help ai assistant astutely brain copilot",
   },
 ];
 

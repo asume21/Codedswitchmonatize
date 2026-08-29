@@ -171,7 +171,7 @@ function TalkToOrganismCoach({ organism }: { organism: LiveOrganism }) {
           Click the mic. Say the beat.
         </h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-cyan-100/70">
-          This is the WOW mode. Start the mic, allow permission, then say:
+          Start the mic, allow permission, then say:
         </p>
         <div className="my-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-mono text-lg font-black tracking-wide text-white">
           boom boom clap

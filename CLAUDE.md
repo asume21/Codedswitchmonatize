@@ -91,18 +91,24 @@ TrackStoreProvider must wrap TransportProvider because TransportProvider calls `
 - **`getAudioContext()`** (`client/src/lib/audioContext.ts`) is the single shared `AudioContext` — all components must use it (no `new AudioContext()`).
 - The Organism's `GeneratorOrchestrator` does NOT stop Tone.Transport — it only silences its generators. It will defensively start Transport if not already running.
 
-### Studio UI (`client/src/components/studio/UnifiedStudioWorkspace.tsx`)
-Workspace is consolidated into **4 core surfaces** (not a flat tab list):
+### Studio UI (`client/src/components/studio/StudioShell.tsx` owns surface routing; `UnifiedStudioWorkspace.tsx` is the MIX surface)
+Workspace is **5 surfaces** (`StudioShell.tsx` `SURFACES` array), reached at `/studio/<surface>`:
 
-1. **MAKE** — live performance and voice (real-time capture/looping, vocal input).
-2. **MIX** — production canvas: Beat Maker, Piano Roll, Mixer.
-3. **SHARE** — Social Hub and user/artist profiles.
-4. **LIBRARY** — Sample Library and saved beats/projects.
+1. **MAKE** — live performance and voice: the Organism Command Center, real-time capture/looping, vocal input. `surfaces/MakeSurface.tsx`.
+2. **MIX** — production canvas: Beat Maker, Piano Roll, Mixer. `UnifiedStudioWorkspace.tsx`.
+3. **ASTUTELY** (`ai`) — the AI cockpit: mastering, stems, arrangement builder, and the assistant. `surfaces/AstutelySurface.tsx`.
+4. **LIBRARY** — Sample Library and saved beats/projects. Mounts `pages/sample-library`.
+5. **SHARE** — Social Hub and user/artist profiles. `surfaces/ShareSurface.tsx`.
 
-Each surface is a separate component. Legacy tab placements:
-- **Lyrics** — primary home is **MAKE** (live writing during performance); also mounted as a side-panel inside **MIX** for track-attached editing.
+### Naming — two public nouns, hold them everywhere
+- **Organism** = the real-time generative band (`features/organism/*`, `organism/*`, `OrganismCommandCenter`). Lives on the MAKE surface for authed users; `/organism` is the public guest demo.
+- **Astutely** = the AI assistant/chat + the ASTUTELY surface cockpit (`AstutelyChatbot`, `AstutelyCoreContext`, `AstutelySurface`).
+- Retired from UI copy: "WOW Mode", "AI Brain", "AI Chat", "Neural Engine", "holographic/neural" melody language. (Decorative "Holographic" styling copy in the mixer/loop-matrix is a separate visual-polish item.)
+
+Legacy tab placements:
+- **Lyrics** — primary home is **MAKE**; also a side-panel inside **MIX** for track-attached editing.
 - **Song Uploader** — moved into **LIBRARY**.
-- **Code Translator** and **AI Assistant** — removed as tabs entirely. Both are being rebuilt as **global overlays** triggered from the ⌘K Command Palette, available from any surface.
+- **Code Translator** and the **Assistant** — global overlays triggered from ⌘K, available from any surface (`?modal=translator` / `?modal=assistant`).
 
 ### Organism / AI Agent System (`client/src/features/organism/` + `client/src/organism/`)
 The "Organism" is the AI music generation agent. It orchestrates generators via `GeneratorOrchestrator.ts`. `OrganismProvider` / `OrganismContext` expose controls; `GlobalOrganismWrapper` keeps it alive across all routes.

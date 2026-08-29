@@ -17,7 +17,7 @@ const PRIMARY_NAV = [
   { icon: Home, label: 'Home', path: '/', featured: false },
   { icon: LayoutDashboard, label: 'Studio', path: '/studio', featured: false },
   { icon: Users, label: 'Social Hub', path: '/social-hub', featured: true },
-  { icon: MessageSquare, label: 'AI Chat', path: '/studio/mix?modal=assistant', featured: false },
+  { icon: MessageSquare, label: 'Astutely', path: '/studio/mix?modal=assistant', featured: false },
 ];
 
 // Secondary items: shown in "More" overflow menu

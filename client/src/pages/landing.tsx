@@ -69,7 +69,7 @@ export default function Landing() {
       color: "white",
       features: [
         "50 AI credits per month",
-        "Organism WOW mode (60s guest demo)",
+        "Organism live AI (60s guest demo)",
         "Full studio access",
         "Social Hub",
         "Code Translator",
@@ -497,8 +497,8 @@ export default function Landing() {
                 bullets: ["Live BPM control", "Per-track volume & pan", "Stem generation", "Audio export"],
               },
               {
-                icon: Brain, color: "purple", title: "Astutely AI Brain",
-                desc: "Our AI assistant generates beats, melodies, and controls the DAW through natural language.",
+                icon: Brain, color: "purple", title: "Astutely",
+                desc: "Your AI assistant — generates beats and melodies and controls the DAW through natural language.",
                 bullets: ["Beat pattern generation", "Melody composition", "Voice DAW control", "Grok, GPT-4, Gemini"],
               },
               {

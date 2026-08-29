@@ -516,7 +516,7 @@ export default function AILoopGenerator({
             AI Loop Generator
           </CardTitle>
           <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px] font-black tracking-widest uppercase px-2 py-0">
-            Neural Engine
+            Astutely
           </Badge>
         </div>
       </CardHeader>

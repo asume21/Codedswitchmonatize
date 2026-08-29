@@ -2333,12 +2333,12 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
     }
   }, [loopEnabled, selectedTrack.notes, toast]);
 
-  // AI NEURAL MELODY GENERATION
+  // AI melody generation (Astutely)
   const handleAISuggest = useCallback(async () => {
     try {
-      toast({ 
-        title: '🪄 Neural Processing', 
-        description: 'Generating holographic melody ideas...',
+      toast({
+        title: '🪄 Generating melody',
+        description: 'Astutely is writing melody ideas for this track…',
       });
 
       const stepDurationSeconds = 60 / bpm / 4; 
@@ -2362,7 +2362,7 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       const aiNotes = result?.data?.notes || result?.data || [];
       
       if (!Array.isArray(aiNotes) || aiNotes.length === 0) {
-        throw new Error('No holographic data returned from neural engine');
+        throw new Error('Astutely returned no notes for this request');
       }
 
       const generatedNotes: Note[] = aiNotes.map((n: any, index: number) => {
@@ -2387,16 +2387,16 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       );
       addToHistory(generatedNotes);
 
-      toast({ 
-        title: '✨ Sequence Synchronized', 
-        description: `Successfully injected ${generatedNotes.length} notes into ${selectedTrack.name}`,
+      toast({
+        title: '✨ Melody added',
+        description: `${generatedNotes.length} notes added to ${selectedTrack.name}`,
       });
     } catch (error) {
       if (isAbortError(error)) return;
-      console.error('Neural suggestion failed:', error);
+      console.error('Melody generation failed:', error);
       toast({
-        title: 'Neural Engine Error',
-        description: error instanceof Error ? error.message : 'Could not synchronize melody sequence',
+        title: "Couldn't generate a melody",
+        description: error instanceof Error ? error.message : 'Try again in a moment',
         variant: 'destructive'
       });
     }
