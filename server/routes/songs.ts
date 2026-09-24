@@ -16,6 +16,10 @@ import { getGuestUserId } from "../guestUser";
 import { isIP } from "net";
 import { sanitizePath, isAllowedUrl } from "../utils/security";
 import { analysisLimiter } from "../middleware/rateLimiting";
+import { requireCredits } from "../middleware/requireCredits";
+import { CREDIT_COSTS } from "../services/credits";
+import { masterAudioFile, MASTERING_DEFAULTS } from "../services/mastering";
+import { resolveLocalAudioPath } from "../services/audioPathResolver";
 
 export function createSongRoutes(storage: IStorage) {
   const router = Router();
@@ -909,6 +913,71 @@ export function createSongRoutes(storage: IStorage) {
     } catch (error) {
       console.error('Migration status error:', error);
       res.status(500).json({ error: "Failed to get migration status" });
+    }
+  });
+
+  // AI Auto-Master — runs the real ffmpeg mastering chain (loudness normalize,
+  // dynamic leveling, fades) on a previously generated or uploaded audio file.
+  // The client's AudioToolRouter "AI Auto Fix" calls this; a historical version
+  // only returned a text plan and never processed audio — this one does.
+  router.post("/auto-master", analysisLimiter, requireCredits(CREDIT_COSTS.AUDIO_MASTERING, storage), async (req: Request, res: Response) => {
+    if (!req.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { songUrl } = req.body ?? {};
+      if (!songUrl || typeof songUrl !== "string") {
+        return res.status(400).json({ error: "Missing songUrl" });
+      }
+
+      // resolveLocalAudioPath contains to the objects dir and verifies the
+      // file exists — rejects external URLs and path traversal.
+      const inputPath = resolveLocalAudioPath(songUrl);
+      if (!inputPath) {
+        return res.status(400).json({
+          error: "Audio file not found or not accessible",
+          message: "Only audio files stored in this workspace can be mastered.",
+        });
+      }
+
+      const objectsDir = existsSync('/data')
+        ? resolve('/data', 'objects')
+        : resolve(process.cwd(), 'objects');
+      const mastersDir = join(objectsDir, 'masters');
+      if (!existsSync(mastersDir)) mkdirSync(mastersDir, { recursive: true });
+
+      const masterFileName = `auto-master-${Date.now()}-${req.userId}.mp3`;
+      const outputPath = join(mastersDir, masterFileName);
+
+      await masterAudioFile(inputPath, outputPath);
+
+      // Deduct credits only after the master file is actually produced
+      if (req.creditService && req.creditCost) {
+        await req.creditService.deductCredits(
+          req.userId,
+          req.creditCost,
+          'Audio auto-master',
+          { songUrl },
+        );
+      }
+
+      const fixedAudioUrl = `/api/internal/uploads/masters/${masterFileName}`;
+      res.json({
+        success: true,
+        fixesApplied: 3,
+        fixedAudioUrl,
+        downloadUrl: fixedAudioUrl,
+        explanation:
+          `Loudness normalized to ${MASTERING_DEFAULTS.targetLufs} LUFS ` +
+          `(true peak ${MASTERING_DEFAULTS.truePeak} dBTP), dynamic level ` +
+          `correction applied, and short fades added to head/tail.`,
+      });
+    } catch (error) {
+      console.error("Auto-master failed:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Auto-master failed",
+      });
     }
   });
 
