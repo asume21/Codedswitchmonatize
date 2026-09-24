@@ -75,6 +75,8 @@ const Settings = React.lazy(() => import("@/pages/settings").catch(() => ({ defa
 const VulnerabilityScannerPage = React.lazy(() => import("@/pages/vulnerability-scanner").catch(() => ({ default: ChunkReloadFallback })));
 const CreditsSuccessPage = React.lazy(() => import("@/pages/credits-success").catch(() => ({ default: ChunkReloadFallback })));
 const CreditsCancelPage = React.lazy(() => import("@/pages/credits-cancel").catch(() => ({ default: ChunkReloadFallback })));
+const BillingSuccessPage = React.lazy(() => import("@/pages/billing-success").catch(() => ({ default: ChunkReloadFallback })));
+const BillingCancelPage = React.lazy(() => import("@/pages/billing-cancel").catch(() => ({ default: ChunkReloadFallback })));
 const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: ChunkReloadFallback })));
 const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() => ({ default: ChunkReloadFallback })));
 const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: ChunkReloadFallback })));
@@ -324,6 +326,9 @@ function App() {
               <Route path="/subscribe"><Redirect to="/pricing" /></Route>
               <Route path="/credits/success"><ProtectedRoute><CreditsSuccessPage /></ProtectedRoute></Route>
               <Route path="/credits/cancel"><ProtectedRoute><CreditsCancelPage /></ProtectedRoute></Route>
+              {/* Stripe subscription checkout returns here — must exist or paying users hit NotFound */}
+              <Route path="/billing/success"><ProtectedRoute><BillingSuccessPage /></ProtectedRoute></Route>
+              <Route path="/billing/cancel"><ProtectedRoute><BillingCancelPage /></ProtectedRoute></Route>
               <Route path="/s/:id" component={PublicSongPage} />
               <Route path="/settings">
                 <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>

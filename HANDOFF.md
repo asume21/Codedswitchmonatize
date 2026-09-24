@@ -132,6 +132,42 @@ Never speced/built. Resume: superpowers:brainstorming → writing-plans.
 
 ---
 
+## SERVER ROUTES MODULARIZATION (SWE-2 session, UNCOMMITTED local work)
+
+`server/routes.ts` went from **5,000 lines → ~190**. All inline route clusters were
+extracted into `server/routes/*.ts` factory modules (`createXRoutes(storage)`
+returning a `Router` mounted at `/`, paths verbatim). Pre-existing `createXRoutes`
+mounts unchanged.
+
+New modules: `publicInfo`, `fileServing`, `aiChat`, `musicGeneration`, `billing`,
+`mixing`, `aiOps`, `stemSeparation`, `securityScan`, `playlists`,
+`speechCorrection`, `voices`, `audioAnalysis`, `library`, `transcription`,
+`tracks`, `jamSessions` — plus `common.ts` holding the shared helpers that used to
+be inline (`sendError`, the three rate limiters, multer `upload`,
+`LOCAL_OBJECTS_DIR`, `getAudioDuration`, `polishGeneratedAudio`, `NOTE_NAMES`,
+`estimateDominantPitchClass`).
+
+**Gotchas preserved:** `NEUMANN_DIR`/`checkoutHandler` consts moved with their
+routes; `jamSessions` keeps its `ENABLE_JAMS` env gate; dynamic `import('./x')`
+in moved handlers became `import('../x')`; mount order = original code order
+(each router mounts where its first region was) so shadowing semantics are
+unchanged.
+
+**Verification:** `npm run check` clean, eslint clean on all touched files, and a
+route-table diff (mount old vs new `registerRoutes` on a real Express app,
+enumerate `app._router.stack`) shows **identical 292-route tables** — zero
+missing, zero added. Harness: `tools/smoke_routes.ts`
+(`ROUTES_FILE=<module> ROUTES_OUT=<json> npx tsx tools/smoke_routes.ts`);
+extractor: `tools/split_routes.py` (region-table driven — do NOT rerun blindly
+against the new routes.ts).
+
+**Still open:** handlers are unchanged (intentionally) — the next-level cleanup is
+splitting the big modules further (`musicGeneration.ts` is still ~1,300 lines) and
+extracting service logic out of handler bodies. Codacy flags pre-existing
+handler complexity (Lizard NLOC/CCN warnings) — inherited, not introduced.
+
+---
+
 ## WHAT SHIPPED THIS SESSION (all on main, deployed)
 
 ### Loop packs
@@ -198,8 +234,55 @@ Never speced/built. Resume: superpowers:brainstorming → writing-plans.
 
 ---
 
+## FRONT-DOOR FIXES (SWE-2 session, UNCOMMITTED local work)
+
+Context: user is about to market (founder story + demo video), so the paths a
+stranger hits first were audited. Two live bugs found + fixed:
+
+- **Stripe subscription checkout → 404.** `server/services/stripe.ts:14` and
+  `server/routes/credits.ts` send Stripe customers to `/billing/success` and
+  `/billing/cancel`; the client only had exact-match `/billing` → `/pricing`
+  plus the NotFound catch-all — paying users landed on the 404 page. Webhook
+  still provisions the sub server-side, so it was a UX/trust loss, not lost
+  revenue. Credit purchases were unaffected (`/credits/success` is a real page).
+  FIX: new `client/src/pages/billing-success.tsx` + `billing-cancel.tsx`
+  (same design language as credits-*, but subscription-branded — success
+  refetches `/api/subscription-status` after 2s and shows the tier), routes
+  registered in `App.tsx` inside `ProtectedRoute`.
+- **`POST /api/songs/auto-master` never existed.** `AudioToolRouter.tsx`
+  "AI Auto Fix" POSTs `{songUrl, songName}` to it; the handler only ever lived
+  in the dead `routes/index.ts` and even there just returned a Grok *text plan*
+  — it never processed audio. Users got a fake "started" toast then a 404.
+  FIX: real implementation in `server/routes/songs.ts` — resolves `songUrl`
+  via `resolveLocalAudioPath` (objects-dir containment + exists check), runs
+  `masterAudioFile` (loudnorm to -16 LUFS / TP -1.5 + dynaudnorm + head/tail
+  fades → mp3), writes `objects/masters/auto-master-*.mp3`, returns
+  `{success, fixesApplied, fixedAudioUrl, downloadUrl, explanation}` matching
+  the client's expected shape. Gated by `requireCredits(CREDIT_COSTS.
+  AUDIO_MASTERING)` (8 credits) and **deducts after success** via
+  `req.creditService.deductCredits`.
+
+**Pre-existing bug found, NOT fixed:** `audio.ts` `/audio/export-master` uses
+`requireCredits` (balance check, 402s broke users) but **never calls
+deductCredits** — a free bypass wearing a paid gate. Likely other routes have
+the same pattern — worth an audit of `requireCredits` users lacking a deduct.
+
+Verified: `npm run check` clean; ESLint 0 errors on touched files (4
+pre-existing `any` warnings in App.tsx, untouched lines); Codacy clean on the
+new pages — only inherited Lizard complexity warnings elsewhere. Live cold test
+(www.codedswitch.com): `/` 200, `/organism` 200, `POST /api/demo/perceive`
+400 "No audio file provided" (endpoint reachable unauthenticated — the old
+prod 401 is gone), JS bundle 200, `/api/subscription-status` guest → 200
+free-tier JSON. **NOT deployed** — pushes to main auto-ship to Railway prod;
+left for the user.
+
+---
+
 ## STILL-OPEN / NEXT (priority order)
 
+0. **Audit `requireCredits` routes that never deduct** — `/audio/export-master`
+   confirmed free-bypass; grep `requireCredits(` vs `deductCredits` across
+   `server/routes/` to find the rest.
 1. **Fix slow loop load + inverted button state** (the root chaos).
 2. **Chase the drift** — make the "badass" sound last.
 3. **Rebuild Freeze mode** — non-laggy, actually evolving, doesn't kill the live sound.
