@@ -1,4 +1,6 @@
-FROM node:20-bullseye
+# bookworm, not bullseye: Debian 11 left LTS in Aug 2026 and its security
+# packages were pulled from deb.debian.org, so `apt-get install ffmpeg` 404s.
+FROM node:20-bookworm
 
 ENV NODE_ENV=production \
     PORT=5000
