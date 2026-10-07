@@ -222,6 +222,27 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: tracks table ensured');
 
+    // Migration: blog_posts table (shared/schema.ts blogPosts). It was never
+    // created in production, so GET /api/blog/posts 500'd (review D1).
+    await sql`
+      CREATE TABLE IF NOT EXISTS blog_posts (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR REFERENCES users(id),
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        excerpt TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL,
+        tags TEXT,
+        image_url TEXT,
+        is_published BOOLEAN DEFAULT false,
+        views INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+    console.log('✅ Migration: blog_posts table ensured');
+
     // Migration: jam_sessions table
     await sql`
       CREATE TABLE IF NOT EXISTS jam_sessions (

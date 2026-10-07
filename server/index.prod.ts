@@ -10,6 +10,7 @@ import { globalLimiter } from "./middleware/rateLimiting";
 import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
+import { runMigrations } from "./migrations/runMigrations";
 
 // Env validation lives in validateEnv() below — a single checklist rather than
 // scattered ifs. Four separate top-of-file checks (SESSION_SECRET,
@@ -342,6 +343,13 @@ app.use((req, res, next) => {
       'MemStorage would wipe every user, session and credit balance on restart.');
     process.exit(1);
   }
+
+  // Apply schema migrations on every boot. Until 2026-10-07 only the DEV
+  // entrypoint (server/index.ts) ran these — production only got new tables
+  // when someone happened to run the dev server against the prod DB (local
+  // .env points there). That is how blog_posts never existed and jam_* kept an
+  // old shape (product review D1-D3). Every statement is idempotent.
+  await runMigrations();
 
   // Choose storage implementation
   const storage: IStorage = databaseUrl

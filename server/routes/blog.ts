@@ -73,8 +73,12 @@ export function createBlogRouter(storage: IStorage) {
     }
   });
 
-  // Create new blog post (any authenticated user)
+  // Create a blog post — owner only. This is the site's public, SEO-indexed
+  // blog; it used to accept any signed-in user and honour isPublished: true.
   router.post('/posts', requireAuth(), async (req, res) => {
+    if (!req.isOwner) {
+      return res.status(403).json({ error: 'Only the site owner can publish to the blog' });
+    }
     try {
       const postSchema = z.object({
         title: z.string().min(1),
