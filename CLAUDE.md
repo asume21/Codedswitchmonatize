@@ -18,6 +18,18 @@ specs and competing systems (the "doubles"). Before acting on the first request:
    the existing one.
 3. **When in doubt, ask if this continues earlier work** before starting a design.
 
+## ⚠️ Fixes: state the target, record the gap, verify the right way
+
+1. **Before building a fix, state the best-practice design** (the target).
+2. **If you ship less than the target, say so** — in the commit message AND as a
+   row in the "Target vs. Shipped" table at the bottom of
+   `docs/product-review.md`, with *why* it was deferred. Every gap is also a
+   ranked item in that doc's fix list. Never present a pragmatic fix as the
+   final design.
+3. **Verify the right way before calling it shipped**: unit tests for logic,
+   clicking through the running app for UI/wiring, and the user's ear for
+   anything about how the music sounds (tests can't hear).
+
 ## Project Overview
 
 **CodedSwitch Studio** — an AI-powered music creation SaaS platform. Users compose multi-track music (beat maker, piano roll, melody composer, mixer), use AI to generate/layer audio, scan code for vulnerabilities, and share songs socially. Billing is via Stripe with a credit system.
