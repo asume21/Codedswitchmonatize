@@ -36,3 +36,8 @@ export function useBoothTakes(trackId: string) {
   );
   return [takes, setTakes] as const;
 }
+
+/** Forget every booth take (sign-out / account switch). */
+export function clearBoothTakes(): void {
+  useBoothTakesStore.setState({ byTrack: {} });
+}

@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/queryClient";
+import { bindClientStateToUser } from "@/lib/clientStateOwner";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -11,6 +12,7 @@ export interface SubscriptionStatus {
   monthlyGenerations: number;
   lastUsageReset?: string;
   isAuthenticated?: boolean;
+  userId?: string;
 }
 
 interface AuthContextValue {
@@ -82,6 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : subscription?.isAuthenticated === false
         ? "unauthenticated"
         : "loading";
+
+  // Browser-persisted studio state (project inbox, open cloud project, booth
+  // takes) belongs to one account: clear it on sign-out or when a different
+  // user signs in on this browser. Skipped while loading, and when an
+  // authenticated response carries no userId (nothing to compare against).
+  const signedInUserId = subscription?.userId ?? null;
+  useEffect(() => {
+    if (status === "unauthenticated") bindClientStateToUser(null);
+    else if (status === "authenticated" && signedInUserId) bindClientStateToUser(signedInUserId);
+  }, [status, signedInUserId]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

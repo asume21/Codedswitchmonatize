@@ -129,6 +129,9 @@ ${urls
         monthlyGenerations: user.monthlyGenerations || 0,
         lastUsageReset: user.lastUsageReset,
         isAuthenticated: true,
+        // Lets the client tie browser-persisted studio state to this account
+        // and clear it when a different user signs in on the same browser.
+        userId: user.id,
       };
 
       res.json(subscriptionStatus);
