@@ -125,6 +125,10 @@ export function createVoiceConvertRoutes(storage: IStorage) {
 
         // Create the job record
         const job = await storage.createVoiceConvertJob(userId, {
+          // What was deducted above, so a failed job can be refunded exactly (T1/T2).
+          creditsCost: executionMode === "cloud"
+            ? (stemMode === 4 ? CREDIT_COSTS.VOICE_CONVERT_4STEM : CREDIT_COSTS.VOICE_CONVERT_2STEM)
+            : 0,
           voiceId,
           sourceUrl,
           sourceFileName: sourceFileName ?? null,

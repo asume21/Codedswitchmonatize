@@ -776,6 +776,7 @@ export const userApiKeys = pgTable("user_api_keys", {
 });
 
 export const insertVoiceConvertJobSchema = createInsertSchema(voiceConvertJobs).pick({
+  creditsCost: true,
   executionMode: true,
   stemMode: true,
   provider: true,

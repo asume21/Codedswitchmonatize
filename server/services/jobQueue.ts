@@ -10,6 +10,34 @@ import {
 } from "./pipelineRunner";
 import { getUserApiKeyService } from "./userApiKeys";
 import { resolveLocalAudioPath } from "./audioPathResolver";
+import { getCreditService, CreditTransactionType } from "./credits";
+
+/**
+ * Give back what a failed cloud conversion cost — exactly once per job.
+ * Credits are deducted up front when the job is submitted; before
+ * 2026-10-07 a failed or restart-orphaned job kept them (review T1).
+ * Never throws: a refund problem is logged, not allowed to mask the failure.
+ */
+export async function refundFailedVoiceJob(
+  storage: IStorage,
+  job: Pick<VoiceConvertJob, "id" | "userId" | "executionMode" | "creditsCost">,
+): Promise<void> {
+  try {
+    const cost = job.creditsCost ?? 0;
+    if (job.executionMode !== "cloud" || cost <= 0 || !job.userId) return;
+    if (await storage.hasRefundForVoiceJob(job.id)) return;
+    await getCreditService(storage).addCredits(
+      job.userId,
+      cost,
+      CreditTransactionType.REFUND,
+      "Refund: voice conversion failed",
+      { refundedVoiceJobId: job.id },
+    );
+    console.log(`[JobQueue] Refunded ${cost} credits for failed job ${job.id}`);
+  } catch (err) {
+    console.error(`[JobQueue] Could not refund job ${job.id}:`, err);
+  }
+}
 
 const LOCAL_OBJECTS_DIR = fs.existsSync("/data")
   ? path.resolve("/data", "objects")
@@ -42,6 +70,7 @@ class JobQueue {
           error: message,
           completedAt: new Date(),
         });
+        await refundFailedVoiceJob(storage, updated ?? job);
         this.emit(jobId, updated);
       } catch (updateErr) {
         console.error(`[JobQueue] Failed to update job ${jobId} status:`, updateErr);
@@ -193,11 +222,12 @@ export async function failOrphanedJobs(storage: {
   }
   for (const job of stale) {
     try {
-      await storage.updateVoiceConvertJob(job.id, {
+      const failed = await storage.updateVoiceConvertJob(job.id, {
         status: "failed",
         error: "Interrupted — the server restarted while this job was running. Please run it again.",
         completedAt: new Date(),
       });
+      if (failed) await refundFailedVoiceJob(storage as IStorage, failed);
       console.log(`[JobQueue] Marked orphaned job ${job.id} as failed`);
     } catch (err) {
       console.error(`[JobQueue] Could not fail orphaned job ${job.id}:`, err);

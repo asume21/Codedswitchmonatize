@@ -174,6 +174,8 @@ export interface IStorage {
   // True once subscription credits were granted for this Stripe invoice — the
   // per-invoice dedupe for monthly grants (same ledger semantic as above).
   hasGrantedForInvoice(invoiceId: string): Promise<boolean>;
+  // True once a failed voice-conversion job's credits were refunded.
+  hasRefundForVoiceJob(jobId: string): Promise<boolean>;
   // Audit 2026-04-30: release a claim if the post-claim work threw before
   // committing. Without this, a transient failure during purchaseCredits
   // (DB blip, network) leaves the claim row locked, so Stripe's retry sees
@@ -699,6 +701,16 @@ export class MemStorage implements IStorage {
     for (const txn of this.creditTransactions.values()) {
       const meta = (txn as { metadata?: { invoiceId?: string } }).metadata;
       if (meta?.invoiceId === invoiceId && (txn.amount ?? 0) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async hasRefundForVoiceJob(jobId: string): Promise<boolean> {
+    for (const txn of this.creditTransactions.values()) {
+      const meta = (txn as { metadata?: { refundedVoiceJobId?: string } }).metadata;
+      if (meta?.refundedVoiceJobId === jobId && (txn.amount ?? 0) > 0) {
         return true;
       }
     }
@@ -2320,6 +2332,20 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           sql`${creditTransactions.metadata}->>'invoiceId' = ${invoiceId}`,
+          sql`${creditTransactions.amount} > 0`,
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async hasRefundForVoiceJob(jobId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: creditTransactions.id })
+      .from(creditTransactions)
+      .where(
+        and(
+          sql`${creditTransactions.metadata}->>'refundedVoiceJobId' = ${jobId}`,
           sql`${creditTransactions.amount} > 0`,
         ),
       )
