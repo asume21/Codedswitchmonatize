@@ -29,7 +29,7 @@ type TabId = 'feed' | 'connections' | 'chat' | 'collabs' | 'blog' | 'discover' |
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'feed', label: 'Feed', icon: <Globe className="h-4 w-4" /> },
-  { id: 'connections', label: 'Connections', icon: <Wifi className="h-4 w-4" /> },
+  { id: 'connections', label: 'Share', icon: <Share2 className="h-4 w-4" /> },
   { id: 'chat', label: 'Chat', icon: <MessageCircle className="h-4 w-4" /> },
   { id: 'collabs', label: 'Collabs', icon: <Handshake className="h-4 w-4" /> },
   { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" /> },
@@ -374,133 +374,127 @@ function FeedTab({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
    CONNECTIONS TAB
    ═══════════════════════════════════════ */
 function ConnectionsTab() {
+  // Honest sharing. This tab used to offer "Connect" for X / Instagram / YouTube
+  // that stored a token-less row and said "Connected!", and Quick Share buttons
+  // that re-ran connect instead of sharing (product review S1/S2). Direct
+  // posting needs each platform's OAuth app — until then, share links that
+  // really work: X intent, Facebook sharer, the device share sheet, copy link.
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string>('');
 
-  const { data: connData } = useQuery({
-    queryKey: ['/api/social/connections'],
+  const { data: songs = [] } = useQuery<any[]>({
+    queryKey: ['/api/songs'],
     queryFn: async () => {
-      try { const res = await apiRequest('GET', '/api/social/connections'); return await res.json(); }
-      catch { return { connections: [] }; }
+      try { const res = await apiRequest('GET', '/api/songs'); return await res.json(); }
+      catch { return []; }
     },
   });
 
-  const connectMutation = useMutation({
-    mutationFn: async (platform: string) => {
-      const res = await apiRequest('POST', '/api/social/connect', { platform });
-      return res.json();
-    },
-    onSuccess: (_d, platform) => {
-      qc.invalidateQueries({ queryKey: ['/api/social/connections'] });
-      toast({ title: 'Connected!', description: `${platform} linked to your account.` });
-    },
-    onError: () => toast({ title: 'Connection Failed', variant: 'destructive' }),
-  });
+  const song = songs.find((x: any) => String(x.id) === selectedId) ?? songs[0];
+  const shareUrl = song ? `${window.location.origin}/s/${song.id}` : '';
+  const shareText = song ? `Listen to "${song.name}" — made on CodedSwitch` : '';
 
-  const disconnectMutation = useMutation({
-    mutationFn: async (platform: string) => {
-      const res = await apiRequest('DELETE', `/api/social/connect/${platform}`);
-      return res.json();
-    },
-    onSuccess: (_d, platform) => {
-      qc.invalidateQueries({ queryKey: ['/api/social/connections'] });
-      toast({ title: 'Disconnected', description: `${platform} removed.` });
-    },
-    onError: () => toast({ title: 'Disconnect Failed', variant: 'destructive' }),
-  });
+  // A song page is only reachable once the song is public.
+  const ensurePublic = async () => {
+    if (!song || song.isPublic) return true;
+    try {
+      await apiRequest('PATCH', `/api/songs/${song.id}/public`, { isPublic: true });
+      qc.invalidateQueries({ queryKey: ['/api/songs'] });
+      return true;
+    } catch (err) {
+      toast({ title: 'Could not make the song public', description: String((err as Error)?.message ?? err), variant: 'destructive' });
+      return false;
+    }
+  };
 
-  const connections = connData?.connections || [];
-  const isConnected = (platformId: string) => connections.some((c: any) => c.platform === platformId && c.connected);
+  const openShare = async (target: 'x' | 'facebook') => {
+    if (!(await ensurePublic())) return;
+    const url = target === 'x'
+      ? `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`
+      : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const nativeShare = async () => {
+    if (!(await ensurePublic())) return;
+    if (navigator.share) {
+      try { await navigator.share({ title: song?.name, text: shareText, url: shareUrl }); } catch { /* cancelled */ }
+    } else {
+      await copyLink();
+    }
+  };
+
+  const copyLink = async () => {
+    if (!(await ensurePublic())) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({ title: 'Link copied', description: shareUrl });
+    } catch {
+      toast({ title: 'Copy failed', description: shareUrl, variant: 'destructive' });
+    }
+  };
+
+  const discord = PLATFORMS.find(p => p.id === 'discord');
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-cyan-400/60 mb-2">Connect your social accounts to share your music across platforms.</div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {PLATFORMS.map(p => {
-          const connected = isConnected(p.id);
-          const conn = connections.find((c: any) => c.platform === p.id);
-          return (
-            <div key={p.id} className={`rounded-xl border p-5 transition-all ${connected ? 'border-green-500/30 bg-green-500/5' : 'border-cyan-500/15 bg-black/30'}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-lg ${connected ? 'bg-green-500/15 text-green-400' : 'bg-cyan-500/10 text-cyan-400'}`}>{p.icon}</div>
-                  <div>
-                    <h3 className="text-cyan-100 font-bold">{p.name}</h3>
-                    <p className="text-cyan-500/40 text-xs">{p.description}</p>
-                  </div>
-                </div>
-                <Badge className={connected ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-cyan-500/10 text-cyan-500/50 border-cyan-500/20'}>
-                  {connected ? <><Wifi className="h-3 w-3 mr-1" /> Connected</> : <><WifiOff className="h-3 w-3 mr-1" /> Offline</>}
-                </Badge>
-              </div>
-              {conn?.platformUsername && <div className="text-cyan-300/60 text-xs mb-3">@{conn.platformUsername}</div>}
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-cyan-500/40">{p.id === 'discord' ? 'Global Channel' : `${conn?.followers || 0} followers`}</div>
-                {p.id === 'discord' ? (
-                  <Button
-                    size="sm"
-                    asChild
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
-                  >
-                    <a href={p.url} target="_blank" rel="noopener noreferrer">
-                      <MessageCircle className="h-3 w-3 mr-1" /> Join Discord
-                    </a>
-                  </Button>
-                ) : connected ? (
-                  <Button
-                    size="sm" variant="outline"
-                    onClick={() => disconnectMutation.mutate(p.id)}
-                    disabled={disconnectMutation.isPending}
-                    className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs"
-                  >
-                    <WifiOff className="h-3 w-3 mr-1" /> Disconnect
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={() => connectMutation.mutate(p.id)}
-                    disabled={connectMutation.isPending}
-                    className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
-                  >
-                    <Wifi className="h-3 w-3 mr-1" /> Connect
-                  </Button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <div className="text-sm text-cyan-400/60">Share a song anywhere. Sharing makes the song's page public.</div>
 
-      {/* Quick Share to Connected Platforms */}
-      {connections.some((c: any) => c.connected) && (
-        <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5 mt-4">
-          <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-yellow-400" /> Quick Share</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {[
-              { type: 'beat', label: 'Share Beat', emoji: '\uD83E\uDD41' },
-              { type: 'melody', label: 'Share Melody', emoji: '\uD83C\uDFBC' },
-              { type: 'code', label: 'Code\u2192Music', emoji: '\uD83D\uDCBB' },
-              { type: 'project', label: 'Share Project', emoji: '\uD83C\uDFB5' },
-            ].map(item => (
-              <Button
-                key={item.type}
-                size="sm" variant="outline"
-                onClick={() => {
-                  const connectedPlatforms = connections.filter((c: any) => c.connected).map((c: any) => c.platform);
-                  const platform = connectedPlatforms[0] || 'codedswitch';
-                  connectMutation.mutate(platform);
-                }}
-                className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs"
-              >
-                {item.emoji} {item.label}
-              </Button>
+      {songs.length === 0 ? (
+        <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5 text-sm text-cyan-400/60">
+          No songs yet — upload or save one from the studio, then share it here.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5 space-y-4">
+          <select
+            value={song ? String(song.id) : ''}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full bg-black/60 border border-cyan-500/30 rounded-lg px-3 py-2 text-cyan-100 text-sm"
+            aria-label="Song to share"
+          >
+            {songs.map((x: any) => (
+              <option key={x.id} value={String(x.id)}>{x.name}{x.isPublic ? '' : ' (private)'}</option>
             ))}
+          </select>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Button size="sm" variant="outline" onClick={() => openShare('x')} className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+              <Twitter className="h-3 w-3 mr-1" /> Post on X
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => openShare('facebook')} className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+              <Facebook className="h-3 w-3 mr-1" /> Facebook
+            </Button>
+            <Button size="sm" variant="outline" onClick={nativeShare} className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+              <Share2 className="h-3 w-3 mr-1" /> Share…
+            </Button>
+            <Button size="sm" variant="outline" onClick={copyLink} className="border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/10 text-xs">
+              Copy link
+            </Button>
           </div>
+          <div className="text-xs text-cyan-500/40">For TikTok, Reels and YouTube Shorts, make a clip in the Lyric Video tab and post the downloaded video.</div>
+        </div>
+      )}
+
+      {discord && (
+        <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400">{discord.icon}</div>
+            <div>
+              <h3 className="text-cyan-100 font-bold">{discord.name}</h3>
+              <p className="text-cyan-500/40 text-xs">{discord.description}</p>
+            </div>
+          </div>
+          <Button size="sm" asChild className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+            <a href={discord.url} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-3 w-3 mr-1" /> Join Discord
+            </a>
+          </Button>
         </div>
       )}
     </div>
   );
 }
+
 
 /* ═══════════════════════════════════════
    CHAT TAB
@@ -1240,14 +1234,6 @@ function AnalyticsTab() {
     },
   });
 
-  const { data: connData } = useQuery({
-    queryKey: ['/api/social/connections'],
-    queryFn: async () => {
-      try { const res = await apiRequest('GET', '/api/social/connections'); return await res.json(); }
-      catch { return { connections: [] }; }
-    },
-  });
-
   const { data: unreadData } = useQuery({
     queryKey: ['/api/social/chat/unread'],
     queryFn: async () => {
@@ -1257,7 +1243,6 @@ function AnalyticsTab() {
   });
 
   const s = feedData?.stats || {};
-  const connectedCount = (connData?.connections || []).filter((c: any) => c.connected).length;
 
   return (
     <div className="space-y-5">
@@ -1295,24 +1280,6 @@ function AnalyticsTab() {
         </div>
       </div>
 
-      {/* Platform Connections */}
-      <div className="rounded-xl border border-cyan-500/15 bg-black/30 p-5">
-        <h3 className="text-cyan-100 font-bold text-sm mb-3 flex items-center gap-2"><Wifi className="h-4 w-4 text-cyan-400" /> Connected Platforms</h3>
-        <div className="flex items-center gap-4">
-          <div className="text-4xl font-black text-cyan-300">{connectedCount}</div>
-          <div className="text-cyan-500/50 text-sm">of {PLATFORMS.length} platforms connected</div>
-        </div>
-        <div className="flex gap-2 mt-3">
-          {PLATFORMS.map(p => {
-            const isConn = (connData?.connections || []).some((c: any) => c.platform === p.id && c.connected);
-            return (
-              <div key={p.id} className={`p-2 rounded-lg ${isConn ? 'bg-green-500/15 text-green-400' : 'bg-cyan-500/5 text-cyan-500/20'}`}>
-                {p.icon}
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

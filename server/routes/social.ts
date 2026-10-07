@@ -377,43 +377,6 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
-  /**
-   * POST /api/social/connect
-   * Connect a social platform
-   */
-  router.post('/connect', async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      const schema = z.object({
-        platform: z.string(),
-        accessToken: z.string().optional(),
-        refreshToken: z.string().optional(),
-      });
-
-      const parsed = schema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ error: 'Invalid input', details: parsed.error.errors });
-      }
-
-      const { platform, accessToken, refreshToken } = parsed.data;
-
-      // Store platform connection
-      const connection = await storage.createSocialConnection(req.userId, {
-        platform,
-        accessToken: accessToken || '',
-        refreshToken: refreshToken || '',
-        connected: true,
-      });
-
-      res.json({ message: 'Platform connected', connection });
-    } catch (error) {
-      console.error('Connect platform error:', error);
-      res.status(500).json({ error: 'Failed to connect platform' });
-    }
-  });
 
   /**
    * GET /api/social/followers
@@ -451,39 +414,7 @@ export function createSocialRoutes(storage: IStorage) {
     }
   });
 
-  /**
-   * GET /api/social/connections
-   * Get user's connected social platforms
-   */
-  router.get('/connections', async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-      const connections = await storage.getUserSocialConnections(req.userId);
-      res.json({ connections });
-    } catch (error) {
-      console.error('Get connections error:', error);
-      res.status(500).json({ error: 'Failed to fetch connections' });
-    }
-  });
 
-  /**
-   * DELETE /api/social/connect/:platform
-   * Disconnect a social platform
-   */
-  router.delete('/connect/:platform', async (req: Request, res: Response) => {
-    try {
-      if (!req.userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-      await storage.disconnectSocialPlatform(req.userId, req.params.platform);
-      res.json({ message: 'Platform disconnected' });
-    } catch (error) {
-      console.error('Disconnect platform error:', error);
-      res.status(500).json({ error: 'Failed to disconnect platform' });
-    }
-  });
 
   /**
    * POST /api/social/chat/send
