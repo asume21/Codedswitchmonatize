@@ -36,6 +36,7 @@ import {
   type ToolType,
   type ToolRecommendation
 } from './index';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface AudioToolRouterProps {
   songUrl?: string;
@@ -210,13 +211,15 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
     });
     
     // Broadcast to studio so it can import the audio as a track
-    window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
-      detail: {
-        sessionId,
+    if (songUrl) {
+      sendToProject({
+        kind: 'audio',
+        trackId: sessionId ? `imported-${sessionId}` : `imported-${Date.now()}`,
         name: songName || 'Imported Track',
-        audioUrl: songUrl || ''
-      }
-    }));
+        audioUrl: songUrl,
+        source: 'imported',
+      });
+    }
 
     toast({
       title: "Opening Piano Roll",

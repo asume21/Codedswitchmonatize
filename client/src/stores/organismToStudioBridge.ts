@@ -12,6 +12,7 @@
  */
 
 import { useStudioStore } from './useStudioStore'
+import { sendToProject } from '../lib/projectInbox'
 import type {
   StudioNote,
   GeneratorType,
@@ -188,11 +189,9 @@ export function bridgeOrganismToStore(
 
   store.pushOrganismSnapshot(snapshot)
 
-  // Broadcast a CustomEvent so UnifiedStudioWorkspace can merge the notes
-  // into its track list without needing a direct import of this bridge.
-  window.dispatchEvent(new CustomEvent('organism:snapshot-ready', {
-    detail: snapshot,
-  }))
+  // Into the MIX project via the inbox (a window event here was dropped
+  // whenever MIX wasn't the open surface — product review K1).
+  sendToProject({ kind: 'snapshot', snapshot })
 
   return snapshot
 }

@@ -2528,20 +2528,10 @@ export function OrganismProvider({ children, userId, isGuest = false }: Props) {
       }, durationMs)
     })
 
-    // Emit a CustomEvent so the studio arrangement can receive the clip
-    if (session?.beatBlob) {
-      const audioUrl = URL.createObjectURL(session.beatBlob)
-      window.dispatchEvent(new CustomEvent('organism:take-ready', {
-        detail: {
-          audioUrl,
-          name:  label ?? `Take ${new Date().toLocaleTimeString()}`,
-          bpm,
-          bars,
-          durationMs: session.durationMs,
-          sessionId:  session.sessionId,
-        },
-      }))
-    }
+    // Takes reach MIX only through the command center's explicit "Send to
+    // arrangement" (uploads beat + vocal, then the project inbox). This used to
+    // auto-dispatch a blob: URL to a MIX listener that is never mounted while
+    // the Organism is on screen (product review K1/K7).
 
     return session
   }, [quickStart, startRecording, stopRecording, isProgressionLocked])

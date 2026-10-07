@@ -29,6 +29,7 @@ import { globalSystems, globalAI, globalAudio } from '@/lib/globalSystems';
 import { AstroHUD } from './AstroHUD';
 import AstutelyBrainContent from '@/components/studio/AstutelyBrainPanel';
 import { AIProviderSelector } from '@/components/ui/ai-provider-selector';
+import { sendToProject } from '@/lib/projectInbox';
 
 type AstutelyTab = 'chat' | 'brain' | 'create';
 
@@ -798,9 +799,7 @@ What would you like to do?`,
           onBeatGenerated(result);
         }
 
-        window.dispatchEvent(new CustomEvent('astutely:generated', { 
-          detail: { notes, bpm: result.bpm } 
-        }));
+        sendToProject({ kind: 'notes', notes, bpm: result.bpm, source: 'astutely-chat' });
 
         // Generate real AI audio for the melody
         let audioInfo = { provider: 'synth', audioUrl: '' };

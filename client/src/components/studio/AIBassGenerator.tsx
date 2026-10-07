@@ -17,6 +17,7 @@ import { useTransport } from '@/contexts/TransportContext';
 import { useSongWorkSession } from '@/contexts/SongWorkSessionContext';
 import { useTrackStore } from '@/contexts/TrackStoreContext';
 import { useOrganismChords, pitchClassName } from '@/organism/generators/useOrganismChords';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface BassGeneratorProps {
   chordProgression?: Array<{ chord: string; duration: number }>;
@@ -344,16 +345,11 @@ export default function AIBassGenerator({ chordProgression, onBassGenerated, bpm
       };
     });
 
-    // Dispatch to piano roll via the astutely:generated event bridge
-    window.dispatchEvent(new CustomEvent('astutely:generated', {
-      detail: {
-        notes: astutelyNotes,
-        bpm: effectiveBpm,
-        key: effectiveKey,
-      }
-    }));
-    window.dispatchEvent(new CustomEvent('navigateToTab', { detail: 'piano-roll' }));
-    toast({ title: "Sent to Piano Roll", description: `${astutelyNotes.length} bass notes loaded into Piano Roll at ${effectiveBpm} BPM` });
+    // Into the MIX project via the inbox — it lands even when MIX isn't the
+    // open surface (the old window event was dropped on ASTUTELY, A1). MIX
+    // confirms the arrival itself.
+    sendToProject({ kind: 'notes', notes: astutelyNotes, bpm: effectiveBpm, key: effectiveKey, source: 'bass-generator' });
+    toast({ title: "Sent to MIX", description: `${astutelyNotes.length} bass notes queued — they'll be in the Piano Roll when you open MIX.` });
   }, [generatedBass, recordedNotes, effectiveBpm, effectiveKey, toast]);
 
   // Play generated bass line

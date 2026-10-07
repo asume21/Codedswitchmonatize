@@ -907,26 +907,13 @@ export const VerticalPianoRoll: React.FC<VerticalPianoRollProps> = ({
       });
     };
 
-    window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+    // Astutely output arrives through the project inbox, imported once by
+    // UnifiedStudioWorkspace. This component used to ALSO listen for
+    // 'astutely:generated' and write the same notes into the selected track —
+    // every generation landed twice (product review, 2026-10-07).
+    void handleAstutelyGenerated;
     window.addEventListener('ai:loadNotes', handleAILoadNotes as EventListener);
-    
-    // Check localStorage on mount for any pending notes
-    const stored = localStorage.getItem('astutely-generated');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        if (Date.now() - data.timestamp < 5 * 60 * 1000) {
-          console.log('🎵 Loading stored notes from localStorage');
-          handleAstutelyGenerated(new CustomEvent('astutely:generated', { detail: data }));
-        }
-        localStorage.removeItem('astutely-generated');
-      } catch (e) {
-        console.error('Failed to load stored Astutely notes:', e);
-      }
-    }
-    
     return () => {
-      window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
       window.removeEventListener('ai:loadNotes', handleAILoadNotes as EventListener);
     };
   }, []); // Empty deps - only run once on mount

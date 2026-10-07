@@ -27,6 +27,9 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAudioContext } from '@/lib/audioContext';
+import { useBoothTakes } from './boothTakesStore';
+import { sendToProject } from '@/lib/projectInbox';
+import { uploadAudioBlob } from '@/lib/uploadAudio';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -266,7 +269,14 @@ export const StudioVocalRecorder: React.FC<Props> = ({
   const { toast } = useToast();
 
   // ── Takes ──────────────────────────────────────────────────────────────────
-  const [takes, setTakes] = useState<VocalTake[]>([]);
+  // Takes live in a store so they survive switching surfaces (K2).
+  const [takes, setTakes] = useBoothTakes(trackId);
+  // Re-report kept takes after a remount so MAKE's Booth Status repopulates.
+  useEffect(() => {
+    if (takes.length > 0) onTakesChange?.(takes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [sendingTakeId, setSendingTakeId] = useState<string | null>(null);
   const [selectedTakeId, setSelectedTakeId] = useState<string | null>(null);
   const [playingTakeId, setPlayingTakeId] = useState<string | null>(null);
 
@@ -573,6 +583,32 @@ export const StudioVocalRecorder: React.FC<Props> = ({
     if (playingTakeId === id) { playbackRef.current?.pause(); setPlayingTakeId(null); }
   }, [selectedTakeId, playingTakeId, onTakesChange]);
 
+  // Keep a take for good: upload it and send it into the MIX project.
+  const sendTakeToMix = useCallback(async (take: VocalTake, takeNumber: number) => {
+    setSendingTakeId(take.id);
+    try {
+      const name = `${trackName} — Take ${takeNumber}`;
+      const audioUrl = await uploadAudioBlob(take.blob, name);
+      const beatsPerBar = 4;
+      const bars = Math.max(1, Math.ceil(((take.durationMs / 1000) * (bpm / 60)) / beatsPerBar));
+      sendToProject({
+        kind: 'audio',
+        trackId: `booth-${take.id}`,
+        name,
+        audioUrl,
+        bpm,
+        bars,
+        color: trackColor,
+        source: 'vocal-booth',
+      });
+      toast({ title: 'Sent to MIX', description: `${name} will be in your arrangement when you open MIX.` });
+    } catch (err) {
+      toast({ title: 'Could not keep this take', description: String((err as Error)?.message ?? err), variant: 'destructive' });
+    } finally {
+      setSendingTakeId(null);
+    }
+  }, [trackName, bpm, trackColor, toast]);
+
   const downloadTake = useCallback(async (take: VocalTake) => {
     try {
       const wav = await encodeWav(take.blob);
@@ -850,6 +886,14 @@ export const StudioVocalRecorder: React.FC<Props> = ({
 
                       {/* Actions */}
                       <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={e => { e.stopPropagation(); void sendTakeToMix(take, takes.length - i); }}
+                          disabled={sendingTakeId === take.id}
+                          title="Keep this take — add it to your MIX arrangement"
+                          className="h-5 px-1 text-[9px] font-bold rounded border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+                        >
+                          {sendingTakeId === take.id ? '…' : '+ MIX'}
+                        </button>
                         <button
                           onClick={e => { e.stopPropagation(); downloadTake(take); }}
                           className="w-5 h-5 text-white/30 hover:text-cyan-300"

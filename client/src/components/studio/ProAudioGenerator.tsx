@@ -21,6 +21,7 @@ import {
 import { PROVIDER_CAPABILITIES, resolveGenerationConstraints } from '../../../../shared/aiProviderCapabilities';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
 import { useOrganismSafe } from '@/features/organism/GlobalOrganismWrapper';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface GenerationVariation {
   audio_url: string;
@@ -645,19 +646,19 @@ export function ProAudioGenerator() {
 
         importableStems.forEach((entry) => {
           const mappedTrackId = data?.stemChannelMapping?.[String(entry.stemName)] || `track-stem-${String(entry.stemName)}`;
-          window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
-            detail: {
-              trackId: mappedTrackId,
-              name: `${data.title || 'Generated Song'} - ${String(entry.stemName).toUpperCase()}`,
-              audioUrl: entry.url,
-            }
-          }));
+          sendToProject({
+            kind: 'audio',
+            trackId: mappedTrackId,
+            name: `${data.title || 'Generated Song'} - ${String(entry.stemName).toUpperCase()}`,
+            audioUrl: String(entry.url),
+            source: 'pro-audio-stem',
+          });
         });
 
         if (importableStems.length > 0) {
           toast({
-            title: 'Stems Imported to Multi-Track',
-            description: `${importableStems.length} stem track${importableStems.length > 1 ? 's' : ''} added automatically.`,
+            title: 'Stems sent to MIX',
+            description: `${importableStems.length} stem track${importableStems.length > 1 ? 's' : ''} will be in your arrangement when you open MIX.`,
           });
         }
       }
@@ -867,7 +868,7 @@ export function ProAudioGenerator() {
         }
       } catch { /* storage full — live event still fires */ }
 
-      window.dispatchEvent(new CustomEvent('astutely:generated', { detail: astPayload }));
+      sendToProject({ kind: 'notes', notes: astPayload.notes, bpm: astPayload.bpm, key: astPayload.key, source: 'pro-audio' });
 
       // Also inject the original generated audio as a playable reference track
       const durationSeconds = Number(data.totalDuration) || Number(generatedSong.duration) || 0;
@@ -875,15 +876,17 @@ export function ProAudioGenerator() {
         ? Math.max(1, Math.ceil((durationSeconds / (60 / resolvedBpm)) / 4))
         : 8;
 
-      window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
-        detail: {
+      if (generatedSong.audioUrl) {
+        sendToProject({
+          kind: 'audio',
           trackId: `track-source-${Date.now()}`,
-          name: `${generatedSong.title || 'Generated Song'} (Reference)` ,
+          name: `${generatedSong.title || 'Generated Song'} (Reference)`,
           audioUrl: generatedSong.audioUrl,
           bpm: resolvedBpm,
-          lengthBars,
-        }
-      }));
+          bars: lengthBars,
+          source: 'pro-audio',
+        });
+      }
 
       setPatternsLoaded(true);
 

@@ -25,6 +25,8 @@ import { useMasteringAnalyzer } from '@/hooks/useMasteringAnalyzer';
 import { useStudioStore } from '@/stores/useStudioStore';
 import { cn } from '@/lib/utils';
 import { useLocation } from 'wouter';
+import { sendToProject } from '@/lib/projectInbox';
+import { noteToMidi } from '@/lib/midiEditor';
 
 const AIAssistant = React.lazy(() => import('../AIAssistant'));
 const AIMasteringCard = React.lazy(() => import('../AIMasteringCard'));
@@ -47,6 +49,12 @@ const TAB_META: Record<AstutelyTab, { label: string; icon: React.ComponentType<{
   tools: { label: 'Tools', icon: Wrench },
   codebeat: { label: 'Codebeat', icon: Wand2 },
 };
+
+function vocalPitchToMidi(pitch: unknown): number {
+  if (typeof pitch === 'number' && Number.isFinite(pitch)) return pitch;
+  const m = /^([A-Ga-g][#b]?)(-?\d)$/.exec(String(pitch ?? '').trim());
+  return m ? noteToMidi(m[1][0].toUpperCase() + m[1].slice(1), Number(m[2])) : 60;
+}
 
 function TabLoadingFallback() {
   return (
@@ -300,7 +308,28 @@ export default function AstutelySurface() {
                   <div className="grid gap-4 xl:grid-cols-2">
                     <AILoopGenerator currentBpm={effectiveBpm} currentKey={currentKey} currentScale={keyMode} />
                     <AIBassGenerator bpm={effectiveBpm} musicalKey={currentKey} />
-                    <AIVocalMelody currentKey={currentKey} currentBpm={effectiveBpm} />
+                    <AIVocalMelody
+                      currentKey={currentKey}
+                      currentBpm={effectiveBpm}
+                      onApplyMelody={(notes) => {
+                        // The API returns { pitch: "C4", time, duration } in beats;
+                        // the client type says { pitch: number, startTime }. Accept both.
+                        sendToProject({
+                          kind: 'notes',
+                          bpm: effectiveBpm,
+                          source: 'vocal-melody',
+                          notes: notes.map((n: any, i: number) => ({
+                            id: `vocal-${Date.now()}-${i}`,
+                            trackType: 'melody',
+                            pitch: vocalPitchToMidi(n.pitch),
+                            startStep: Math.round(Number(n.time ?? n.startTime ?? 0) * 4),
+                            duration: Math.max(1, Math.round(Number(n.duration ?? 0.25) * 4)),
+                            velocity: typeof n.velocity === 'number' && n.velocity <= 1 ? Math.round(n.velocity * 127) : 100,
+                          })),
+                        });
+                        toast({ title: 'Sent to MIX', description: `${notes.length} melody notes will be in the Piano Roll when you open MIX.` });
+                      }}
+                    />
                   </div>
                 </Suspense>
               </TabsContent>

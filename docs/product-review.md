@@ -431,3 +431,30 @@ duplicates & cleanup. "≈" = same root cause, fix together.
 19. **L5 · L6** Regenerate the sample index (drop 378 dead entries); tag with WebEar.
 20. **T5** Delete `/api/ai-provider/set`; **F7** drop the `'owner-user'` literal check.
 21. M11, M12, A7, A8, S5, S6, S7, D4, D5, L7 — small edges.
+
+---
+
+# Target vs. Shipped
+
+Every fix states the **best-practice target** first. If what shipped is less,
+the gap goes here **and becomes a ranked item** in the fix list above — a gap is
+deferred work, not an archive. Nothing counts as shipped until it is
+**verified the right way**: unit test (logic), clicked through in the running
+app (UI / wiring), or the user's ear (anything about how music sounds).
+
+| Item | Target (best way) | Shipped | Gap → why deferred | Verified how |
+|---|---|---|---|---|
+| **F1** Monthly credits | Grant on `invoice.paid` (create + cycle), once per invoice; tested against a real Stripe test-mode subscription | Same, deduped per invoice id in the ledger (`aa2137a5`) | End-to-end Stripe test-mode run not done → needs Stripe test keys + a webhook tunnel | 5 webhook unit tests |
+| **F2** Tier numbers | One source for page + server | `shared/membershipTiers.ts`; honest feature lists | — | tsc; page not yet viewed in browser |
+| Credits rollover | Business decision: cap or uncapped | Uncapped, stated honestly ("unused credits roll over") | A cap is a pricing call for the owner, not a best-practice fix | — |
+| **M1–M3** Cloud save | Conflict check (`updatedAt` / If-Match) so two tabs can't silently overwrite; version history with restore; save shortly after edits (debounced); per-account quota | Whole-snapshot JSON, last write wins, manual save + 30s autosave when changed, free for all (`01e5ec7d`) | Conflicts, history, quota → each its own change; cloud save had to exist first | 7 route tests + **browser**: Ctrl+S saves, repeat save updates in place, Ctrl+O lists it (Playwright, in-memory server) |
+| Export Audio | Offline render of *all* tracks (audio + instruments) to one WAV, plus per-track stems | Audio tracks → WAV; instrument tracks → MIDI, toast says so | Instruments need an offline render graph (`Tone.Offline` + the realisticAudio voices) → its own build | tsc only; **browser pass pending** |
+| **K1/A1/A4/L2** Cross-surface sends | One delivery path that works when MIX is unmounted, survives reload, confirms on arrival | Persisted project inbox, drained by MIX; MIX's importer toasts on arrival | ≈ target. Producers could write TrackStore directly, but OrganismProvider sits outside the studio and the inbox also survives reload. Keeping all surfaces mounted is **not** better (two engines on one clock) | inbox unit tests + **browser**: LIBRARY ＋ queues while MIX is closed, MIX imports on open, inbox drains |
+| **M4/K7** Recordings & takes | Audio stored as asset records (owner, size, quota, cleanup when a project is deleted) | Uploaded through the existing `/api/objects/upload` flow; raw URL kept on the track | No asset table → orphaned files on delete, no quota → own change | **browser**: booth take (fake mic) survives MAKE→MIX→MAKE; + MIX uploads and sends it |
+| **K2/K4** MAKE takes | One recorder: vocal over the band, count-in/latency, takes kept across navigation, a single **Keep** that sends beat + vocal + MIDI capture | Booth takes in a session store (survive surface switches); **+ MIX** per booth take; Organism **+ DAW** uploads + sends beat AND vocal | Two recorders still side by side (merge is a UX redesign); session store isn't reload-proof until a take is kept | **browser** (booth); Organism send: tsc only |
+| **D1–D3** Schema drift | One migration source generated from `schema.ts`, applied on every boot, plus a drift check that fails loudly | **Production now runs `runMigrations()` at boot** (only the dev entrypoint ever did — the real root cause); `blog_posts` added | Two sources still (schema.ts + hand DDL); a failing statement still skips the rest silently; jam_* old shape needs a one-off recreate | prod bundle builds; tables verified by the read-only drift query after deploy |
+| Blog publishing | Owner-only writes to the official blog | Owner-only `POST /api/blog/posts` (was: any signed-in user, `isPublished: true` honoured) | Blog is empty until the owner writes posts | 2 route tests |
+| Toasts | Confirmations never lost; system notices don't compete with them | `TOAST_LIMIT` 1 → 3; dropped the "Audio System Ready" success toast that replaced the user's first confirmation | — | **browser**: LIBRARY "Sent to MIX" now visible |
+| Transport-bar recording | Recording lands where it was recorded, survives reload | Uploaded, then into the project at its start bar (was dropped: wrote to a `currentProject` nothing set) | — | tsc |
+| Collaboration (S7) | Real-time co-editing (CRDT, e.g. Yjs) on cloud projects | Not built — the site copy claiming it must change | Large; cloud projects (its precondition) now exist | — |
+| `noteToMidi` flats | Correct enharmonic mapping | Db→C#, Eb→D#… (was 2 semitones sharp) | — | unit test |

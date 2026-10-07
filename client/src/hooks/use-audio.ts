@@ -142,10 +142,10 @@ export function useAudio(): UseAudioReturn {
       // Notify all components
       audioInitCallbacks.forEach(callback => callback());
       
-      toast({
-        title: "Audio System Ready",
-        description: "Realistic and synthetic audio engines initialized successfully.",
-      });
+      // No success toast: it fired on the user's first click of the session
+      // and (with one toast on screen at a time) replaced the confirmation of
+      // whatever they had just clicked. Failures below still toast.
+      console.log('🔊 Audio system ready');
     } catch (error) {
       console.error("Failed to initialize audio:", error);
       toast({

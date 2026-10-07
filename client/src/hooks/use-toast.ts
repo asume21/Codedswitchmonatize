@@ -5,7 +5,9 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
+// Up to 3 at once: with 1, any toast replaced the previous one immediately,
+// so back-to-back messages (e.g. an action + a system notice) lost the first.
+const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {

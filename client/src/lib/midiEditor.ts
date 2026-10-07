@@ -34,8 +34,14 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 /**
  * Get the MIDI note number for a note name + octave.
  */
+const FLAT_TO_SHARP: Record<string, string> = {
+  Db: 'C#', Eb: 'D#', Gb: 'F#', Ab: 'G#', Bb: 'A#',
+};
+
 export function noteToMidi(noteName: string, octave: number): number {
-  const idx = NOTE_NAMES.indexOf(noteName.replace('b', '#')); // normalize flats
+  // Flats map to their enharmonic sharp (Db = C#). The old `replace('b', '#')`
+  // turned Db into D# — every flat came out two semitones sharp.
+  const idx = NOTE_NAMES.indexOf(FLAT_TO_SHARP[noteName] ?? noteName);
   if (idx === -1) return 60; // default C4
   return idx + (octave + 1) * 12;
 }

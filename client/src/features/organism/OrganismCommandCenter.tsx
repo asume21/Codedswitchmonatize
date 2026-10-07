@@ -24,6 +24,9 @@ import { vibeRoles, vibesForRole, vibeToSource } from '../../organism/csbl/csbl-
 import type { InstrumentPerformerId, PerformerRole } from '../../organism/performers'
 import { getSessionSalt, setFreeplaySeed, isSeedPinned } from '../../organism/generators/freeplay/utils'
 
+import { sendToProject } from '@/lib/projectInbox'
+import { useToast } from '@/hooks/use-toast'
+import { persistAudioUrl } from '@/lib/uploadAudio'
 // ── Web Speech API local typings ───────────────────────────────────────────
 // The browser's SpeechRecognition is experimental — TS lib doesn't always
 // provide it, and ESLint's no-undef flags the DOM globals even when TS knows
@@ -424,11 +427,43 @@ export function OrganismCommandCenter() {
     setTakeLabel('')
   }, [takeLabel, takeBars, takes.length, interpretVibe, recordForBars, contextBpm])
 
-  const handleSendToArrangement = useCallback((take: { label: string; audioUrl: string; bars: number; bpm: number; sessionId: string }) => {
-    window.dispatchEvent(new CustomEvent('organism:take-ready', {
-      detail: { audioUrl: take.audioUrl, name: take.label, bpm: take.bpm, bars: take.bars, sessionId: take.sessionId },
-    }))
-  }, [])
+  // Send a take into the MIX project: upload beat + vocal (blob: URLs die with
+  // the tab), then hand both to the project inbox as two tracks. Stable track
+  // ids, so sending the same take again updates it instead of duplicating it.
+  // Product review K1/K3/K7 — this used to fire a window event at a MIX
+  // listener that wasn't mounted, with the beat only (the vocal was dropped).
+  const { toast } = useToast()
+  const [sendingTakeId, setSendingTakeId] = useState<string | null>(null)
+  const handleSendToArrangement = useCallback(async (take: { label: string; audioUrl: string; vocalUrl?: string; bars: number; bpm: number; sessionId: string }) => {
+    setSendingTakeId(take.sessionId)
+    try {
+      const beatUrl = await persistAudioUrl(take.audioUrl, `${take.label}-beat`)
+      const vocalUrl = take.vocalUrl ? await persistAudioUrl(take.vocalUrl, `${take.label}-vocal`) : undefined
+      sendToProject({
+        kind: 'audio', trackId: `organism-take-${take.sessionId}-beat`, name: `${take.label} — Beat`,
+        audioUrl: beatUrl, bpm: take.bpm, bars: take.bars, color: '#38bdf8', source: 'organism-take',
+      })
+      if (vocalUrl) {
+        sendToProject({
+          kind: 'audio', trackId: `organism-take-${take.sessionId}-vocal`, name: `${take.label} — Vocal`,
+          audioUrl: vocalUrl, bpm: take.bpm, bars: take.bars, color: '#ef4444', source: 'organism-take',
+        })
+      }
+      toast({
+        title: 'Sent to MIX',
+        description: vocalUrl ? `"${take.label}" beat + vocal are in your arrangement.` : `"${take.label}" is in your arrangement.`,
+      })
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? err)
+      toast({
+        title: 'Could not keep this take',
+        description: /401|auth/i.test(msg) ? 'Sign in to keep takes in your projects.' : msg,
+        variant: 'destructive',
+      })
+    } finally {
+      setSendingTakeId(null)
+    }
+  }, [toast])
 
   const handleClearTakes = useCallback(() => {
     setTakes([])
@@ -2630,13 +2665,15 @@ export function OrganismCommandCenter() {
                     {/* DAW send */}
                     <div style={{ marginTop: 5, display: 'flex', justifyContent: 'flex-end' }}>
                     <button
-                      onClick={() => handleSendToArrangement(take)}
-                      title="Send this take to the Studio arrangement"
+                      onClick={() => void handleSendToArrangement(take)}
+                      disabled={sendingTakeId === take.sessionId}
+                      title={take.vocalUrl ? 'Send this take (beat + vocal) to your MIX arrangement' : 'Send this take to your MIX arrangement'}
                       style={{
-                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                        cursor: sendingTakeId === take.sessionId ? 'wait' : 'pointer',
                         background: 'rgba(6,182,212,0.15)', color: C.cyan, border: `1px solid ${C.cyan}`,
                       }}
-                    >+ DAW</button>
+                    >{sendingTakeId === take.sessionId ? 'Saving…' : '+ DAW'}</button>
                     </div>
                   </div>
                 ))}

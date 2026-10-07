@@ -8,6 +8,7 @@ import { Search, Play, Pause, Plus, Loader2, FolderOpen, Music2, X } from 'lucid
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface SampleFile {
   id: string;
@@ -128,38 +129,20 @@ export default function SampleLibraryPage() {
     audioRef.current = audio;
   };
 
-  // Add sample to project — dispatches event for studio integration and
-  // stores in sessionStorage so the studio can pick it up on next mount
+  // Add sample to the MIX project as an audio track. The old event +
+  // sessionStorage handoff had no reader anywhere (product review L2).
   const handleAddSample = (sample: SampleFile) => {
-    // Dispatch event for any open studio instance to receive
-    window.dispatchEvent(new CustomEvent('sample-library:add-sample', {
-      detail: {
-        id: sample.id,
-        name: sample.name,
-        url: sample.url,
-        category: sample.category,
-        subcategory: sample.subcategory,
-      },
-    }));
-
-    // Persist to sessionStorage so the studio can load it even if opened later
-    try {
-      const pending = JSON.parse(sessionStorage.getItem('pendingSamples') || '[]');
-      pending.push({
-        id: sample.id,
-        name: sample.name,
-        url: sample.url,
-        category: sample.category,
-        addedAt: Date.now(),
-      });
-      sessionStorage.setItem('pendingSamples', JSON.stringify(pending));
-    } catch {
-      // sessionStorage full or unavailable — event dispatch is primary path
-    }
-
+    sendToProject({
+      kind: 'audio',
+      trackId: `sample-${sample.id}-${Date.now()}`,
+      name: sample.name,
+      audioUrl: sample.url,
+      bars: 1,
+      source: 'sample-library',
+    });
     toast({
-      title: "Sample Added",
-      description: `${sample.name} ready to use in studio`,
+      title: "Sent to MIX",
+      description: `${sample.name} will be in your arrangement when you open MIX.`,
     });
   };
 

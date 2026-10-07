@@ -39,6 +39,7 @@ import { getAudioContext } from '@/lib/audioContext';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
 import { saveProjectToCloud } from '@/lib/projectManager';
+import { useProjectInbox } from '@/lib/projectInbox';
 import { exportAndDownloadTracksMidi } from '@/lib/midiExport';
 const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
 const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
@@ -833,6 +834,7 @@ export default function UnifiedStudioWorkspace() {
   const setCloudProject = useStudioStore((s) => s.setCloudProject);
   const [showProjectsDialog, setShowProjectsDialog] = useState(false);
   const lastCloudSaveRef = useRef<string | null>(null);
+  const inboxHandlersRef = useRef<Partial<Record<'notes' | 'snapshot' | 'audio', (e: Event) => void>>>({});
   const cloudAutosaveFailedRef = useRef(false);
   const storeKey = useStudioStore((s) => s.key);
   const storeTimeSignature = useStudioStore((s) => s.timeSignature);
@@ -1320,70 +1322,8 @@ export default function UnifiedStudioWorkspace() {
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowPreset['id'] | null>(null);
 
   // Handle audio import events from other tools (e.g., Audio Tools router)
-  useEffect(() => {
-    const handleImportAudio = (event: Event) => {
-      const customEvent = event as CustomEvent<{ sessionId?: string; trackId?: string; name?: string; audioUrl?: string; bpm?: number; lengthBars?: number }>;
-      const detail = customEvent.detail;
-      if (!detail?.audioUrl) return;
-
-      const resolvedTrackId = detail.trackId || `track-${Date.now()}`;
-      const resolvedBpm = typeof detail.bpm === 'number' && Number.isFinite(detail.bpm) ? detail.bpm : 120;
-      const resolvedLengthBars = typeof detail.lengthBars === 'number' && Number.isFinite(detail.lengthBars)
-        ? Math.max(1, Math.floor(detail.lengthBars))
-        : 8;
-
-      const newTrack: StudioTrack = {
-        id: resolvedTrackId,
-        name: detail.name || 'Imported Audio',
-        kind: 'audio',
-        type: 'audio',
-        instrument: 'audio',
-        notes: [],
-        volume: 0.8,
-        pan: 0,
-        muted: false,
-        solo: false,
-        lengthBars: resolvedLengthBars,
-        startBar: 0,
-        source: 'imported',
-        bpm: resolvedBpm,
-        payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl }),
-        audioUrl: detail.audioUrl,
-        data: {},
-        sendA: -60,
-        sendB: -60,
-      };
-
-      setTracks((prev) => {
-        const existingIndex = prev.findIndex((t) => t.id === resolvedTrackId);
-        if (existingIndex !== -1) {
-          const next = [...prev];
-          next[existingIndex] = {
-            ...next[existingIndex],
-            ...newTrack,
-            payload: {
-              ...(next[existingIndex].payload ?? createTrackPayload({ type: 'audio' })),
-              ...(newTrack.payload ?? {}),
-            },
-          };
-          return next;
-        }
-        return [...prev, newTrack];
-      });
-      setSelectedTrack(newTrack.id);
-      setActiveView('piano-roll');
-      setPianoRollExpanded(true);
-
-      toast({
-        title: "Imported Audio",
-        description: `Added ${newTrack.name} and opened Piano Roll.`,
-        onClick: () => { setActiveView('piano-roll'); setPianoRollExpanded(true); },
-      });
-    };
-
-    window.addEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
-    return () => window.removeEventListener('studio:importAudioTrack', handleImportAudio as EventListener);
-  }, [setTracks, toast]);
+  // studio:importAudioTrack used to be handled here; its producers now send
+  // 'audio' items through the project inbox (see the inbox drain below).
 
   const getTrackEffectsChain = useCallback((trackId: string | null) => {
     if (!trackId) return [] as ToolType[];
@@ -1507,13 +1447,9 @@ export default function UnifiedStudioWorkspace() {
       }
     };
 
-    window.addEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
-
-    // Hydration from localStorage removed — Astutely output is now persisted
-    // in useStudioStore.organismSnapshots via Zustand persist middleware.
-
+    inboxHandlersRef.current.notes = handleAstutelyGenerated;
     return () => {
-      window.removeEventListener('astutely:generated', handleAstutelyGenerated as EventListener);
+      inboxHandlersRef.current.notes = undefined;
     };
   }, [setTracks, setTransportTempo, sessionSettings.bpm, toast]);
 
@@ -1592,9 +1528,9 @@ export default function UnifiedStudioWorkspace() {
       }
     };
 
-    window.addEventListener('organism:snapshot-ready', handleSnapshotReady as EventListener);
+    inboxHandlersRef.current.snapshot = handleSnapshotReady;
     return () => {
-      window.removeEventListener('organism:snapshot-ready', handleSnapshotReady as EventListener);
+      inboxHandlersRef.current.snapshot = undefined;
     };
   }, [setTracks, toast]);
 
@@ -1604,14 +1540,16 @@ export default function UnifiedStudioWorkspace() {
       const detail = (e as CustomEvent).detail as {
         audioUrl: string
         name: string
-        bpm: number
-        bars: number
-        durationMs: number
+        bpm?: number
+        bars?: number
         sessionId: string
+        color?: string
+        source?: string
+        startBar?: number
       };
 
       const newTrack: StudioTrack = {
-        id: `organism-take-${detail.sessionId || Date.now()}`,
+        id: detail.sessionId || `audio-${Date.now()}`,
         name: detail.name || 'Organism Take',
         kind: 'audio',
         type: 'audio',
@@ -1621,13 +1559,13 @@ export default function UnifiedStudioWorkspace() {
         pan: 0,
         muted: false,
         solo: false,
-        lengthBars: Math.max(1, detail.bars),
-        startBar: 0,
-        source: 'recording',
-        bpm: detail.bpm,
+        lengthBars: Math.max(1, detail.bars ?? 4),
+        startBar: Math.max(0, detail.startBar ?? 0),
+        source: detail.source ?? 'recording',
+        bpm: detail.bpm ?? useStudioStore.getState().bpm ?? 120,
         audioUrl: detail.audioUrl,
-        payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl, bpm: detail.bpm, source: 'recording' }),
-        color: '#38bdf8',
+        payload: createTrackPayload({ type: 'audio', audioUrl: detail.audioUrl, bpm: detail.bpm ?? useStudioStore.getState().bpm ?? 120, source: detail.source ?? 'recording' }),
+        color: detail.color ?? '#38bdf8',
         data: { sessionId: detail.sessionId },
         sendA: -60,
         sendB: -60,
@@ -1641,17 +1579,43 @@ export default function UnifiedStudioWorkspace() {
       setSelectedTrack(newTrack.id);
 
       toast({
-        title: '🎛️ Take saved to Arrangement',
-        description: `"${newTrack.name}" — ${detail.bars} bars`,
+        title: '🎛️ Added to Arrangement',
+        description: detail.bars ? `"${newTrack.name}" — ${detail.bars} bars` : `"${newTrack.name}"`,
         onClick: () => setActiveView('arrangement'),
       });
     };
 
-    window.addEventListener('organism:take-ready', handleTakeReady as EventListener);
+    inboxHandlersRef.current.audio = handleTakeReady;
     return () => {
-      window.removeEventListener('organism:take-ready', handleTakeReady as EventListener);
+      inboxHandlersRef.current.audio = undefined;
     };
   }, [setTracks, setSelectedTrack, toast]);
+
+  // ── Project inbox: everything other surfaces send into MIX ──────────────
+  // Drained on mount and whenever items arrive while MIX is open. Each item
+  // runs through the same importer the old window events used; the importer's
+  // toast is the arrival confirmation. See lib/projectInbox.ts.
+  const inboxItems = useProjectInbox((st) => st.items);
+  useEffect(() => {
+    if (inboxItems.length === 0) return;
+    const done: string[] = [];
+    for (const item of inboxItems) {
+      const handler = inboxHandlersRef.current[item.kind];
+      if (!handler) continue;
+      const detail =
+        item.kind === 'snapshot' ? item.snapshot
+        : item.kind === 'audio' ? { ...item, sessionId: item.trackId }
+        : { notes: item.notes, bpm: item.bpm, key: item.key };
+      try {
+        handler(new CustomEvent(`inbox:${item.kind}`, { detail }));
+      } catch (err) {
+        console.error('[projectInbox] import failed', item, err);
+        toast({ title: 'Could not add to project', description: String((err as Error)?.message ?? err), variant: 'destructive' });
+      }
+      done.push(item.inboxId);
+    }
+    if (done.length) useProjectInbox.getState().remove(done);
+  }, [inboxItems, toast]);
 
   const [isBouncing, setIsBouncing] = useState(false);
 

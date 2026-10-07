@@ -42,6 +42,7 @@ import {
 } from '@/lib/astutelyEngine';
 import { renderAstutelyToStems, audioBufferToWav } from '@/lib/astutelyAudioRenderer';
 import { resumeAudioContext } from '@/lib/audioContext';
+import { sendToProject } from '@/lib/projectInbox';
 
 // Living Glyph / Presence module removed — these no-op shims preserve the
 // 15+ existing call shapes inside music-generation paths so those code paths
@@ -380,7 +381,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
         channelMapping: ASTUTELY_CHANNEL_MAPPING,
       };
-      window.dispatchEvent(new CustomEvent('astutely:generated', { detail: payload }));
+      sendToProject({ kind: 'notes', notes: payload.notes, bpm: payload.bpm, key: (payload as any).key, source: 'astutely' });
       // Astutely output is now preserved in useStudioStore.organismSnapshots
       // via the handler in UnifiedStudioWorkspace — no localStorage needed.
 
@@ -548,7 +549,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
         channelMapping: ASTUTELY_CHANNEL_MAPPING,
       };
-      window.dispatchEvent(new CustomEvent('astutely:generated', { detail: broadcastPayload }));
+      sendToProject({ kind: 'notes', notes: broadcastPayload.notes, bpm: broadcastPayload.bpm, key: (broadcastPayload as any).key, source: 'astutely' });
       // Astutely output is now preserved in useStudioStore.organismSnapshots — no localStorage needed.
 
       // Focus the most relevant track
@@ -799,9 +800,7 @@ export function AstutelyCoreProvider({ children }: { children: ReactNode }) {
 
   const importAudioTrack = useCallback((name: string, audioUrl: string) => {
     dispatchAstutelyCommand('import-audio-track', { name, audioUrl });
-    window.dispatchEvent(new CustomEvent('studio:importAudioTrack', {
-      detail: { name, audioUrl },
-    }));
+    sendToProject({ kind: 'audio', trackId: `imported-${Date.now()}`, name, audioUrl, source: 'imported' });
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════

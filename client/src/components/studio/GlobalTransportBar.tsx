@@ -15,13 +15,16 @@ import { useAudio, useSequencer } from '@/hooks/use-audio';
 import { useTracks } from '@/hooks/useTracks';
 import { cn } from '@/lib/utils';
 import { getTimelineRecorder, type RecorderState, type RecordingResult } from '@/lib/timelineRecorder';
-import { getCurrentProject, markDirty, type AudioClip } from '@/lib/projectManager';
+import { getCurrentProject } from '@/lib/projectManager';
+import { useToast } from '@/hooks/use-toast';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { MasterBusPanel } from './MasterBusPanel';
 import { pianoRollScheduler } from '@/lib/pianoRollScheduler';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useRenderCounter } from '@/lib/perf/useRenderCounter';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { sendToProject } from '@/lib/projectInbox';
+import { uploadAudioBlob } from '@/lib/uploadAudio';
 
 interface TrackChannel {
   id: string;
@@ -39,6 +42,7 @@ interface GlobalTransportBarProps {
 }
 
 export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTransportBarProps) {
+  const { toast } = useToast();
   useRenderCounter('GlobalTransportBar');
   const isMobile = useIsMobile();
   const isInline = variant === 'inline';
@@ -158,32 +162,38 @@ export default function GlobalTransportBar({ variant = 'fixed' }: GlobalTranspor
     toggleRecordArm();
   };
 
-  const addRecordingToTimeline = (result: RecordingResult) => {
-    const project = getCurrentProject();
-    if (!project) return;
-
+  // Recordings used to be pushed onto projectManager's currentProject, which
+  // nothing ever sets — so every transport-bar recording was dropped. Now:
+  // upload (blob: URLs die with the tab), then into the project at the bar
+  // where recording started.
+  const addRecordingToTimeline = async (result: RecordingResult) => {
+    const beatsPerBar = Math.max(1, timeSignature.numerator);
+    const startBar = Math.floor(result.startBeat / beatsPerBar);
     const durationBeats = (result.durationSeconds / 60) * tempo;
-    const clip: AudioClip = {
-      id: crypto.randomUUID(),
-      trackId: 'recording-' + Date.now(),
-      name: `Recording @ Bar ${Math.floor(result.startBeat / timeSignature.numerator) + 1}`,
-      audioUrl: result.url,
-      startBeat: result.startBeat,
-      endBeat: result.startBeat + durationBeats,
-      offsetBeat: 0,
-      fadeInBeats: 0,
-      fadeOutBeats: 0,
-      gain: 1,
-      loop: false,
-      loopEndBeat: 0,
-      source: 'recording',
-    };
-
-    project.audioClips.push(clip);
-    markDirty();
-    console.log(`🎤 Recording added to timeline: ${clip.name} (${result.durationSeconds.toFixed(1)}s)`);
+    const name = `Recording @ Bar ${startBar + 1}`;
+    try {
+      const audioUrl = await uploadAudioBlob(result.blob, name);
+      sendToProject({
+        kind: 'audio',
+        trackId: `recording-${Date.now()}`,
+        name,
+        audioUrl,
+        bpm: tempo,
+        bars: Math.max(1, Math.ceil(durationBeats / beatsPerBar)),
+        startBar,
+        color: '#ef4444',
+        source: 'recording',
+      });
+    } catch (err) {
+      console.error('Recording upload failed', err);
+      toast({
+        title: 'Recording not saved',
+        description: String((err as Error)?.message ?? err),
+        variant: 'destructive',
+      });
+    }
   };
-  
+
   // Track channels for mixing
   const [channels, setChannels] = useState<TrackChannel[]>([
     { id: 'beat', name: 'Drums/Beat', type: 'beat', icon: <Drum className="w-3 h-3" />, muted: false, solo: false, volume: 80, color: 'bg-orange-500' },

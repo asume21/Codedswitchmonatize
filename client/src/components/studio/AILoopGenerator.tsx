@@ -12,6 +12,7 @@ import { professionalAudio } from '@/lib/professionalAudio';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { pickProgression } from '@/organism/generators/patterns/ChordProgressionBank';
 import { astutelyOrganismBridge } from '@/lib/astutelyOrganismBridge';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface AILoopGeneratorProps {
   currentBpm?: number;
@@ -217,24 +218,9 @@ export default function AILoopGenerator({
       melody: channels.find(c => c.id === 'lead' || c.name.toLowerCase() === 'lead')?.id,
     };
 
-    // Dispatch event to Piano Roll
-    const event = new CustomEvent('astutely:generated', {
-      detail: {
-        notes: loop.notes,
-        bpm: loop.bpm,
-        channelMapping,
-        timestamp: Date.now()
-      }
-    });
-    window.dispatchEvent(event);
-    
-    // Also save to localStorage as backup
-    localStorage.setItem('astutely-generated', JSON.stringify({
-      notes: loop.notes,
-      bpm: loop.bpm,
-      channelMapping,
-      timestamp: Date.now()
-    }));
+    // Into the MIX project via the inbox — arrives even if MIX isn't open.
+    void channelMapping;
+    sendToProject({ kind: 'notes', notes: loop.notes, bpm: loop.bpm, source: 'loop-generator' });
     
     // Store for potential saving
     setLastGeneratedLoop(loop);
