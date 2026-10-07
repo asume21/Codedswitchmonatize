@@ -126,11 +126,8 @@ export interface ProjectState {
   version: number;
 }
 
-const LOCAL_DRAFT_KEY = 'codedswitch_project_draft';
-const AUTO_SAVE_INTERVAL_MS = 30_000; // 30 seconds
 
 let currentProject: ProjectState | null = null;
-let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
 let isDirty = false;
 
 export function createDefaultMasterBus(): MixBus {
@@ -147,50 +144,6 @@ export function createDefaultMasterBus(): MixBus {
       { id: 'master-limiter', type: 'limiter', parameters: { threshold: -1, ceiling: -0.3 }, enabled: true },
     ],
     inputTrackIds: [],
-  };
-}
-
-export function createNewProjectState(name: string): ProjectState {
-  const now = new Date().toISOString();
-  return {
-    id: crypto.randomUUID(),
-    name,
-    bpm: 120,
-    timeSignature: [4, 4],
-    key: 'C',
-    swing: 10,
-    tracks: [],
-    audioClips: [],
-    automationLanes: [],
-    mixerChannels: [],
-    mixBuses: [
-      {
-        id: 'reverb-bus',
-        name: 'Reverb',
-        type: 'aux',
-        volume: 0.7,
-        pan: 0,
-        muted: false,
-        effects: [{ id: 'bus-reverb', type: 'reverb', parameters: { decay: 2.5, mix: 0.6, preDelay: 20 }, enabled: true }],
-        inputTrackIds: [],
-      },
-      {
-        id: 'delay-bus',
-        name: 'Delay',
-        type: 'aux',
-        volume: 0.5,
-        pan: 0,
-        muted: false,
-        effects: [{ id: 'bus-delay', type: 'delay', parameters: { time: 375, feedback: 0.35, mix: 0.5 }, enabled: true }],
-        inputTrackIds: [],
-      },
-    ],
-    masterBus: createDefaultMasterBus(),
-    sectionMarkers: [],
-    songEndBeat: 64,
-    createdAt: now,
-    updatedAt: now,
-    version: 1,
   };
 }
 
@@ -212,163 +165,53 @@ export function getIsDirty(): boolean {
   return isDirty;
 }
 
-/**
- * Save project to server (and local draft as backup).
- */
-export async function saveProject(project?: ProjectState): Promise<void> {
-  const p = project || currentProject;
-  if (!p) throw new Error('No project to save');
+// ── Account-backed projects (/api/projects) ─────────────────────────────────
+// The studio's full snapshot (UnifiedStudioWorkspace.buildProjectData) is stored
+// opaquely in `data`. This is the ONE client for the projects API — File → Save,
+// File → Open, the Project Manager window and studio autosave all use it.
 
-  p.updatedAt = new Date().toISOString();
-  p.version += 1;
-
-  // Save to localStorage as backup
-  try {
-    localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(p));
-  } catch {
-    console.warn('Could not save local draft');
-  }
-
-  // Save to server
-  const res = await apiRequest('PUT', `/api/projects/${p.id}`, {
-    name: p.name,
-    data: p,
-  });
-
-  if (!res.ok) {
-    // Try creating if it doesn't exist
-    const createRes = await apiRequest('POST', '/api/projects', {
-      name: p.name,
-      data: p,
-    });
-    if (!createRes.ok) {
-      throw new Error('Failed to save project');
-    }
-  }
-
-  isDirty = false;
-  eventBus.emit('session:updated' as any, { sessionId: p.id, data: p });
+export interface CloudProjectSummary {
+  id: string;
+  name: string;
+  updatedAt: string | null;
 }
 
-/**
- * Load project from server by ID.
- */
-export async function loadProject(projectId: string): Promise<ProjectState> {
-  const res = await apiRequest('GET', `/api/projects/${projectId}`);
-  if (!res.ok) throw new Error('Failed to load project');
-  const data = await res.json();
-
-  const project = (data.data || data) as ProjectState;
-  // Ensure all required fields exist (migration safety)
-  if (!project.audioClips) project.audioClips = [];
-  if (!project.automationLanes) project.automationLanes = [];
-  if (!project.mixerChannels) project.mixerChannels = [];
-  if (!project.mixBuses) project.mixBuses = [];
-  if (!project.masterBus) project.masterBus = createDefaultMasterBus();
-  if (!project.version) project.version = 1;
-
-  currentProject = project;
-  isDirty = false;
-  return project;
+export interface CloudProject extends CloudProjectSummary {
+  data: unknown;
 }
 
-/**
- * Load the local draft (for recovery after crash/close).
- */
-export function loadLocalDraft(): ProjectState | null {
-  try {
-    const raw = localStorage.getItem(LOCAL_DRAFT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as ProjectState;
-  } catch {
-    return null;
-  }
+async function readJson(res: Response) {
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`);
+  return body;
 }
 
-export function clearLocalDraft() {
-  localStorage.removeItem(LOCAL_DRAFT_KEY);
+export async function listProjects(): Promise<CloudProjectSummary[]> {
+  const body = await readJson(await apiRequest('GET', '/api/projects'));
+  return body.projects ?? [];
 }
 
-/**
- * List all user projects from server.
- */
-export async function listProjects(): Promise<Array<{ id: string; name: string; updatedAt: string }>> {
-  const res = await apiRequest('GET', '/api/projects');
-  if (!res.ok) return [];
-  return res.json();
+export async function loadProject(projectId: string): Promise<CloudProject> {
+  const body = await readJson(await apiRequest('GET', `/api/projects/${projectId}`));
+  const { id, name, updatedAt, data } = body.project;
+  return { id, name, updatedAt: updatedAt ?? null, data };
 }
 
-/**
- * Delete a project from server.
- */
+/** Create (no id) or update (id) a project. Returns the server's id. */
+export async function saveProjectToCloud(project: {
+  id?: string | null;
+  name: string;
+  data: unknown;
+}): Promise<CloudProjectSummary> {
+  const payload = { name: project.name, data: project.data };
+  const res = project.id
+    ? await apiRequest('PUT', `/api/projects/${project.id}`, payload)
+    : await apiRequest('POST', '/api/projects', payload);
+  const body = await readJson(res);
+  const { id, name, updatedAt } = body.project;
+  return { id, name, updatedAt: updatedAt ?? null };
+}
+
 export async function deleteProject(projectId: string): Promise<void> {
-  await apiRequest('DELETE', `/api/projects/${projectId}`);
-  if (currentProject?.id === projectId) {
-    currentProject = null;
-    isDirty = false;
-  }
-}
-
-/**
- * Start auto-save timer. Saves every 30s if dirty.
- */
-export function startAutoSave() {
-  stopAutoSave();
-  autoSaveTimer = setInterval(async () => {
-    if (isDirty && currentProject) {
-      try {
-        await saveProject();
-        console.log('[AutoSave] Project saved');
-      } catch (err) {
-        console.warn('[AutoSave] Failed:', err);
-        // Still save locally
-        try {
-          localStorage.setItem(LOCAL_DRAFT_KEY, JSON.stringify(currentProject));
-        } catch { /* ignore */ }
-      }
-    }
-  }, AUTO_SAVE_INTERVAL_MS);
-}
-
-export function stopAutoSave() {
-  if (autoSaveTimer) {
-    clearInterval(autoSaveTimer);
-    autoSaveTimer = null;
-  }
-}
-
-/**
- * Export project as JSON file for download.
- */
-export function exportProjectFile(project?: ProjectState): void {
-  const p = project || currentProject;
-  if (!p) return;
-  const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${p.name.replace(/[^a-zA-Z0-9-_]/g, '_')}.cswproj`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Import project from a .cswproj JSON file.
- */
-export async function importProjectFile(file: File): Promise<ProjectState> {
-  const text = await file.text();
-  const project = JSON.parse(text) as ProjectState;
-  // Assign new ID to avoid collisions
-  project.id = crypto.randomUUID();
-  project.updatedAt = new Date().toISOString();
-  if (!project.audioClips) project.audioClips = [];
-  if (!project.automationLanes) project.automationLanes = [];
-  if (!project.mixerChannels) project.mixerChannels = [];
-  if (!project.mixBuses) project.mixBuses = [];
-  if (!project.masterBus) project.masterBus = createDefaultMasterBus();
-  currentProject = project;
-  isDirty = true;
-  return project;
+  await readJson(await apiRequest('DELETE', `/api/projects/${projectId}`));
 }

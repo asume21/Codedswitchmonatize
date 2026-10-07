@@ -20,6 +20,7 @@ import { DesktopBridgeToggle } from './DesktopBridgeToggle';
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
 const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m => ({ default: m.ProAudioGenerator })));
 const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
+const ProjectManagerPanel = React.lazy(() => import('./ProjectManagerPanel'));
 import { Resizable } from 'react-resizable';
 const LyricLab = React.lazy(() => import('./LyricLab'));
 const CodebeatStudio = React.lazy(() => import('./CodebeatStudio'));
@@ -37,6 +38,8 @@ import { playEditorNote as playOrganismVoice, playEditorDrum as playOrganismDrum
 import { getAudioContext } from '@/lib/audioContext';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
+import { saveProjectToCloud } from '@/lib/projectManager';
+import { exportAndDownloadTracksMidi } from '@/lib/midiExport';
 const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
 const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
 import { EQPlugin, CompressorPlugin, DeesserPlugin, ReverbPlugin, LimiterPlugin, NoiseGatePlugin, type ToolType } from './effects';
@@ -601,6 +604,8 @@ export default function UnifiedStudioWorkspace() {
     const saved = sessionStorage.getItem('studio:activeView');
     return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
   });
+  const activeViewRef = useRef(activeView);
+  activeViewRef.current = activeView;
   const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack') => {
     sessionStorage.setItem('studio:activeView', v);
     // Sync URL so refresh/back-button/deep-link all work. Skip in popout mode — that's a separate-window concept.
@@ -824,6 +829,11 @@ export default function UnifiedStudioWorkspace() {
 
   // ── sessionSettings reads from the Zustand store (single source of truth) ──
   const storeBpm = useStudioStore((s) => s.bpm);
+  const cloudProject = useStudioStore((s) => s.cloudProject);
+  const setCloudProject = useStudioStore((s) => s.setCloudProject);
+  const [showProjectsDialog, setShowProjectsDialog] = useState(false);
+  const lastCloudSaveRef = useRef<string | null>(null);
+  const cloudAutosaveFailedRef = useRef(false);
   const storeKey = useStudioStore((s) => s.key);
   const storeTimeSignature = useStudioStore((s) => s.timeSignature);
   const storeSetBpm = useStudioStore((s) => s.setBpm);
@@ -2440,6 +2450,33 @@ export default function UnifiedStudioWorkspace() {
     return () => window.clearInterval(timer);
   }, [saveAutosaveSnapshot, pushProjectCheckpoint]);
 
+  // Account autosave: once a project lives in the user's account, keep it
+  // current every 30s when something changed. The browser snapshot above stays
+  // as the offline fallback.
+  useEffect(() => {
+    if (!cloudProject) return;
+    const timer = window.setInterval(async () => {
+      const data = buildProjectData();
+      const serialized = JSON.stringify(data);
+      if (serialized === lastCloudSaveRef.current) return;
+      try {
+        await saveProjectToCloud({ id: cloudProject.id, name: cloudProject.name, data });
+        lastCloudSaveRef.current = serialized;
+        cloudAutosaveFailedRef.current = false;
+      } catch (err) {
+        if (!cloudAutosaveFailedRef.current) {
+          cloudAutosaveFailedRef.current = true;
+          toast({
+            title: 'Autosave to your account failed',
+            description: `${String((err as Error)?.message ?? err)} — your work is still kept in this browser.`,
+            variant: 'destructive',
+          });
+        }
+      }
+    }, STUDIO_AUTOSAVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [cloudProject, buildProjectData, toast]);
+
   const autosaveCheckedRef = useRef(false);
   useEffect(() => {
     if (autosaveCheckedRef.current) return;
@@ -2481,6 +2518,8 @@ export default function UnifiedStudioWorkspace() {
       setClips([]);
       setMarkers([]);
       setSelectedTrack(null);
+      // A new project must not overwrite the previously opened account project.
+      setCloudProject(null);
       toast({
         title: "New Project",
         description: "Created new empty project",
@@ -2488,16 +2527,54 @@ export default function UnifiedStudioWorkspace() {
     }
   };
 
-  const handleSaveProject = () => {
-    if (!requirePro("save", () => setShowLicenseModal(true))) return;
+  // File → Save: writes the studio snapshot to the user's account (free for
+  // everyone — product review M1/M3). Creates the project on first save.
+  const handleSaveProject = async () => {
     const projectData = buildProjectData();
-    localStorage.setItem('unifiedStudioProject', JSON.stringify(projectData));
     pushProjectCheckpoint('manual-save');
-    downloadProject(projectData);
-    toast({
-      title: "Project Saved",
-      description: "Saved to browser storage and downloaded to your drive",
-    });
+    try {
+      const saved = await saveProjectToCloud({
+        id: cloudProject?.id,
+        name: cloudProject?.name || `Untitled ${new Date().toLocaleDateString()}`,
+        data: projectData,
+      });
+      setCloudProject({ id: saved.id, name: saved.name });
+      lastCloudSaveRef.current = JSON.stringify(projectData);
+      toast({ title: "Saved to your account", description: saved.name });
+    } catch (err) {
+      toast({
+        title: "Save failed",
+        description: `${String((err as Error)?.message ?? err)} — use File → Download Project File to keep a copy.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Ctrl/Cmd+S saves to the account, Ctrl/Cmd+O opens your projects — the
+  // menu advertised both but nothing handled them (the browser's own "Save
+  // page" fired). Multitrack keeps its own Ctrl+S until the timelines merge.
+  const saveProjectRef = useRef(handleSaveProject);
+  saveProjectRef.current = handleSaveProject;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (activeViewRef.current === 'multitrack') return;
+      const key = e.key.toLowerCase();
+      if (key === 's') {
+        e.preventDefault();
+        void saveProjectRef.current();
+      } else if (key === 'o') {
+        e.preventDefault();
+        setShowProjectsDialog(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const handleDownloadProjectFile = () => {
+    downloadProject(buildProjectData());
+    toast({ title: "Project file downloaded", description: "Open it later with File → Open Project File…" });
   };
 
   const handleLoadProject = () => {
@@ -2528,14 +2605,19 @@ export default function UnifiedStudioWorkspace() {
     input.click();
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!requirePro("export", () => setShowLicenseModal(true))) return;
-    const projectData = buildProjectData();
-    downloadProject(projectData);
-    toast({
-      title: "Project Exported",
-      description: "Project exported as JSON file",
-    });
+    // Mixes the audio tracks to WAV. Instrument (note) tracks aren't rendered
+    // offline yet, so they go out as MIDI instead of being silently dropped.
+    const noteTracks = (tracks as StudioTrack[]).filter(t => !t.audioUrl && (t as any).notes?.length);
+    await saveBeatMix();
+    if (noteTracks.length > 0) {
+      exportAndDownloadTracksMidi(noteTracks as any, `codedswitch-${Date.now()}.mid`, { bpm: storeBpm || 120 });
+      toast({
+        title: "Instrument tracks exported as MIDI",
+        description: `${noteTracks.length} note track(s) aren't in the WAV yet — they're in the downloaded .mid file.`,
+      });
+    }
   };
 
   // Edit menu actions
@@ -3366,6 +3448,8 @@ export default function UnifiedStudioWorkspace() {
       {/* Floating Window Renderer — renders all open draggable windows */}
       <React.Suspense fallback={null}>
         <StudioWindowRenderer
+          getProjectData={buildProjectData}
+          onProjectLoaded={(data) => { applyProjectData(data); pushProjectCheckpoint('restore'); }}
           recordingTrackId={selectedTrackEntity?.id}
           recordingTrackName={selectedTrackEntity?.name || 'Track'}
           currentBeat={position}
@@ -3379,6 +3463,18 @@ export default function UnifiedStudioWorkspace() {
           onBounceComplete={handleWindowBounceComplete}
         />
       </React.Suspense>
+      <Dialog open={showProjectsDialog} onOpenChange={setShowProjectsDialog}>
+        <DialogContent className="max-w-lg bg-transparent border-none p-0 shadow-none">
+          <DialogTitle className="sr-only">Your projects</DialogTitle>
+          <React.Suspense fallback={<TabLoadingFallback />}>
+            <ProjectManagerPanel
+              getProjectData={buildProjectData}
+              onProjectLoaded={(data) => { applyProjectData(data); pushProjectCheckpoint('restore'); }}
+              onClose={() => setShowProjectsDialog(false)}
+            />
+          </React.Suspense>
+        </DialogContent>
+      </Dialog>
       {/* Top Bar */}
       <div className="min-h-14 bg-black/80 border-b border-cyan-500/30 backdrop-blur-md flex items-center gap-x-2 gap-y-1 flex-wrap px-2 sm:px-4 py-1 justify-between flex-shrink-0 astutely-header relative z-[1000]">
         <div className="flex items-center gap-x-2 sm:gap-x-4 gap-y-1 flex-wrap min-w-0">
@@ -3410,14 +3506,20 @@ export default function UnifiedStudioWorkspace() {
                   <span>New Project</span>
                   <span className="text-xs text-cyan-400">Ctrl+N</span>
                 </button>
-                <button onClick={menuAction(handleLoadProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                <button onClick={menuAction(() => setShowProjectsDialog(true))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
                   <span>Open Project...</span>
                   <span className="text-xs text-cyan-400">Ctrl+O</span>
                 </button>
+                <button onClick={menuAction(handleLoadProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Open Project File...</span>
+                </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
                 <button onClick={menuAction(handleSaveProject)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
-                  <span>Save Project</span>
+                  <span>{cloudProject ? `Save "${cloudProject.name}"` : 'Save Project'}</span>
                   <span className="text-xs text-cyan-400">Ctrl+S</span>
+                </button>
+                <button onClick={menuAction(handleDownloadProjectFile)} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">
+                  <span>Download Project File</span>
                 </button>
                 <div className="border-t border-cyan-500/30 my-1"></div>
                 <button onClick={menuAction(() => setActiveView('song-uploader'))} className="w-full text-left px-4 py-2 hover:bg-cyan-500/20 text-sm cursor-pointer flex items-center justify-between bg-transparent border-none text-cyan-100 astutely-menu-item">

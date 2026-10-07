@@ -21,7 +21,8 @@ const AIStemSeparation = React.lazy(() => import('@/components/studio/AIStemSepa
 
 interface StudioWindowRendererProps {
   // Project
-  onProjectLoaded?: (project: any) => void;
+  onProjectLoaded?: (projectData: unknown) => void;
+  getProjectData?: () => unknown;
 
   // Automation
   automationTrackId?: string;
@@ -110,6 +111,7 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
         return renderDeferred(
           <ProjectManagerPanel
             onProjectLoaded={props.onProjectLoaded}
+            getProjectData={props.getProjectData}
             onClose={() => closeWindow('project-manager')}
           />
         );

@@ -95,6 +95,8 @@ export interface StudioState {
   // ── Generated content (Phase 2) ──
   organismSnapshots: OrganismSnapshot[]     // history of generated content
   activeSnapshotId: string | null           // which snapshot is loaded into the workspace
+  /** The account project the studio is editing (File → Save writes here). */
+  cloudProject: { id: string; name: string } | null
 
   // ── Studio session content ──
   // These were previously in StudioAudioContext (pages/studio.tsx) but the
@@ -138,6 +140,7 @@ export interface StudioState {
   // ── Actions: Generated content (Phase 2) ──
   pushOrganismSnapshot: (snapshot: OrganismSnapshot) => void
   setActiveSnapshot: (id: string | null) => void
+  setCloudProject: (project: { id: string; name: string } | null) => void
   getActiveSnapshot: () => OrganismSnapshot | null
   clearSnapshots: () => void
 
@@ -199,6 +202,7 @@ export const useStudioStore = create<StudioState>()(
     // Generated content (Phase 2)
     organismSnapshots: [],
     activeSnapshotId: null,
+    cloudProject: null,
 
     // Studio session content (migrated from orphaned StudioAudioContext)
     currentPattern: {},
@@ -323,6 +327,10 @@ export const useStudioStore = create<StudioState>()(
       }))
     },
 
+    setCloudProject: (project) => {
+      set({ cloudProject: project })
+    },
+
     setActiveSnapshot: (id: string | null) => {
       set({ activeSnapshotId: id })
     },
@@ -378,6 +386,7 @@ export const useStudioStore = create<StudioState>()(
       detectedKeyConfidence: state.detectedKeyConfidence,
       organismSnapshots: state.organismSnapshots,
       activeSnapshotId: state.activeSnapshotId,
+      cloudProject: state.cloudProject,
     }),
     merge: (persisted, current) => ({
       ...current,

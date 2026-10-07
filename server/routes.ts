@@ -15,6 +15,7 @@ import { createSampleRoutes } from "./routes/samples";
 import { createLoopRoutes } from "./routes/loops";
 import { createUserRoutes } from "./routes/user";
 import { createSocialRoutes } from "./routes/social";
+import { createProjectRoutes } from "./routes/projects";
 import { createVulnerabilityRoutes } from "./routes/vulnerability";
 import { createVoiceConvertRoutes } from "./routes/voiceConvert";
 import { createLyricVideoRoutes } from "./routes/lyricVideo";
@@ -107,6 +108,9 @@ export async function registerRoutes(app: Express, storage: IStorage) {
 
   // Mount Social Hub routes
   app.use("/api/social", createSocialRoutes(storage));
+
+  // Account-backed studio projects (File → Save / Open)
+  app.use("/api/projects", createProjectRoutes(storage));
 
   // Mount Blog routes
   app.use("/api/blog", createBlogRouter(storage));
