@@ -4,6 +4,12 @@ import type { IStorage } from '../../storage';
 import { handleStripeWebhook } from '../../services/stripe';
 import { __resetCreditServiceForTests } from '../../services/credits';
 
+// Shared so subscription tests can control what stripe.subscriptions.retrieve
+// returns (status + metadata.tier) for the invoice.paid path.
+const { subscriptionsRetrieve } = vi.hoisted(() => ({
+  subscriptionsRetrieve: vi.fn(),
+}));
+
 // Properly mock the Stripe default export and its static webhooks property
 vi.mock('stripe', () => {
   const mockConstructEvent = vi.fn((payload, sig, secret) => {
@@ -18,7 +24,7 @@ vi.mock('stripe', () => {
     default: class MockStripe {
       constructor() {
         (this as any).subscriptions = {
-          retrieve: vi.fn().mockResolvedValue({ status: 'active' }),
+          retrieve: subscriptionsRetrieve,
         };
       }
       static webhooks = {
@@ -325,5 +331,143 @@ describe('handleStripeWebhook — checkout.session.completed (credit purchase)',
     expect(events).toEqual(['balance-updated', 'rolled-back']);
     // 3. The webhook claim was released so Stripe's retry can succeed.
     expect(storage.releaseStripeEvent).toHaveBeenCalledWith('evt_test_credit_purchase');
+  });
+});
+
+// ── Subscription monthly credits (product review F1, 2026-10-07) ────────────
+// Pricing promises Creator 300 / Pro 1000 / Studio 2500 credits a month. Those
+// have to arrive on the first paid invoice and on every renewal — and only
+// once per invoice, however many times Stripe delivers the event.
+
+function makeInvoicePaid(opts: {
+  eventId?: string;
+  invoiceId?: string;
+  billingReason?: string;
+  type?: 'invoice.paid' | 'invoice.payment_failed';
+} = {}) {
+  return {
+    id: opts.eventId ?? 'evt_invoice_paid_1',
+    object: 'event',
+    type: opts.type ?? 'invoice.paid',
+    api_version: '2025-08-27.basil',
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 0,
+    request: { id: null, idempotency_key: null },
+    data: {
+      object: {
+        id: opts.invoiceId ?? 'in_test_1',
+        object: 'invoice',
+        customer: 'cus_sub_1',
+        subscription: 'sub_test_1',
+        billing_reason: opts.billingReason ?? 'subscription_cycle',
+      },
+    },
+  };
+}
+
+function makeSubscriptionStorageMock(): IStorage & { balance: () => number } {
+  const claimedEvents = new Set<string>();
+  const ledger: Array<{ amount: number; metadata?: Record<string, unknown> }> = [];
+  let userBalance = 0;
+
+  const storage = {
+    balance: () => userBalance,
+    tryClaimStripeEvent: vi.fn(async (event: { eventId: string }) => {
+      if (claimedEvents.has(event.eventId)) return false;
+      claimedEvents.add(event.eventId);
+      return true;
+    }),
+    releaseStripeEvent: vi.fn(async (eventId: string) => {
+      claimedEvents.delete(eventId);
+    }),
+    hasProcessedPaymentIntent: vi.fn(async () => false),
+    hasGrantedForInvoice: vi.fn(async (invoiceId: string) =>
+      ledger.some((t) => t.metadata?.invoiceId === invoiceId && t.amount > 0),
+    ),
+    updateSubscriptionStatusByStripeId: vi.fn(async () => ({ userId: 'user_sub_1' })),
+    getUserByStripeCustomerId: vi.fn(async () => ({ id: 'user_sub_1' })),
+    upsertUserSubscription: vi.fn(async () => undefined),
+    updateUserStripeInfo: vi.fn(async () => undefined),
+    getUser: vi.fn(async () => ({ id: 'user_sub_1', credits: userBalance })),
+    grantCreditsAtomic: vi.fn(async (
+      userId: string,
+      amount: number,
+      txn: { type: string; reason: string; metadata?: Record<string, unknown> },
+    ) => {
+      const balanceBefore = userBalance;
+      userBalance += amount;
+      ledger.push({ amount, metadata: txn.metadata });
+      return {
+        user: { id: userId, credits: userBalance },
+        balanceBefore,
+        balanceAfter: userBalance,
+        transaction: { id: 'txn_sub', userId, amount, ...txn, balanceBefore, balanceAfter: userBalance },
+      };
+    }),
+  };
+  return storage as unknown as IStorage & { balance: () => number };
+}
+
+describe('handleStripeWebhook — invoice.paid grants subscription credits', () => {
+  let storage: ReturnType<typeof makeSubscriptionStorageMock>;
+
+  beforeEach(() => {
+    __resetCreditServiceForTests();
+    storage = makeSubscriptionStorageMock();
+    subscriptionsRetrieve.mockReset();
+    subscriptionsRetrieve.mockResolvedValue({ status: 'active', metadata: { tier: 'pro' } });
+  });
+
+  it('grants the Pro monthly credits on a renewal invoice', async () => {
+    const { payload, signature } = signedPayload(makeInvoicePaid());
+    await handleStripeWebhook(storage, payload, signature);
+
+    expect(storage.grantCreditsAtomic).toHaveBeenCalledTimes(1);
+    expect(storage.grantCreditsAtomic).toHaveBeenCalledWith(
+      'user_sub_1',
+      1000,
+      expect.objectContaining({
+        type: 'subscription_grant',
+        metadata: expect.objectContaining({ invoiceId: 'in_test_1', tier: 'pro' }),
+      }),
+    );
+    expect(storage.balance()).toBe(1000);
+  });
+
+  it('grants the tier the customer bought (Creator = 300) on the first invoice', async () => {
+    subscriptionsRetrieve.mockResolvedValue({ status: 'active', metadata: { tier: 'creator' } });
+    const { payload, signature } = signedPayload(
+      makeInvoicePaid({ billingReason: 'subscription_create' }),
+    );
+    await handleStripeWebhook(storage, payload, signature);
+
+    expect(storage.balance()).toBe(300);
+  });
+
+  it('grants once per invoice even if a second event carries the same invoice', async () => {
+    const first = signedPayload(makeInvoicePaid({ eventId: 'evt_a' }));
+    const second = signedPayload(makeInvoicePaid({ eventId: 'evt_b' }));
+    await handleStripeWebhook(storage, first.payload, first.signature);
+    await handleStripeWebhook(storage, second.payload, second.signature);
+
+    expect(storage.balance()).toBe(1000);
+  });
+
+  it('does not grant for a failed invoice', async () => {
+    subscriptionsRetrieve.mockResolvedValue({ status: 'past_due', metadata: { tier: 'pro' } });
+    const { payload, signature } = signedPayload(makeInvoicePaid({ type: 'invoice.payment_failed' }));
+    await handleStripeWebhook(storage, payload, signature);
+
+    expect(storage.grantCreditsAtomic).not.toHaveBeenCalled();
+  });
+
+  it('does not grant for a mid-cycle proration invoice', async () => {
+    const { payload, signature } = signedPayload(
+      makeInvoicePaid({ billingReason: 'subscription_update' }),
+    );
+    await handleStripeWebhook(storage, payload, signature);
+
+    expect(storage.grantCreditsAtomic).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ import { Coins, Zap, Crown, Building2, Check, Loader2, ArrowLeft } from "lucide-
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { MEMBERSHIP_TIER_INFO } from "@shared/membershipTiers";
 
 interface CreditPackage {
   key: string;
@@ -24,7 +25,6 @@ interface MembershipTier {
   name: string;
   price: number;
   monthlyCredits: number;
-  rolloverMax: number;
   features: string[];
   badge?: string;
   popular?: boolean;
@@ -64,60 +64,19 @@ const creditPackages: CreditPackage[] = [
   },
 ];
 
-const membershipTiers: MembershipTier[] = [
-  {
-    key: 'CREATOR',
-    name: 'Creator',
-    price: 9.99,
-    monthlyCredits: 200,
-    rolloverMax: 400,
-    features: [
-      '200 credits per month',
-      'Credits rollover (max 400)',
-      'Priority support',
-      'No ads',
-      'Early access to features',
-      'Premium templates',
-    ],
-    badge: 'Most Popular',
-    popular: true,
-  },
-  {
-    key: 'PRO',
-    name: 'Pro',
-    price: 29.99,
-    monthlyCredits: 750,
-    rolloverMax: 1500,
-    features: [
-      '750 credits per month',
-      'Credits rollover (max 1500)',
-      'Priority queue',
-      'Advanced analytics',
-      'Commercial license',
-      'API access',
-      'Advanced AI models',
-    ],
-    badge: 'Best Value',
-  },
-  {
-    key: 'STUDIO',
-    name: 'Studio',
-    price: 79.99,
-    monthlyCredits: 2500,
-    rolloverMax: 5000,
-    features: [
-      '2500 credits per month',
-      'Credits rollover (max 5000)',
-      'Team collaboration (5 seats)',
-      'White-label branding',
-      'Dedicated support',
-      'Custom integrations',
-      'Phone support',
-      'Training sessions',
-    ],
-    badge: 'Enterprise',
-  },
-];
+// Numbers + features come from the shared tier module the server grants from.
+const membershipTiers: MembershipTier[] = (['CREATOR', 'PRO', 'STUDIO'] as const).map((key) => {
+  const info = MEMBERSHIP_TIER_INFO[key];
+  return {
+    key,
+    name: info.name,
+    price: info.price / 100,
+    monthlyCredits: info.monthlyCredits,
+    features: [...info.features],
+    badge: 'badge' in info ? info.badge : undefined,
+    popular: key === 'PRO',
+  };
+});
 
 export default function BuyCreditsPage() {
   const [, setLocation] = useLocation();
@@ -354,7 +313,7 @@ export default function BuyCreditsPage() {
                         {tier.monthlyCredits} Credits
                       </div>
                       <div className="text-sm text-purple-300">
-                        Rollover up to {tier.rolloverMax}
+                        Unused credits roll over
                       </div>
                     </div>
 

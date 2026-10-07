@@ -267,6 +267,7 @@ export async function handleStripeWebhook(
           (customerId ? (await storage.getUserByStripeCustomerId(customerId))?.id : undefined);
 
         if (userId) {
+          const tier = metadataTier || deriveTier(status);
           await withClaim({ userId }, async () => {
             await storage.upsertUserSubscription({
               userId,
@@ -279,8 +280,19 @@ export async function handleStripeWebhook(
               customerId: customerId || undefined,
               subscriptionId,
               status,
-              tier: metadataTier || deriveTier(status),
+              tier,
             });
+            // Monthly credits: first paid invoice and every renewal. Proration
+            // / manual invoices are not a new billing period, so they grant
+            // nothing. Inside the claim so a failure releases it for retry.
+            const billingReason = (invoice as any).billing_reason as string | undefined;
+            if (
+              event.type === "invoice.paid" &&
+              invoice.id &&
+              (billingReason === "subscription_create" || billingReason === "subscription_cycle")
+            ) {
+              await getCreditService(storage).grantSubscriptionCredits(userId, tier, invoice.id);
+            }
           });
         }
       }

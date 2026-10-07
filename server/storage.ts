@@ -171,6 +171,9 @@ export interface IStorage {
   // true if the caller now owns processing for this event.
   tryClaimStripeEvent(event: InsertProcessedStripeEvent): Promise<boolean>;
   hasProcessedPaymentIntent(paymentIntentId: string): Promise<boolean>;
+  // True once subscription credits were granted for this Stripe invoice — the
+  // per-invoice dedupe for monthly grants (same ledger semantic as above).
+  hasGrantedForInvoice(invoiceId: string): Promise<boolean>;
   // Audit 2026-04-30: release a claim if the post-claim work threw before
   // committing. Without this, a transient failure during purchaseCredits
   // (DB blip, network) leaves the claim row locked, so Stripe's retry sees
@@ -686,6 +689,16 @@ export class MemStorage implements IStorage {
     for (const txn of this.creditTransactions.values()) {
       const meta = (txn as { metadata?: { paymentIntentId?: string } }).metadata;
       if (meta?.paymentIntentId === paymentIntentId && (txn.amount ?? 0) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async hasGrantedForInvoice(invoiceId: string): Promise<boolean> {
+    for (const txn of this.creditTransactions.values()) {
+      const meta = (txn as { metadata?: { invoiceId?: string } }).metadata;
+      if (meta?.invoiceId === invoiceId && (txn.amount ?? 0) > 0) {
         return true;
       }
     }
@@ -2293,6 +2306,20 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           sql`${creditTransactions.metadata}->>'paymentIntentId' = ${paymentIntentId}`,
+          sql`${creditTransactions.amount} > 0`,
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async hasGrantedForInvoice(invoiceId: string): Promise<boolean> {
+    const [row] = await db
+      .select({ id: creditTransactions.id })
+      .from(creditTransactions)
+      .where(
+        and(
+          sql`${creditTransactions.metadata}->>'invoiceId' = ${invoiceId}`,
           sql`${creditTransactions.amount} > 0`,
         ),
       )

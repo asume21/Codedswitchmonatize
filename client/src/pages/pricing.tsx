@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { MEMBERSHIP_TIER_INFO } from "@shared/membershipTiers";
 
 // ── Data ────────────────────────────────────────
 
@@ -18,7 +19,6 @@ interface MembershipTier {
   name: string;
   price: number;
   monthlyCredits: number;
-  rolloverMax: number;
   features: string[];
   badge?: string;
   highlighted?: boolean;
@@ -33,58 +33,22 @@ interface CreditPack {
   badge?: string;
 }
 
-const membershipTiers: MembershipTier[] = [
-  {
-    key: "CREATOR",
-    name: "Creator",
-    price: 9.99,
-    monthlyCredits: 200,
-    rolloverMax: 400,
-    icon: Zap,
-    features: [
-      "200 credits per month",
-      "Credits rollover (max 400)",
-      "Priority support",
-      "No ads",
-      "Premium templates",
-    ],
-  },
-  {
-    key: "PRO",
-    name: "Pro",
-    price: 29.99,
-    monthlyCredits: 750,
-    rolloverMax: 1500,
-    icon: Crown,
-    badge: "Most Popular",
-    highlighted: true,
-    features: [
-      "750 credits per month",
-      "Credits rollover (max 1500)",
-      "Commercial license",
-      "Advanced AI models",
-      "Priority queue",
-      "API access",
-    ],
-  },
-  {
-    key: "STUDIO",
-    name: "Studio",
-    price: 79.99,
-    monthlyCredits: 2500,
-    rolloverMax: 5000,
-    icon: Building2,
-    badge: "Enterprise",
-    features: [
-      "2500 credits per month",
-      "Credits rollover (max 5000)",
-      "Team collaboration (5 seats)",
-      "Dedicated support",
-      "Custom integrations",
-      "White-label branding",
-    ],
-  },
-];
+// Numbers + features come from the shared tier module the server grants from.
+const TIER_ICONS = { CREATOR: Zap, PRO: Crown, STUDIO: Building2 } as const;
+
+const membershipTiers: MembershipTier[] = (['CREATOR', 'PRO', 'STUDIO'] as const).map((key) => {
+  const info = MEMBERSHIP_TIER_INFO[key];
+  return {
+    key,
+    name: info.name,
+    price: info.price / 100,
+    monthlyCredits: info.monthlyCredits,
+    features: [...info.features],
+    badge: 'badge' in info ? info.badge : undefined,
+    icon: TIER_ICONS[key],
+    highlighted: key === 'PRO',
+  };
+});
 
 const creditPacks: CreditPack[] = [
   { key: "STARTER", credits: 100, price: 4.99 },
@@ -229,7 +193,7 @@ export default function PricingPage() {
                 <span className="text-cyan-400/60 text-sm ml-1">/month</span>
               </div>
               <div className="text-sm text-cyan-400/70 mb-6">
-                {tier.monthlyCredits} credits/mo · rollover up to {tier.rolloverMax}
+                {tier.monthlyCredits} credits/mo · unused credits roll over
               </div>
 
               {/* Features */}

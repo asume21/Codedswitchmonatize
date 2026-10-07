@@ -4,85 +4,30 @@
  */
 
 import type { IStorage } from "../storage";
+import { MEMBERSHIP_TIER_INFO } from "../../shared/membershipTiers";
 
 // Credit costs moved to shared/creditCosts.ts so client badges and server
 // deductions share one source of truth. See PRICING_CALCULATOR.md for the
 // API-cost → user-price reasoning behind each number.
 export { CREDIT_COSTS } from "../../shared/creditCosts";
 
-// Membership tiers (recurring subscriptions)
+// Membership tiers (recurring subscriptions). Numbers + features come from
+// shared/membershipTiers.ts so the pricing page and the credit grant can't
+// drift apart; only the server-side Stripe price ids are added here.
+
 export const MEMBERSHIP_TIERS = {
-  FREE: {
-    tier: 'free',
-    name: 'Free',
-    price: 0,
-    priceId: '', // No Stripe product needed
-    monthlyCredits: 50,
-    rolloverMax: 0,
-    features: [
-      'Try all features',
-      '50 credits/month',
-      '10 MusicGen beats OR 12 lyrics',
-      'Community support',
-    ],
-  },
+  FREE: { ...MEMBERSHIP_TIER_INFO.FREE, priceId: '' }, // No Stripe product needed
   CREATOR: {
-    tier: 'creator',
-    name: 'Creator',
-    price: 999, // $9.99/month
+    ...MEMBERSHIP_TIER_INFO.CREATOR,
     priceId: process.env.STRIPE_PRICE_ID_CREATOR || '',
-    monthlyCredits: 300,
-    rolloverMax: 600,
-    features: [
-      '300 credits/month',
-      '2 AI songs + extras',
-      '60 MusicGen beats OR mix & match',
-      'Credits rollover (max 600)',
-      'Priority support',
-      'No ads',
-      'Early access to features',
-      'Premium templates',
-    ],
-    badge: 'Most Popular',
   },
   PRO: {
-    tier: 'pro',
-    name: 'Pro',
-    price: 2999, // $29.99/month
+    ...MEMBERSHIP_TIER_INFO.PRO,
     priceId: process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || '',
-    monthlyCredits: 1000,
-    rolloverMax: 2000,
-    features: [
-      '1000 credits/month',
-      '8 AI songs + extras',
-      '200 MusicGen beats OR mix & match',
-      'Credits rollover (max 2000)',
-      'Priority queue',
-      'Advanced analytics',
-      'Commercial license',
-      'API access',
-      'Advanced AI models',
-    ],
-    badge: 'Best Value',
   },
   STUDIO: {
-    tier: 'studio',
-    name: 'Studio',
-    price: 7999, // $79.99/month
+    ...MEMBERSHIP_TIER_INFO.STUDIO,
     priceId: process.env.STRIPE_PRICE_ID_STUDIO || '',
-    monthlyCredits: 2500,
-    rolloverMax: 5000,
-    features: [
-      '2500 credits/month',
-      'Credits rollover (max 5000)',
-      'Team collaboration (5 seats)',
-      'White-label branding',
-      'Dedicated support',
-      'Custom integrations',
-      'Phone support',
-      'Training sessions',
-    ],
-    badge: 'Enterprise',
   },
 } as const;
 
@@ -286,6 +231,36 @@ export class CreditService {
     });
 
     console.log(`🎁 Granted monthly credits to user ${userId}`);
+  }
+
+  /**
+   * Grant a paid subscription's monthly credits for one Stripe invoice.
+   * Called from the invoice.paid webhook (first invoice + each renewal).
+   * Dedupes on the invoice id in the ledger, so a replayed or duplicated
+   * event can never double-grant.
+   */
+  async grantSubscriptionCredits(
+    userId: string,
+    tier: string,
+    invoiceId: string
+  ): Promise<CreditTransaction | null> {
+    const tierConfig = Object.values(MEMBERSHIP_TIERS).find(t => t.tier === tier);
+    const creditsToGrant = tierConfig?.monthlyCredits ?? 0;
+    if (!tierConfig || tier === 'free' || creditsToGrant <= 0) {
+      return null;
+    }
+    if (await this.storage.hasGrantedForInvoice(invoiceId)) {
+      console.log(`⏭️ grantSubscriptionCredits: invoice ${invoiceId} already granted`);
+      return null;
+    }
+
+    return this.addCredits(
+      userId,
+      creditsToGrant,
+      CreditTransactionType.SUBSCRIPTION_GRANT,
+      `Monthly ${tierConfig.name} subscription credits`,
+      { invoiceId, tier }
+    );
   }
 
   /**
