@@ -401,9 +401,8 @@ function App() {
               </Route>
 
               {/* Legacy deep-links — redirect to the surface that now owns the feature.
-                  Lyrics moved to MAKE per CLAUDE.md; the side-panel inside MIX is a
-                  follow-up. */}
-              <Route path="/lyric-lab"><Redirect to="/studio/make" /></Route>
+                  Lyrics live on MAKE (beside the booth); open that panel. */}
+              <Route path="/lyric-lab"><Redirect to="/studio/make?panel=lyrics" /></Route>
               <Route path="/organism"><OrganismGuestPage /></Route>
               <Route path="/codebeat"><CodebeatLanding /></Route>
               <Route path="/recording-booth">

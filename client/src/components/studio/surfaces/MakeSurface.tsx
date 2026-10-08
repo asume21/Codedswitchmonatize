@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import {
   Circle,
   Mic2,
@@ -8,6 +8,9 @@ import {
   SlidersHorizontal,
   Square,
   Timer,
+  FileText,
+  ChevronDown,
+  ChevronUp,
   Waves,
 } from 'lucide-react';
 
@@ -22,6 +25,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+// Lyrics live on MAKE, next to the booth: you need the words where you
+// record (CLAUDE.md; /lyric-lab used to land here with no lyrics — review K5).
+const LyricLab = React.lazy(() => import('@/components/studio/LyricLab'));
+
 const VOCAL_TRACK_COLOR = '#ef4444';
 
 function formatDuration(ms: number) {
@@ -35,6 +42,9 @@ export default function MakeSurface() {
   const { tempo, isPlaying, play, pause, stop } = useTransport();
   const [isBoothArmed, setIsBoothArmed] = useState(false);
   const [takes, setTakes] = useState<VocalTake[]>([]);
+  const [showLyrics, setShowLyrics] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('panel') === 'lyrics',
+  );
 
   const takeStats = useMemo(() => {
     const latest = takes[takes.length - 1] ?? null;
@@ -186,6 +196,28 @@ export default function MakeSurface() {
           </section>
         </aside>
       </div>
+
+      <section className="mx-auto max-w-[1800px] px-4 pb-6">
+        <div className="overflow-hidden rounded-md border border-border bg-background shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowLyrics((v) => !v)}
+            className="flex h-10 w-full items-center gap-2 border-b border-border px-3 text-left"
+            aria-expanded={showLyrics}
+          >
+            <FileText className="h-4 w-4 text-emerald-300" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lyrics</span>
+            <span className="ml-auto text-muted-foreground">
+              {showLyrics ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </span>
+          </button>
+          {showLyrics && (
+            <Suspense fallback={<div className="p-4 text-xs text-muted-foreground">Loading lyrics…</div>}>
+              <LyricLab />
+            </Suspense>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
