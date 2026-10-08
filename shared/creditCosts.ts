@@ -23,6 +23,7 @@ export const CREDIT_COSTS = {
   RHYME_SUGGESTIONS: 1,
   SONG_ANALYSIS: 2,
   CODE_TRANSLATION: 2,
+  CODE_SCAN: 2,
 
   // Tier 4: Audio Processing
   AI_MIXING: 7,
@@ -53,6 +54,7 @@ export const CREDIT_OPERATION_LABELS: Record<CreditOperation, string> = {
   RHYME_SUGGESTIONS: "Rhyme suggestions",
   SONG_ANALYSIS: "Analyze song",
   CODE_TRANSLATION: "Translate code",
+  CODE_SCAN: "Code security scan",
   AI_MIXING: "AI mixing",
   AUDIO_MASTERING: "Audio mastering",
   TRANSCRIPTION: "Transcribe audio",

@@ -26,6 +26,7 @@ export const API_COSTS = {
   RHYME_SUGGESTIONS: 0.015,
   SONG_ANALYSIS: 0.035,
   CODE_TRANSLATION: 0.035,
+  CODE_SCAN: 0.035, // pattern rules + one LLM pass, like lyrics analysis
   
   // Audio Processing (estimated)
   AI_MIXING: 0.10,

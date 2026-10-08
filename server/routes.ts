@@ -47,7 +47,6 @@ import { createBillingRoutes } from "./routes/billing";
 import { createMixingRoutes } from "./routes/mixing";
 import { createAiOpsRoutes } from "./routes/aiOps";
 import { createStemSeparationRoutes } from "./routes/stemSeparation";
-import { createSecurityScanRoutes } from "./routes/securityScan";
 import { createPlaylistRoutes } from "./routes/playlists";
 import { createSpeechCorrectionRoutes } from "./routes/speechCorrection";
 import { createVoiceRoutes } from "./routes/voices";
@@ -166,7 +165,6 @@ export async function registerRoutes(app: Express, storage: IStorage) {
   app.use("/", createMixingRoutes());
   app.use("/", createAiOpsRoutes());
   app.use("/", createStemSeparationRoutes());
-  app.use("/", createSecurityScanRoutes());
 
   app.use("/", createPlaylistRoutes(storage));
   app.use("/", createSpeechCorrectionRoutes(storage));
