@@ -136,3 +136,6 @@ tsconfig.csbl*.json
 
 # Local A/B render experiments (large audio, not source)
 ace-ab/
+
+# Local, unused checkout of magenta-js (was a submodule pointer with no .gitmodules — broke CI checkout cleanup)
+external/magenta-js/
