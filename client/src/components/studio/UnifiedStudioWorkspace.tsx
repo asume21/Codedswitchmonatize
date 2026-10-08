@@ -40,6 +40,7 @@ import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
 import { saveProjectToCloud } from '@/lib/projectManager';
 import { useProjectInbox } from '@/lib/projectInbox';
+import { bounceProjectAudio } from '@/lib/bounceProject';
 import { exportAndDownloadTracksMidi } from '@/lib/midiExport';
 const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
 const AudioToolsPage = React.lazy(() => import('./AudioToolsPage'));
@@ -1620,32 +1621,19 @@ export default function UnifiedStudioWorkspace() {
   const [isBouncing, setIsBouncing] = useState(false);
 
   const saveBeatMix = useCallback(async () => {
-    const audioTracks = (tracks as StudioTrack[]).filter(t => t.audioUrl);
-    if (audioTracks.length === 0) {
-      toast({ title: 'No audio tracks', description: 'Add audio clips to the arrangement first.' });
-      return;
-    }
     setIsBouncing(true);
     try {
-      const bpm = storeBpm || 90;
-      const maxBars = Math.max(...audioTracks.map(t => (t.startBar ?? 0) + (t.lengthBars ?? 8)));
-      const durationSeconds = Math.max(4, maxBars * (60 / bpm) * 4) + 1;
-      const { url, blob } = await bounceMaster(
-        audioTracks.map(t => ({
-          trackId: t.id,
-          audioUrl: t.audioUrl,
-          volume: t.volume ?? 0.8,
-          pan: t.pan ?? 0,
-          startTimeSeconds: (t.startBar ?? 0) * (60 / bpm) * 4,
-        })),
-        durationSeconds,
-      );
+      const bounce = await bounceProjectAudio(tracks as StudioTrack[], storeBpm || 90);
+      if (!bounce) {
+        toast({ title: 'No audio tracks', description: 'Add audio clips to the arrangement first.' });
+        return;
+      }
       const a = document.createElement('a');
-      a.href = url;
+      a.href = bounce.url;
       a.download = `beat-mix-${Date.now()}.wav`;
       a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: '✓ Beat saved', description: `${audioTracks.length} tracks mixed to WAV — ready to upload to the Recording Booth` });
+      URL.revokeObjectURL(bounce.url);
+      toast({ title: '✓ Beat saved', description: `${bounce.audioTrackCount} tracks mixed to WAV` });
     } catch (err) {
       toast({ title: 'Bounce failed', description: String(err), variant: 'destructive' });
     } finally {

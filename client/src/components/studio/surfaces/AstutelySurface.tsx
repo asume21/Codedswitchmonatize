@@ -30,6 +30,7 @@ import { noteToMidi } from '@/lib/midiEditor';
 
 const AIAssistant = React.lazy(() => import('../AIAssistant'));
 const AIMasteringCard = React.lazy(() => import('../AIMasteringCard'));
+const MasterMySong = React.lazy(() => import('../MasterMySong'));
 const AIArrangementBuilder = React.lazy(() => import('../AIArrangementBuilder'));
 const AIVocalMelody = React.lazy(() => import('../AIVocalMelody'));
 const AIStemSeparation = React.lazy(() => import('../AIStemSeparation'));
@@ -352,6 +353,7 @@ export default function AstutelySurface() {
 
               <TabsContent value="mix" className="m-0 space-y-4">
                 <Suspense fallback={<TabLoadingFallback />}>
+                  <MasterMySong />
                   <div className="grid gap-4 xl:grid-cols-2">
                     <AIMasteringCard
                       peakLevel={masteringAnalyzer.peakLevel}

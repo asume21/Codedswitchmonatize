@@ -173,7 +173,7 @@ export function AudioToolRouter({ songUrl, songName, recommendations = [], onAud
       if (result.fixedAudioUrl) {
         const a = document.createElement('a');
         a.href = result.fixedAudioUrl;
-        a.download = `${songName}-MASTERED.wav`;
+        a.download = `${songName}-MASTERED.mp3`;
         a.click();
       }
     } catch (error) {

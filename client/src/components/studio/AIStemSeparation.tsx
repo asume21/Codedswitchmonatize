@@ -308,19 +308,10 @@ export default function AIStemSeparation({ audioUrl: initialUrl, onStemsReady }:
         setRemixPreviewUrl(previewUrl);
       }
 
-      setPipelineStatus('Generating mastering guidance...');
-      const masterResponse = await apiRequest('POST', '/api/ai/mastering', {
-        peakLevel: -3,
-        rmsLevel: -14,
-        genre: 'pop',
-        targetLoudness: -14,
-      }, { signal });
-      const masterData = await masterResponse.json();
-      if (masterData?.success && masterData?.analysis) {
-        setMasteringAnalysis(masterData.analysis);
-      }
-
-      setPipelineStatus('Complete: vocals cloned, remix preview rendered, mastering plan ready.');
+      // A "mastering guidance" step used to run here on hard-coded levels
+      // (peak -3 / RMS -14) — advice about a mix nobody measured (review A5).
+      // Real mastering is ASTUTELY → Mix/Master → "Master my song".
+      setPipelineStatus('Complete: vocals cloned, remix preview rendered.');
       toast({
         title: 'Pipeline complete',
         description: 'Cloned vocal and remix/mastering outputs are ready below.',

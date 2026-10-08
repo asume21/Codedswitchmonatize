@@ -252,11 +252,23 @@ Volume: 0-100, Pan: -50 (left) to +50 (right), Effects: 0-100`;
         targetLoudness = -14 
       } = req.body;
 
+      // Advice must describe a mix that was actually measured. This used to
+      // substitute peak -3 / RMS -12 when the meters were silent and return
+      // confident advice about a mix that didn't exist (review A5).
+      const peak = Number(peakLevel);
+      const rms = Number(rmsLevel);
+      if (!Number.isFinite(peak) || !Number.isFinite(rms) || rms < -70) {
+        return res.status(400).json({
+          success: false,
+          error: "No signal measured — play your mix while analyzing, then try again.",
+        });
+      }
+
       const prompt = `You are a professional mastering engineer. Analyze this mix data and provide specific mastering recommendations.
 
 Mix Analysis:
-- Peak Level: ${peakLevel || -3}dB
-- RMS Level: ${rmsLevel || -12}dB  
+- Peak Level: ${peak}dB
+- RMS Level: ${rms}dB  
 - Genre: ${genre}
 - Target Loudness: ${targetLoudness} LUFS (streaming standard)
 ${frequencyData ? `- Frequency Balance: Bass ${frequencyData.bass}dB, Mids ${frequencyData.mids}dB, Highs ${frequencyData.highs}dB` : ''}

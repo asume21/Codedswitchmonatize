@@ -110,7 +110,7 @@ export default function AIMasteringCard({
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Gauge className="w-4 h-4" />
-          AI Mastering Assistant
+          AI Mix Advice
         </CardTitle>
         <Badge variant="secondary" className="text-xs">Pro</Badge>
       </CardHeader>
