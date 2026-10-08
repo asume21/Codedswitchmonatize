@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { checkSchemaDrift } from "./schemaDrift";
 
 /**
  * Run database migrations on startup
@@ -242,6 +243,35 @@ export async function runMigrations() {
       )
     `;
     console.log('✅ Migration: blog_posts table ensured');
+
+    // Migration: jam_* had an OLD shape in production (title / visibility /
+    // content_type) because these CREATE TABLE IF NOT EXISTS statements never
+    // replace an existing table (review D2). Rebuild them only while they are
+    // still the old shape AND empty — checked here, at run time, so no row can
+    // ever be dropped by this.
+    const [jamOldShape] = await sql`
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'jam_sessions' AND column_name = 'title'
+    `;
+    if (jamOldShape) {
+      // Count only tables that exist (a missing one would fail the query).
+      let rows = 0;
+      for (const table of ['jam_sessions', 'jam_contributions', 'jam_likes']) {
+        const [exists] = await sql`SELECT to_regclass(${table}) AS t`;
+        if (exists?.t) {
+          const [{ n }] = await sql.unsafe(`SELECT count(*)::int AS n FROM ${table}`);
+          rows += Number(n);
+        }
+      }
+      if (Number(rows) === 0) {
+        await sql`DROP TABLE IF EXISTS jam_likes`;
+        await sql`DROP TABLE IF EXISTS jam_contributions`;
+        await sql`DROP TABLE IF EXISTS jam_sessions`;
+        console.log('✅ Migration: rebuilt empty old-shape jam_* tables to the current schema');
+      } else {
+        console.warn(`⚠️ Migration: jam_* has the old shape but ${rows} row(s) — NOT rebuilt; needs a data migration`);
+      }
+    }
 
     // Migration: jam_sessions table
     await sql`
@@ -497,6 +527,9 @@ export async function runMigrations() {
     console.log('✅ Migration: Social Hub tables ensured');
 
     console.log('✅ All migrations completed successfully');
+
+    // Loudly report anything shared/schema.ts expects that the DB still lacks.
+    await checkSchemaDrift((text) => sql.unsafe(text) as any);
   } catch (error) {
     // If columns already exist, that's fine
     if (error instanceof Error && error.message.includes('already exists')) {
