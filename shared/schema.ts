@@ -283,6 +283,10 @@ export const samplePacks = pgTable("sample_packs", {
   mood: text("mood").notNull(),
   description: text("description"),
   generatedSamples: json("generated_samples").notNull(), // Array of sample objects
+  // Who saved it (null on packs saved before 2026-10-07) and what's needed to
+  // reopen it in the Pack Generator (bpm, key, generator, title).
+  userId: varchar("user_id").references(() => users.id),
+  meta: json("meta"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -548,6 +552,8 @@ export const insertSampleSchema = createInsertSchema(samples).pick({
 });
 
 export const insertSamplePackSchema = createInsertSchema(samplePacks).pick({
+  userId: true,
+  meta: true,
   name: true,
   genre: true,
   mood: true,

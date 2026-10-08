@@ -271,6 +271,7 @@ export interface IStorage {
   getSamplePack(id: string): Promise<SamplePack | undefined>;
   getSamplePacks(limit?: number, offset?: number): Promise<SamplePack[]>;
   createSamplePack(pack: InsertSamplePack): Promise<SamplePack>;
+  getUserSamplePacks(userId: string): Promise<SamplePack[]>;
   deleteSamplePack(id: string): Promise<void>;
 
   // Samples
@@ -1247,12 +1248,20 @@ export class MemStorage implements IStorage {
       .slice(offset, offset + limit);
   }
 
+  async getUserSamplePacks(userId: string): Promise<SamplePack[]> {
+    return Array.from(this.samplePacks.values())
+      .filter((p) => p.userId === userId)
+      .sort((a, b) => (b.createdAt?.getTime?.() ?? 0) - (a.createdAt?.getTime?.() ?? 0));
+  }
+
   async createSamplePack(pack: InsertSamplePack): Promise<SamplePack> {
     const id = randomUUID();
     const newPack: SamplePack = {
       id,
       ...pack,
       description: pack.description || null,
+      userId: pack.userId ?? null,
+      meta: pack.meta ?? null,
       createdAt: new Date(),
     };
     this.samplePacks.set(id, newPack);
@@ -2077,6 +2086,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(samplePacks.createdAt))
       .limit(limit)
       .offset(offset);
+  }
+
+  async getUserSamplePacks(userId: string): Promise<SamplePack[]> {
+    return db
+      .select()
+      .from(samplePacks)
+      .where(eq(samplePacks.userId, userId))
+      .orderBy(desc(samplePacks.createdAt));
   }
 
   async createSamplePack(pack: InsertSamplePack): Promise<SamplePack> {

@@ -223,6 +223,11 @@ export async function runMigrations() {
     `;
     console.log('✅ Migration: tracks table ensured');
 
+    // Migration: sample_packs gets an owner + reopen metadata (review L3)
+    await sql`ALTER TABLE sample_packs ADD COLUMN IF NOT EXISTS user_id VARCHAR REFERENCES users(id)`;
+    await sql`ALTER TABLE sample_packs ADD COLUMN IF NOT EXISTS meta JSON`;
+    console.log('✅ Migration: sample_packs.user_id + meta ensured');
+
     // Migration: blog_posts table (shared/schema.ts blogPosts). It was never
     // created in production, so GET /api/blog/posts 500'd (review D1).
     await sql`

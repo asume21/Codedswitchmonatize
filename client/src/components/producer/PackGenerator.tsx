@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -256,6 +256,22 @@ export default function PackGenerator() {
     return [];
   });
   const [showHistory, setShowHistory] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Packs saved to the account (they used to be write-only — review L3),
+  // shown first; browser-only history fills in the rest without duplicates.
+  const { data: accountPacksData } = useQuery<{ packs: Array<GeneratedPack & { sourceId?: string }> }>({
+    queryKey: ['/api/packs/mine'],
+    queryFn: async () => {
+      try { return await (await apiRequest('GET', '/api/packs/mine')).json(); }
+      catch { return { packs: [] }; }
+    },
+  });
+  const archivePacks = useMemo(() => {
+    const account = accountPacksData?.packs ?? [];
+    const savedIds = new Set(account.map((p) => p.sourceId).filter(Boolean));
+    return [...account, ...packHistory.filter((p) => !savedIds.has(p.id))];
+  }, [accountPacksData, packHistory]);
   
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
@@ -438,7 +454,8 @@ export default function PackGenerator() {
       return data;
     },
     onSuccess: (_data, pack) => {
-      toast({ title: "Pack saved!", description: `"${pack.title}" added to library.` });
+      queryClient.invalidateQueries({ queryKey: ['/api/packs/mine'] });
+      toast({ title: "Pack saved!", description: `"${pack.title}" is in your Archive on any device.` });
     },
   });
 
@@ -689,7 +706,7 @@ export default function PackGenerator() {
                     ))}
                     <div className="ml-auto">
                       <Button variant="outline" onClick={() => setShowHistory(!showHistory)} className={`rounded-xl font-black uppercase text-[10px] tracking-widest px-4 transition-all ${showHistory ? 'bg-amber-500/20 border-amber-500/50 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}>
-                        <History className="h-4 w-4 mr-2" /> Archive ({packHistory.length})
+                        <History className="h-4 w-4 mr-2" /> Archive ({archivePacks.length})
                       </Button>
                     </div>
                   </div>
@@ -775,11 +792,11 @@ export default function PackGenerator() {
                 </div>
               </CardHeader>
               <CardContent className="p-6">
-                {packHistory.length === 0 ? (
+                {archivePacks.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-2xl text-[10px] font-black text-white/20 uppercase">Buffers Empty</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">
-                    {packHistory.map(pack => (
+                    {archivePacks.map(pack => (
                       <div key={pack.id} className="p-4 bg-black/40 rounded-2xl border border-white/5 cursor-pointer hover:border-amber-500/40 hover:bg-white/5 transition-all group shadow-sm" onClick={() => loadFromHistory(pack)}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-black text-xs text-white/90 truncate uppercase">{pack.title}</span>

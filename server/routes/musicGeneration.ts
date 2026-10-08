@@ -993,6 +993,8 @@ Return ONLY valid JSON:
         const saved = [] as any[];
         for (const pack of packs) {
           const record = await storage.createSamplePack({
+            userId: req.userId ?? null,
+            meta: { bpm: pack.bpm, key: pack.key, title: pack.title },
             name: pack.title,
             genre: pack.genre,
             mood: pack.metadata.mood,

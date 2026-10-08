@@ -40,6 +40,35 @@ export function createLibraryRoutes(storage: IStorage) {
   // NOTE: /api/packs/generate is handled by createPackRoutes() mounted at /api/packs (line 204)
   // It supports multiple providers: local-samples, structure, suno, jasco, intelligent, musicgen
 
+  // The signed-in user's saved packs, in the Pack Generator's own shape.
+  router.get("/api/packs/mine", async (req: Request, res: Response) => {
+    if (!req.userId) return sendError(res, 401, "Authentication required");
+    try {
+      const rows = await storage.getUserSamplePacks(req.userId);
+      res.json({
+        packs: rows.map((r) => {
+          const meta = (r.meta ?? {}) as Record<string, any>;
+          return {
+            id: r.id,
+            title: meta.title ?? r.name,
+            description: r.description ?? "",
+            bpm: meta.bpm ?? 120,
+            key: meta.key ?? "C",
+            genre: r.genre,
+            generator: meta.generator,
+            samples: Array.isArray(r.generatedSamples) ? r.generatedSamples : [],
+            metadata: { mood: r.mood },
+            savedAt: r.createdAt,
+            sourceId: meta.sourceId,
+          };
+        }),
+      });
+    } catch (err: any) {
+      console.error("List packs error:", err);
+      res.status(500).json({ message: err?.message || "Failed to list packs" });
+    }
+  });
+
   // Save pack to library
   router.post(
     "/api/packs/save",
@@ -53,6 +82,8 @@ export function createLibraryRoutes(storage: IStorage) {
 
         // Create pack in database
         const savedPack = await storage.createSamplePack({
+          userId: req.userId ?? null,
+          meta: { bpm: pack.bpm, key: pack.key, generator: pack.generator, title: pack.title, sourceId: pack.id },
           name: pack.title,
           genre: pack.genre,
           mood: pack.metadata?.mood || "Dynamic",
