@@ -6,6 +6,22 @@
 import { getAudioContext } from './audioContext';
 import { SidechainDucker, type SidechainConfig } from '@/organism/mix/channels/SidechainDucker';
 
+/**
+ * Move an AudioParam to `value` over ~15 ms instead of jumping. Direct
+ * `.value =` writes step instantly, which zippers when automation or a fader
+ * updates many times a second (product review M8).
+ */
+function glide(param: AudioParam, value: number): void {
+  try {
+    const ctx = (param as AudioParam & { context?: BaseAudioContext }).context;
+    const now = ctx?.currentTime ?? 0;
+    param.cancelScheduledValues(now);
+    param.setTargetAtTime(value, now, 0.015);
+  } catch {
+    param.value = value;
+  }
+}
+
 const DEFAULT_SIDECHAIN_CONFIG: SidechainConfig = {
   depthDb: -6,
   attackMs: 2,
@@ -65,6 +81,8 @@ export class ProfessionalAudioEngine {
   private masterLevel = 0.8;
   
   private channels: Map<string, MixerChannel> = new Map();
+  
+  private eqTargets = new Map<string, number>();
   private sendReturns: Map<string, SendReturn> = new Map();
   
   private isInitialized = false;
@@ -652,7 +670,7 @@ export class ProfessionalAudioEngine {
     if (!channel) return;
     
     channel.volume = Math.max(0, Math.min(1, volume));
-    channel.output.gain.value = channel.volume;
+    glide(channel.output.gain, channel.volume);
   }
   
   setChannelPan(channelId: string, pan: number): void {
@@ -662,7 +680,7 @@ export class ProfessionalAudioEngine {
     channel.pan = Math.max(-1, Math.min(1, pan));
     const panNode = this.channelPanNodes.get(channelId);
     if (panNode) {
-      panNode.pan.value = channel.pan;
+      glide(panNode.pan, channel.pan);
     }
   }
   
@@ -671,19 +689,20 @@ export class ProfessionalAudioEngine {
     if (!channel) return;
     
     const gainValue = Math.max(-15, Math.min(15, gain)); // ±15dB range
+    this.eqTargets.set(`${channelId}:${band}`, gainValue);
     
     switch (band) {
       case 'low':
-        channel.eq.lowShelf.gain.value = gainValue;
+        glide(channel.eq.lowShelf.gain, gainValue);
         break;
       case 'lowMid':
-        channel.eq.lowMid.gain.value = gainValue;
+        glide(channel.eq.lowMid.gain, gainValue);
         break;
       case 'highMid':
-        channel.eq.highMid.gain.value = gainValue;
+        glide(channel.eq.highMid.gain, gainValue);
         break;
       case 'high':
-        channel.eq.highShelf.gain.value = gainValue;
+        glide(channel.eq.highShelf.gain, gainValue);
         break;
     }
   }
@@ -691,6 +710,9 @@ export class ProfessionalAudioEngine {
   getChannelEQ(channelId: string, band: 'low' | 'lowMid' | 'highMid' | 'high'): number {
     const channel = this.channels.get(channelId);
     if (!channel) return 0;
+    // During a glide .value is mid-ramp; report where it is heading.
+    const target = this.eqTargets.get(`${channelId}:${band}`);
+    if (target !== undefined) return target;
     
     switch (band) {
       case 'low':
@@ -709,7 +731,7 @@ export class ProfessionalAudioEngine {
     const send = channel?.sends[sendId];
     if (!send) return;
     
-    send.gain.value = Math.max(0, Math.min(1, level));
+    glide(send.gain, Math.max(0, Math.min(1, level)));
   }
 
   setMasterLevel(level: number): void {

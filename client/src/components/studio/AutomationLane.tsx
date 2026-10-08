@@ -25,23 +25,46 @@ export interface AutoPoint {
 // Built-in parameters + effect parameters (dot-notation: 'reverb.mix', 'filter.cutoff', etc.)
 export type AutoParam = 'volume' | 'pan' | (string & {});
 
-/** Known effect parameter presets for the dropdown UI */
+/**
+ * Parameters the dropdown offers. Each must map to something the mixer engine
+ * (professionalAudio) can actually set — see resolveAutomationParam. Filter,
+ * distortion, compressor, delay time/feedback and reverb decay used to be
+ * offered too; the engine has no per-channel control for them, so drawing
+ * them did nothing (product review M6).
+ */
 export const EFFECT_AUTO_PARAMS: { value: string; label: string }[] = [
-  { value: 'volume',        label: 'Volume' },
-  { value: 'pan',           label: 'Pan' },
-  { value: 'reverb.mix',    label: 'Reverb Mix' },
-  { value: 'reverb.decay',  label: 'Reverb Decay' },
-  { value: 'delay.mix',     label: 'Delay Mix' },
-  { value: 'delay.time',    label: 'Delay Time' },
-  { value: 'delay.feedback',label: 'Delay Feedback' },
-  { value: 'filter.cutoff', label: 'Filter Cutoff' },
-  { value: 'filter.resonance', label: 'Filter Resonance' },
-  { value: 'distortion.amount', label: 'Distortion' },
-  { value: 'compressor.threshold', label: 'Comp Threshold' },
-  { value: 'eq.low',        label: 'EQ Low' },
-  { value: 'eq.mid',        label: 'EQ Mid' },
-  { value: 'eq.high',       label: 'EQ High' },
+  { value: 'volume',     label: 'Volume' },
+  { value: 'pan',        label: 'Pan' },
+  { value: 'reverb.mix', label: 'Reverb Send' },
+  { value: 'delay.mix',  label: 'Delay Send' },
+  { value: 'eq.low',     label: 'EQ Low' },
+  { value: 'eq.mid',     label: 'EQ Mid' },
+  { value: 'eq.high',    label: 'EQ High' },
 ];
+
+export type AutomationAction =
+  | { kind: 'volume'; value: number }
+  | { kind: 'pan'; value: number }
+  | { kind: 'eq'; bands: Array<'low' | 'lowMid' | 'highMid' | 'high'>; gainDb: number }
+  | { kind: 'send'; sendId: string; level: number };
+
+const EQ_RANGE_DB = 12;
+
+/** Lane value (0–1) → what to set on the mixer engine. null = unsupported. */
+export function resolveAutomationParam(param: string, v: number): AutomationAction | null {
+  const value = Math.max(0, Math.min(1, v));
+  const db = Math.round((value * 2 - 1) * EQ_RANGE_DB * 100) / 100;
+  switch (param) {
+    case 'volume': return { kind: 'volume', value };
+    case 'pan': return { kind: 'pan', value: value * 2 - 1 };
+    case 'eq.low': return { kind: 'eq', bands: ['low'], gainDb: db };
+    case 'eq.mid': return { kind: 'eq', bands: ['lowMid', 'highMid'], gainDb: db };
+    case 'eq.high': return { kind: 'eq', bands: ['high'], gainDb: db };
+    case 'reverb.mix': return { kind: 'send', sendId: 'hall', level: value };
+    case 'delay.mix': return { kind: 'send', sendId: 'delay', level: value };
+    default: return null;
+  }
+}
 
 // ── Interpolation helper (exported for playback) ──────────────────────────────
 export function valueAt(points: AutoPoint[], bar: number, fallback = 0.75): number {

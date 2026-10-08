@@ -26,9 +26,10 @@ import {
   X, Maximize2,
 } from 'lucide-react';
 import { SectionMarkers } from './SectionMarkers';
-import { AutomationLane, valueAt, AUTO_LANE_H, EFFECT_AUTO_PARAMS, type AutoPoint, type AutoParam } from './AutomationLane';
+import { AutomationLane, valueAt, AUTO_LANE_H, EFFECT_AUTO_PARAMS, resolveAutomationParam, type AutoPoint, type AutoParam } from './AutomationLane';
 import { VerticalPianoRoll } from './VerticalPianoRoll';
-import { exportTracksToMidi, downloadMidi } from '@/lib/midiExport';
+import { exportStemsZip } from '@/lib/exportStems';
+import { useToast } from '@/hooks/use-toast';
 import { professionalAudio } from '@/lib/professionalAudio';
 import { cn } from '@/lib/utils';
 import { splitClip as splitAudioClip, duplicateClip as duplicateAudioClip } from '@/lib/clipEditor';
@@ -260,18 +261,32 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   const pxPerBar = BASE_PX_BAR * zoom;
 
   // ── Stems export ──────────────────────────────────────────────────────────
-  const exportStems = useCallback(() => {
-    const midiTracks = tracks
-      .filter(t => ((t as any).notes?.length ?? 0) > 0)
-      .map(t => ({
-        name: t.name,
-        notes: (t as any).notes ?? [],
-        channel: (t as any).kind === 'beat' ? 9 : 0,
-      }));
-    if (!midiTracks.length) return;
-    const midi = exportTracksToMidi(tracks as any, { bpm: tempo, projectName: 'CodedSwitch Session' });
-    downloadMidi(midi, `cs-stems-${Date.now()}.mid`);
-  }, [tracks, tempo]);
+  // One file per track in a single zip: audio tracks rendered to WAV, note
+  // tracks as MIDI. (This used to download ONE MIDI file of everything.)
+  const { toast } = useToast();
+  const [exportingStems, setExportingStems] = useState(false);
+  const exportStems = useCallback(async () => {
+    if (exportingStems) return;
+    setExportingStems(true);
+    try {
+      const zip = await exportStemsZip(tracks as any, tempo);
+      if (!zip) {
+        toast({ title: 'Nothing to export', description: 'Add audio or note tracks to the arrangement first.' });
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([new Uint8Array(zip)], { type: 'application/zip' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `codedswitch-stems-${Date.now()}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.error('Stems export failed', err);
+      toast({ title: 'Stems export failed', description: String((err as Error)?.message ?? err), variant: 'destructive' });
+    } finally {
+      setExportingStems(false);
+    }
+  }, [tracks, tempo, exportingStems, toast]);
 
   // Transport position → bars (4/4 assumed)
   useEffect(() => { setPlayheadBar(position / 4); }, [position]);
@@ -587,16 +602,22 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
   // ── Apply automation to audio engine during playback ─────────────────────────
   useEffect(() => {
     if (!isPlaying) return;
+    // Every lane the dropdown offers is applied (it used to be volume + pan
+    // only). The engine glides to each value, so steps don't zipper.
     for (const track of tracks) {
       const auto = (track as any).automation as Record<string, AutoPoint[]> | undefined;
       if (!auto) continue;
-      if (auto.volume?.length) {
-        const vol = valueAt(auto.volume, playheadBar, (track as any).volume ?? 0.8);
-        try { professionalAudio.setChannelVolume(track.id, vol); } catch {}
-      }
-      if (auto.pan?.length) {
-        const panNorm = valueAt(auto.pan, playheadBar, 0.5);
-        try { professionalAudio.setChannelPan(track.id, panNorm * 2 - 1); } catch {}
+      for (const [param, points] of Object.entries(auto)) {
+        if (!points?.length) continue;
+        const fallback = param === 'volume' ? ((track as any).volume ?? 0.8) : 0.5;
+        const action = resolveAutomationParam(param, valueAt(points, playheadBar, fallback));
+        if (!action) continue;
+        try {
+          if (action.kind === 'volume') professionalAudio.setChannelVolume(track.id, action.value);
+          else if (action.kind === 'pan') professionalAudio.setChannelPan(track.id, action.value);
+          else if (action.kind === 'eq') action.bands.forEach((b) => professionalAudio.setChannelEQ(track.id, b, action.gainDb));
+          else professionalAudio.setSendLevel(track.id, action.sendId, action.level);
+        } catch { /* channel not created yet */ }
       }
     }
   }, [isPlaying, playheadBar, tracks]);
@@ -683,9 +704,10 @@ export function DawArrangementView({ onOpenEditor, onAddTrack }: DawArrangementV
           <button
             onClick={exportStems}
             className="flex items-center gap-1 px-2.5 py-1 rounded border border-violet-500/20 bg-violet-500/8 hover:bg-violet-500/20 hover:border-violet-400/40 text-[11px] text-violet-400/70 hover:text-violet-100 transition-all"
-            title="Export all MIDI tracks as a multi-track .mid file"
+            title="Download every track as its own file (audio as WAV, instruments as MIDI) in one zip"
+            disabled={exportingStems}
           >
-            <Download className="w-3 h-3" /> Export Stems
+            <Download className="w-3 h-3" /> {exportingStems ? 'Rendering…' : 'Export Stems'}
           </button>
           <span className="font-mono text-[10px] text-gray-700">
             {tracks.length} track{tracks.length !== 1 ? 's' : ''} · {tempo} BPM
