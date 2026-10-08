@@ -135,7 +135,7 @@ function GuestTrialBanner({ organism }: { organism: LiveOrganism }) {
               {startingVoice ? 'Starting' : 'Start Voice Trial'}
             </button>
           )}
-          <Link href="/signup">
+          <Link href="/signup?next=%2Fstudio%2Fmake">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold uppercase tracking-widest text-white/80 transition hover:bg-white/10 hover:text-white"
@@ -371,7 +371,7 @@ function GuestLockOverlay() {
           Create a free account to keep jamming, save sessions, and unlock every control.
         </p>
         <div className="flex flex-col gap-2">
-          <Link href="/signup">
+          <Link href="/signup?next=%2Fstudio%2Fmake">
             <button className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-5 py-3 text-sm font-bold uppercase tracking-widest text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:opacity-90">
               Sign Up Free
             </button>

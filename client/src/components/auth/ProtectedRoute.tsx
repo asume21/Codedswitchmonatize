@@ -43,5 +43,7 @@ export function ProtectedRoute({ children, teaserMode }: ProtectedRouteProps) {
   }
 
   // Not authenticated — redirect to login
-  return <Redirect to="/login" />;
+  // Come back here after signing in (validated by safeNextPath on the login page).
+  const here = `${window.location.pathname}${window.location.search}`;
+  return <Redirect to={`/login?next=${encodeURIComponent(here)}`} />;
 }

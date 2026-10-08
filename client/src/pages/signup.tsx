@@ -7,9 +7,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/hooks/use-toast";
 import { Music, Loader2 } from "lucide-react";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { safeNextPath } from "@/lib/safeNext";
+import { useCompleteSignIn } from "@/hooks/useCompleteSignIn";
 
 export default function Signup() {
   const [, setLocation] = useLocation();
+  const completeSignIn = useCompleteSignIn();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -62,14 +65,8 @@ export default function Signup() {
         throw new Error(data.message || "Registration failed");
       }
 
-      // Store auth token for subsequent requests
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
-      }
-      if (data.userId) {
-        localStorage.setItem('authUserId', data.userId);
-      }
-      window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'signup' } }));
+      // Token + seeded auth cache, so the next route guard sees a signed-in user.
+      completeSignIn(data, 'signup');
 
       // If activation key provided, activate the account
       if (formData.activationKey.trim()) {
@@ -107,7 +104,7 @@ export default function Signup() {
         });
       }
 
-      setLocation("/dashboard");
+      setLocation(safeNextPath(window.location.search, "/studio/make"));
     } catch (error: any) {
       toast({
         title: "Registration Failed",
@@ -228,18 +225,12 @@ export default function Signup() {
             </Button>
             <GoogleSignInButton
               onSuccess={(data) => {
-                if (data.token) {
-                  localStorage.setItem('authToken', data.token);
-                }
-                if (data.userId) {
-                  localStorage.setItem('authUserId', data.userId);
-                }
-                window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'google-login' } }));
+                completeSignIn(data, 'google-login');
                 toast({
                   title: data.message === "Login successful" ? "Welcome back!" : "Account created!",
                   description: "You're signed in with Google.",
                 });
-                setLocation("/dashboard");
+                setLocation(safeNextPath(window.location.search, "/studio/make"));
               }}
               onError={(message) =>
                 toast({ title: "Google sign-in failed", description: message, variant: "destructive" })

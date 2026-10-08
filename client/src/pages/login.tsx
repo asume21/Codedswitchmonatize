@@ -9,6 +9,8 @@ import { Music, Loader2 } from "lucide-react";
 import { useAuth, type SubscriptionStatus } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import { safeNextPath } from "@/lib/safeNext";
+import { useCompleteSignIn } from "@/hooks/useCompleteSignIn";
 
 const SUBSCRIPTION_QUERY_KEY = ["/api/subscription-status"] as const;
 
@@ -27,6 +29,7 @@ export default function Login() {
   const { toast } = useToast();
   const { refresh } = useAuth();
   const queryClient = useQueryClient();
+  const completeSignIn = useCompleteSignIn();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -37,34 +40,14 @@ export default function Login() {
   // cache so a slow subscription refresh can't fail a successful login,
   // then head to the dashboard.
   const completeLogin = (data: any) => {
-    if (data.token) {
-      localStorage.setItem('authToken', data.token);
-    }
-    if (data.userId) {
-      localStorage.setItem('authUserId', data.userId);
-    }
-    window.dispatchEvent(new CustomEvent('codedswitch:auth-changed', { detail: { state: 'login' } }));
-
-    queryClient.setQueryData<SubscriptionStatus>(SUBSCRIPTION_QUERY_KEY, {
-      hasActiveSubscription:
-        data.user?.subscriptionTier === "pro" || data.user?.subscriptionStatus === "active",
-      tier: data.user?.subscriptionTier || "free",
-      monthlyUploads: data.user?.monthlyUploads || 0,
-      monthlyGenerations: data.user?.monthlyGenerations || 0,
-      lastUsageReset: data.user?.lastUsageReset,
-      isAuthenticated: true,
-    });
-
-    void refresh().catch((refreshError) => {
-      console.warn("Post-login auth refresh failed:", refreshError);
-    });
+    completeSignIn(data, 'login');
 
     toast({
       title: "Welcome back!",
       description: "You've successfully logged in.",
     });
 
-    setLocation("/dashboard");
+    setLocation(safeNextPath(window.location.search, "/dashboard"));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
