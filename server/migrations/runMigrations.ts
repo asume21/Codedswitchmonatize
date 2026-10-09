@@ -529,6 +529,10 @@ export async function runMigrations() {
         status text NOT NULL DEFAULT 'pending',
         created_at timestamp DEFAULT now(), expires_at timestamp
       )`;
+    // collab_invites.project_id was INTEGER but projects.id is a uuid string,
+    // so an invite could never reference a real project (review S5). No-op
+    // once it is varchar.
+    await sql`ALTER TABLE collab_invites ALTER COLUMN project_id TYPE VARCHAR USING project_id::varchar`;
     console.log('✅ Migration: Social Hub tables ensured');
 
     console.log('✅ All migrations completed successfully');

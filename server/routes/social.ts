@@ -126,6 +126,11 @@ export function createSocialRoutes(storage: IStorage) {
       }
 
       const { projectId, sharedWithUserId, permission } = parsed.data;
+      // You can only share a project you own (this was never checked).
+      const project = await storage.getProject(projectId);
+      if (!project || project.userId !== req.userId) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
 
       const share = await storage.createProjectShare(
         projectId,
@@ -555,7 +560,7 @@ export function createSocialRoutes(storage: IStorage) {
         toUserId: z.string(),
         type: z.enum(['jam', 'project', 'feedback']),
         message: z.string().max(500).optional(),
-        projectId: z.number().optional(),
+        projectId: z.string().optional(),
       });
 
       const parsed = schema.safeParse(req.body);

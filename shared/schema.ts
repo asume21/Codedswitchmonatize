@@ -428,7 +428,7 @@ export const collabInvites = pgTable("collab_invites", {
   id: serial("id").primaryKey(),
   fromUserId: text("from_user_id").notNull(),
   toUserId: text("to_user_id").notNull(),
-  projectId: integer("project_id"),
+  projectId: varchar("project_id"), // projects.id is a uuid string (was integer — review S5)
   type: text("type").notNull(), // 'jam', 'project', 'feedback'
   message: text("message"),
   status: text("status").notNull().default("pending"), // 'pending', 'accepted', 'declined', 'expired'
