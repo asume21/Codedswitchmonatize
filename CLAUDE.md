@@ -30,6 +30,18 @@ specs and competing systems (the "doubles"). Before acting on the first request:
    clicking through the running app for UI/wiring, and the user's ear for
    anything about how the music sounds (tests can't hear).
 
+## ⚠️ User text going somewhere new is hostile until proven otherwise
+
+When user-controlled text (song names, usernames, captions, chat messages,
+filenames, URL params) starts flowing into a NEW place — HTML/meta tags,
+SQL, shell/ffmpeg args, file paths, redirects, AI prompts, another user's
+view or browser storage — treat it as hostile and check that path before
+shipping: escape/encode for the destination, bound its size, whitelist its
+shape, and scope it to its owner. Add a test with a hostile value. (Three
+such holes slipped into fixes on 2026-10-09: `$'` in a song name injecting
+HTML via `String.replace`, a chat cap bypassed through a second field, and a
+shared browser handing one account's takes to the next.)
+
 ## Project Overview
 
 **CodedSwitch Studio** — an AI-powered music creation SaaS platform. Users compose multi-track music (beat maker, piano roll, melody composer, mixer), use AI to generate/layer audio, scan code for vulnerabilities, and share songs socially. Billing is via Stripe with a credit system.
