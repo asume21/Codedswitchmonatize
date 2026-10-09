@@ -27,14 +27,10 @@ export interface WindowState {
 // Registry of all available studio windows
 export const STUDIO_WINDOWS: WindowConfig[] = [
   { id: 'project-manager', title: 'Project Manager', icon: Save, defaultWidth: 420, defaultHeight: 480, minWidth: 320, minHeight: 300, resizable: true },
-  { id: 'effects-chain', title: 'Effects Chain', icon: Sliders, defaultWidth: 300, defaultHeight: 500, minWidth: 260, minHeight: 300, resizable: true },
   { id: 'mixer', title: 'Mixer', icon: Layers, defaultWidth: 700, defaultHeight: 420, minWidth: 400, minHeight: 300, resizable: true },
-  { id: 'automation', title: 'Automation', icon: Wand2, defaultWidth: 600, defaultHeight: 200, minWidth: 400, minHeight: 150, resizable: true },
   { id: 'recording', title: 'Recording', icon: Mic, defaultWidth: 340, defaultHeight: 520, minWidth: 300, minHeight: 400, resizable: true },
   { id: 'sample-slicer', title: 'Sample Slicer', icon: Scissors, defaultWidth: 600, defaultHeight: 450, minWidth: 400, minHeight: 300, resizable: true },
   { id: 'freeze-bounce', title: 'Freeze / Bounce', icon: Snowflake, defaultWidth: 340, defaultHeight: 480, minWidth: 280, minHeight: 350, resizable: true },
-  { id: 'clip-editor', title: 'Clip Editor', icon: Music, defaultWidth: 700, defaultHeight: 200, minWidth: 400, minHeight: 120, resizable: true },
-  { id: 'midi-editor', title: 'MIDI Editor', icon: Piano, defaultWidth: 750, defaultHeight: 350, minWidth: 500, minHeight: 250, resizable: true },
   { id: 'undo-history', title: 'Undo History', icon: Undo2, defaultWidth: 280, defaultHeight: 360, minWidth: 220, minHeight: 200, resizable: true },
   { id: 'stem-generator', title: 'AI Stem Generator', icon: Layers2, defaultWidth: 380, defaultHeight: 580, minWidth: 320, minHeight: 400, resizable: true },
   { id: 'sample-library', title: 'Sample Library', icon: Music, defaultWidth: 420, defaultHeight: 600, minWidth: 360, minHeight: 450, resizable: true },

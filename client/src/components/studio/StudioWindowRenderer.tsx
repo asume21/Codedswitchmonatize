@@ -3,19 +3,12 @@ import { useWindowManager, STUDIO_WINDOWS } from '@/contexts/WindowManagerContex
 import FloatingWindow from '@/components/studio/FloatingWindow';
 import UndoRedoControls from '@/components/studio/UndoRedoControls';
 import { Save, Undo2, Sliders, Music, Mic, Scissors, Snowflake, Wand2 } from 'lucide-react';
-import type { AutomationLane, AudioClip } from '@/lib/projectManager';
-import type { EffectInstance } from '@/lib/effectsChain';
-import type { Note } from '../../../../shared/studioTypes';
 
 const ProjectManagerPanel = React.lazy(() => import('@/components/studio/ProjectManagerPanel'));
-const AutomationLaneEditor = React.lazy(() => import('@/components/studio/AutomationLaneEditor'));
-const EffectsChainPanel = React.lazy(() => import('@/components/studio/EffectsChainPanel'));
 const ProfessionalMixer = React.lazy(() => import('@/components/studio/ProfessionalMixer'));
 const RecordingPanel = React.lazy(() => import('@/components/studio/RecordingPanel'));
 const SampleSlicerPanel = React.lazy(() => import('@/components/studio/SampleSlicerPanel'));
 const FreezeBounceControls = React.lazy(() => import('@/components/studio/FreezeBounceControls'));
-const ClipEditorOverlay = React.lazy(() => import('@/components/studio/ClipEditorOverlay'));
-const MidiEditorPanel = React.lazy(() => import('@/components/studio/MidiEditorPanel'));
 const SampleLibrary = React.lazy(() => import('@/components/studio/SampleLibrary'));
 const AIStemSeparation = React.lazy(() => import('@/components/studio/AIStemSeparation'));
 
@@ -23,21 +16,6 @@ interface StudioWindowRendererProps {
   // Project
   onProjectLoaded?: (projectData: unknown) => void;
   getProjectData?: () => unknown;
-
-  // Automation
-  automationTrackId?: string;
-  automationTrackName?: string;
-  automationTrackColor?: string;
-  automationLanes?: AutomationLane[];
-  automationTotalBeats?: number;
-  automationPixelsPerBeat?: number;
-  onAutomationLanesChange?: (lanes: AutomationLane[]) => void;
-
-  // Effects
-  effectsTrackId?: string;
-  effectsTrackName?: string;
-  effects?: EffectInstance[];
-  onEffectsChange?: (effects: EffectInstance[]) => void;
 
   // Recording
   recordingTrackId?: string;
@@ -72,27 +50,6 @@ interface StudioWindowRendererProps {
   onTrackFrozen?: (trackId: string, url: string) => void;
   onTrackUnfrozen?: (trackId: string) => void;
   onBounceComplete?: (url: string, blob: Blob) => void;
-
-  // Clip Editor
-  clips?: AudioClip[];
-  selectedClipId?: string | null;
-  clipPixelsPerBeat?: number;
-  clipGridSize?: number;
-  clipBpm?: number;
-  playheadBeat?: number;
-  onClipsChange?: (clips: AudioClip[]) => void;
-  onSelectClip?: (clipId: string | null) => void;
-
-  // MIDI Editor
-  midiTrackId?: string;
-  midiNotes?: Note[];
-  midiRootKey?: string;
-  midiScaleName?: string;
-  midiTotalSteps?: number;
-  midiPixelsPerStep?: number;
-  onMidiNotesChange?: (notes: Note[]) => void;
-  onMidiKeyChange?: (key: string) => void;
-  onMidiScaleChange?: (scale: string) => void;
 }
 
 export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
@@ -121,29 +78,6 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
           <div className="p-3">
             <UndoRedoControls />
           </div>
-        );
-
-      case 'automation':
-        return renderDeferred(
-          <AutomationLaneEditor
-            trackId={props.automationTrackId || ''}
-            trackName={props.automationTrackName || 'Track'}
-            trackColor={props.automationTrackColor || '#8b5cf6'}
-            lanes={props.automationLanes || []}
-            totalBeats={props.automationTotalBeats || 64}
-            pixelsPerBeat={props.automationPixelsPerBeat || 20}
-            onLanesChange={props.onAutomationLanesChange || (() => {})}
-          />
-        );
-
-      case 'effects-chain':
-        return renderDeferred(
-          <EffectsChainPanel
-            trackId={props.effectsTrackId || ''}
-            trackName={props.effectsTrackName || 'Track'}
-            effects={props.effects || []}
-            onEffectsChange={props.onEffectsChange || (() => {})}
-          />
         );
 
       case 'mixer':
@@ -181,35 +115,6 @@ export default function StudioWindowRenderer(props: StudioWindowRendererProps) {
             onTrackFrozen={props.onTrackFrozen}
             onTrackUnfrozen={props.onTrackUnfrozen}
             onBounceComplete={props.onBounceComplete}
-          />
-        );
-
-      case 'clip-editor':
-        return renderDeferred(
-          <ClipEditorOverlay
-            clips={props.clips || []}
-            selectedClipId={props.selectedClipId ?? null}
-            pixelsPerBeat={props.clipPixelsPerBeat || 20}
-            gridSize={props.clipGridSize || 0.25}
-            bpm={props.clipBpm || 120}
-            playheadBeat={props.playheadBeat || 0}
-            onClipsChange={props.onClipsChange || (() => {})}
-            onSelectClip={props.onSelectClip || (() => {})}
-          />
-        );
-
-      case 'midi-editor':
-        return renderDeferred(
-          <MidiEditorPanel
-            trackId={props.midiTrackId || ''}
-            notes={props.midiNotes || []}
-            rootKey={props.midiRootKey || 'C'}
-            scaleName={props.midiScaleName || 'major'}
-            totalSteps={props.midiTotalSteps || 64}
-            pixelsPerStep={props.midiPixelsPerStep || 16}
-            onNotesChange={props.onMidiNotesChange || (() => {})}
-            onKeyChange={props.onMidiKeyChange}
-            onScaleChange={props.onMidiScaleChange}
           />
         );
 

@@ -17,6 +17,9 @@ import {
   type SlicedSample,
   type SliceMarker,
 } from '@/lib/sampleSlicer';
+import { buildStemsZip } from '@/lib/exportStems';
+import { uploadAudioBlob } from '@/lib/uploadAudio';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface SampleSlicerPanelProps {
   audioUrl?: string;
@@ -116,22 +119,52 @@ export default function SampleSlicerPanel({
   const handleExport = useCallback(async () => {
     if (!sample) return;
     try {
+      // One zip: browsers block a burst of separate downloads.
       const files = await exportSlicesAsWav(sample);
-      for (const file of files) {
-        const url = URL.createObjectURL(file.blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-      toast({ title: 'Exported', description: `${files.length} WAV files downloaded` });
+      const zip = buildStemsZip(await Promise.all(files.map(async (f) => ({
+        fileName: f.name.endsWith('.wav') ? f.name : `${f.name}.wav`,
+        data: new Uint8Array(await f.blob.arrayBuffer()),
+      }))));
+      const url = URL.createObjectURL(new Blob([new Uint8Array(zip)], { type: 'application/zip' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(sample.sourceName || 'slices').replace(/[^a-zA-Z0-9-_]+/g, '_')}-slices.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast({ title: 'Exported', description: `${files.length} slices in one zip` });
     } catch (err) {
       toast({ title: 'Export Failed', description: String(err), variant: 'destructive' });
     }
   }, [sample, toast]);
+
+  // Put the slices in the MIX project as audio tracks (uploaded, so they
+  // survive reloads) — the slicer used to be able to download only.
+  const [sending, setSending] = useState(false);
+  const handleSendToMix = useCallback(async () => {
+    if (!sample || sending) return;
+    setSending(true);
+    try {
+      const files = await exportSlicesAsWav(sample);
+      const stamp = Date.now();
+      for (let i = 0; i < files.length; i++) {
+        const audioUrl = await uploadAudioBlob(files[i].blob, files[i].name);
+        sendToProject({
+          kind: 'audio',
+          trackId: `slice-${stamp}-${i}`,
+          name: files[i].name.replace(/\.wav$/i, ''),
+          audioUrl,
+          bars: 1,
+          color: '#f59e0b',
+          source: 'sample-slicer',
+        });
+      }
+      toast({ title: 'Sent to MIX', description: `${files.length} slices will be in your arrangement when you open MIX.` });
+    } catch (err) {
+      toast({ title: 'Could not send slices', description: String((err as Error)?.message ?? err), variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  }, [sample, sending, toast]);
 
   const handleFileUpload = useCallback(() => {
     const input = document.createElement('input');
@@ -213,6 +246,11 @@ export default function SampleSlicerPanel({
           {sample && (
             <Button size="sm" variant="outline" onClick={handleExport} className="text-xs h-7 gap-1">
               <Download className="w-3 h-3" /> Export
+            </Button>
+          )}
+          {sample && (
+            <Button size="sm" variant="outline" onClick={handleSendToMix} disabled={sending} className="text-xs h-7 gap-1">
+              <Plus className="w-3 h-3" /> {sending ? 'Sending…' : 'Send to MIX'}
             </Button>
           )}
         </div>
