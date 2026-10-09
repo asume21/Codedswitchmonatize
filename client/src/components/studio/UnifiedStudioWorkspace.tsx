@@ -37,7 +37,7 @@ import { getAudioContext } from '@/lib/audioContext';
 import { AudioPremixCache } from '@/lib/audioPremix';
 import { duplicateTrackData } from '@/lib/trackClone';
 import { saveProjectToCloud } from '@/lib/projectManager';
-import { useProjectInbox } from '@/lib/projectInbox';
+import { useProjectInbox, sendToProject } from '@/lib/projectInbox';
 import { bounceProjectAudio } from '@/lib/bounceProject';
 import { exportAndDownloadTracksMidi } from '@/lib/midiExport';
 const AudioAnalysisPanel = React.lazy(() => import('./AudioAnalysisPanel'));
@@ -4414,7 +4414,17 @@ export default function UnifiedStudioWorkspace() {
           <SampleBrowser 
             onClose={() => setShowSampleBrowser(false)}
             onSampleSelect={(sample) => {
-              toast({ title: 'Sample Selected', description: sample.filename });
+              // Add it as an audio track (this used to only toast "Selected"
+              // while the browser announced "added to project").
+              sendToProject({
+                kind: 'audio',
+                trackId: `sample-${sample.id}-${Date.now()}`,
+                name: sample.filename.replace(/\.(wav|mp3|ogg|flac|aiff?)$/i, ''),
+                audioUrl: sample.url,
+                bpm: sample.bpm,
+                bars: 1,
+                source: 'sample-browser',
+              });
             }}
           />
           </React.Suspense>

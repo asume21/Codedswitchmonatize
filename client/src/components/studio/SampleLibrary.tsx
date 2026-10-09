@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Play, Pause, Plus, Loader2, FolderOpen, Music2, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { sendToProject } from '@/lib/projectInbox';
 
 interface SampleFile {
   id: string;
@@ -138,19 +139,19 @@ export default function SampleLibrary() {
   };
 
   // Add sample to multi-track
+  // Into the project like every other surface. This fired
+  // 'importToMultiTrack', which only the Multitrack view listens for — from
+  // anywhere else the sample vanished.
   const handleAddToTrack = (sample: SampleFile) => {
-    window.dispatchEvent(new CustomEvent('importToMultiTrack', {
-      detail: {
-        type: 'audio',
-        name: sample.name.replace(/\.(wav|mp3|ogg|flac|aiff)$/i, ''),
-        audioUrl: sample.url,
-      }
-    }));
-    
-    toast({
-      title: 'Sample Added',
-      description: `${sample.name} added to Multi-Track`,
+    sendToProject({
+      kind: 'audio',
+      trackId: `sample-${sample.id}-${Date.now()}`,
+      name: sample.name.replace(/\.(wav|mp3|ogg|flac|aiff)$/i, ''),
+      audioUrl: sample.url,
+      bars: 1,
+      source: 'sample-library',
     });
+    toast({ title: 'Added to your project', description: sample.name });
   };
 
   // Cleanup audio on unmount
