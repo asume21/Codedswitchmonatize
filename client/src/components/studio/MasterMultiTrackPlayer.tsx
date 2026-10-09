@@ -3615,12 +3615,9 @@ export default function MasterMultiTrackPlayer() {
         return;
       }
 
-      // Ctrl+S: Save
-      if ((e.ctrlKey || e.metaKey) && key === 's') {
-        e.preventDefault();
-        handleSaveSession(false);
-        return;
-      }
+      // Ctrl+S is the studio's cloud save (UnifiedStudioWorkspace) everywhere.
+      // This used to save a browser-only session here and toast "Project
+      // saved" while skipping the account save (product review M9).
     };
 
     window.addEventListener('keydown', handleKeyDown);

@@ -604,8 +604,6 @@ export default function UnifiedStudioWorkspace() {
     const saved = sessionStorage.getItem('studio:activeView');
     return (saved && valid.includes(saved) ? saved : 'arrangement') as any;
   });
-  const activeViewRef = useRef(activeView);
-  activeViewRef.current = activeView;
   const setActiveView = useCallback((v: 'arrangement' | 'piano-roll' | 'mixer' | 'ai-studio' | 'lyrics' | 'song-uploader' | 'code-to-music' | 'audio-tools' | 'beat-lab' | 'multitrack') => {
     sessionStorage.setItem('studio:activeView', v);
     // Sync URL so refresh/back-button/deep-link all work. Skip in popout mode — that's a separate-window concept.
@@ -2504,13 +2502,12 @@ export default function UnifiedStudioWorkspace() {
 
   // Ctrl/Cmd+S saves to the account, Ctrl/Cmd+O opens your projects — the
   // menu advertised both but nothing handled them (the browser's own "Save
-  // page" fired). Multitrack keeps its own Ctrl+S until the timelines merge.
+  // page" fired). Same meaning on every view, Multitrack included.
   const saveProjectRef = useRef(handleSaveProject);
   saveProjectRef.current = handleSaveProject;
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-      if (activeViewRef.current === 'multitrack') return;
       const key = e.key.toLowerCase();
       if (key === 's') {
         e.preventDefault();
