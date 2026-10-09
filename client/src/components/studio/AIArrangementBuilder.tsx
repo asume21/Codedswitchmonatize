@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, LayoutList, ArrowRight, Music2, Play, Volume2, VolumeX, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useTrackStore } from '@/contexts/TrackStoreContext';
+import { arrangementToVolumeAutomation } from '@/lib/arrangementAutomation';
 import { apiRequest } from '@/lib/queryClient';
 import { useAstutelyCore } from '@/contexts/AstutelyCoreContext';
 import { useAbortableRequest, isAbortError } from '@/hooks/use-abortable-request';
@@ -68,6 +70,7 @@ export default function AIArrangementBuilder({
   const [duration, setDuration] = useState(3);
   const { generateRealAudio, playGeneratedAudio } = useAstutelyCore();
   const { toast } = useToast();
+  const trackStore = useTrackStore();
   const getAbortSignal = useAbortableRequest();
 
   const generateArrangement = useCallback(async () => {
@@ -141,16 +144,6 @@ export default function AIArrangementBuilder({
       onApplySection(sectionIndex, section.trackStates);
     }
 
-    // Dispatch event so the studio workspace can apply track states
-    window.dispatchEvent(new CustomEvent('arrangement:applySection', {
-      detail: {
-        sectionIndex,
-        sectionName: section.name,
-        trackStates: section.trackStates,
-        startBar: section.startBar,
-        endBar: section.endBar,
-      }
-    }));
 
     toast({
       title: `▶ ${section.name}`,
@@ -159,23 +152,26 @@ export default function AIArrangementBuilder({
     });
   }, [arrangement, onApplySection, toast]);
 
+  // Write the whole song shape as stepped volume automation on the project's
+  // tracks, so it plays back section by section and is editable in MIX →
+  // Arrangement. This used to do nothing while toasting success (review A2/A3);
+  // one implementation for every place the builder is mounted.
   const applyFullArrangement = useCallback(() => {
     if (!arrangement) return;
-
-    if (onApplyArrangement) {
-      onApplyArrangement(arrangement);
+    onApplyArrangement?.(arrangement);
+    const auto = arrangementToVolumeAutomation(arrangement.sections, trackStore.tracks.map((t) => t.id));
+    const ids = Object.keys(auto);
+    for (const id of ids) {
+      const prev = ((trackStore.tracks.find((t) => t.id === id) as any)?.automation ?? {}) as Record<string, unknown>;
+      trackStore.updateTrack(id, { automation: { ...prev, volume: auto[id] } } as any);
     }
-
-    // Dispatch event with the full arrangement
-    window.dispatchEvent(new CustomEvent('arrangement:applyFull', {
-      detail: { arrangement, bpm, key }
-    }));
-
     toast({
-      title: '✅ Arrangement Applied!',
-      description: `${arrangement.sections.length} sections applied to ${projectTracks.length} tracks`,
+      title: ids.length ? 'Arrangement written to your tracks' : 'Nothing to arrange yet',
+      description: ids.length
+        ? `${arrangement.sections.length} sections as volume automation on ${ids.length} track(s) — see MIX → Arrangement.`
+        : 'Add tracks to the project, then build the arrangement again.',
     });
-  }, [arrangement, bpm, key, projectTracks.length, onApplyArrangement, toast]);
+  }, [arrangement, trackStore, onApplyArrangement, toast]);
 
   const getEnergyColor = (energy: number) => {
     if (energy >= 8) return 'bg-red-500/20 text-red-400 border-red-500/30';
