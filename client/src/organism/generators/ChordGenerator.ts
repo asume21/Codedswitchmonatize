@@ -229,6 +229,11 @@ export class ChordGenerator extends GeneratorBase {
     this.conductorChordDirty = true
   }
 
+  /** Who is playing this seat right now (preset pick, user pick or router pick). */
+  getPerformerId(): InstrumentPerformerProfile['id'] | null {
+    return this.currentPerformer?.id ?? null
+  }
+
   getVoiceDebug(): Record<string, unknown> {
     return {
       performerId: this.currentPerformer?.id ?? null,

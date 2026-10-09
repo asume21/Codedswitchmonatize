@@ -803,6 +803,11 @@ export class MelodyGenerator extends GeneratorBase {
     this.vibrato.depth.rampTo(this.lastPerformerEnergy * 0.06, 0.4)
   }
 
+  /** Who is playing this seat right now (preset pick, user pick or router pick). */
+  getPerformerId(): InstrumentPerformerProfile['id'] | null {
+    return this.currentPerformer?.id ?? null
+  }
+
   /** DIAGNOSTIC (read-only) — melody Part state for __orgDebug. Soloed captures
    *  showed FOUR onsets in 20s (chords managed 107 in the same conditions), so
    *  this answers the only question that matters: are few notes SCHEDULED, or are

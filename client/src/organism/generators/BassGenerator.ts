@@ -158,6 +158,11 @@ export class BassGenerator extends GeneratorBase {
     return this.glideRate
   }
 
+  /** Who is playing this seat right now (preset pick, user pick or router pick). */
+  getPerformerId(): InstrumentPerformerProfile['id'] | null {
+    return this.currentPerformer?.id ?? null
+  }
+
   getVoiceDebug(): Record<string, unknown> {
     const real808Loaded = this.real808Sampler?.isLoaded() === true
     return {

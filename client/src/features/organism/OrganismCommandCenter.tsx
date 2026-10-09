@@ -27,6 +27,8 @@ import { getSessionSalt, setFreeplaySeed, isSeedPinned } from '../../organism/ge
 import { sendToProject } from '@/lib/projectInbox'
 import { useToast } from '@/hooks/use-toast'
 import { persistAudioUrl } from '@/lib/uploadAudio'
+import { getConductor } from '../../organism/conductor/Conductor'
+import { buildRenderRequest } from './renderRequest'
 // ── Web Speech API local typings ───────────────────────────────────────────
 // The browser's SpeechRecognition is experimental — TS lib doesn't always
 // provide it, and ESLint's no-undef flags the DOM globals even when TS knows
@@ -319,7 +321,6 @@ function InstrumentSelect({
 //  ORGANISM COMMAND CENTER
 // ══════════════════════════════════════════════════════════════════════════════
 
-const RENDER_TRACK_DURATION_SECONDS = 120
 const RENDER_TRACK_POLL_TIMEOUT_MS = 10 * 60 * 1000
 
 // Five Fingers of Death — 5 maximally-diverse presets, 24 seconds each
@@ -864,39 +865,28 @@ export function OrganismCommandCenter() {
     setRenderPrompt(null)
     setRenderError(null)
 
-    const genre   = currentVibe?.genre ?? activePreset?.genre ?? 'trap'
-    const mood    = currentVibe?.mood  ?? 'dark'
-    const section = v2Status?.section  ?? 'verse'
-    const bpm     = currentBpm || 90
-    const musicalState = orchestrator?.getMusicalState()
-    const selfListen = (window as unknown as {
-      __organismSnapshot?: {
-        selfListen?: {
-          summary?: string | null
-          rmsDb?: number
-          peakDb?: number
-          spectralCentroidHz?: number
-          bandEnergy?: { sub: number; bass: number; lowMid: number; highMid: number; high: number }
-        } | null
-      }
-    }).__organismSnapshot?.selfListen
-
-    const extraHints = [
-      musicalState?.subGenre ? `Organism sub-genre: ${musicalState.subGenre}` : '',
-      musicalState?.currentChordLabel ? `Current chord: ${musicalState.currentChordLabel}` : '',
-      musicalState?.section ? `Arrangement section: ${musicalState.section}` : '',
-      `Beat target: reference-level hip-hop beat, clean 808 or bass, punchy kick, crisp snare, controlled hats, mix-ready headroom`,
-      selfListen?.summary ? `Live mix analysis: ${selfListen.summary}` : '',
-      selfListen?.rmsDb != null && selfListen?.peakDb != null
-        ? `Live levels: RMS ${selfListen.rmsDb.toFixed(1)} dBFS, peak ${selfListen.peakDb.toFixed(1)} dBFS`
-        : '',
-    ].filter(Boolean).join('\n')
+    // Render READS the live score (ace-everywhere spec Step 3): the plan the
+    // Conductor performs in Song Mode, else the jam-mode score — its tempo,
+    // key, scale and the players on stage. See renderRequest.ts.
+    const frame = getConductor().getScoreFrame()
+    const plan  = orchestrator?.getArrangementPlan() ?? null
+    const renderReq = buildRenderRequest({
+      plan,
+      subGenre:   plan?.subGenre ?? frame.subGenre,
+      // The transport clock the band plays on — NOT contextBpm, a memoised
+      // snapshot of the MIX tempo (default 120) that Render used to send.
+      bpm:        orchestrator?.getBpm() ?? (currentBpm || 90),
+      key:        frame.key,
+      scale:      frame.scale,
+      mood:       plan?.mood ?? currentVibe?.mood ?? null,
+      performers: orchestrator?.getLivePerformers() ?? {},
+    })
 
     try {
       const res = await fetch('/api/ai-music/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ genre, mood, bpm, section, audioDuration: RENDER_TRACK_DURATION_SECONDS, inferStep: 25, extraHints }),
+        body: JSON.stringify({ prompt: renderReq.prompt, bpm: renderReq.bpm, audioDuration: renderReq.durationSec, inferStep: 25 }),
       })
       if (!res.ok) {
         // Server returned 4xx/5xx — surface the error body so the user can see
@@ -983,7 +973,7 @@ export function OrganismCommandCenter() {
       setRenderError(err instanceof Error ? err.message : String(err))
       setRenderState('error')
     }
-  }, [renderState, currentVibe, activePreset, v2Status, currentBpm, orchestrator])
+  }, [renderState, currentVibe, currentBpm, orchestrator])
 
   const handleShare = useCallback(async () => {
     const result = await shareSession(shareCaption)

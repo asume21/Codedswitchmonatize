@@ -1922,6 +1922,15 @@ export class GeneratorOrchestrator {
   }
 
   /** The currently-loaded plan, or null if the engine is in jam mode. */
+  /** The players on stage per seat — Render tags the ACE prompt with them. */
+  getLivePerformers(): Record<'lead' | 'chord' | 'bass', InstrumentPerformerId | null> {
+    return {
+      lead:  this.melody.getPerformerId(),
+      chord: this.chord.getPerformerId(),
+      bass:  this.bass.getPerformerId(),
+    }
+  }
+
   getArrangementPlan(): ArrangementPlan | null {
     return getConductor().getActivePlan()
   }

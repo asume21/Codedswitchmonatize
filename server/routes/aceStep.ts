@@ -53,6 +53,9 @@ const cleanAcePrompt = (value: unknown) =>
     .slice(0, 18)
     .join(', ')
 
+/** ACE tags are short; anything longer is junk or abuse. */
+export const MAX_RAW_PROMPT_CHARS = 1000
+
 // ── Prompt builder — local deterministic ACE-Step style tags ─────────────────
 function buildDeterministicAceStepPrompt(opts: AcePromptOptions): string {
   const { genre, mood, bpm, section, extraHints = '' } = opts
@@ -254,12 +257,15 @@ export function createAceStepRoutes(): Router {
         return
       }
 
-      const prompt = rawPrompt
-        ? rawPrompt
+      // A caller-supplied prompt goes straight to the model as tags — accept
+      // only a string and bound it (Render now sends one on every click).
+      const callerPrompt = typeof rawPrompt === 'string' ? rawPrompt.trim().slice(0, MAX_RAW_PROMPT_CHARS) : ''
+      const prompt = callerPrompt
+        ? callerPrompt
         : await buildAceStepPrompt({ genre, mood, bpm, section, extraHints })
 
       console.log('[aceStep] /generate prompt:', {
-        source: rawPrompt ? 'rawPrompt' : 'builder',
+        source: callerPrompt ? 'rawPrompt' : 'builder',
         genre,
         mood,
         bpm,

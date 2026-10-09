@@ -432,6 +432,13 @@ duplicates & cleanup. "≈" = same root cause, fix together.
 20. **T5** Delete `/api/ai-provider/set`; **F7** drop the `'owner-user'` literal check.
 21. M11, M12, A7, A8, S5, S6, S7, D4, D5, L7 — small edges.
 
+## Added after the review
+22. **K8** Organism Render ignored the band (genre default `trap`, MIX tempo 120,
+    server presets adding "jazz samples") → reads the live score. Open gaps:
+    ACE can't be held to the band's chords (needs audio-conditioned render or
+    stems); three ACE tag builders still exist (server `tagPresets`, composer
+    `acePrompt`, unused Conductor `buildAceStepFrame`) — collapse to one.
+
 ---
 
 # Target vs. Shipped
@@ -480,3 +487,4 @@ app (UI / wiring), or the user's ear (anything about how music sounds).
 | **T5/F7** | — | `/api/ai-provider/set` deleted; owner-only credit actions require the verified owner key | — | suite |
 | Collaboration (S7) | Real-time co-editing (CRDT, e.g. Yjs) on cloud projects | Not built — the site copy claiming it must change | Large; cloud projects (its precondition) now exist | — |
 | `noteToMidi` flats | Correct enharmonic mapping | Db→C#, Eb→D#… (was 2 semitones sharp) | — | unit test |
+| **K8** Organism Render | Render = the song the band is playing: same plan, tempo, key, chords and players (ace-everywhere spec Step 3 items 2+4) | `buildRenderRequest` reads the loaded plan (tags, mood, bar-length duration) else the Conductor score (subGenre, key+scale), the transport bpm, and the live players; sends an exact `prompt` so server genre presets ("jazz samples") no longer apply; server bounds caller prompts to 1,000 chars | Chords/progression can't be enforced — public ACE is tags-only text2music; three ACE tag builders remain (doubles); not clicked in the browser yet; **needs his ear** | 7 unit tests |
