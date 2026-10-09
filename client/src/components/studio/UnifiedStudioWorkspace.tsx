@@ -2360,6 +2360,19 @@ export default function UnifiedStudioWorkspace() {
     setTrackFuture([]);
   }, [setClips, setGridSettings, setLoop, setMarkers, setSelectedTrack, setSessionSettings, setShowGrid, setSnapToGridEnabled, setTracks, setTransportTempo]);
 
+  // The browser backup used to fail silently once storage filled up (review
+  // M12). Say so once — the account save is the real safety net.
+  const localStorageWarnedRef = useRef(false);
+  const warnLocalStorageFull = useCallback(() => {
+    if (localStorageWarnedRef.current) return;
+    localStorageWarnedRef.current = true;
+    toast({
+      title: 'Browser backup is full',
+      description: 'Save to your account (Ctrl+S) — this browser can no longer keep a backup copy of the project.',
+      variant: 'destructive',
+    });
+  }, [toast]);
+
   const saveAutosaveSnapshot = useCallback(() => {
     try {
       const snapshot = {
@@ -2368,9 +2381,9 @@ export default function UnifiedStudioWorkspace() {
       };
       localStorage.setItem(STUDIO_AUTOSAVE_KEY, JSON.stringify(snapshot));
     } catch {
-      // ignore non-blocking autosave failures
+      warnLocalStorageFull();
     }
-  }, [buildProjectData]);
+  }, [buildProjectData, warnLocalStorageFull]);
 
   const pushProjectCheckpoint = useCallback((reason: 'autosave' | 'manual-save' | 'restore') => {
     try {
@@ -2383,11 +2396,16 @@ export default function UnifiedStudioWorkspace() {
       };
 
       const next = [checkpoint, ...existing].slice(0, STUDIO_MAX_CHECKPOINTS);
-      localStorage.setItem(STUDIO_CHECKPOINTS_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(STUDIO_CHECKPOINTS_KEY, JSON.stringify(next));
+      } catch {
+        // Storage full: keep fewer checkpoints rather than none.
+        localStorage.setItem(STUDIO_CHECKPOINTS_KEY, JSON.stringify(next.slice(0, 2)));
+      }
     } catch {
-      // ignore checkpoint persistence failures
+      warnLocalStorageFull();
     }
-  }, [buildProjectData]);
+  }, [buildProjectData, warnLocalStorageFull]);
 
   useEffect(() => {
     saveAutosaveSnapshot();
@@ -3352,6 +3370,13 @@ export default function UnifiedStudioWorkspace() {
             </div>
           )}
           {activeView === 'song-uploader' && <SongUploader />}
+          {/* These two views had no mobile branch → blank screen (review M11). */}
+          {activeView === 'audio-tools' && (
+            <React.Suspense fallback={<TabLoadingFallback />}><AudioToolsPage /></React.Suspense>
+          )}
+          {activeView === 'multitrack' && (
+            <React.Suspense fallback={<TabLoadingFallback />}><MasterMultiTrackPlayer /></React.Suspense>
+          )}
           {activeView === 'mixer' && <ProfessionalMixer />}
           {activeView === 'arrangement' && (
             <div className="p-4 space-y-4">
