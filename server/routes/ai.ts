@@ -9,9 +9,7 @@ import { isServerlessConfigured } from "../services/runpodServerlessService";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { aiLimiter } from "./common";
-
-const MAX_CHAT_MESSAGES = 20;
-const MAX_CHAT_CHARS = 4000;
+import { normalizeChatInput } from "../utils/chatInput";
 
 const router = Router();
 
@@ -110,10 +108,9 @@ export function createAIRoutes() {
   // any account could send unlimited, unbounded LLM calls (review A6).
   router.post("/chat", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { messages: rawMessages = [], prompt } = req.body || {};
-      const messages = (Array.isArray(rawMessages) ? rawMessages : [])
-        .slice(-MAX_CHAT_MESSAGES)
-        .map((m: any) => ({ ...m, content: String(m?.content ?? "").slice(0, MAX_CHAT_CHARS) }));
+      // Bounded on every path (messages AND the prompt fallback), role +
+      // content only — see server/utils/chatInput.
+      const messages = normalizeChatInput(req.body);
 
       console.log('💬 AI Chat request received');
 
@@ -124,9 +121,7 @@ export function createAIRoutes() {
           'Be specific, direct, and concise. No filler phrases.',
       }
 
-      let msgList = Array.isArray(messages) && messages.length > 0
-        ? messages
-        : [{ role: 'user', content: prompt || 'Hello' }]
+      let msgList: Array<{ role: string; content: string }> = messages
 
       // Inject fallback system prompt only when the caller didn't provide one
       if (!msgList.some((m: { role: string }) => m.role === 'system')) {
