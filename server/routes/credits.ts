@@ -159,7 +159,7 @@ export function createCreditRoutes(storage: IStorage) {
       }
 
       // Only owner can grant monthly credits
-      const isOwner = req.isOwner || req.userId === 'owner-user';
+      const isOwner = req.isOwner === true; // only the verified owner key sets this (review F7)
       if (!isOwner) {
         return res.status(403).json({ error: 'Admin access required' });
       }
@@ -191,7 +191,7 @@ export function createCreditRoutes(storage: IStorage) {
       }
 
       // Only owner can issue refunds
-      const isOwner = req.isOwner || req.userId === 'owner-user';
+      const isOwner = req.isOwner === true; // only the verified owner key sets this (review F7)
       if (!isOwner) {
         return res.status(403).json({ error: 'Admin access required' });
       }

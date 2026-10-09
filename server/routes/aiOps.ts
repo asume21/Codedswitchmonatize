@@ -85,40 +85,6 @@ export function createAiOpsRoutes() {
     }
   });
 
-  // Set user's AI provider preference
-  router.post("/api/ai-provider/set", requireAuth(), async (req: Request, res: Response) => {
-    try {
-      const { feature, provider } = req.body;
-      
-      if (!feature || !provider) {
-        return sendError(res, 400, "Missing feature or provider");
-      }
-
-      const { aiProviderManager } = await import('../services/aiProviderManager');
-      
-      // Validate provider exists
-      if (!aiProviderManager.getAvailableProviders().find(p => p.name === provider)) {
-        return sendError(res, 400, "Invalid provider");
-      }
-
-      // Check if provider is authenticated
-      if (!aiProviderManager.isAuthenticated(provider)) {
-        return sendError(res, 401, `Provider ${provider} is not authenticated`);
-      }
-
-      aiProviderManager.setProvider(feature, provider);
-      
-      res.json({
-        status: 'success',
-        message: `AI provider set to ${provider} for ${feature}`,
-        feature: feature,
-        provider: provider
-      });
-    } catch (error) {
-      console.error('❌ Error setting provider:', error);
-      sendError(res, 500, "Failed to set AI provider");
-    }
-  });
 
   // Get user's AI provider preference
   router.get("/api/ai-provider/:feature", requireAuth(), async (req: Request, res: Response) => {
