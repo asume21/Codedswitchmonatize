@@ -25,7 +25,6 @@ export interface MembershipTierInfo {
 const PAID_FEATURES = [
   'Unused credits roll over',
   'Export WAV, MIDI and stems',
-  'Astutely copilot chat',
   'AI chord progressions',
 ] as const;
 

@@ -28,7 +28,7 @@ import { useLocation } from 'wouter';
 import { sendToProject } from '@/lib/projectInbox';
 import { noteToMidi } from '@/lib/midiEditor';
 
-const AIAssistant = React.lazy(() => import('../AIAssistant'));
+const AstutelyChatbot = React.lazy(() => import('../../ai/AstutelyChatbot'));
 const AIMasteringCard = React.lazy(() => import('../AIMasteringCard'));
 const MasterMySong = React.lazy(() => import('../MasterMySong'));
 const AIArrangementBuilder = React.lazy(() => import('../AIArrangementBuilder'));
@@ -210,7 +210,7 @@ export default function AstutelySurface() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Suspense fallback={<TabLoadingFallback />}>
-              <AIAssistant />
+              <AstutelyChatbot embedded />
             </Suspense>
           </div>
         </aside>

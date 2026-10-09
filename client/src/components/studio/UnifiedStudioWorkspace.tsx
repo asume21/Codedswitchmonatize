@@ -15,9 +15,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-media-query';
 import MobileStudioLayout from './MobileStudioLayout';
-import FloatingAIAssistant from './FloatingAIAssistant';
 import { DesktopBridgeToggle } from './DesktopBridgeToggle';
-const AIAssistant = React.lazy(() => import('./AIAssistant'));
 const ProAudioGenerator = React.lazy(() => import('./ProAudioGenerator').then(m => ({ default: m.ProAudioGenerator })));
 const LyricsFocusMode = React.lazy(() => import('./LyricsFocusMode'));
 const ProjectManagerPanel = React.lazy(() => import('./ProjectManagerPanel'));
@@ -1141,8 +1139,10 @@ export default function UnifiedStudioWorkspace() {
 
   // Handle AI assistant panel open/close
   useEffect(() => {
-    const open  = () => setShowAIAssistant(true);
-    const close = () => setShowAIAssistant(false);
+    // Opens the one assistant (Astutely); the panel these used to toggle was
+    // a disabled duplicate.
+    const open  = () => setShowAstutely(true);
+    const close = () => setShowAstutely(false);
     window.addEventListener('astutely:open-panel', open);
     window.addEventListener('astutely:close-panel', close);
     return () => {
@@ -3351,7 +3351,7 @@ export default function UnifiedStudioWorkspace() {
           {activeView === 'lyrics' && <LyricLab />}
           {activeView === 'ai-studio' && (
             <div className="p-4">
-              <AIAssistant />
+              <div className="h-full min-h-[520px]"><AstutelyChatbot embedded /></div>
             </div>
           )}
           {activeView === 'song-uploader' && <SongUploader />}
@@ -4557,7 +4557,7 @@ export default function UnifiedStudioWorkspace() {
                 <AIVocalMelody currentKey="C" currentBpm={tempo} />
                 <AIStemSeparation />
               </div>
-              <AIAssistant />
+              <div className="h-full min-h-[520px]"><AstutelyChatbot embedded /></div>
               </React.Suspense>
             </div>
           )}
@@ -4655,10 +4655,6 @@ export default function UnifiedStudioWorkspace() {
         )}
 
       {/* Floating/Overlay Components */}
-      {/* TEMPORARILY DISABLED - React hooks error on mobile
-      {showAIAssistant && (
-        <FloatingAIAssistant onClose={() => setShowAIAssistant(false)} />
-      )} */}
 
       {showMusicGen && (
         <div className="fixed inset-0 bg-black/70 z-[60] flex flex-col items-center p-4">

@@ -1497,7 +1497,7 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
                     <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
                       <div className={`w-1.5 h-1.5 rounded-full ${performanceSafeMode ? 'bg-amber-400' : 'bg-emerald-500 animate-ping'}`} />
                       <span className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">
-                        {performanceSafeMode ? 'Performance Safe' : 'Neural Link Active'}
+                        {performanceSafeMode ? 'Performance Safe' : 'Online'}
                       </span>
                     </div>
                     <Activity className={`w-3 h-3 text-cyan-500/50 ${performanceSafeMode ? '' : 'animate-pulse'}`} />
@@ -2048,6 +2048,8 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
             </>}
           </CardContent>
 
+          {/* The floating panel is user-resizable; embedded, the host sizes it. */}
+          {!embedded && (
           <div className="absolute bottom-3 right-3 flex items-end gap-2">
             {showResizeGuide && (
               <div className="px-3 py-2 rounded-lg bg-black/60 text-white text-xs border border-cyan-500/40 shadow-xl">
@@ -2063,6 +2065,7 @@ play · stop · pause · set bpm to [n] · make a [genre] beat · status · go t
               <MoveDiagonal2 className="w-5 h-5" />
             </button>
           </div>
+          )}
         </Card>
       </div>
     </div>

@@ -8,6 +8,10 @@ import { isReplicateConfigured } from "../services/replicateService";
 import { isServerlessConfigured } from "../services/runpodServerlessService";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
+import { aiLimiter } from "./common";
+
+const MAX_CHAT_MESSAGES = 20;
+const MAX_CHAT_CHARS = 4000;
 
 const router = Router();
 
@@ -102,9 +106,14 @@ export function createAIRoutes() {
   // ============================================
   // CHAT ENDPOINT - Generic AI chat
   // ============================================
-  router.post("/chat", requireAuth(), async (req: Request, res: Response) => {
+  // Astutely chat: AI-rate-limited and history-capped — it had neither, so
+  // any account could send unlimited, unbounded LLM calls (review A6).
+  router.post("/chat", aiLimiter, requireAuth(), async (req: Request, res: Response) => {
     try {
-      const { messages = [], prompt } = req.body || {};
+      const { messages: rawMessages = [], prompt } = req.body || {};
+      const messages = (Array.isArray(rawMessages) ? rawMessages : [])
+        .slice(-MAX_CHAT_MESSAGES)
+        .map((m: any) => ({ ...m, content: String(m?.content ?? "").slice(0, MAX_CHAT_CHARS) }));
 
       console.log('💬 AI Chat request received');
 
