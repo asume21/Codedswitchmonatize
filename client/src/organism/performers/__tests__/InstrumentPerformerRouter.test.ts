@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   canPerformRole,
   conformChordToInstrument,
@@ -86,10 +86,24 @@ describe('wildcard instrument selection', () => {
     const preferredGravelLeads = new Set(['piano', 'sax', 'rhodes', 'violin'])
     let outside = 0
     const RUNS = 80
-    for (let i = 0; i < RUNS; i++) {
-      reseedPerformerSelection()
-      const lead = pick({ role: 'lead', mode: 'gravel', energy: 0.5 })
-      if (!preferredGravelLeads.has(lead.id)) outside++
+    // Seeded so this statistical check gives the same answer every run — with
+    // the real Math.random it occasionally rolled zero wildcards and failed CI
+    // with no code change (2026-10-08).
+    let state = 0x2f6b9a1d
+    const random = vi.spyOn(Math, 'random').mockImplementation(() => {
+      state = (state + 0x6d2b79f5) | 0
+      let t = Math.imul(state ^ (state >>> 15), 1 | state)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    })
+    try {
+      for (let i = 0; i < RUNS; i++) {
+        reseedPerformerSelection()
+        const lead = pick({ role: 'lead', mode: 'gravel', energy: 0.5 })
+        if (!preferredGravelLeads.has(lead.id)) outside++
+      }
+    } finally {
+      random.mockRestore()
     }
     // 8% curated wildcard chance: variety remains possible without random brass
     // taking over the house sound.
