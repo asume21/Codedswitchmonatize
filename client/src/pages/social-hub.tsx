@@ -65,8 +65,10 @@ function OrganismSessionCard({ post, isAuthenticated }: { post: any; isAuthentic
     caption = post.content || '';
   }
 
+  // Organism sessions are audio-only .webm — only lyric videos / .mp4 are
+  // video (every session used to render as a black video box, review S6).
   const isVideoPost =
-    post.type === 'lyric-video' || /\.(mp4|webm)(\?|$)/i.test(post.mediaUrl || '');
+    post.type === 'lyric-video' || /\.mp4(\?|$)/i.test(post.mediaUrl || '');
 
   const togglePlay = () => {
     if (!audioRef.current) return;

@@ -34,6 +34,9 @@ export default function SampleLibraryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  // Rendering all ~1,500 cards at once was slow (review L7) — page them.
+  const PAGE = 120;
+  const [visibleCount, setVisibleCount] = useState(PAGE);
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -69,6 +72,8 @@ export default function SampleLibraryPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => { setVisibleCount(PAGE); }, [searchQuery, selectedCategory]);
 
   // Filter samples based on search and category
   const filteredSamples = useMemo(() => {
@@ -244,7 +249,7 @@ export default function SampleLibraryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredSamples.map(sample => (
+            {filteredSamples.slice(0, visibleCount).map(sample => (
               <div
                 key={sample.id}
                 className="bg-black/60 border border-cyan-500/20 rounded-lg p-4 hover:border-cyan-500/40 transition-all group"
@@ -285,6 +290,17 @@ export default function SampleLibraryPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {filteredSamples.length > visibleCount && (
+          <div className="flex justify-center py-6">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((n) => n + PAGE)}
+              className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20"
+            >
+              Show more ({filteredSamples.length - visibleCount} left)
+            </Button>
           </div>
         )}
       </div>

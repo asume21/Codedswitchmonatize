@@ -406,7 +406,7 @@ app.use((req, res, next) => {
                               // NODE_ENV-gated at mount time). NOTE: /api/reference-beats and
                               // /api/sample-profiles appear only in THIS list, but that is
                               // redundancy, not a real gap — both entrypoints mount
-                              // express.static for them (index.ts:150, index.prod.ts:108) BEFORE
+                              // express.static for them (search "reference-beats" in each entrypoint) BEFORE
                               // requireAuthExcept runs, so the static handler answers either way.
     "/api/ai/next-section",   // conductor consult (Ollama → aceEngine) — no user data; the /organism guest demo's AIDirector calls it every section
     "/api/webear/",           // MCP SSE relay — self-authenticates via wbr_ bearer keys
@@ -618,6 +618,13 @@ app.use((req, res, next) => {
     } catch {
       next();
     }
+  });
+
+  // An unknown /api path must be a JSON 404 — not the SPA's HTML with a 200,
+  // which callers parsed as success (review D4). Unknown non-public /api
+  // paths already 401 at the auth gate; this catches the public prefixes.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
   });
 
   app.use(express.static(distPath));
