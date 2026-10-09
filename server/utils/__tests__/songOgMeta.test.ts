@@ -11,6 +11,10 @@ describe('songOgMeta', () => {
     });
   });
 
+  it('drops an audio file extension from the song name', () => {
+    expect(songOgMeta({ name: 'Russ x Tino (1).wav', isPublic: true }, 'r')?.title).toBe('Russ x Tino (1) — r | CodedSwitch');
+  });
+
   it('has no card for a private or missing song', () => {
     expect(songOgMeta({ name: 'Secret', isPublic: false }, 'x')).toBeNull();
     expect(songOgMeta(undefined, 'x')).toBeNull();

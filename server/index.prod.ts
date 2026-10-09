@@ -12,6 +12,7 @@ import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 import { runMigrations } from "./migrations/runMigrations";
 import { songOgMeta } from "./utils/songOgMeta";
+import { injectOgMeta } from "./utils/ogInject";
 
 // Env validation lives in validateEnv() below — a single checklist rather than
 // scattered ifs. Four separate top-of-file checks (SESSION_SECRET,
@@ -532,31 +533,14 @@ app.use((req, res, next) => {
     return cachedIndexHtml;
   };
 
+  // User-controlled values reach this (song names, usernames): injectOgMeta
+  // escapes them and inserts literally (no $-pattern splicing).
   const applyOgOverride = (
     html: string,
     url: string,
     img: string,
     o: { title: string; description: string },
-  ): string => {
-    const esc = (s: string) =>
-      s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-    const t = esc(o.title);
-    const d = esc(o.description);
-    const u = esc(url);
-    const i = esc(img);
-    return html
-      .replace(/(<title>)[\s\S]*?(<\/title>)/, `$1${t}$2`)
-      .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${u}$2`)
-      .replace(/(<meta name="description" content=")[^"]*(")/, `$1${d}$2`)
-      .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${t}$2`)
-      .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${d}$2`)
-      .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${u}$2`)
-      .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${i}$2`)
-      .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${t}$2`)
-      .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${d}$2`)
-      .replace(/(<meta name="twitter:url" content=")[^"]*(")/, `$1${u}$2`)
-      .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${i}$2`);
-  };
+  ): string => injectOgMeta(html, url, img, o);
 
   app.get("/codebeat", (req, res) => {
     const canonicalBase = process.env.APP_URL || "https://www.codedswitch.com";

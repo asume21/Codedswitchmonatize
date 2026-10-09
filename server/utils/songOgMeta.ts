@@ -13,7 +13,8 @@ export function songOgMeta(
   artist: string | null | undefined,
 ): { title: string; description: string } | null {
   if (!song || !song.isPublic) return null;
-  let name = (song.name ?? '').trim() || 'Untitled song';
+  // Uploaded songs are often named after their file ("beat (1).wav").
+  let name = (song.name ?? '').trim().replace(/\.(wav|mp3|m4a|aac|flac|ogg|webm|aiff?)$/i, '').trim() || 'Untitled song';
   if (name.length > MAX_SONG_TITLE) name = `${name.slice(0, MAX_SONG_TITLE - 1)}…`;
   const by = (artist ?? '').trim() || 'a CodedSwitch artist';
   return {
