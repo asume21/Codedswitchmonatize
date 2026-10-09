@@ -1,70 +1,70 @@
 {
-  "generated": "2026-01-10T02:43:45.182Z",
-  "totalSamples": 1896,
+  "generated": "2026-10-09T10:09:27.161Z",
+  "totalSamples": 1518,
   "samples": [
     {
       "filename": "other_clap_-_crackle_1.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_crackle_1",
       "path": "audio\\samples\\other_clap_-_crackle_1.wav"
     },
     {
       "filename": "other_clap_-_crackle_2.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_crackle_2",
       "path": "audio\\samples\\other_clap_-_crackle_2.wav"
     },
     {
       "filename": "other_clap_-_crackle_3.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_crackle_3",
       "path": "audio\\samples\\other_clap_-_crackle_3.wav"
     },
     {
       "filename": "other_clap_-_crackle_4.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_crackle_4",
       "path": "audio\\samples\\other_clap_-_crackle_4.wav"
     },
     {
       "filename": "other_clap_-_flange.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_flange",
       "path": "audio\\samples\\other_clap_-_flange.wav"
     },
     {
       "filename": "other_clap_-_giannis.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_giannis",
       "path": "audio\\samples\\other_clap_-_giannis.wav"
     },
     {
       "filename": "other_clap_-_liquid.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_liquid",
       "path": "audio\\samples\\other_clap_-_liquid.wav"
     },
     {
       "filename": "other_clap_-_neat.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_neat",
       "path": "audio\\samples\\other_clap_-_neat.wav"
     },
     {
       "filename": "other_clap_-_tape.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_tape",
       "path": "audio\\samples\\other_clap_-_tape.wav"
     },
     {
       "filename": "other_clap_-_vinyl_1.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_vinyl_1",
       "path": "audio\\samples\\other_clap_-_vinyl_1.wav"
     },
     {
       "filename": "other_clap_-_vinyl_2.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap_-_vinyl_2",
       "path": "audio\\samples\\other_clap_-_vinyl_2.wav"
     },
@@ -2932,19 +2932,19 @@
     },
     {
       "filename": "other_cycdh_crash-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_crash-01",
       "path": "audio\\samples\\other_cycdh_crash-01.wav"
     },
     {
       "filename": "other_cycdh_crash-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_crash-02",
       "path": "audio\\samples\\other_cycdh_crash-02.wav"
     },
     {
       "filename": "other_cycdh_crash-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_crash-03",
       "path": "audio\\samples\\other_cycdh_crash-03.wav"
     },
@@ -3004,163 +3004,163 @@
     },
     {
       "filename": "other_cycdh_trasha-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-01",
       "path": "audio\\samples\\other_cycdh_trasha-01.wav"
     },
     {
       "filename": "other_cycdh_trasha-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-02",
       "path": "audio\\samples\\other_cycdh_trasha-02.wav"
     },
     {
       "filename": "other_cycdh_trasha-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-03",
       "path": "audio\\samples\\other_cycdh_trasha-03.wav"
     },
     {
       "filename": "other_cycdh_trasha-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-04",
       "path": "audio\\samples\\other_cycdh_trasha-04.wav"
     },
     {
       "filename": "other_cycdh_trasha-05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-05",
       "path": "audio\\samples\\other_cycdh_trasha-05.wav"
     },
     {
       "filename": "other_cycdh_trasha-06.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-06",
       "path": "audio\\samples\\other_cycdh_trasha-06.wav"
     },
     {
       "filename": "other_cycdh_trasha-07.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-07",
       "path": "audio\\samples\\other_cycdh_trasha-07.wav"
     },
     {
       "filename": "other_cycdh_trasha-08.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-08",
       "path": "audio\\samples\\other_cycdh_trasha-08.wav"
     },
     {
       "filename": "other_cycdh_trasha-09.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trasha-09",
       "path": "audio\\samples\\other_cycdh_trasha-09.wav"
     },
     {
       "filename": "other_cycdh_trashb-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashb-01",
       "path": "audio\\samples\\other_cycdh_trashb-01.wav"
     },
     {
       "filename": "other_cycdh_trashb-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashb-02",
       "path": "audio\\samples\\other_cycdh_trashb-02.wav"
     },
     {
       "filename": "other_cycdh_trashb-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashb-03",
       "path": "audio\\samples\\other_cycdh_trashb-03.wav"
     },
     {
       "filename": "other_cycdh_trashc-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashc-01",
       "path": "audio\\samples\\other_cycdh_trashc-01.wav"
     },
     {
       "filename": "other_cycdh_trashc-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashc-02",
       "path": "audio\\samples\\other_cycdh_trashc-02.wav"
     },
     {
       "filename": "other_cycdh_trashc-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashc-03",
       "path": "audio\\samples\\other_cycdh_trashc-03.wav"
     },
     {
       "filename": "other_cycdh_trashc-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashc-04",
       "path": "audio\\samples\\other_cycdh_trashc-04.wav"
     },
     {
       "filename": "other_cycdh_trashd-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashd-01",
       "path": "audio\\samples\\other_cycdh_trashd-01.wav"
     },
     {
       "filename": "other_cycdh_trashd-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashd-02",
       "path": "audio\\samples\\other_cycdh_trashd-02.wav"
     },
     {
       "filename": "other_cycdh_trashe-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashe-01",
       "path": "audio\\samples\\other_cycdh_trashe-01.wav"
     },
     {
       "filename": "other_cycdh_trashe-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashe-02",
       "path": "audio\\samples\\other_cycdh_trashe-02.wav"
     },
     {
       "filename": "other_cycdh_trashe-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashe-03",
       "path": "audio\\samples\\other_cycdh_trashe-03.wav"
     },
     {
       "filename": "other_cycdh_trashe-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashe-04",
       "path": "audio\\samples\\other_cycdh_trashe-04.wav"
     },
     {
       "filename": "other_cycdh_trashe-05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashe-05",
       "path": "audio\\samples\\other_cycdh_trashe-05.wav"
     },
     {
       "filename": "other_cycdh_trashf-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashf-01",
       "path": "audio\\samples\\other_cycdh_trashf-01.wav"
     },
     {
       "filename": "other_cycdh_trashf-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashf-02",
       "path": "audio\\samples\\other_cycdh_trashf-02.wav"
     },
     {
       "filename": "other_cycdh_trashf-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashf-03",
       "path": "audio\\samples\\other_cycdh_trashf-03.wav"
     },
     {
       "filename": "other_cycdh_trashf-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_trashf-04",
       "path": "audio\\samples\\other_cycdh_trashf-04.wav"
     },
@@ -4354,85 +4354,85 @@
     },
     {
       "filename": "other_pearlpiccolo_side_snroff-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snroff-01",
       "path": "audio\\samples\\other_pearlpiccolo_side_snroff-01.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snroff-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snroff-02",
       "path": "audio\\samples\\other_pearlpiccolo_side_snroff-02.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snroff-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snroff-03",
       "path": "audio\\samples\\other_pearlpiccolo_side_snroff-03.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snroff-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snroff-04",
       "path": "audio\\samples\\other_pearlpiccolo_side_snroff-04.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snroff-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snroff-05",
       "path": "audio\\samples\\other_pearlpiccolo_side_snroff-05.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-01",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-01.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-02",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-02.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-03",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-03.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-04",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-04.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-05",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-05.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-06",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-06.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-07.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-07",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-07.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-08.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-08",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-08.wav"
     },
     {
       "filename": "other_pearlpiccolo_side_snron-09.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "pearlpiccolo_side_snron-09",
       "path": "audio\\samples\\other_pearlpiccolo_side_snron-09.wav"
     },
@@ -5188,31 +5188,31 @@
     },
     {
       "filename": "other_cycdh_k1close_flam-01.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_flam-01",
       "path": "audio\\samples\\other_cycdh_k1close_flam-01.wav"
     },
     {
       "filename": "other_cycdh_k1close_flam-02.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_flam-02",
       "path": "audio\\samples\\other_cycdh_k1close_flam-02.wav"
     },
     {
       "filename": "other_cycdh_k1close_flam-03.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_flam-03",
       "path": "audio\\samples\\other_cycdh_k1close_flam-03.wav"
     },
     {
       "filename": "other_cycdh_k1close_flam-04.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_flam-04",
       "path": "audio\\samples\\other_cycdh_k1close_flam-04.wav"
     },
     {
       "filename": "other_cycdh_k1close_flam-05.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_flam-05",
       "path": "audio\\samples\\other_cycdh_k1close_flam-05.wav"
     },
@@ -5332,43 +5332,43 @@
     },
     {
       "filename": "other_cycdh_k1close_rim-01.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-01",
       "path": "audio\\samples\\other_cycdh_k1close_rim-01.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-02.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-02",
       "path": "audio\\samples\\other_cycdh_k1close_rim-02.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-03.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-03",
       "path": "audio\\samples\\other_cycdh_k1close_rim-03.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-04.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-04",
       "path": "audio\\samples\\other_cycdh_k1close_rim-04.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-05.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-05",
       "path": "audio\\samples\\other_cycdh_k1close_rim-05.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-06.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-06",
       "path": "audio\\samples\\other_cycdh_k1close_rim-06.wav"
     },
     {
       "filename": "other_cycdh_k1close_rim-07.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k1close_rim-07",
       "path": "audio\\samples\\other_cycdh_k1close_rim-07.wav"
     },
@@ -5416,79 +5416,79 @@
     },
     {
       "filename": "other_cycdh_k1close_snr-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snr-01",
       "path": "audio\\samples\\other_cycdh_k1close_snr-01.wav"
     },
     {
       "filename": "other_cycdh_k1close_snr-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snr-02",
       "path": "audio\\samples\\other_cycdh_k1close_snr-02.wav"
     },
     {
       "filename": "other_cycdh_k1close_snr-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snr-03",
       "path": "audio\\samples\\other_cycdh_k1close_snr-03.wav"
     },
     {
       "filename": "other_cycdh_k1close_snr-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snr-04",
       "path": "audio\\samples\\other_cycdh_k1close_snr-04.wav"
     },
     {
       "filename": "other_cycdh_k1close_snr-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snr-05",
       "path": "audio\\samples\\other_cycdh_k1close_snr-05.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-01",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-01.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-02",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-02.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-03",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-03.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-04",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-04.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-05",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-05.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-06",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-06.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-07.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-07",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-07.wav"
     },
     {
       "filename": "other_cycdh_k1close_snroff-08.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k1close_snroff-08",
       "path": "audio\\samples\\other_cycdh_k1close_snroff-08.wav"
     },
@@ -5560,19 +5560,19 @@
     },
     {
       "filename": "other_cycdh_vinylk3-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk3-snr01",
       "path": "audio\\samples\\other_cycdh_vinylk3-snr01.wav"
     },
     {
       "filename": "other_cycdh_vinylk3-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk3-snr02",
       "path": "audio\\samples\\other_cycdh_vinylk3-snr02.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-china.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-china",
       "path": "audio\\samples\\other_cycdh_vinylk4-china.wav"
     },
@@ -5608,13 +5608,13 @@
     },
     {
       "filename": "other_cycdh_vinylk4-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-crash01",
       "path": "audio\\samples\\other_cycdh_vinylk4-crash01.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-crash02",
       "path": "audio\\samples\\other_cycdh_vinylk4-crash02.wav"
     },
@@ -5644,79 +5644,79 @@
     },
     {
       "filename": "other_cycdh_vinylk4-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-ride01",
       "path": "audio\\samples\\other_cycdh_vinylk4-ride01.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-ride02",
       "path": "audio\\samples\\other_cycdh_vinylk4-ride02.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-ride03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-ride03",
       "path": "audio\\samples\\other_cycdh_vinylk4-ride03.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-ride04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-ride04",
       "path": "audio\\samples\\other_cycdh_vinylk4-ride04.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr01",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr01.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr02",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr02.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr03",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr03.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr04",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr04.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr05",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr05.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-snr06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk4-snr06",
       "path": "audio\\samples\\other_cycdh_vinylk4-snr06.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-tom01",
       "path": "audio\\samples\\other_cycdh_vinylk4-tom01.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-tom02",
       "path": "audio\\samples\\other_cycdh_vinylk4-tom02.wav"
     },
     {
       "filename": "other_cycdh_vinylk4-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk4-tom03",
       "path": "audio\\samples\\other_cycdh_vinylk4-tom03.wav"
     },
@@ -5758,43 +5758,43 @@
     },
     {
       "filename": "other_cycdh_vinylk5-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk5-snr01",
       "path": "audio\\samples\\other_cycdh_vinylk5-snr01.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk5-snr02",
       "path": "audio\\samples\\other_cycdh_vinylk5-snr02.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk5-snr03",
       "path": "audio\\samples\\other_cycdh_vinylk5-snr03.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk5-snr04",
       "path": "audio\\samples\\other_cycdh_vinylk5-snr04.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk5-tom01",
       "path": "audio\\samples\\other_cycdh_vinylk5-tom01.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk5-tom02",
       "path": "audio\\samples\\other_cycdh_vinylk5-tom02.wav"
     },
     {
       "filename": "other_cycdh_vinylk5-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk5-tom03",
       "path": "audio\\samples\\other_cycdh_vinylk5-tom03.wav"
     },
@@ -5866,127 +5866,127 @@
     },
     {
       "filename": "other_cycdh_k4-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr01",
       "path": "audio\\samples\\other_cycdh_k4-snr01.wav"
     },
     {
       "filename": "other_cycdh_k4-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr02",
       "path": "audio\\samples\\other_cycdh_k4-snr02.wav"
     },
     {
       "filename": "other_cycdh_k4-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr03",
       "path": "audio\\samples\\other_cycdh_k4-snr03.wav"
     },
     {
       "filename": "other_cycdh_k4-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr04",
       "path": "audio\\samples\\other_cycdh_k4-snr04.wav"
     },
     {
       "filename": "other_cycdh_k4-snr05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr05",
       "path": "audio\\samples\\other_cycdh_k4-snr05.wav"
     },
     {
       "filename": "other_cycdh_k4-snr06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr06",
       "path": "audio\\samples\\other_cycdh_k4-snr06.wav"
     },
     {
       "filename": "other_cycdh_k4-snr07.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr07",
       "path": "audio\\samples\\other_cycdh_k4-snr07.wav"
     },
     {
       "filename": "other_cycdh_k4-snr08.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr08",
       "path": "audio\\samples\\other_cycdh_k4-snr08.wav"
     },
     {
       "filename": "other_cycdh_k4-snr09.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr09",
       "path": "audio\\samples\\other_cycdh_k4-snr09.wav"
     },
     {
       "filename": "other_cycdh_k4-snr10.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr10",
       "path": "audio\\samples\\other_cycdh_k4-snr10.wav"
     },
     {
       "filename": "other_cycdh_k4-snr11.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k4-snr11",
       "path": "audio\\samples\\other_cycdh_k4-snr11.wav"
     },
     {
       "filename": "other_cycdh_k4-trash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash01",
       "path": "audio\\samples\\other_cycdh_k4-trash01.wav"
     },
     {
       "filename": "other_cycdh_k4-trash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash02",
       "path": "audio\\samples\\other_cycdh_k4-trash02.wav"
     },
     {
       "filename": "other_cycdh_k4-trash03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash03",
       "path": "audio\\samples\\other_cycdh_k4-trash03.wav"
     },
     {
       "filename": "other_cycdh_k4-trash04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash04",
       "path": "audio\\samples\\other_cycdh_k4-trash04.wav"
     },
     {
       "filename": "other_cycdh_k4-trash05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash05",
       "path": "audio\\samples\\other_cycdh_k4-trash05.wav"
     },
     {
       "filename": "other_cycdh_k4-trash06.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash06",
       "path": "audio\\samples\\other_cycdh_k4-trash06.wav"
     },
     {
       "filename": "other_cycdh_k4-trash07.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash07",
       "path": "audio\\samples\\other_cycdh_k4-trash07.wav"
     },
     {
       "filename": "other_cycdh_k4-trash08.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash08",
       "path": "audio\\samples\\other_cycdh_k4-trash08.wav"
     },
     {
       "filename": "other_cycdh_k4-trash09.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash09",
       "path": "audio\\samples\\other_cycdh_k4-trash09.wav"
     },
     {
       "filename": "other_cycdh_k4-trash10.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k4-trash10",
       "path": "audio\\samples\\other_cycdh_k4-trash10.wav"
     },
@@ -6046,19 +6046,19 @@
     },
     {
       "filename": "other_cycdh_k5-rim01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-rim01",
       "path": "audio\\samples\\other_cycdh_k5-rim01.wav"
     },
     {
       "filename": "other_cycdh_k5-rim02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-rim02",
       "path": "audio\\samples\\other_cycdh_k5-rim02.wav"
     },
     {
       "filename": "other_cycdh_k5-rim03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-rim03",
       "path": "audio\\samples\\other_cycdh_k5-rim03.wav"
     },
@@ -6082,91 +6082,91 @@
     },
     {
       "filename": "other_cycdh_k5-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k5-snr01",
       "path": "audio\\samples\\other_cycdh_k5-snr01.wav"
     },
     {
       "filename": "other_cycdh_k5-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k5-snr02",
       "path": "audio\\samples\\other_cycdh_k5-snr02.wav"
     },
     {
       "filename": "other_cycdh_k5-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k5-snr03",
       "path": "audio\\samples\\other_cycdh_k5-snr03.wav"
     },
     {
       "filename": "other_cycdh_k5-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k5-snr04",
       "path": "audio\\samples\\other_cycdh_k5-snr04.wav"
     },
     {
       "filename": "other_cycdh_k5-tom01a.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom01a",
       "path": "audio\\samples\\other_cycdh_k5-tom01a.wav"
     },
     {
       "filename": "other_cycdh_k5-tom01b.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom01b",
       "path": "audio\\samples\\other_cycdh_k5-tom01b.wav"
     },
     {
       "filename": "other_cycdh_k5-tom01c.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom01c",
       "path": "audio\\samples\\other_cycdh_k5-tom01c.wav"
     },
     {
       "filename": "other_cycdh_k5-tom02a.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom02a",
       "path": "audio\\samples\\other_cycdh_k5-tom02a.wav"
     },
     {
       "filename": "other_cycdh_k5-tom02b.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom02b",
       "path": "audio\\samples\\other_cycdh_k5-tom02b.wav"
     },
     {
       "filename": "other_cycdh_k5-tom02c.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom02c",
       "path": "audio\\samples\\other_cycdh_k5-tom02c.wav"
     },
     {
       "filename": "other_cycdh_k5-tom03a.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom03a",
       "path": "audio\\samples\\other_cycdh_k5-tom03a.wav"
     },
     {
       "filename": "other_cycdh_k5-tom03b.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom03b",
       "path": "audio\\samples\\other_cycdh_k5-tom03b.wav"
     },
     {
       "filename": "other_cycdh_k5-tom03c.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k5-tom03c",
       "path": "audio\\samples\\other_cycdh_k5-tom03c.wav"
     },
     {
       "filename": "other_cycdh_eleck05-clap01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck05-clap01",
       "path": "audio\\samples\\other_cycdh_eleck05-clap01.wav"
     },
     {
       "filename": "other_cycdh_eleck05-clap02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck05-clap02",
       "path": "audio\\samples\\other_cycdh_eleck05-clap02.wav"
     },
@@ -6220,43 +6220,43 @@
     },
     {
       "filename": "other_cycdh_eleck05-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck05-snr01",
       "path": "audio\\samples\\other_cycdh_eleck05-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck05-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck05-snr02",
       "path": "audio\\samples\\other_cycdh_eleck05-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck05-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck05-snr03",
       "path": "audio\\samples\\other_cycdh_eleck05-snr03.wav"
     },
     {
       "filename": "other_cycdh_eleck05-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck05-snr04",
       "path": "audio\\samples\\other_cycdh_eleck05-snr04.wav"
     },
     {
       "filename": "other_cycdh_eleck06-clap01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck06-clap01",
       "path": "audio\\samples\\other_cycdh_eleck06-clap01.wav"
     },
     {
       "filename": "other_cycdh_eleck06-clap02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck06-clap02",
       "path": "audio\\samples\\other_cycdh_eleck06-clap02.wav"
     },
     {
       "filename": "other_cycdh_eleck06-clap03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck06-clap03",
       "path": "audio\\samples\\other_cycdh_eleck06-clap03.wav"
     },
@@ -6292,19 +6292,19 @@
     },
     {
       "filename": "other_cycdh_eleck06-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck06-snr01",
       "path": "audio\\samples\\other_cycdh_eleck06-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck06-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck06-snr02",
       "path": "audio\\samples\\other_cycdh_eleck06-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck06-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck06-snr03",
       "path": "audio\\samples\\other_cycdh_eleck06-snr03.wav"
     },
@@ -6340,19 +6340,19 @@
     },
     {
       "filename": "other_cycdh_eleck07-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck07-snr01",
       "path": "audio\\samples\\other_cycdh_eleck07-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck07-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck07-snr02",
       "path": "audio\\samples\\other_cycdh_eleck07-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck07-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck07-snr03",
       "path": "audio\\samples\\other_cycdh_eleck07-snr03.wav"
     },
@@ -6382,31 +6382,31 @@
     },
     {
       "filename": "other_cycdh_k6-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k6-snr01",
       "path": "audio\\samples\\other_cycdh_k6-snr01.wav"
     },
     {
       "filename": "other_cycdh_k6-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k6-snr02",
       "path": "audio\\samples\\other_cycdh_k6-snr02.wav"
     },
     {
       "filename": "other_cycdh_k6-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k6-snr03",
       "path": "audio\\samples\\other_cycdh_k6-snr03.wav"
     },
     {
       "filename": "other_cycdh_k6-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k6-snr04",
       "path": "audio\\samples\\other_cycdh_k6-snr04.wav"
     },
     {
       "filename": "other_cycdh_k6-snrbuzz.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k6-snrbuzz",
       "path": "audio\\samples\\other_cycdh_k6-snrbuzz.wav"
     },
@@ -6466,31 +6466,31 @@
     },
     {
       "filename": "other_cycdh_k2room_flam-01.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_flam-01",
       "path": "audio\\samples\\other_cycdh_k2room_flam-01.wav"
     },
     {
       "filename": "other_cycdh_k2room_flam-02.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_flam-02",
       "path": "audio\\samples\\other_cycdh_k2room_flam-02.wav"
     },
     {
       "filename": "other_cycdh_k2room_flam-03.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_flam-03",
       "path": "audio\\samples\\other_cycdh_k2room_flam-03.wav"
     },
     {
       "filename": "other_cycdh_k2room_flam-04.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_flam-04",
       "path": "audio\\samples\\other_cycdh_k2room_flam-04.wav"
     },
     {
       "filename": "other_cycdh_k2room_flam-05.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_flam-05",
       "path": "audio\\samples\\other_cycdh_k2room_flam-05.wav"
     },
@@ -6610,43 +6610,43 @@
     },
     {
       "filename": "other_cycdh_k2room_rim-01.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-01",
       "path": "audio\\samples\\other_cycdh_k2room_rim-01.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-02.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-02",
       "path": "audio\\samples\\other_cycdh_k2room_rim-02.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-03.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-03",
       "path": "audio\\samples\\other_cycdh_k2room_rim-03.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-04.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-04",
       "path": "audio\\samples\\other_cycdh_k2room_rim-04.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-05.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-05",
       "path": "audio\\samples\\other_cycdh_k2room_rim-05.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-06.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-06",
       "path": "audio\\samples\\other_cycdh_k2room_rim-06.wav"
     },
     {
       "filename": "other_cycdh_k2room_rim-07.wav",
-      "type": "other",
+      "type": "kick",
       "variant": "cycdh_k2room_rim-07",
       "path": "audio\\samples\\other_cycdh_k2room_rim-07.wav"
     },
@@ -6694,79 +6694,79 @@
     },
     {
       "filename": "other_cycdh_k2room_snr-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snr-01",
       "path": "audio\\samples\\other_cycdh_k2room_snr-01.wav"
     },
     {
       "filename": "other_cycdh_k2room_snr-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snr-02",
       "path": "audio\\samples\\other_cycdh_k2room_snr-02.wav"
     },
     {
       "filename": "other_cycdh_k2room_snr-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snr-03",
       "path": "audio\\samples\\other_cycdh_k2room_snr-03.wav"
     },
     {
       "filename": "other_cycdh_k2room_snr-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snr-04",
       "path": "audio\\samples\\other_cycdh_k2room_snr-04.wav"
     },
     {
       "filename": "other_cycdh_k2room_snr-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snr-05",
       "path": "audio\\samples\\other_cycdh_k2room_snr-05.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-01",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-01.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-02",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-02.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-03",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-03.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-04",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-04.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-05",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-05.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-06",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-06.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-07.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-07",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-07.wav"
     },
     {
       "filename": "other_cycdh_k2room_snroff-08.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k2room_snroff-08",
       "path": "audio\\samples\\other_cycdh_k2room_snroff-08.wav"
     },
@@ -6796,43 +6796,43 @@
     },
     {
       "filename": "other_cycdh_k3crash-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-01",
       "path": "audio\\samples\\other_cycdh_k3crash-01.wav"
     },
     {
       "filename": "other_cycdh_k3crash-02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-02",
       "path": "audio\\samples\\other_cycdh_k3crash-02.wav"
     },
     {
       "filename": "other_cycdh_k3crash-03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-03",
       "path": "audio\\samples\\other_cycdh_k3crash-03.wav"
     },
     {
       "filename": "other_cycdh_k3crash-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-04",
       "path": "audio\\samples\\other_cycdh_k3crash-04.wav"
     },
     {
       "filename": "other_cycdh_k3crash-05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-05",
       "path": "audio\\samples\\other_cycdh_k3crash-05.wav"
     },
     {
       "filename": "other_cycdh_k3crash-06.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-06",
       "path": "audio\\samples\\other_cycdh_k3crash-06.wav"
     },
     {
       "filename": "other_cycdh_k3crash-07.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3crash-07",
       "path": "audio\\samples\\other_cycdh_k3crash-07.wav"
     },
@@ -6880,7 +6880,7 @@
     },
     {
       "filename": "other_cycdh_k3rim-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3rim-01",
       "path": "audio\\samples\\other_cycdh_k3rim-01.wav"
     },
@@ -6928,79 +6928,79 @@
     },
     {
       "filename": "other_cycdh_k3snr-01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-01",
       "path": "audio\\samples\\other_cycdh_k3snr-01.wav"
     },
     {
       "filename": "other_cycdh_k3snr-02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-02",
       "path": "audio\\samples\\other_cycdh_k3snr-02.wav"
     },
     {
       "filename": "other_cycdh_k3snr-03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-03",
       "path": "audio\\samples\\other_cycdh_k3snr-03.wav"
     },
     {
       "filename": "other_cycdh_k3snr-04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-04",
       "path": "audio\\samples\\other_cycdh_k3snr-04.wav"
     },
     {
       "filename": "other_cycdh_k3snr-05.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-05",
       "path": "audio\\samples\\other_cycdh_k3snr-05.wav"
     },
     {
       "filename": "other_cycdh_k3snr-06.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-06",
       "path": "audio\\samples\\other_cycdh_k3snr-06.wav"
     },
     {
       "filename": "other_cycdh_k3snr-07.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-07",
       "path": "audio\\samples\\other_cycdh_k3snr-07.wav"
     },
     {
       "filename": "other_cycdh_k3snr-08.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-08",
       "path": "audio\\samples\\other_cycdh_k3snr-08.wav"
     },
     {
       "filename": "other_cycdh_k3snr-09.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-09",
       "path": "audio\\samples\\other_cycdh_k3snr-09.wav"
     },
     {
       "filename": "other_cycdh_k3snr-10.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_k3snr-10",
       "path": "audio\\samples\\other_cycdh_k3snr-10.wav"
     },
     {
       "filename": "other_cycdh_k3tom-01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3tom-01",
       "path": "audio\\samples\\other_cycdh_k3tom-01.wav"
     },
     {
       "filename": "other_cycdh_k3tom-04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3tom-04",
       "path": "audio\\samples\\other_cycdh_k3tom-04.wav"
     },
     {
       "filename": "other_cycdh_k3tom-05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_k3tom-05",
       "path": "audio\\samples\\other_cycdh_k3tom-05.wav"
     },
@@ -7024,7 +7024,7 @@
     },
     {
       "filename": "other_cycdh_eleck01-cymbal.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck01-cymbal",
       "path": "audio\\samples\\other_cycdh_eleck01-cymbal.wav"
     },
@@ -7054,55 +7054,55 @@
     },
     {
       "filename": "other_cycdh_eleck01-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck01-snr01",
       "path": "audio\\samples\\other_cycdh_eleck01-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck01-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck01-snr02",
       "path": "audio\\samples\\other_cycdh_eleck01-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck01-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck01-snr03",
       "path": "audio\\samples\\other_cycdh_eleck01-snr03.wav"
     },
     {
       "filename": "other_cycdh_eleck01-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck01-tom01",
       "path": "audio\\samples\\other_cycdh_eleck01-tom01.wav"
     },
     {
       "filename": "other_cycdh_eleck01-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck01-tom02",
       "path": "audio\\samples\\other_cycdh_eleck01-tom02.wav"
     },
     {
       "filename": "other_cycdh_eleck01-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck01-tom03",
       "path": "audio\\samples\\other_cycdh_eleck01-tom03.wav"
     },
     {
       "filename": "other_cycdh_eleck01-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck01-tom04",
       "path": "audio\\samples\\other_cycdh_eleck01-tom04.wav"
     },
     {
       "filename": "other_cycdh_eleck02-clap01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck02-clap01",
       "path": "audio\\samples\\other_cycdh_eleck02-clap01.wav"
     },
     {
       "filename": "other_cycdh_eleck02-clap02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck02-clap02",
       "path": "audio\\samples\\other_cycdh_eleck02-clap02.wav"
     },
@@ -7156,43 +7156,43 @@
     },
     {
       "filename": "other_cycdh_eleck02-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck02-snr01",
       "path": "audio\\samples\\other_cycdh_eleck02-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck02-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck02-snr02",
       "path": "audio\\samples\\other_cycdh_eleck02-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck02-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck02-tom01",
       "path": "audio\\samples\\other_cycdh_eleck02-tom01.wav"
     },
     {
       "filename": "other_cycdh_eleck02-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck02-tom02",
       "path": "audio\\samples\\other_cycdh_eleck02-tom02.wav"
     },
     {
       "filename": "other_cycdh_eleck02-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck02-tom03",
       "path": "audio\\samples\\other_cycdh_eleck02-tom03.wav"
     },
     {
       "filename": "other_cycdh_eleck03-clap01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-clap01",
       "path": "audio\\samples\\other_cycdh_eleck03-clap01.wav"
     },
     {
       "filename": "other_cycdh_eleck03-clap02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-clap02",
       "path": "audio\\samples\\other_cycdh_eleck03-clap02.wav"
     },
@@ -7228,49 +7228,49 @@
     },
     {
       "filename": "other_cycdh_eleck03-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck03-snr01",
       "path": "audio\\samples\\other_cycdh_eleck03-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck03-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck03-snr02",
       "path": "audio\\samples\\other_cycdh_eleck03-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck03-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-tom01",
       "path": "audio\\samples\\other_cycdh_eleck03-tom01.wav"
     },
     {
       "filename": "other_cycdh_eleck03-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-tom02",
       "path": "audio\\samples\\other_cycdh_eleck03-tom02.wav"
     },
     {
       "filename": "other_cycdh_eleck03-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-tom03",
       "path": "audio\\samples\\other_cycdh_eleck03-tom03.wav"
     },
     {
       "filename": "other_cycdh_eleck03-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-tom04",
       "path": "audio\\samples\\other_cycdh_eleck03-tom04.wav"
     },
     {
       "filename": "other_cycdh_eleck03-tom05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck03-tom05",
       "path": "audio\\samples\\other_cycdh_eleck03-tom05.wav"
     },
     {
       "filename": "other_cycdh_eleck04-clap.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-clap",
       "path": "audio\\samples\\other_cycdh_eleck04-clap.wav"
     },
@@ -7288,13 +7288,13 @@
     },
     {
       "filename": "other_cycdh_eleck04-cymbal01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-cymbal01",
       "path": "audio\\samples\\other_cycdh_eleck04-cymbal01.wav"
     },
     {
       "filename": "other_cycdh_eleck04-cymbal02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-cymbal02",
       "path": "audio\\samples\\other_cycdh_eleck04-cymbal02.wav"
     },
@@ -7324,43 +7324,43 @@
     },
     {
       "filename": "other_cycdh_eleck04-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck04-snr01",
       "path": "audio\\samples\\other_cycdh_eleck04-snr01.wav"
     },
     {
       "filename": "other_cycdh_eleck04-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck04-snr02",
       "path": "audio\\samples\\other_cycdh_eleck04-snr02.wav"
     },
     {
       "filename": "other_cycdh_eleck04-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_eleck04-snr03",
       "path": "audio\\samples\\other_cycdh_eleck04-snr03.wav"
     },
     {
       "filename": "other_cycdh_eleck04-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-tom01",
       "path": "audio\\samples\\other_cycdh_eleck04-tom01.wav"
     },
     {
       "filename": "other_cycdh_eleck04-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-tom02",
       "path": "audio\\samples\\other_cycdh_eleck04-tom02.wav"
     },
     {
       "filename": "other_cycdh_eleck04-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-tom03",
       "path": "audio\\samples\\other_cycdh_eleck04-tom03.wav"
     },
     {
       "filename": "other_cycdh_eleck04-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_eleck04-tom04",
       "path": "audio\\samples\\other_cycdh_eleck04-tom04.wav"
     },
@@ -7420,19 +7420,19 @@
     },
     {
       "filename": "other_cycdh_vinylk1-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk1-snr01",
       "path": "audio\\samples\\other_cycdh_vinylk1-snr01.wav"
     },
     {
       "filename": "other_cycdh_vinylk1-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk1-snr02",
       "path": "audio\\samples\\other_cycdh_vinylk1-snr02.wav"
     },
     {
       "filename": "other_cycdh_vinylk1-tamb.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk1-tamb",
       "path": "audio\\samples\\other_cycdh_vinylk1-tamb.wav"
     },
@@ -7474,37 +7474,37 @@
     },
     {
       "filename": "other_cycdh_vinylk2-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk2-ride01",
       "path": "audio\\samples\\other_cycdh_vinylk2-ride01.wav"
     },
     {
       "filename": "other_cycdh_vinylk2-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk2-ride02",
       "path": "audio\\samples\\other_cycdh_vinylk2-ride02.wav"
     },
     {
       "filename": "other_cycdh_vinylk2-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk2-snr01",
       "path": "audio\\samples\\other_cycdh_vinylk2-snr01.wav"
     },
     {
       "filename": "other_cycdh_vinylk2-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_vinylk2-snr02",
       "path": "audio\\samples\\other_cycdh_vinylk2-snr02.wav"
     },
     {
       "filename": "other_cycdh_vinylk2-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk2-tom01",
       "path": "audio\\samples\\other_cycdh_vinylk2-tom01.wav"
     },
     {
       "filename": "other_cycdh_vinylk2-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_vinylk2-tom02",
       "path": "audio\\samples\\other_cycdh_vinylk2-tom02.wav"
     },
@@ -7516,25 +7516,25 @@
     },
     {
       "filename": "other_cycdh_kurz01-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-crash01",
       "path": "audio\\samples\\other_cycdh_kurz01-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz01-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-crash02",
       "path": "audio\\samples\\other_cycdh_kurz01-crash02.wav"
     },
     {
       "filename": "other_cycdh_kurz01-crash03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-crash03",
       "path": "audio\\samples\\other_cycdh_kurz01-crash03.wav"
     },
     {
       "filename": "other_cycdh_kurz01-crash04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-crash04",
       "path": "audio\\samples\\other_cycdh_kurz01-crash04.wav"
     },
@@ -7588,13 +7588,13 @@
     },
     {
       "filename": "other_cycdh_kurz01-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-ride01",
       "path": "audio\\samples\\other_cycdh_kurz01-ride01.wav"
     },
     {
       "filename": "other_cycdh_kurz01-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-ride02",
       "path": "audio\\samples\\other_cycdh_kurz01-ride02.wav"
     },
@@ -7606,43 +7606,43 @@
     },
     {
       "filename": "other_cycdh_kurz01-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz01-snr01",
       "path": "audio\\samples\\other_cycdh_kurz01-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz01-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz01-snr02",
       "path": "audio\\samples\\other_cycdh_kurz01-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz01-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz01-snr03",
       "path": "audio\\samples\\other_cycdh_kurz01-snr03.wav"
     },
     {
       "filename": "other_cycdh_kurz01-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-tom01",
       "path": "audio\\samples\\other_cycdh_kurz01-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz01-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-tom02",
       "path": "audio\\samples\\other_cycdh_kurz01-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz01-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-tom03",
       "path": "audio\\samples\\other_cycdh_kurz01-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz01-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz01-tom04",
       "path": "audio\\samples\\other_cycdh_kurz01-tom04.wav"
     },
@@ -7654,13 +7654,13 @@
     },
     {
       "filename": "other_cycdh_kurz02-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-crash01",
       "path": "audio\\samples\\other_cycdh_kurz02-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz02-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-crash02",
       "path": "audio\\samples\\other_cycdh_kurz02-crash02.wav"
     },
@@ -7696,13 +7696,13 @@
     },
     {
       "filename": "other_cycdh_kurz02-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-ride01",
       "path": "audio\\samples\\other_cycdh_kurz02-ride01.wav"
     },
     {
       "filename": "other_cycdh_kurz02-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-ride02",
       "path": "audio\\samples\\other_cycdh_kurz02-ride02.wav"
     },
@@ -7714,37 +7714,37 @@
     },
     {
       "filename": "other_cycdh_kurz02-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz02-snr01",
       "path": "audio\\samples\\other_cycdh_kurz02-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz02-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz02-snr02",
       "path": "audio\\samples\\other_cycdh_kurz02-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz02-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-tom01",
       "path": "audio\\samples\\other_cycdh_kurz02-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz02-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-tom02",
       "path": "audio\\samples\\other_cycdh_kurz02-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz02-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-tom03",
       "path": "audio\\samples\\other_cycdh_kurz02-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz02-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz02-tom04",
       "path": "audio\\samples\\other_cycdh_kurz02-tom04.wav"
     },
@@ -7762,19 +7762,19 @@
     },
     {
       "filename": "other_cycdh_kurz03-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-crash01",
       "path": "audio\\samples\\other_cycdh_kurz03-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz03-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-crash02",
       "path": "audio\\samples\\other_cycdh_kurz03-crash02.wav"
     },
     {
       "filename": "other_cycdh_kurz03-crash03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-crash03",
       "path": "audio\\samples\\other_cycdh_kurz03-crash03.wav"
     },
@@ -7804,7 +7804,7 @@
     },
     {
       "filename": "other_cycdh_kurz03-ride.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-ride",
       "path": "audio\\samples\\other_cycdh_kurz03-ride.wav"
     },
@@ -7816,37 +7816,37 @@
     },
     {
       "filename": "other_cycdh_kurz03-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz03-snr01",
       "path": "audio\\samples\\other_cycdh_kurz03-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz03-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz03-snr02",
       "path": "audio\\samples\\other_cycdh_kurz03-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz03-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-tom01",
       "path": "audio\\samples\\other_cycdh_kurz03-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz03-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-tom02",
       "path": "audio\\samples\\other_cycdh_kurz03-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz03-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-tom03",
       "path": "audio\\samples\\other_cycdh_kurz03-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz03-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz03-tom04",
       "path": "audio\\samples\\other_cycdh_kurz03-tom04.wav"
     },
@@ -7858,13 +7858,13 @@
     },
     {
       "filename": "other_cycdh_kurz04-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-crash01",
       "path": "audio\\samples\\other_cycdh_kurz04-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz04-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-crash02",
       "path": "audio\\samples\\other_cycdh_kurz04-crash02.wav"
     },
@@ -7900,13 +7900,13 @@
     },
     {
       "filename": "other_cycdh_kurz04-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-ride01",
       "path": "audio\\samples\\other_cycdh_kurz04-ride01.wav"
     },
     {
       "filename": "other_cycdh_kurz04-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-ride02",
       "path": "audio\\samples\\other_cycdh_kurz04-ride02.wav"
     },
@@ -7918,61 +7918,61 @@
     },
     {
       "filename": "other_cycdh_kurz04-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz04-snr01",
       "path": "audio\\samples\\other_cycdh_kurz04-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz04-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz04-snr02",
       "path": "audio\\samples\\other_cycdh_kurz04-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz04-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz04-snr03",
       "path": "audio\\samples\\other_cycdh_kurz04-snr03.wav"
     },
     {
       "filename": "other_cycdh_kurz04-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz04-snr04",
       "path": "audio\\samples\\other_cycdh_kurz04-snr04.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom01",
       "path": "audio\\samples\\other_cycdh_kurz04-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom02",
       "path": "audio\\samples\\other_cycdh_kurz04-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom03",
       "path": "audio\\samples\\other_cycdh_kurz04-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom04",
       "path": "audio\\samples\\other_cycdh_kurz04-tom04.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom05",
       "path": "audio\\samples\\other_cycdh_kurz04-tom05.wav"
     },
     {
       "filename": "other_cycdh_kurz04-tom06.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz04-tom06",
       "path": "audio\\samples\\other_cycdh_kurz04-tom06.wav"
     },
@@ -8002,13 +8002,13 @@
     },
     {
       "filename": "other_cycdh_kurz05-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-crash01",
       "path": "audio\\samples\\other_cycdh_kurz05-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz05-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-crash02",
       "path": "audio\\samples\\other_cycdh_kurz05-crash02.wav"
     },
@@ -8044,13 +8044,13 @@
     },
     {
       "filename": "other_cycdh_kurz05-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-ride01",
       "path": "audio\\samples\\other_cycdh_kurz05-ride01.wav"
     },
     {
       "filename": "other_cycdh_kurz05-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-ride02",
       "path": "audio\\samples\\other_cycdh_kurz05-ride02.wav"
     },
@@ -8062,31 +8062,31 @@
     },
     {
       "filename": "other_cycdh_kurz05-snr.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz05-snr",
       "path": "audio\\samples\\other_cycdh_kurz05-snr.wav"
     },
     {
       "filename": "other_cycdh_kurz05-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-tom01",
       "path": "audio\\samples\\other_cycdh_kurz05-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz05-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-tom02",
       "path": "audio\\samples\\other_cycdh_kurz05-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz05-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-tom03",
       "path": "audio\\samples\\other_cycdh_kurz05-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz05-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz05-tom04",
       "path": "audio\\samples\\other_cycdh_kurz05-tom04.wav"
     },
@@ -8098,13 +8098,13 @@
     },
     {
       "filename": "other_cycdh_kurz06-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-crash01",
       "path": "audio\\samples\\other_cycdh_kurz06-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz06-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-crash02",
       "path": "audio\\samples\\other_cycdh_kurz06-crash02.wav"
     },
@@ -8146,13 +8146,13 @@
     },
     {
       "filename": "other_cycdh_kurz06-ride01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-ride01",
       "path": "audio\\samples\\other_cycdh_kurz06-ride01.wav"
     },
     {
       "filename": "other_cycdh_kurz06-ride02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-ride02",
       "path": "audio\\samples\\other_cycdh_kurz06-ride02.wav"
     },
@@ -8164,43 +8164,43 @@
     },
     {
       "filename": "other_cycdh_kurz06-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz06-snr01",
       "path": "audio\\samples\\other_cycdh_kurz06-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz06-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz06-snr02",
       "path": "audio\\samples\\other_cycdh_kurz06-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz06-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz06-snr03",
       "path": "audio\\samples\\other_cycdh_kurz06-snr03.wav"
     },
     {
       "filename": "other_cycdh_kurz06-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-tom01",
       "path": "audio\\samples\\other_cycdh_kurz06-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz06-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-tom02",
       "path": "audio\\samples\\other_cycdh_kurz06-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz06-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-tom03",
       "path": "audio\\samples\\other_cycdh_kurz06-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz06-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz06-tom04",
       "path": "audio\\samples\\other_cycdh_kurz06-tom04.wav"
     },
@@ -8218,13 +8218,13 @@
     },
     {
       "filename": "other_cycdh_kurz07-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-crash01",
       "path": "audio\\samples\\other_cycdh_kurz07-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz07-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-crash02",
       "path": "audio\\samples\\other_cycdh_kurz07-crash02.wav"
     },
@@ -8308,61 +8308,61 @@
     },
     {
       "filename": "other_cycdh_kurz07-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz07-snr01",
       "path": "audio\\samples\\other_cycdh_kurz07-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz07-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz07-snr02",
       "path": "audio\\samples\\other_cycdh_kurz07-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz07-snr03.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz07-snr03",
       "path": "audio\\samples\\other_cycdh_kurz07-snr03.wav"
     },
     {
       "filename": "other_cycdh_kurz07-snr04.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz07-snr04",
       "path": "audio\\samples\\other_cycdh_kurz07-snr04.wav"
     },
     {
       "filename": "other_cycdh_kurz07-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-tom01",
       "path": "audio\\samples\\other_cycdh_kurz07-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz07-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-tom02",
       "path": "audio\\samples\\other_cycdh_kurz07-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz07-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-tom03",
       "path": "audio\\samples\\other_cycdh_kurz07-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz07-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-tom04",
       "path": "audio\\samples\\other_cycdh_kurz07-tom04.wav"
     },
     {
       "filename": "other_cycdh_kurz07-tom05.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz07-tom05",
       "path": "audio\\samples\\other_cycdh_kurz07-tom05.wav"
     },
     {
       "filename": "other_cycdh_kurz08-clap.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-clap",
       "path": "audio\\samples\\other_cycdh_kurz08-clap.wav"
     },
@@ -8374,19 +8374,19 @@
     },
     {
       "filename": "other_cycdh_kurz08-crash01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-crash01",
       "path": "audio\\samples\\other_cycdh_kurz08-crash01.wav"
     },
     {
       "filename": "other_cycdh_kurz08-crash02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-crash02",
       "path": "audio\\samples\\other_cycdh_kurz08-crash02.wav"
     },
     {
       "filename": "other_cycdh_kurz08-crash03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-crash03",
       "path": "audio\\samples\\other_cycdh_kurz08-crash03.wav"
     },
@@ -8500,73 +8500,73 @@
     },
     {
       "filename": "other_cycdh_kurz08-snr01.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz08-snr01",
       "path": "audio\\samples\\other_cycdh_kurz08-snr01.wav"
     },
     {
       "filename": "other_cycdh_kurz08-snr02.wav",
-      "type": "other",
+      "type": "snare",
       "variant": "cycdh_kurz08-snr02",
       "path": "audio\\samples\\other_cycdh_kurz08-snr02.wav"
     },
     {
       "filename": "other_cycdh_kurz08-tom01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-tom01",
       "path": "audio\\samples\\other_cycdh_kurz08-tom01.wav"
     },
     {
       "filename": "other_cycdh_kurz08-tom02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-tom02",
       "path": "audio\\samples\\other_cycdh_kurz08-tom02.wav"
     },
     {
       "filename": "other_cycdh_kurz08-tom03.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-tom03",
       "path": "audio\\samples\\other_cycdh_kurz08-tom03.wav"
     },
     {
       "filename": "other_cycdh_kurz08-tom04.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "cycdh_kurz08-tom04",
       "path": "audio\\samples\\other_cycdh_kurz08-tom04.wav"
     },
     {
       "filename": "other_clap-808.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-808",
       "path": "audio\\samples\\other_clap-808.wav"
     },
     {
       "filename": "other_clap-analog.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-analog",
       "path": "audio\\samples\\other_clap-analog.wav"
     },
     {
       "filename": "other_clap-crushed.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-crushed",
       "path": "audio\\samples\\other_clap-crushed.wav"
     },
     {
       "filename": "other_clap-fat.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-fat",
       "path": "audio\\samples\\other_clap-fat.wav"
     },
     {
       "filename": "other_clap-slapper.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-slapper",
       "path": "audio\\samples\\other_clap-slapper.wav"
     },
     {
       "filename": "other_clap-tape.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "clap-tape",
       "path": "audio\\samples\\other_clap-tape.wav"
     },
@@ -8578,25 +8578,25 @@
     },
     {
       "filename": "other_crash-808.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "crash-808",
       "path": "audio\\samples\\other_crash-808.wav"
     },
     {
       "filename": "other_crash-acoustic.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "crash-acoustic",
       "path": "audio\\samples\\other_crash-acoustic.wav"
     },
     {
       "filename": "other_crash-noise.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "crash-noise",
       "path": "audio\\samples\\other_crash-noise.wav"
     },
     {
       "filename": "other_crash-tape.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "crash-tape",
       "path": "audio\\samples\\other_crash-tape.wav"
     },
@@ -8902,13 +8902,13 @@
     },
     {
       "filename": "other_ride-acoustic01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "ride-acoustic01",
       "path": "audio\\samples\\other_ride-acoustic01.wav"
     },
     {
       "filename": "other_ride-acoustic02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "ride-acoustic02",
       "path": "audio\\samples\\other_ride-acoustic02.wav"
     },
@@ -9058,2325 +9058,57 @@
     },
     {
       "filename": "other_tom-808.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-808",
       "path": "audio\\samples\\other_tom-808.wav"
     },
     {
       "filename": "other_tom-acoustic01.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-acoustic01",
       "path": "audio\\samples\\other_tom-acoustic01.wav"
     },
     {
       "filename": "other_tom-acoustic02.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-acoustic02",
       "path": "audio\\samples\\other_tom-acoustic02.wav"
     },
     {
       "filename": "other_tom-analog.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-analog",
       "path": "audio\\samples\\other_tom-analog.wav"
     },
     {
       "filename": "other_tom-chiptune.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-chiptune",
       "path": "audio\\samples\\other_tom-chiptune.wav"
     },
     {
       "filename": "other_tom-fm.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-fm",
       "path": "audio\\samples\\other_tom-fm.wav"
     },
     {
       "filename": "other_tom-lofi.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-lofi",
       "path": "audio\\samples\\other_tom-lofi.wav"
     },
     {
       "filename": "other_tom-rototom.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-rototom",
       "path": "audio\\samples\\other_tom-rototom.wav"
     },
     {
       "filename": "other_tom-short.wav",
-      "type": "other",
+      "type": "percussion",
       "variant": "tom-short",
       "path": "audio\\samples\\other_tom-short.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-01.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-01",
-      "path": "audio\\samples\\kick_._e808_bd[long]-01.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-02.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-02",
-      "path": "audio\\samples\\kick_._e808_bd[long]-02.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-03.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-03",
-      "path": "audio\\samples\\kick_._e808_bd[long]-03.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-04.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-04",
-      "path": "audio\\samples\\kick_._e808_bd[long]-04.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-05.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-05",
-      "path": "audio\\samples\\kick_._e808_bd[long]-05.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-06.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-06",
-      "path": "audio\\samples\\kick_._e808_bd[long]-06.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-07.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-07",
-      "path": "audio\\samples\\kick_._e808_bd[long]-07.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-08.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-08",
-      "path": "audio\\samples\\kick_._e808_bd[long]-08.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-09.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-09",
-      "path": "audio\\samples\\kick_._e808_bd[long]-09.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-10.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-10",
-      "path": "audio\\samples\\kick_._e808_bd[long]-10.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-11.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-11",
-      "path": "audio\\samples\\kick_._e808_bd[long]-11.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-12.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-12",
-      "path": "audio\\samples\\kick_._e808_bd[long]-12.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-13.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-13",
-      "path": "audio\\samples\\kick_._e808_bd[long]-13.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-14.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-14",
-      "path": "audio\\samples\\kick_._e808_bd[long]-14.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-15.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-15",
-      "path": "audio\\samples\\kick_._e808_bd[long]-15.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-16.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-16",
-      "path": "audio\\samples\\kick_._e808_bd[long]-16.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[long]-17.wav",
-      "type": "kick",
-      "variant": "._e808_bd[long]-17",
-      "path": "audio\\samples\\kick_._e808_bd[long]-17.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-01.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-01",
-      "path": "audio\\samples\\kick_._e808_bd[short]-01.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-02.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-02",
-      "path": "audio\\samples\\kick_._e808_bd[short]-02.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-03.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-03",
-      "path": "audio\\samples\\kick_._e808_bd[short]-03.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-04.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-04",
-      "path": "audio\\samples\\kick_._e808_bd[short]-04.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-05.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-05",
-      "path": "audio\\samples\\kick_._e808_bd[short]-05.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-06.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-06",
-      "path": "audio\\samples\\kick_._e808_bd[short]-06.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-07.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-07",
-      "path": "audio\\samples\\kick_._e808_bd[short]-07.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-08.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-08",
-      "path": "audio\\samples\\kick_._e808_bd[short]-08.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-09.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-09",
-      "path": "audio\\samples\\kick_._e808_bd[short]-09.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-10.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-10",
-      "path": "audio\\samples\\kick_._e808_bd[short]-10.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-11.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-11",
-      "path": "audio\\samples\\kick_._e808_bd[short]-11.wav"
-    },
-    {
-      "filename": "kick_._e808_bd[short]-12.wav",
-      "type": "kick",
-      "variant": "._e808_bd[short]-12",
-      "path": "audio\\samples\\kick_._e808_bd[short]-12.wav"
-    },
-    {
-      "filename": "other_._e808_cp-01.wav",
-      "type": "other",
-      "variant": "._e808_cp-01",
-      "path": "audio\\samples\\other_._e808_cp-01.wav"
-    },
-    {
-      "filename": "other_._e808_cp-02.wav",
-      "type": "other",
-      "variant": "._e808_cp-02",
-      "path": "audio\\samples\\other_._e808_cp-02.wav"
-    },
-    {
-      "filename": "other_._e808_cp-03.wav",
-      "type": "other",
-      "variant": "._e808_cp-03",
-      "path": "audio\\samples\\other_._e808_cp-03.wav"
-    },
-    {
-      "filename": "other_._e808_cp-04.wav",
-      "type": "other",
-      "variant": "._e808_cp-04",
-      "path": "audio\\samples\\other_._e808_cp-04.wav"
-    },
-    {
-      "filename": "other_._e808_cp-05.wav",
-      "type": "other",
-      "variant": "._e808_cp-05",
-      "path": "audio\\samples\\other_._e808_cp-05.wav"
-    },
-    {
-      "filename": "other_._e808_cp-06.wav",
-      "type": "other",
-      "variant": "._e808_cp-06",
-      "path": "audio\\samples\\other_._e808_cp-06.wav"
-    },
-    {
-      "filename": "other_._e808_cp-07.wav",
-      "type": "other",
-      "variant": "._e808_cp-07",
-      "path": "audio\\samples\\other_._e808_cp-07.wav"
-    },
-    {
-      "filename": "other_._e808_cp-08.wav",
-      "type": "other",
-      "variant": "._e808_cp-08",
-      "path": "audio\\samples\\other_._e808_cp-08.wav"
-    },
-    {
-      "filename": "other_._e808_cp-09.wav",
-      "type": "other",
-      "variant": "._e808_cp-09",
-      "path": "audio\\samples\\other_._e808_cp-09.wav"
-    },
-    {
-      "filename": "other_._e808_cp-10.wav",
-      "type": "other",
-      "variant": "._e808_cp-10",
-      "path": "audio\\samples\\other_._e808_cp-10.wav"
-    },
-    {
-      "filename": "other_._e808_cp-11.wav",
-      "type": "other",
-      "variant": "._e808_cp-11",
-      "path": "audio\\samples\\other_._e808_cp-11.wav"
-    },
-    {
-      "filename": "other_._e808_cp-12.wav",
-      "type": "other",
-      "variant": "._e808_cp-12",
-      "path": "audio\\samples\\other_._e808_cp-12.wav"
-    },
-    {
-      "filename": "other_._e808_cp-13.wav",
-      "type": "other",
-      "variant": "._e808_cp-13",
-      "path": "audio\\samples\\other_._e808_cp-13.wav"
-    },
-    {
-      "filename": "other_._e808_cp-14.wav",
-      "type": "other",
-      "variant": "._e808_cp-14",
-      "path": "audio\\samples\\other_._e808_cp-14.wav"
-    },
-    {
-      "filename": "other_._e808_cp-15.wav",
-      "type": "other",
-      "variant": "._e808_cp-15",
-      "path": "audio\\samples\\other_._e808_cp-15.wav"
-    },
-    {
-      "filename": "other_._e808_cl-01.wav",
-      "type": "other",
-      "variant": "._e808_cl-01",
-      "path": "audio\\samples\\other_._e808_cl-01.wav"
-    },
-    {
-      "filename": "other_._e808_cl-02.wav",
-      "type": "other",
-      "variant": "._e808_cl-02",
-      "path": "audio\\samples\\other_._e808_cl-02.wav"
-    },
-    {
-      "filename": "other_._e808_cl-03.wav",
-      "type": "other",
-      "variant": "._e808_cl-03",
-      "path": "audio\\samples\\other_._e808_cl-03.wav"
-    },
-    {
-      "filename": "other_._e808_cl-04.wav",
-      "type": "other",
-      "variant": "._e808_cl-04",
-      "path": "audio\\samples\\other_._e808_cl-04.wav"
-    },
-    {
-      "filename": "other_._e808_cl-05.wav",
-      "type": "other",
-      "variant": "._e808_cl-05",
-      "path": "audio\\samples\\other_._e808_cl-05.wav"
-    },
-    {
-      "filename": "other_._e808_cl-06.wav",
-      "type": "other",
-      "variant": "._e808_cl-06",
-      "path": "audio\\samples\\other_._e808_cl-06.wav"
-    },
-    {
-      "filename": "other_._e808_cl-07.wav",
-      "type": "other",
-      "variant": "._e808_cl-07",
-      "path": "audio\\samples\\other_._e808_cl-07.wav"
-    },
-    {
-      "filename": "other_._e808_cl-08.wav",
-      "type": "other",
-      "variant": "._e808_cl-08",
-      "path": "audio\\samples\\other_._e808_cl-08.wav"
-    },
-    {
-      "filename": "other_._e808_cl-09.wav",
-      "type": "other",
-      "variant": "._e808_cl-09",
-      "path": "audio\\samples\\other_._e808_cl-09.wav"
-    },
-    {
-      "filename": "other_._e808_cl-10.wav",
-      "type": "other",
-      "variant": "._e808_cl-10",
-      "path": "audio\\samples\\other_._e808_cl-10.wav"
-    },
-    {
-      "filename": "other_._e808_cl-11.wav",
-      "type": "other",
-      "variant": "._e808_cl-11",
-      "path": "audio\\samples\\other_._e808_cl-11.wav"
-    },
-    {
-      "filename": "other_._e808_ch-01.wav",
-      "type": "other",
-      "variant": "._e808_ch-01",
-      "path": "audio\\samples\\other_._e808_ch-01.wav"
-    },
-    {
-      "filename": "other_._e808_ch-02.wav",
-      "type": "other",
-      "variant": "._e808_ch-02",
-      "path": "audio\\samples\\other_._e808_ch-02.wav"
-    },
-    {
-      "filename": "other_._e808_ch-03.wav",
-      "type": "other",
-      "variant": "._e808_ch-03",
-      "path": "audio\\samples\\other_._e808_ch-03.wav"
-    },
-    {
-      "filename": "other_._e808_ch-04.wav",
-      "type": "other",
-      "variant": "._e808_ch-04",
-      "path": "audio\\samples\\other_._e808_ch-04.wav"
-    },
-    {
-      "filename": "other_._e808_ch-05.wav",
-      "type": "other",
-      "variant": "._e808_ch-05",
-      "path": "audio\\samples\\other_._e808_ch-05.wav"
-    },
-    {
-      "filename": "other_._e808_ch-06.wav",
-      "type": "other",
-      "variant": "._e808_ch-06",
-      "path": "audio\\samples\\other_._e808_ch-06.wav"
-    },
-    {
-      "filename": "other_._e808_ch-07.wav",
-      "type": "other",
-      "variant": "._e808_ch-07",
-      "path": "audio\\samples\\other_._e808_ch-07.wav"
-    },
-    {
-      "filename": "other_._e808_ch-08.wav",
-      "type": "other",
-      "variant": "._e808_ch-08",
-      "path": "audio\\samples\\other_._e808_ch-08.wav"
-    },
-    {
-      "filename": "other_._e808_ch-09.wav",
-      "type": "other",
-      "variant": "._e808_ch-09",
-      "path": "audio\\samples\\other_._e808_ch-09.wav"
-    },
-    {
-      "filename": "other_._e808_ch-10.wav",
-      "type": "other",
-      "variant": "._e808_ch-10",
-      "path": "audio\\samples\\other_._e808_ch-10.wav"
-    },
-    {
-      "filename": "other_._e808_ch-11.wav",
-      "type": "other",
-      "variant": "._e808_ch-11",
-      "path": "audio\\samples\\other_._e808_ch-11.wav"
-    },
-    {
-      "filename": "other_._e808_ch-12.wav",
-      "type": "other",
-      "variant": "._e808_ch-12",
-      "path": "audio\\samples\\other_._e808_ch-12.wav"
-    },
-    {
-      "filename": "other_._e808_hc-01.wav",
-      "type": "other",
-      "variant": "._e808_hc-01",
-      "path": "audio\\samples\\other_._e808_hc-01.wav"
-    },
-    {
-      "filename": "other_._e808_hc-02.wav",
-      "type": "other",
-      "variant": "._e808_hc-02",
-      "path": "audio\\samples\\other_._e808_hc-02.wav"
-    },
-    {
-      "filename": "other_._e808_hc-03.wav",
-      "type": "other",
-      "variant": "._e808_hc-03",
-      "path": "audio\\samples\\other_._e808_hc-03.wav"
-    },
-    {
-      "filename": "other_._e808_hc-04.wav",
-      "type": "other",
-      "variant": "._e808_hc-04",
-      "path": "audio\\samples\\other_._e808_hc-04.wav"
-    },
-    {
-      "filename": "other_._e808_hc-05.wav",
-      "type": "other",
-      "variant": "._e808_hc-05",
-      "path": "audio\\samples\\other_._e808_hc-05.wav"
-    },
-    {
-      "filename": "other_._e808_hc-06.wav",
-      "type": "other",
-      "variant": "._e808_hc-06",
-      "path": "audio\\samples\\other_._e808_hc-06.wav"
-    },
-    {
-      "filename": "other_._e808_hc-07.wav",
-      "type": "other",
-      "variant": "._e808_hc-07",
-      "path": "audio\\samples\\other_._e808_hc-07.wav"
-    },
-    {
-      "filename": "other_._e808_hc-08.wav",
-      "type": "other",
-      "variant": "._e808_hc-08",
-      "path": "audio\\samples\\other_._e808_hc-08.wav"
-    },
-    {
-      "filename": "other_._e808_hc-09.wav",
-      "type": "other",
-      "variant": "._e808_hc-09",
-      "path": "audio\\samples\\other_._e808_hc-09.wav"
-    },
-    {
-      "filename": "other_._e808_hc-10.wav",
-      "type": "other",
-      "variant": "._e808_hc-10",
-      "path": "audio\\samples\\other_._e808_hc-10.wav"
-    },
-    {
-      "filename": "other_._e808_lc-01.wav",
-      "type": "other",
-      "variant": "._e808_lc-01",
-      "path": "audio\\samples\\other_._e808_lc-01.wav"
-    },
-    {
-      "filename": "other_._e808_lc-02.wav",
-      "type": "other",
-      "variant": "._e808_lc-02",
-      "path": "audio\\samples\\other_._e808_lc-02.wav"
-    },
-    {
-      "filename": "other_._e808_lc-03.wav",
-      "type": "other",
-      "variant": "._e808_lc-03",
-      "path": "audio\\samples\\other_._e808_lc-03.wav"
-    },
-    {
-      "filename": "other_._e808_lc-04.wav",
-      "type": "other",
-      "variant": "._e808_lc-04",
-      "path": "audio\\samples\\other_._e808_lc-04.wav"
-    },
-    {
-      "filename": "other_._e808_lc-05.wav",
-      "type": "other",
-      "variant": "._e808_lc-05",
-      "path": "audio\\samples\\other_._e808_lc-05.wav"
-    },
-    {
-      "filename": "other_._e808_lc-06.wav",
-      "type": "other",
-      "variant": "._e808_lc-06",
-      "path": "audio\\samples\\other_._e808_lc-06.wav"
-    },
-    {
-      "filename": "other_._e808_lc-07.wav",
-      "type": "other",
-      "variant": "._e808_lc-07",
-      "path": "audio\\samples\\other_._e808_lc-07.wav"
-    },
-    {
-      "filename": "other_._e808_lc-08.wav",
-      "type": "other",
-      "variant": "._e808_lc-08",
-      "path": "audio\\samples\\other_._e808_lc-08.wav"
-    },
-    {
-      "filename": "other_._e808_lc-09.wav",
-      "type": "other",
-      "variant": "._e808_lc-09",
-      "path": "audio\\samples\\other_._e808_lc-09.wav"
-    },
-    {
-      "filename": "other_._e808_lc-10.wav",
-      "type": "other",
-      "variant": "._e808_lc-10",
-      "path": "audio\\samples\\other_._e808_lc-10.wav"
-    },
-    {
-      "filename": "other_._e808_mc-01.wav",
-      "type": "other",
-      "variant": "._e808_mc-01",
-      "path": "audio\\samples\\other_._e808_mc-01.wav"
-    },
-    {
-      "filename": "other_._e808_mc-02.wav",
-      "type": "other",
-      "variant": "._e808_mc-02",
-      "path": "audio\\samples\\other_._e808_mc-02.wav"
-    },
-    {
-      "filename": "other_._e808_mc-03.wav",
-      "type": "other",
-      "variant": "._e808_mc-03",
-      "path": "audio\\samples\\other_._e808_mc-03.wav"
-    },
-    {
-      "filename": "other_._e808_mc-04.wav",
-      "type": "other",
-      "variant": "._e808_mc-04",
-      "path": "audio\\samples\\other_._e808_mc-04.wav"
-    },
-    {
-      "filename": "other_._e808_mc-05.wav",
-      "type": "other",
-      "variant": "._e808_mc-05",
-      "path": "audio\\samples\\other_._e808_mc-05.wav"
-    },
-    {
-      "filename": "other_._e808_mc-06.wav",
-      "type": "other",
-      "variant": "._e808_mc-06",
-      "path": "audio\\samples\\other_._e808_mc-06.wav"
-    },
-    {
-      "filename": "other_._e808_mc-07.wav",
-      "type": "other",
-      "variant": "._e808_mc-07",
-      "path": "audio\\samples\\other_._e808_mc-07.wav"
-    },
-    {
-      "filename": "other_._e808_mc-08.wav",
-      "type": "other",
-      "variant": "._e808_mc-08",
-      "path": "audio\\samples\\other_._e808_mc-08.wav"
-    },
-    {
-      "filename": "other_._e808_mc-09.wav",
-      "type": "other",
-      "variant": "._e808_mc-09",
-      "path": "audio\\samples\\other_._e808_mc-09.wav"
-    },
-    {
-      "filename": "other_._e808_mc-10.wav",
-      "type": "other",
-      "variant": "._e808_mc-10",
-      "path": "audio\\samples\\other_._e808_mc-10.wav"
-    },
-    {
-      "filename": "other_._e808_cb-01.wav",
-      "type": "other",
-      "variant": "._e808_cb-01",
-      "path": "audio\\samples\\other_._e808_cb-01.wav"
-    },
-    {
-      "filename": "other_._e808_cb-02.wav",
-      "type": "other",
-      "variant": "._e808_cb-02",
-      "path": "audio\\samples\\other_._e808_cb-02.wav"
-    },
-    {
-      "filename": "other_._e808_cb-03.wav",
-      "type": "other",
-      "variant": "._e808_cb-03",
-      "path": "audio\\samples\\other_._e808_cb-03.wav"
-    },
-    {
-      "filename": "other_._e808_cb-04.wav",
-      "type": "other",
-      "variant": "._e808_cb-04",
-      "path": "audio\\samples\\other_._e808_cb-04.wav"
-    },
-    {
-      "filename": "other_._e808_cb-05.wav",
-      "type": "other",
-      "variant": "._e808_cb-05",
-      "path": "audio\\samples\\other_._e808_cb-05.wav"
-    },
-    {
-      "filename": "other_._e808_cb-06.wav",
-      "type": "other",
-      "variant": "._e808_cb-06",
-      "path": "audio\\samples\\other_._e808_cb-06.wav"
-    },
-    {
-      "filename": "other_._e808_cb-07.wav",
-      "type": "other",
-      "variant": "._e808_cb-07",
-      "path": "audio\\samples\\other_._e808_cb-07.wav"
-    },
-    {
-      "filename": "other_._e808_cb-08.wav",
-      "type": "other",
-      "variant": "._e808_cb-08",
-      "path": "audio\\samples\\other_._e808_cb-08.wav"
-    },
-    {
-      "filename": "other_._e808_cb-09.wav",
-      "type": "other",
-      "variant": "._e808_cb-09",
-      "path": "audio\\samples\\other_._e808_cb-09.wav"
-    },
-    {
-      "filename": "other_._e808_cb-10.wav",
-      "type": "other",
-      "variant": "._e808_cb-10",
-      "path": "audio\\samples\\other_._e808_cb-10.wav"
-    },
-    {
-      "filename": "other_._e808_cb-11.wav",
-      "type": "other",
-      "variant": "._e808_cb-11",
-      "path": "audio\\samples\\other_._e808_cb-11.wav"
-    },
-    {
-      "filename": "other_._e808_cb-12.wav",
-      "type": "other",
-      "variant": "._e808_cb-12",
-      "path": "audio\\samples\\other_._e808_cb-12.wav"
-    },
-    {
-      "filename": "other_._e808_cb-13.wav",
-      "type": "other",
-      "variant": "._e808_cb-13",
-      "path": "audio\\samples\\other_._e808_cb-13.wav"
-    },
-    {
-      "filename": "other_._e808_cb-14.wav",
-      "type": "other",
-      "variant": "._e808_cb-14",
-      "path": "audio\\samples\\other_._e808_cb-14.wav"
-    },
-    {
-      "filename": "other_._e808_cb-15.wav",
-      "type": "other",
-      "variant": "._e808_cb-15",
-      "path": "audio\\samples\\other_._e808_cb-15.wav"
-    },
-    {
-      "filename": "other_._e808_cy-01.wav",
-      "type": "other",
-      "variant": "._e808_cy-01",
-      "path": "audio\\samples\\other_._e808_cy-01.wav"
-    },
-    {
-      "filename": "other_._e808_cy-02.wav",
-      "type": "other",
-      "variant": "._e808_cy-02",
-      "path": "audio\\samples\\other_._e808_cy-02.wav"
-    },
-    {
-      "filename": "other_._e808_cy-03.wav",
-      "type": "other",
-      "variant": "._e808_cy-03",
-      "path": "audio\\samples\\other_._e808_cy-03.wav"
-    },
-    {
-      "filename": "other_._e808_cy-04.wav",
-      "type": "other",
-      "variant": "._e808_cy-04",
-      "path": "audio\\samples\\other_._e808_cy-04.wav"
-    },
-    {
-      "filename": "other_._e808_cy-05.wav",
-      "type": "other",
-      "variant": "._e808_cy-05",
-      "path": "audio\\samples\\other_._e808_cy-05.wav"
-    },
-    {
-      "filename": "other_._e808_cy-06.wav",
-      "type": "other",
-      "variant": "._e808_cy-06",
-      "path": "audio\\samples\\other_._e808_cy-06.wav"
-    },
-    {
-      "filename": "other_._e808_cy-07.wav",
-      "type": "other",
-      "variant": "._e808_cy-07",
-      "path": "audio\\samples\\other_._e808_cy-07.wav"
-    },
-    {
-      "filename": "other_._e808_cy-08.wav",
-      "type": "other",
-      "variant": "._e808_cy-08",
-      "path": "audio\\samples\\other_._e808_cy-08.wav"
-    },
-    {
-      "filename": "other_._e808_cy-09.wav",
-      "type": "other",
-      "variant": "._e808_cy-09",
-      "path": "audio\\samples\\other_._e808_cy-09.wav"
-    },
-    {
-      "filename": "other_._e808_cy-10.wav",
-      "type": "other",
-      "variant": "._e808_cy-10",
-      "path": "audio\\samples\\other_._e808_cy-10.wav"
-    },
-    {
-      "filename": "other_._e808_cy-11.wav",
-      "type": "other",
-      "variant": "._e808_cy-11",
-      "path": "audio\\samples\\other_._e808_cy-11.wav"
-    },
-    {
-      "filename": "other_._e808_cy-12.wav",
-      "type": "other",
-      "variant": "._e808_cy-12",
-      "path": "audio\\samples\\other_._e808_cy-12.wav"
-    },
-    {
-      "filename": "other_._e808_cy-13.wav",
-      "type": "other",
-      "variant": "._e808_cy-13",
-      "path": "audio\\samples\\other_._e808_cy-13.wav"
-    },
-    {
-      "filename": "other_._e808_cy-14.wav",
-      "type": "other",
-      "variant": "._e808_cy-14",
-      "path": "audio\\samples\\other_._e808_cy-14.wav"
-    },
-    {
-      "filename": "other_._e808_cy-15.wav",
-      "type": "other",
-      "variant": "._e808_cy-15",
-      "path": "audio\\samples\\other_._e808_cy-15.wav"
-    },
-    {
-      "filename": "other_._e808_cy-16.wav",
-      "type": "other",
-      "variant": "._e808_cy-16",
-      "path": "audio\\samples\\other_._e808_cy-16.wav"
-    },
-    {
-      "filename": "other_._e808_ma-01.wav",
-      "type": "other",
-      "variant": "._e808_ma-01",
-      "path": "audio\\samples\\other_._e808_ma-01.wav"
-    },
-    {
-      "filename": "other_._e808_ma-02.wav",
-      "type": "other",
-      "variant": "._e808_ma-02",
-      "path": "audio\\samples\\other_._e808_ma-02.wav"
-    },
-    {
-      "filename": "other_._e808_ma-03.wav",
-      "type": "other",
-      "variant": "._e808_ma-03",
-      "path": "audio\\samples\\other_._e808_ma-03.wav"
-    },
-    {
-      "filename": "other_._e808_ma-04.wav",
-      "type": "other",
-      "variant": "._e808_ma-04",
-      "path": "audio\\samples\\other_._e808_ma-04.wav"
-    },
-    {
-      "filename": "other_._e808_ma-05.wav",
-      "type": "other",
-      "variant": "._e808_ma-05",
-      "path": "audio\\samples\\other_._e808_ma-05.wav"
-    },
-    {
-      "filename": "other_._e808_ma-06.wav",
-      "type": "other",
-      "variant": "._e808_ma-06",
-      "path": "audio\\samples\\other_._e808_ma-06.wav"
-    },
-    {
-      "filename": "other_._e808_ma-07.wav",
-      "type": "other",
-      "variant": "._e808_ma-07",
-      "path": "audio\\samples\\other_._e808_ma-07.wav"
-    },
-    {
-      "filename": "other_._e808_ma-08.wav",
-      "type": "other",
-      "variant": "._e808_ma-08",
-      "path": "audio\\samples\\other_._e808_ma-08.wav"
-    },
-    {
-      "filename": "other_._e808_ma-09.wav",
-      "type": "other",
-      "variant": "._e808_ma-09",
-      "path": "audio\\samples\\other_._e808_ma-09.wav"
-    },
-    {
-      "filename": "other_._e808_ma-10.wav",
-      "type": "other",
-      "variant": "._e808_ma-10",
-      "path": "audio\\samples\\other_._e808_ma-10.wav"
-    },
-    {
-      "filename": "other_._e808_ma-11.wav",
-      "type": "other",
-      "variant": "._e808_ma-11",
-      "path": "audio\\samples\\other_._e808_ma-11.wav"
-    },
-    {
-      "filename": "other_._e808_oh-01.wav",
-      "type": "other",
-      "variant": "._e808_oh-01",
-      "path": "audio\\samples\\other_._e808_oh-01.wav"
-    },
-    {
-      "filename": "other_._e808_oh-02.wav",
-      "type": "other",
-      "variant": "._e808_oh-02",
-      "path": "audio\\samples\\other_._e808_oh-02.wav"
-    },
-    {
-      "filename": "other_._e808_oh-03.wav",
-      "type": "other",
-      "variant": "._e808_oh-03",
-      "path": "audio\\samples\\other_._e808_oh-03.wav"
-    },
-    {
-      "filename": "other_._e808_oh-04.wav",
-      "type": "other",
-      "variant": "._e808_oh-04",
-      "path": "audio\\samples\\other_._e808_oh-04.wav"
-    },
-    {
-      "filename": "other_._e808_oh-05.wav",
-      "type": "other",
-      "variant": "._e808_oh-05",
-      "path": "audio\\samples\\other_._e808_oh-05.wav"
-    },
-    {
-      "filename": "other_._e808_oh-06.wav",
-      "type": "other",
-      "variant": "._e808_oh-06",
-      "path": "audio\\samples\\other_._e808_oh-06.wav"
-    },
-    {
-      "filename": "other_._e808_oh-07.wav",
-      "type": "other",
-      "variant": "._e808_oh-07",
-      "path": "audio\\samples\\other_._e808_oh-07.wav"
-    },
-    {
-      "filename": "other_._e808_oh-08.wav",
-      "type": "other",
-      "variant": "._e808_oh-08",
-      "path": "audio\\samples\\other_._e808_oh-08.wav"
-    },
-    {
-      "filename": "other_._e808_oh-09.wav",
-      "type": "other",
-      "variant": "._e808_oh-09",
-      "path": "audio\\samples\\other_._e808_oh-09.wav"
-    },
-    {
-      "filename": "other_._e808_oh-10.wav",
-      "type": "other",
-      "variant": "._e808_oh-10",
-      "path": "audio\\samples\\other_._e808_oh-10.wav"
-    },
-    {
-      "filename": "other_._e808_oh-11.wav",
-      "type": "other",
-      "variant": "._e808_oh-11",
-      "path": "audio\\samples\\other_._e808_oh-11.wav"
-    },
-    {
-      "filename": "other_._e808_oh-12.wav",
-      "type": "other",
-      "variant": "._e808_oh-12",
-      "path": "audio\\samples\\other_._e808_oh-12.wav"
-    },
-    {
-      "filename": "other_._e808_oh-13.wav",
-      "type": "other",
-      "variant": "._e808_oh-13",
-      "path": "audio\\samples\\other_._e808_oh-13.wav"
-    },
-    {
-      "filename": "other_._e808_rs-01.wav",
-      "type": "other",
-      "variant": "._e808_rs-01",
-      "path": "audio\\samples\\other_._e808_rs-01.wav"
-    },
-    {
-      "filename": "other_._e808_rs-02.wav",
-      "type": "other",
-      "variant": "._e808_rs-02",
-      "path": "audio\\samples\\other_._e808_rs-02.wav"
-    },
-    {
-      "filename": "other_._e808_rs-03.wav",
-      "type": "other",
-      "variant": "._e808_rs-03",
-      "path": "audio\\samples\\other_._e808_rs-03.wav"
-    },
-    {
-      "filename": "other_._e808_rs-04.wav",
-      "type": "other",
-      "variant": "._e808_rs-04",
-      "path": "audio\\samples\\other_._e808_rs-04.wav"
-    },
-    {
-      "filename": "other_._e808_rs-05.wav",
-      "type": "other",
-      "variant": "._e808_rs-05",
-      "path": "audio\\samples\\other_._e808_rs-05.wav"
-    },
-    {
-      "filename": "other_._e808_rs-06.wav",
-      "type": "other",
-      "variant": "._e808_rs-06",
-      "path": "audio\\samples\\other_._e808_rs-06.wav"
-    },
-    {
-      "filename": "other_._e808_rs-07.wav",
-      "type": "other",
-      "variant": "._e808_rs-07",
-      "path": "audio\\samples\\other_._e808_rs-07.wav"
-    },
-    {
-      "filename": "other_._e808_rs-08.wav",
-      "type": "other",
-      "variant": "._e808_rs-08",
-      "path": "audio\\samples\\other_._e808_rs-08.wav"
-    },
-    {
-      "filename": "other_._e808_rs-09.wav",
-      "type": "other",
-      "variant": "._e808_rs-09",
-      "path": "audio\\samples\\other_._e808_rs-09.wav"
-    },
-    {
-      "filename": "other_._e808_rs-10.wav",
-      "type": "other",
-      "variant": "._e808_rs-10",
-      "path": "audio\\samples\\other_._e808_rs-10.wav"
-    },
-    {
-      "filename": "other_._e808_rs-11.wav",
-      "type": "other",
-      "variant": "._e808_rs-11",
-      "path": "audio\\samples\\other_._e808_rs-11.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-01.wav",
-      "type": "snare",
-      "variant": "._e808_sd-01",
-      "path": "audio\\samples\\snare_._e808_sd-01.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-02.wav",
-      "type": "snare",
-      "variant": "._e808_sd-02",
-      "path": "audio\\samples\\snare_._e808_sd-02.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-03.wav",
-      "type": "snare",
-      "variant": "._e808_sd-03",
-      "path": "audio\\samples\\snare_._e808_sd-03.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-04.wav",
-      "type": "snare",
-      "variant": "._e808_sd-04",
-      "path": "audio\\samples\\snare_._e808_sd-04.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-05.wav",
-      "type": "snare",
-      "variant": "._e808_sd-05",
-      "path": "audio\\samples\\snare_._e808_sd-05.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-06.wav",
-      "type": "snare",
-      "variant": "._e808_sd-06",
-      "path": "audio\\samples\\snare_._e808_sd-06.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-07.wav",
-      "type": "snare",
-      "variant": "._e808_sd-07",
-      "path": "audio\\samples\\snare_._e808_sd-07.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-08.wav",
-      "type": "snare",
-      "variant": "._e808_sd-08",
-      "path": "audio\\samples\\snare_._e808_sd-08.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-09.wav",
-      "type": "snare",
-      "variant": "._e808_sd-09",
-      "path": "audio\\samples\\snare_._e808_sd-09.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-10.wav",
-      "type": "snare",
-      "variant": "._e808_sd-10",
-      "path": "audio\\samples\\snare_._e808_sd-10.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-11.wav",
-      "type": "snare",
-      "variant": "._e808_sd-11",
-      "path": "audio\\samples\\snare_._e808_sd-11.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-12.wav",
-      "type": "snare",
-      "variant": "._e808_sd-12",
-      "path": "audio\\samples\\snare_._e808_sd-12.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-13.wav",
-      "type": "snare",
-      "variant": "._e808_sd-13",
-      "path": "audio\\samples\\snare_._e808_sd-13.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-14.wav",
-      "type": "snare",
-      "variant": "._e808_sd-14",
-      "path": "audio\\samples\\snare_._e808_sd-14.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-15.wav",
-      "type": "snare",
-      "variant": "._e808_sd-15",
-      "path": "audio\\samples\\snare_._e808_sd-15.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-16.wav",
-      "type": "snare",
-      "variant": "._e808_sd-16",
-      "path": "audio\\samples\\snare_._e808_sd-16.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-17.wav",
-      "type": "snare",
-      "variant": "._e808_sd-17",
-      "path": "audio\\samples\\snare_._e808_sd-17.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-18.wav",
-      "type": "snare",
-      "variant": "._e808_sd-18",
-      "path": "audio\\samples\\snare_._e808_sd-18.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-19.wav",
-      "type": "snare",
-      "variant": "._e808_sd-19",
-      "path": "audio\\samples\\snare_._e808_sd-19.wav"
-    },
-    {
-      "filename": "snare_._e808_sd-20.wav",
-      "type": "snare",
-      "variant": "._e808_sd-20",
-      "path": "audio\\samples\\snare_._e808_sd-20.wav"
-    },
-    {
-      "filename": "other_._e808_ht-01.wav",
-      "type": "other",
-      "variant": "._e808_ht-01",
-      "path": "audio\\samples\\other_._e808_ht-01.wav"
-    },
-    {
-      "filename": "other_._e808_ht-02.wav",
-      "type": "other",
-      "variant": "._e808_ht-02",
-      "path": "audio\\samples\\other_._e808_ht-02.wav"
-    },
-    {
-      "filename": "other_._e808_ht-03.wav",
-      "type": "other",
-      "variant": "._e808_ht-03",
-      "path": "audio\\samples\\other_._e808_ht-03.wav"
-    },
-    {
-      "filename": "other_._e808_ht-04.wav",
-      "type": "other",
-      "variant": "._e808_ht-04",
-      "path": "audio\\samples\\other_._e808_ht-04.wav"
-    },
-    {
-      "filename": "other_._e808_ht-05.wav",
-      "type": "other",
-      "variant": "._e808_ht-05",
-      "path": "audio\\samples\\other_._e808_ht-05.wav"
-    },
-    {
-      "filename": "other_._e808_ht-06.wav",
-      "type": "other",
-      "variant": "._e808_ht-06",
-      "path": "audio\\samples\\other_._e808_ht-06.wav"
-    },
-    {
-      "filename": "other_._e808_ht-07.wav",
-      "type": "other",
-      "variant": "._e808_ht-07",
-      "path": "audio\\samples\\other_._e808_ht-07.wav"
-    },
-    {
-      "filename": "other_._e808_ht-08.wav",
-      "type": "other",
-      "variant": "._e808_ht-08",
-      "path": "audio\\samples\\other_._e808_ht-08.wav"
-    },
-    {
-      "filename": "other_._e808_ht-09.wav",
-      "type": "other",
-      "variant": "._e808_ht-09",
-      "path": "audio\\samples\\other_._e808_ht-09.wav"
-    },
-    {
-      "filename": "other_._e808_ht-10.wav",
-      "type": "other",
-      "variant": "._e808_ht-10",
-      "path": "audio\\samples\\other_._e808_ht-10.wav"
-    },
-    {
-      "filename": "other_._e808_ht-11.wav",
-      "type": "other",
-      "variant": "._e808_ht-11",
-      "path": "audio\\samples\\other_._e808_ht-11.wav"
-    },
-    {
-      "filename": "other_._e808_ht-12.wav",
-      "type": "other",
-      "variant": "._e808_ht-12",
-      "path": "audio\\samples\\other_._e808_ht-12.wav"
-    },
-    {
-      "filename": "other_._e808_lt-01.wav",
-      "type": "other",
-      "variant": "._e808_lt-01",
-      "path": "audio\\samples\\other_._e808_lt-01.wav"
-    },
-    {
-      "filename": "other_._e808_lt-02.wav",
-      "type": "other",
-      "variant": "._e808_lt-02",
-      "path": "audio\\samples\\other_._e808_lt-02.wav"
-    },
-    {
-      "filename": "other_._e808_lt-03.wav",
-      "type": "other",
-      "variant": "._e808_lt-03",
-      "path": "audio\\samples\\other_._e808_lt-03.wav"
-    },
-    {
-      "filename": "other_._e808_lt-04.wav",
-      "type": "other",
-      "variant": "._e808_lt-04",
-      "path": "audio\\samples\\other_._e808_lt-04.wav"
-    },
-    {
-      "filename": "other_._e808_lt-05.wav",
-      "type": "other",
-      "variant": "._e808_lt-05",
-      "path": "audio\\samples\\other_._e808_lt-05.wav"
-    },
-    {
-      "filename": "other_._e808_lt-06.wav",
-      "type": "other",
-      "variant": "._e808_lt-06",
-      "path": "audio\\samples\\other_._e808_lt-06.wav"
-    },
-    {
-      "filename": "other_._e808_lt-07.wav",
-      "type": "other",
-      "variant": "._e808_lt-07",
-      "path": "audio\\samples\\other_._e808_lt-07.wav"
-    },
-    {
-      "filename": "other_._e808_lt-08.wav",
-      "type": "other",
-      "variant": "._e808_lt-08",
-      "path": "audio\\samples\\other_._e808_lt-08.wav"
-    },
-    {
-      "filename": "other_._e808_lt-09.wav",
-      "type": "other",
-      "variant": "._e808_lt-09",
-      "path": "audio\\samples\\other_._e808_lt-09.wav"
-    },
-    {
-      "filename": "other_._e808_lt-10.wav",
-      "type": "other",
-      "variant": "._e808_lt-10",
-      "path": "audio\\samples\\other_._e808_lt-10.wav"
-    },
-    {
-      "filename": "other_._e808_lt-11.wav",
-      "type": "other",
-      "variant": "._e808_lt-11",
-      "path": "audio\\samples\\other_._e808_lt-11.wav"
-    },
-    {
-      "filename": "other_._e808_lt-12.wav",
-      "type": "other",
-      "variant": "._e808_lt-12",
-      "path": "audio\\samples\\other_._e808_lt-12.wav"
-    },
-    {
-      "filename": "other_._e808_mt-01.wav",
-      "type": "other",
-      "variant": "._e808_mt-01",
-      "path": "audio\\samples\\other_._e808_mt-01.wav"
-    },
-    {
-      "filename": "other_._e808_mt-02.wav",
-      "type": "other",
-      "variant": "._e808_mt-02",
-      "path": "audio\\samples\\other_._e808_mt-02.wav"
-    },
-    {
-      "filename": "other_._e808_mt-03.wav",
-      "type": "other",
-      "variant": "._e808_mt-03",
-      "path": "audio\\samples\\other_._e808_mt-03.wav"
-    },
-    {
-      "filename": "other_._e808_mt-04.wav",
-      "type": "other",
-      "variant": "._e808_mt-04",
-      "path": "audio\\samples\\other_._e808_mt-04.wav"
-    },
-    {
-      "filename": "other_._e808_mt-05.wav",
-      "type": "other",
-      "variant": "._e808_mt-05",
-      "path": "audio\\samples\\other_._e808_mt-05.wav"
-    },
-    {
-      "filename": "other_._e808_mt-06.wav",
-      "type": "other",
-      "variant": "._e808_mt-06",
-      "path": "audio\\samples\\other_._e808_mt-06.wav"
-    },
-    {
-      "filename": "other_._e808_mt-07.wav",
-      "type": "other",
-      "variant": "._e808_mt-07",
-      "path": "audio\\samples\\other_._e808_mt-07.wav"
-    },
-    {
-      "filename": "other_._e808_mt-08.wav",
-      "type": "other",
-      "variant": "._e808_mt-08",
-      "path": "audio\\samples\\other_._e808_mt-08.wav"
-    },
-    {
-      "filename": "other_._e808_mt-09.wav",
-      "type": "other",
-      "variant": "._e808_mt-09",
-      "path": "audio\\samples\\other_._e808_mt-09.wav"
-    },
-    {
-      "filename": "other_._e808_mt-10.wav",
-      "type": "other",
-      "variant": "._e808_mt-10",
-      "path": "audio\\samples\\other_._e808_mt-10.wav"
-    },
-    {
-      "filename": "other_._e808_mt-11.wav",
-      "type": "other",
-      "variant": "._e808_mt-11",
-      "path": "audio\\samples\\other_._e808_mt-11.wav"
-    },
-    {
-      "filename": "other_._e808_mt-12.wav",
-      "type": "other",
-      "variant": "._e808_mt-12",
-      "path": "audio\\samples\\other_._e808_mt-12.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-01.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-01",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-01.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-02.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-02",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-02.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-03.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-03",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-03.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-04.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-04",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-05.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-05",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-05.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-06.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-06",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-06.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-07.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-07",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-07.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_105-08.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_105-08",
-      "path": "audio\\samples\\kick_._e808_loop_bd_105-08.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-01.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-01",
-      "path": "audio\\samples\\hihat_._e808_loop__105-01.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-02.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-02",
-      "path": "audio\\samples\\hihat_._e808_loop__105-02.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-03.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-03",
-      "path": "audio\\samples\\hihat_._e808_loop__105-03.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-04.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-04",
-      "path": "audio\\samples\\hihat_._e808_loop__105-04.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-05.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-05",
-      "path": "audio\\samples\\hihat_._e808_loop__105-05.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-06.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-06",
-      "path": "audio\\samples\\hihat_._e808_loop__105-06.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-07.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-07",
-      "path": "audio\\samples\\hihat_._e808_loop__105-07.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__105-08.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__105-08",
-      "path": "audio\\samples\\hihat_._e808_loop__105-08.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_105-01.wav",
-      "type": "loop",
-      "variant": "._e808__perc_105-01",
-      "path": "audio\\samples\\loop_._e808__perc_105-01.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_105-02.wav",
-      "type": "loop",
-      "variant": "._e808__perc_105-02",
-      "path": "audio\\samples\\loop_._e808__perc_105-02.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_105-03.wav",
-      "type": "loop",
-      "variant": "._e808__perc_105-03",
-      "path": "audio\\samples\\loop_._e808__perc_105-03.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_105-04.wav",
-      "type": "loop",
-      "variant": "._e808__perc_105-04",
-      "path": "audio\\samples\\loop_._e808__perc_105-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-01.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-01",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-01.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-02.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-02",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-02.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-03.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-03",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-03.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-04.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-04",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-05.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-05",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-05.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-06.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-06",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-06.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-07.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-07",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-07.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_105-08.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_105-08",
-      "path": "audio\\samples\\snare_._e808_loop_sd_105-08.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_105-01.wav",
-      "type": "loop",
-      "variant": "._e808__toms_105-01",
-      "path": "audio\\samples\\loop_._e808__toms_105-01.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_105-02.wav",
-      "type": "loop",
-      "variant": "._e808__toms_105-02",
-      "path": "audio\\samples\\loop_._e808__toms_105-02.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_105-03.wav",
-      "type": "loop",
-      "variant": "._e808__toms_105-03",
-      "path": "audio\\samples\\loop_._e808__toms_105-03.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_105-04.wav",
-      "type": "loop",
-      "variant": "._e808__toms_105-04",
-      "path": "audio\\samples\\loop_._e808__toms_105-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-01.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-01",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-01.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-02.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-02",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-02.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-03.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-03",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-03.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-04.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-04",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-05.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-05",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-05.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-06.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-06",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-06.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-07.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-07",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-07.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_124-08.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_124-08",
-      "path": "audio\\samples\\kick_._e808_loop_bd_124-08.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-01.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-01",
-      "path": "audio\\samples\\hihat_._e808_loop__124-01.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-02.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-02",
-      "path": "audio\\samples\\hihat_._e808_loop__124-02.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-03.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-03",
-      "path": "audio\\samples\\hihat_._e808_loop__124-03.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-04.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-04",
-      "path": "audio\\samples\\hihat_._e808_loop__124-04.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-05.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-05",
-      "path": "audio\\samples\\hihat_._e808_loop__124-05.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-06.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-06",
-      "path": "audio\\samples\\hihat_._e808_loop__124-06.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-07.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-07",
-      "path": "audio\\samples\\hihat_._e808_loop__124-07.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__124-08.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__124-08",
-      "path": "audio\\samples\\hihat_._e808_loop__124-08.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_124-01.wav",
-      "type": "loop",
-      "variant": "._e808__perc_124-01",
-      "path": "audio\\samples\\loop_._e808__perc_124-01.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_124-02.wav",
-      "type": "loop",
-      "variant": "._e808__perc_124-02",
-      "path": "audio\\samples\\loop_._e808__perc_124-02.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_124-03.wav",
-      "type": "loop",
-      "variant": "._e808__perc_124-03",
-      "path": "audio\\samples\\loop_._e808__perc_124-03.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_124-04.wav",
-      "type": "loop",
-      "variant": "._e808__perc_124-04",
-      "path": "audio\\samples\\loop_._e808__perc_124-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-01.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-01",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-01.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-02.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-02",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-02.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-03.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-03",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-03.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-04.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-04",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-05.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-05",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-05.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-06.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-06",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-06.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_124-07.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_124-07",
-      "path": "audio\\samples\\snare_._e808_loop_sd_124-07.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_124-01.wav",
-      "type": "loop",
-      "variant": "._e808__toms_124-01",
-      "path": "audio\\samples\\loop_._e808__toms_124-01.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_124-02.wav",
-      "type": "loop",
-      "variant": "._e808__toms_124-02",
-      "path": "audio\\samples\\loop_._e808__toms_124-02.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_124-03.wav",
-      "type": "loop",
-      "variant": "._e808__toms_124-03",
-      "path": "audio\\samples\\loop_._e808__toms_124-03.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_124-04.wav",
-      "type": "loop",
-      "variant": "._e808__toms_124-04",
-      "path": "audio\\samples\\loop_._e808__toms_124-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-01.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-01",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-01.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-02.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-02",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-02.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-03.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-03",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-03.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-04.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-04",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-05.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-05",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-05.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-06.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-06",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-06.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-07.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-07",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-07.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_132-08.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_132-08",
-      "path": "audio\\samples\\kick_._e808_loop_bd_132-08.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-01.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-01",
-      "path": "audio\\samples\\hihat_._e808_loop__132-01.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-02.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-02",
-      "path": "audio\\samples\\hihat_._e808_loop__132-02.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-03.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-03",
-      "path": "audio\\samples\\hihat_._e808_loop__132-03.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-04.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-04",
-      "path": "audio\\samples\\hihat_._e808_loop__132-04.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-05.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-05",
-      "path": "audio\\samples\\hihat_._e808_loop__132-05.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-06.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-06",
-      "path": "audio\\samples\\hihat_._e808_loop__132-06.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-07.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-07",
-      "path": "audio\\samples\\hihat_._e808_loop__132-07.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__132-08.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__132-08",
-      "path": "audio\\samples\\hihat_._e808_loop__132-08.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_132-01.wav",
-      "type": "loop",
-      "variant": "._e808__perc_132-01",
-      "path": "audio\\samples\\loop_._e808__perc_132-01.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_132-02.wav",
-      "type": "loop",
-      "variant": "._e808__perc_132-02",
-      "path": "audio\\samples\\loop_._e808__perc_132-02.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_132-03.wav",
-      "type": "loop",
-      "variant": "._e808__perc_132-03",
-      "path": "audio\\samples\\loop_._e808__perc_132-03.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_132-04.wav",
-      "type": "loop",
-      "variant": "._e808__perc_132-04",
-      "path": "audio\\samples\\loop_._e808__perc_132-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-01.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-01",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-01.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-02.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-02",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-02.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-03.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-03",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-03.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-04.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-04",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-05.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-05",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-05.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-06.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-06",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-06.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-07.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-07",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-07.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_132-08.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_132-08",
-      "path": "audio\\samples\\snare_._e808_loop_sd_132-08.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_132-01.wav",
-      "type": "loop",
-      "variant": "._e808__toms_132-01",
-      "path": "audio\\samples\\loop_._e808__toms_132-01.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_132-02.wav",
-      "type": "loop",
-      "variant": "._e808__toms_132-02",
-      "path": "audio\\samples\\loop_._e808__toms_132-02.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_132-03.wav",
-      "type": "loop",
-      "variant": "._e808__toms_132-03",
-      "path": "audio\\samples\\loop_._e808__toms_132-03.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_132-04.wav",
-      "type": "loop",
-      "variant": "._e808__toms_132-04",
-      "path": "audio\\samples\\loop_._e808__toms_132-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-01.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-01",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-01.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-02.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-02",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-02.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-03.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-03",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-03.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-04.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-04",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-05.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-05",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-05.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-06.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-06",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-06.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-07.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-07",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-07.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_85-08.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_85-08",
-      "path": "audio\\samples\\kick_._e808_loop_bd_85-08.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-01.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-01",
-      "path": "audio\\samples\\hihat_._e808_loop__85-01.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-02.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-02",
-      "path": "audio\\samples\\hihat_._e808_loop__85-02.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-03.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-03",
-      "path": "audio\\samples\\hihat_._e808_loop__85-03.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-04.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-04",
-      "path": "audio\\samples\\hihat_._e808_loop__85-04.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-05.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-05",
-      "path": "audio\\samples\\hihat_._e808_loop__85-05.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-06.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-06",
-      "path": "audio\\samples\\hihat_._e808_loop__85-06.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-07.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-07",
-      "path": "audio\\samples\\hihat_._e808_loop__85-07.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__85-08.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__85-08",
-      "path": "audio\\samples\\hihat_._e808_loop__85-08.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_85-01.wav",
-      "type": "loop",
-      "variant": "._e808__perc_85-01",
-      "path": "audio\\samples\\loop_._e808__perc_85-01.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_85-02.wav",
-      "type": "loop",
-      "variant": "._e808__perc_85-02",
-      "path": "audio\\samples\\loop_._e808__perc_85-02.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_85-03.wav",
-      "type": "loop",
-      "variant": "._e808__perc_85-03",
-      "path": "audio\\samples\\loop_._e808__perc_85-03.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_85-04.wav",
-      "type": "loop",
-      "variant": "._e808__perc_85-04",
-      "path": "audio\\samples\\loop_._e808__perc_85-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-01.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-01",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-01.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-02.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-02",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-02.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-03.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-03",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-03.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-04.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-04",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-05.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-05",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-05.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-06.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-06",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-06.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-07.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-07",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-07.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_85-08.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_85-08",
-      "path": "audio\\samples\\snare_._e808_loop_sd_85-08.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_85-01.wav",
-      "type": "loop",
-      "variant": "._e808__toms_85-01",
-      "path": "audio\\samples\\loop_._e808__toms_85-01.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_85-02.wav",
-      "type": "loop",
-      "variant": "._e808__toms_85-02",
-      "path": "audio\\samples\\loop_._e808__toms_85-02.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_85-03.wav",
-      "type": "loop",
-      "variant": "._e808__toms_85-03",
-      "path": "audio\\samples\\loop_._e808__toms_85-03.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_85-04.wav",
-      "type": "loop",
-      "variant": "._e808__toms_85-04",
-      "path": "audio\\samples\\loop_._e808__toms_85-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-01.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-01",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-01.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-02.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-02",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-02.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-03.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-03",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-03.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-04.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-04",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-04.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-05.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-05",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-05.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-06.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-06",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-06.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-07.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-07",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-07.wav"
-    },
-    {
-      "filename": "kick_._e808_loop_bd_95-08.wav",
-      "type": "kick",
-      "variant": "._e808_loop_bd_95-08",
-      "path": "audio\\samples\\kick_._e808_loop_bd_95-08.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-01.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-01",
-      "path": "audio\\samples\\hihat_._e808_loop__95-01.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-02.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-02",
-      "path": "audio\\samples\\hihat_._e808_loop__95-02.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-03.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-03",
-      "path": "audio\\samples\\hihat_._e808_loop__95-03.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-04.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-04",
-      "path": "audio\\samples\\hihat_._e808_loop__95-04.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-05.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-05",
-      "path": "audio\\samples\\hihat_._e808_loop__95-05.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-06.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-06",
-      "path": "audio\\samples\\hihat_._e808_loop__95-06.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-07.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-07",
-      "path": "audio\\samples\\hihat_._e808_loop__95-07.wav"
-    },
-    {
-      "filename": "hihat_._e808_loop__95-08.wav",
-      "type": "hihat",
-      "variant": "._e808_loop__95-08",
-      "path": "audio\\samples\\hihat_._e808_loop__95-08.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_95-01.wav",
-      "type": "loop",
-      "variant": "._e808__perc_95-01",
-      "path": "audio\\samples\\loop_._e808__perc_95-01.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_95-02.wav",
-      "type": "loop",
-      "variant": "._e808__perc_95-02",
-      "path": "audio\\samples\\loop_._e808__perc_95-02.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_95-03.wav",
-      "type": "loop",
-      "variant": "._e808__perc_95-03",
-      "path": "audio\\samples\\loop_._e808__perc_95-03.wav"
-    },
-    {
-      "filename": "loop_._e808__perc_95-04.wav",
-      "type": "loop",
-      "variant": "._e808__perc_95-04",
-      "path": "audio\\samples\\loop_._e808__perc_95-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-01.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-01",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-01.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-02.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-02",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-02.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-03.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-03",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-03.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-04.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-04",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-04.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-05.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-05",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-05.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-06.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-06",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-06.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-07.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-07",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-07.wav"
-    },
-    {
-      "filename": "snare_._e808_loop_sd_95-08.wav",
-      "type": "snare",
-      "variant": "._e808_loop_sd_95-08",
-      "path": "audio\\samples\\snare_._e808_loop_sd_95-08.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_95-01.wav",
-      "type": "loop",
-      "variant": "._e808__toms_95-01",
-      "path": "audio\\samples\\loop_._e808__toms_95-01.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_95-02.wav",
-      "type": "loop",
-      "variant": "._e808__toms_95-02",
-      "path": "audio\\samples\\loop_._e808__toms_95-02.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_95-03.wav",
-      "type": "loop",
-      "variant": "._e808__toms_95-03",
-      "path": "audio\\samples\\loop_._e808__toms_95-03.wav"
-    },
-    {
-      "filename": "loop_._e808__toms_95-04.wav",
-      "type": "loop",
-      "variant": "._e808__toms_95-04",
-      "path": "audio\\samples\\loop_._e808__toms_95-04.wav"
     }
   ]
 }

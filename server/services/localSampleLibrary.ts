@@ -52,7 +52,14 @@ class LocalSampleLibrary {
       // Load index if it exists
       if (fs.existsSync(this.indexPath)) {
         const indexData = JSON.parse(fs.readFileSync(this.indexPath, 'utf-8'));
-        this.samples = indexData.samples.map((s: any) => ({
+        // Skip entries whose file is gone, so a stale index can't serve
+        // dead previews (378 did — product review L5).
+        const present = indexData.samples.filter((s: any) =>
+          fs.existsSync(path.join(this.samplesDir, s.filename)));
+        if (present.length < indexData.samples.length) {
+          console.warn(`⚠️ Sample index lists ${indexData.samples.length - present.length} missing file(s) — run scripts/rebuildSampleIndex.ts`);
+        }
+        this.samples = present.map((s: any) => ({
           id: `sample_${s.type}_${s.variant}`,
           filename: s.filename,
           type: s.type,
