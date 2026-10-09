@@ -79,6 +79,7 @@ const BillingSuccessPage = React.lazy(() => import("@/pages/billing-success").ca
 const BillingCancelPage = React.lazy(() => import("@/pages/billing-cancel").catch(() => ({ default: ChunkReloadFallback })));
 const ActivatePage = React.lazy(() => import("@/pages/activate").catch(() => ({ default: ChunkReloadFallback })));
 const PublicSongPage = React.lazy(() => import("@/pages/public-song").catch(() => ({ default: ChunkReloadFallback })));
+const PublicSessionPage = React.lazy(() => import("@/pages/public-session").catch(() => ({ default: ChunkReloadFallback })));
 const SocialHub = React.lazy(() => import("@/pages/social-hub").catch(() => ({ default: ChunkReloadFallback })));
 const UserProfilePage = React.lazy(() => import("@/pages/user-profile").catch(() => ({ default: ChunkReloadFallback })));
 const SitemapPage = React.lazy(() => import("@/pages/sitemap-page").catch(() => ({ default: ChunkReloadFallback })));
@@ -330,6 +331,7 @@ function App() {
               <Route path="/billing/success"><ProtectedRoute><BillingSuccessPage /></ProtectedRoute></Route>
               <Route path="/billing/cancel"><ProtectedRoute><BillingCancelPage /></ProtectedRoute></Route>
               <Route path="/s/:id" component={PublicSongPage} />
+              <Route path="/p/:id" component={PublicSessionPage} />
               <Route path="/settings">
                 <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>
               </Route>

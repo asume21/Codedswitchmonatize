@@ -435,6 +435,7 @@ app.use((req, res, next) => {
     "/api/webhooks/stripe",   // Stripe webhook
     "/api/blog",              // public blog content
     "/api/social/feed/public", // public social feed
+    "/api/social/session/",   // one shared Organism session (public, like the feed)
     "/api/songs/public",      // public shared songs
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
     "/api/samples",           // drum/instrument sample library WAVs (static, not user data). In dev an earlier express.static mount also serves these, but whitelist the prefix too so the route path doesn't depend on middleware ordering (prod has no static mount). generate-pack keeps its own route-level requireAuth().

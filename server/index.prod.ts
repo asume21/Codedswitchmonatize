@@ -11,6 +11,7 @@ import path from "path";
 import fs from "fs";
 import { ensureDataRoots } from "./services/localStorageService";
 import { runMigrations } from "./migrations/runMigrations";
+import { songOgMeta } from "./utils/songOgMeta";
 
 // Env validation lives in validateEnv() below — a single checklist rather than
 // scattered ifs. Four separate top-of-file checks (SESSION_SECRET,
@@ -387,6 +388,7 @@ app.use((req, res, next) => {
     "/api/reference-beats",
     "/api/blog",
     "/api/social/feed/public",
+    "/api/social/session/",   // one shared Organism session (public, like the feed)
     "/api/songs/public",
     "/api/loops",             // melodic loop catalog + audio (not user data; like /api/samples)
     "/api/samples",           // drum/instrument sample library WAVs (static, not user data). Tone.Sampler/raw-fetch media requests can't attach a bearer token, so this MUST be public or DrumGenerator collapses to silence (no synth fallback). The /api/samples/generate-pack POST keeps its own route-level requireAuth().
@@ -477,7 +479,9 @@ app.use((req, res, next) => {
   // "Crawled - currently not indexed" (GSC 2026-07-23: 8 pages in that bucket).
   // Every public route in the /sitemap.xml list needs an entry here.
   // `image` is optional — omit it to keep the default homepage card.
-  const DEFAULT_OG_IMAGE = "/og-image.jpg";
+  // /og-image.jpg never existed — the SPA fallback answered it with HTML, so
+  // nearly every shared link had no preview image (review S4).
+  const DEFAULT_OG_IMAGE = "/og-image.png";
   const OG_OVERRIDES: Record<string, { title: string; description: string; image?: string }> = {
     "/codebeat": {
       title: "Codebeat — Turn your code into a beat | CodedSwitch",
@@ -589,6 +593,48 @@ app.use((req, res, next) => {
       res.set("Content-Type", "text/html; charset=utf-8").send(html);
     });
   }
+
+  // Public song pages get their own share card ("Song — Artist"); private or
+  // unknown ids fall through to the normal page.
+  app.get("/s/:id", async (req, res, next) => {
+    try {
+      const song = await storage.getSong(req.params.id);
+      let artist: string | undefined;
+      if (song?.isPublic && song.userId) artist = (await storage.getUser(song.userId))?.username ?? undefined;
+      const meta = songOgMeta(song, artist);
+      if (!meta) return next();
+      const canonicalBase = process.env.APP_URL || "https://www.codedswitch.com";
+      const html = applyOgOverride(
+        readIndexHtml(),
+        `${canonicalBase}/s/${encodeURIComponent(req.params.id)}`,
+        `${canonicalBase}${DEFAULT_OG_IMAGE}`,
+        meta,
+      );
+      res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch {
+      next();
+    }
+  });
+
+  app.get("/p/:id", async (req, res, next) => {
+    try {
+      const session = await storage.getPublicOrganismSession(req.params.id);
+      if (!session) return next();
+      const canonicalBase = process.env.APP_URL || "https://www.codedswitch.com";
+      const html = applyOgOverride(
+        readIndexHtml(),
+        `${canonicalBase}/p/${encodeURIComponent(req.params.id)}`,
+        `${canonicalBase}${DEFAULT_OG_IMAGE}`,
+        {
+          title: `${session.title || "Organism session"} — ${session.username} | CodedSwitch`,
+          description: `A live jam with the Organism by ${session.username}. Listen, then start your own — free.`,
+        },
+      );
+      res.set("Content-Type", "text/html; charset=utf-8").send(html);
+    } catch {
+      next();
+    }
+  });
 
   app.use(express.static(distPath));
 

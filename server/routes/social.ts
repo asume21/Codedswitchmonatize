@@ -266,6 +266,18 @@ export function createSocialRoutes(storage: IStorage) {
    * GET /api/social/feed/public
    * Public organism-session feed (no auth required).
    */
+  // One shared Organism session — public, like the feed (review S3).
+  router.get('/session/:id', async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getPublicOrganismSession(req.params.id);
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+      res.json({ session });
+    } catch (error) {
+      console.error('Public session error:', error);
+      res.status(500).json({ error: 'Failed to fetch session' });
+    }
+  });
+
   router.get('/feed/public', async (_req: Request, res: Response) => {
     try {
       const posts = await storage.getPublicOrganismFeed(30);
@@ -320,12 +332,13 @@ export function createSocialRoutes(storage: IStorage) {
         type:     'organism-session',
         title,
         content,
-        url:      `${process.env.PUBLIC_URL || ''}/social-hub`,
+        url:      `${process.env.PUBLIC_URL || ''}/social-hub`, // updated to /p/:id below
         mediaUrl,
         likes: 0, comments: 0, shares: 0, views: 0,
       });
 
-      res.json({ post, postUrl: `/social-hub` });
+      // Every shared session gets its own public page to send people to.
+      res.json({ post, postUrl: `/p/${post.id}` });
     } catch (error) {
       console.error('Share organism session error:', error);
       res.status(500).json({ error: 'Failed to share session' });

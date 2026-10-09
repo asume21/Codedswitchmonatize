@@ -2939,7 +2939,7 @@ export function OrganismCommandCenter() {
                     <div style={{ color: C.green, fontWeight: 600, marginBottom: 3 }}>Session shared!</div>
                     <Link href={lastSharedPostUrl || '/social-hub'}>
                       <span style={{ color: '#38bdf8', textDecoration: 'underline', cursor: 'pointer', fontSize: 11 }}>
-                        View in Social Hub →
+                        {lastSharedPostUrl?.startsWith('/p/') ? 'Open your session page →' : 'View in Social Hub →'}
                       </span>
                     </Link>
                   </div>
