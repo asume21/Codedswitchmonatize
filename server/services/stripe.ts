@@ -9,10 +9,6 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const APP_URL = process.env.APP_URL || (process.env.NODE_ENV === 'production'
   ? (() => { throw new Error('APP_URL is required in production'); })()
   : "http://localhost:5000");
-const PRICE_ID = process.env.STRIPE_PRICE_ID_PRO_MEMBERSHIP || process.env.STRIPE_PRICE_ID_PRO || "";
-const SUCCESS_URL =
-  process.env.STRIPE_SUCCESS_URL || `${APP_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`;
-const CANCEL_URL = process.env.STRIPE_CANCEL_URL || `${APP_URL}/billing/cancel`;
 
 // M-M2: Single source of truth for the Stripe API version. Previously this
 // string was duplicated in services/stripe.ts and routes/credits.ts; an upgrade
@@ -40,38 +36,6 @@ export function getStripe(): Stripe {
   return new Stripe(secretKey, {
     apiVersion: STRIPE_API_VERSION,
   });
-}
-
-export async function createCheckoutSession(storage: IStorage, userId: string) {
-  const stripe = getStripe();
-  const user = await storage.getUser(userId);
-  if (!user) throw new Error("User not found");
-  if (!PRICE_ID) throw new Error("STRIPE_PRICE_ID_PRO is not set");
-
-  let customerId = user.stripeCustomerId || undefined;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email || undefined,
-      metadata: { userId },
-    });
-    customerId = customer.id;
-    await storage.updateUserStripeInfo(userId, { customerId });
-  }
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    payment_method_types: ["card"],
-    customer: customerId,
-    line_items: [{ price: PRICE_ID, quantity: 1 }],
-    success_url: SUCCESS_URL,
-    cancel_url: CANCEL_URL,
-    metadata: { userId },
-    subscription_data: {
-      metadata: { userId },
-    },
-  });
-
-  return { url: session.url };
 }
 
 export async function handleStripeWebhook(

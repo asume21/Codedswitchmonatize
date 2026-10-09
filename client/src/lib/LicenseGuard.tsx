@@ -65,29 +65,11 @@ class LicenseGuard {
     return false;
   }
 
+  // One way to buy: the pricing page, where the tier is chosen and the
+  // validated membership checkout runs. This used to call a separate legacy
+  // checkout (Pro price only, no tier metadata or price validation) — review F6.
   async startCheckout(): Promise<void> {
-    try {
-      console.log("🛒 Starting checkout...");
-      const res = await apiRequest("POST", "/api/create-checkout");
-      
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        console.error("Checkout failed:", res.status, errorData);
-        throw new Error(errorData.error || `Checkout failed: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      console.log("🛒 Checkout response:", data);
-      
-      if (data?.url) {
-        window.location.href = data.url;
-        return;
-      }
-      throw new Error("No checkout URL returned");
-    } catch (error) {
-      console.error("🛒 Checkout error:", error);
-      throw error;
-    }
+    window.location.href = '/pricing';
   }
 }
 
