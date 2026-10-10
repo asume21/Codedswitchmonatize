@@ -7,6 +7,8 @@
  * (no external FFT library needed for this resolution).
  */
 
+import { estimateTempo, estimateKey, type TempoCandidate, type KeyEstimate } from './musicalFeatures.js'
+
 export interface BandEnergy {
   sub:     number  // 20–80 Hz
   bass:    number  // 80–250 Hz
@@ -40,7 +42,13 @@ export interface AudioAnalysisReport {
   bandEnergy:            BandEnergy
 
   // Rhythm
+  /** Best tempo: onset-envelope autocorrelation, falling back to onset gaps. */
   estimatedBpm:          number | null
+  /** Top tempo candidates — octave errors (48/96/192) show up here. */
+  tempoCandidates:       TempoCandidate[]
+
+  // Harmony
+  key:                   KeyEstimate | null
   onsetCount:            number
   onsetTimingStdDevMs:   number   // low = tight, high = erratic
 
@@ -203,7 +211,9 @@ export function analyzePcm(samples: Float32Array, sampleRate: number): AudioAnal
 
   const iois = onsetTimesMs.slice(1).map((t, i) => t - onsetTimesMs[i])
   const onsetTimingStdDevMs = stdDev(iois)
-  const estimatedBpm = estimateBpm(onsetTimesMs)
+  const tempoCandidates = estimateTempo(samples, sampleRate)
+  const estimatedBpm = tempoCandidates[0]?.bpm ?? estimateBpm(onsetTimesMs)
+  const key = isSilentSignal(samples) ? null : estimateKey(samples, sampleRate)
 
   // ── Spectral centroid + band energy (DFT on first 4 frames for speed) ──────
   // We compute DFT on a few frames and average, rather than every frame.
@@ -273,6 +283,7 @@ export function analyzePcm(samples: Float32Array, sampleRate: number): AudioAnal
     } else {
       parts.push('Rhythm: no clear beat detected (ambient / textural audio).')
     }
+    if (key) parts.push(`Key: ${key.name}${key.margin < 0.05 ? ` (ambiguous — close to ${key.alternatives[0]?.name})` : ''}.`)
   }
 
   return {
@@ -291,6 +302,8 @@ export function analyzePcm(samples: Float32Array, sampleRate: number): AudioAnal
     crestFactor,
     bandEnergy,
     estimatedBpm,
+    tempoCandidates,
+    key,
     onsetCount: onsetTimesMs.length,
     onsetTimingStdDevMs,
     isSilent,
@@ -301,3 +314,9 @@ export function analyzePcm(samples: Float32Array, sampleRate: number): AudioAnal
 }
 
 function onsetCount(arr: number[]): number { return arr.length }
+
+function isSilentSignal(samples: Float32Array): boolean {
+  let sumSq = 0
+  for (let i = 0; i < samples.length; i++) sumSq += samples[i] * samples[i]
+  return Math.sqrt(sumSq / (samples.length || 1)) < 0.001
+}

@@ -5,21 +5,22 @@ import { writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { waitForCapture } from '../client.js'
+import { audioSourceFields, loadAudio, AudioSourceError, type AudioSourceArgs, type LoadedAudio } from '../audioSource.js'
 
 const execFileAsync = promisify(execFile)
 
-/** OpenAI's audio input only accepts wav/mp3; captures arrive as webm/opus.
- *  Transcode via ffmpeg (system PATH) using temp files. */
-async function transcodeWebmToWav(webm: Buffer): Promise<Buffer> {
+/** Transcode via ffmpeg (system PATH) using temp files — a WAV written to a
+ *  pipe has no length in its header, which strict decoders reject. */
+async function transcode(input: Buffer, outExt: 'wav' | 'mp3'): Promise<Buffer> {
   const stem = join(tmpdir(), `audio-debug-${randomUUID()}`)
-  const inPath = `${stem}.webm`
-  const outPath = `${stem}.wav`
+  const inPath = `${stem}.in`
+  const outPath = `${stem}.${outExt}`
   try {
-    await writeFile(inPath, webm)
+    await writeFile(inPath, input)
     // 44.1kHz mono — this is music, not speech; keep full bandwidth so the
     // model can judge hats, air, and artifacts like crackle.
-    await execFileAsync('ffmpeg', ['-y', '-i', inPath, '-ar', '44100', '-ac', '1', outPath])
+    const codec = outExt === 'mp3' ? ['-b:a', '192k'] : []
+    await execFileAsync('ffmpeg', ['-y', '-i', inPath, '-ar', '44100', '-ac', '1', ...codec, outPath])
     return await readFile(outPath)
   } finally {
     await rm(inPath, { force: true }).catch(() => {})
@@ -27,13 +28,22 @@ async function transcodeWebmToWav(webm: Buffer): Promise<Buffer> {
   }
 }
 
+/** Inline audio is capped (~20 MB) by both providers: captures (small webm)
+ *  and mp3 files go as-is, anything else — a 4-minute WAV is ~40 MB — as mp3. */
+const INLINE_AS_IS_BYTES = 12 * 1024 * 1024
+async function compact(audio: LoadedAudio): Promise<{ bytes: Buffer; mime: string }> {
+  if (audio.mime === 'audio/mpeg' && audio.bytes.length <= INLINE_AS_IS_BYTES) return audio
+  if (audio.mime === 'audio/webm' && audio.bytes.length <= INLINE_AS_IS_BYTES) return audio
+  return { bytes: await transcode(audio.bytes, 'mp3'), mime: 'audio/mpeg' }
+}
+
 export const describeAudioSchema = {
-  capture_id: z.string().describe('The capture ID returned by capture_audio'),
+  ...audioSourceFields,
   question:   z.string().optional()
     .describe('Optional specific question about the audio, e.g. "does the bass feel muddy?"'),
 }
 
-export async function describeAudioHandler(args: { capture_id: string; question?: string }) {
+export async function describeAudioHandler(args: AudioSourceArgs & { question?: string }) {
   // Try Gemini first (supports audio natively), fall back to OpenAI
   const geminiKey = process.env.GEMINI_API_KEY ?? process.env.VITE_GEMINI_API_KEY
   const openaiKey = process.env.OPENAI_API_KEY
@@ -47,20 +57,18 @@ export async function describeAudioHandler(args: { capture_id: string; question?
     }
   }
 
-  let buffer: Buffer
+  let audio: { bytes: Buffer; mime: string }
   try {
-    buffer = await waitForCapture(args.capture_id, 2000)
-  } catch {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Capture "${args.capture_id}" not found. Run capture_audio first.`,
-      }],
-    }
+    audio = await compact(await loadAudio(args))
+  } catch (err: unknown) {
+    const msg = err instanceof AudioSourceError ? err.message : `Could not load audio: ${err instanceof Error ? err.message : String(err)}`
+    return { content: [{ type: 'text' as const, text: msg }] }
   }
 
   const basePrompt = [
-    'You are a professional music producer and audio engineer listening to a short audio clip from a procedural hip-hop music generator.',
+    args.file
+      ? 'You are a professional music producer and audio engineer listening to an audio file (a rendered or reference beat).'
+      : 'You are a professional music producer and audio engineer listening to a short audio clip from a procedural hip-hop music generator.',
     'Describe what you hear in plain English, focusing on:',
     '- What instruments / sounds are present',
     '- The rhythmic feel — is the timing tight or loose?',
@@ -75,14 +83,14 @@ export async function describeAudioHandler(args: { capture_id: string; question?
   const errors: string[] = []
   if (geminiKey) {
     try {
-      return await describeWithGemini(buffer, basePrompt, geminiKey)
+      return await describeWithGemini(audio, basePrompt, geminiKey)
     } catch (err: unknown) {
       errors.push(`Gemini: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
   if (openaiKey) {
     try {
-      return await describeWithOpenAI(buffer, basePrompt, openaiKey)
+      return await describeWithOpenAI(audio, basePrompt, openaiKey)
     } catch (err: unknown) {
       errors.push(`OpenAI: ${err instanceof Error ? err.message : String(err)}`)
     }
@@ -96,8 +104,8 @@ export async function describeAudioHandler(args: { capture_id: string; question?
   }
 }
 
-async function describeWithGemini(audioBuffer: Buffer, prompt: string, apiKey: string) {
-  const base64 = audioBuffer.toString('base64')
+async function describeWithGemini(audio: { bytes: Buffer; mime: string }, prompt: string, apiKey: string) {
+  const base64 = audio.bytes.toString('base64')
 
   const body = {
     contents: [{
@@ -105,7 +113,7 @@ async function describeWithGemini(audioBuffer: Buffer, prompt: string, apiKey: s
         { text: prompt },
         {
           inline_data: {
-            mime_type: 'audio/webm',
+            mime_type: audio.mime,
             data:       base64,
           },
         },
@@ -136,10 +144,10 @@ async function describeWithGemini(audioBuffer: Buffer, prompt: string, apiKey: s
   return { content: [{ type: 'text' as const, text: `── AI Description (Gemini) ──\n\n${text}` }] }
 }
 
-async function describeWithOpenAI(audioBuffer: Buffer, prompt: string, apiKey: string) {
-  // GPT audio input only accepts wav/mp3 — transcode the webm capture first.
-  const wav = await transcodeWebmToWav(audioBuffer)
-  const base64 = wav.toString('base64')
+async function describeWithOpenAI(audio: { bytes: Buffer; mime: string }, prompt: string, apiKey: string) {
+  // GPT audio input only accepts wav/mp3 — mp3 goes as-is, webm captures become wav.
+  const isMp3 = audio.mime === 'audio/mpeg'
+  const base64 = (isMp3 ? audio.bytes : await transcode(audio.bytes, 'wav')).toString('base64')
 
   const body = {
     model: 'gpt-audio',
@@ -152,7 +160,7 @@ async function describeWithOpenAI(audioBuffer: Buffer, prompt: string, apiKey: s
         { type: 'text', text: `${prompt}\n\nRespond in plain English prose only. Do not output JSON or tool calls.` },
         {
           type:       'input_audio',
-          input_audio: { data: base64, format: 'wav' },
+          input_audio: { data: base64, format: isMp3 ? 'mp3' : 'wav' },
         },
       ],
     }],

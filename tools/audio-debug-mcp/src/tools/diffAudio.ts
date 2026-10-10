@@ -1,29 +1,15 @@
 import { z } from 'zod'
-import { spawn } from 'child_process'
-import { waitForCapture } from '../client.js'
+import { loadAudio, decodeToPcm, AudioSourceError } from '../audioSource.js'
 import { analyzePcm, type AudioAnalysisReport } from '../analysis/pcmAnalyzer.js'
 
 export const diffAudioSchema = {
-  capture_id_a: z.string().describe('First capture ID (the "before")'),
-  capture_id_b: z.string().describe('Second capture ID (the "after")'),
+  capture_id_a: z.string().optional().describe('First capture ID (the "before")'),
+  file_a:       z.string().optional().describe('…or an absolute path to the first audio file'),
+  capture_id_b: z.string().optional().describe('Second capture ID (the "after")'),
+  file_b:       z.string().optional().describe('…or an absolute path to the second audio file'),
 }
 
-async function decodeWebmToPcm(webmBuffer: Buffer): Promise<{ samples: Float32Array; sampleRate: number }> {
-  const SAMPLE_RATE = 44100
-  return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', ['-i', 'pipe:0', '-f', 'f32le', '-ac', '1', '-ar', String(SAMPLE_RATE), 'pipe:1'])
-    const chunks: Buffer[] = []
-    ff.stdout.on('data', (c: Buffer) => chunks.push(c))
-    ff.stderr.on('data', () => {})
-    ff.stdout.on('end', () => {
-      const combined = Buffer.concat(chunks)
-      resolve({ samples: new Float32Array(combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength)), sampleRate: SAMPLE_RATE })
-    })
-    ff.on('error', reject)
-    ff.stdin.write(webmBuffer)
-    ff.stdin.end()
-  })
-}
+type DiffArgs = { capture_id_a?: string; file_a?: string; capture_id_b?: string; file_b?: string }
 
 function delta(a: number, b: number, label: string, unit = ''): string {
   if (!isFinite(a) || !isFinite(b)) return `${label}: ${a} → ${b}`
@@ -36,24 +22,21 @@ function flagged(changed: boolean, msg: string): string {
   return changed ? `⚠ ${msg}` : `  ${msg}`
 }
 
-export async function diffAudioHandler(args: { capture_id_a: string; capture_id_b: string }) {
-  let bufA: Buffer, bufB: Buffer
+export async function diffAudioHandler(args: DiffArgs) {
+  let rA: AudioAnalysisReport, rB: AudioAnalysisReport, labelA: string, labelB: string
   try {
-    ;[bufA, bufB] = await Promise.all([
-      waitForCapture(args.capture_id_a, 2000),
-      waitForCapture(args.capture_id_b, 2000),
+    const [a, b] = await Promise.all([
+      loadAudio({ capture_id: args.capture_id_a, file: args.file_a }),
+      loadAudio({ capture_id: args.capture_id_b, file: args.file_b }),
     ])
-  } catch (err: unknown) {
-    return { content: [{ type: 'text' as const, text: `Capture not found: ${err instanceof Error ? err.message : String(err)}` }] }
-  }
-
-  let rA: AudioAnalysisReport, rB: AudioAnalysisReport
-  try {
-    const [dA, dB] = await Promise.all([decodeWebmToPcm(bufA), decodeWebmToPcm(bufB)])
+    const [dA, dB] = await Promise.all([decodeToPcm(a.bytes), decodeToPcm(b.bytes)])
     rA = analyzePcm(dA.samples, dA.sampleRate)
     rB = analyzePcm(dB.samples, dB.sampleRate)
+    labelA = a.label
+    labelB = b.label
   } catch (err: unknown) {
-    return { content: [{ type: 'text' as const, text: `Decode failed: ${err instanceof Error ? err.message : String(err)}` }] }
+    const msg = err instanceof AudioSourceError ? err.message : `Decode failed: ${err instanceof Error ? err.message : String(err)}`
+    return { content: [{ type: 'text' as const, text: msg }] }
   }
 
   const rmsChange     = Math.abs(rB.rmsDb - rA.rmsDb)
@@ -64,7 +47,7 @@ export async function diffAudioHandler(args: { capture_id_a: string; capture_id_
   const fixedClipping =  rA.hasClipping && !rB.hasClipping
 
   const lines = [
-    `── Audio Diff: ${args.capture_id_a.slice(0, 8)}… → ${args.capture_id_b.slice(0, 8)}… ──`,
+    `── Audio Diff: ${labelA} → ${labelB} ──`,
     ``,
     `── Loudness ──────────────────────────────────────────`,
     flagged(rmsChange > 3,     delta(rA.rmsDb,  rB.rmsDb,  'RMS', ' dBFS')),
@@ -81,6 +64,7 @@ export async function diffAudioHandler(args: { capture_id_a: string; capture_id_
       ? flagged(bpmChange > 2, `BPM: ${rA.estimatedBpm} → ${rB.estimatedBpm}  (${bpmChange > 0 ? '+' : ''}${bpmChange?.toFixed(0)})`)
       : `  BPM: ${rA.estimatedBpm ?? 'n/a'} → ${rB.estimatedBpm ?? 'n/a'}`,
     flagged(jitterChange > 5, delta(rA.onsetTimingStdDevMs, rB.onsetTimingStdDevMs, 'Timing jitter', ' ms')),
+    flagged((rA.key?.name ?? null) !== (rB.key?.name ?? null), `Key: ${rA.key?.name ?? 'n/a'} → ${rB.key?.name ?? 'n/a'}`),
     ``,
     `── Band Energy Change ────────────────────────────────`,
     ...((['sub', 'bass', 'lowMid', 'highMid', 'high'] as const).map(band => {
@@ -113,5 +97,5 @@ function generateInterpretation(
   if (flags.rmsChange > 6)        parts.push(`Significant loudness change (${flags.rmsChange.toFixed(1)} dB) — check gain staging.`)
   if (flags.centroidChange > 800) parts.push('Tonal character changed noticeably — EQ or filter behaviour may have shifted.')
   if (flags.jitterChange > 10)    parts.push('Timing became more erratic — possible scheduler regression.')
-  return parts.length ? parts.join(' ') : 'No significant changes detected between the two captures.'
+  return parts.length ? parts.join(' ') : 'No significant changes detected between the two clips.'
 }

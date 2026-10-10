@@ -1,86 +1,25 @@
-import { z } from 'zod'
-import { spawn } from 'child_process'
-import { waitForCapture } from '../client.js'
+import { loadAudio, decodeToPcm, AudioSourceError, audioSourceFields, type AudioSourceArgs } from '../audioSource.js'
 import { analyzePcm } from '../analysis/pcmAnalyzer.js'
 
-export const analyzeAudioSchema = {
-  capture_id: z.string().describe('The capture ID returned by capture_audio'),
-}
+export const analyzeAudioSchema = audioSourceFields
 
-async function decodeWebmToPcm(webmBuffer: Buffer): Promise<{ samples: Float32Array; sampleRate: number }> {
-  const SAMPLE_RATE = 44100
-
-  return new Promise((resolve, reject) => {
-    const ff = spawn('ffmpeg', [
-      '-i',  'pipe:0',
-      '-f',  'f32le',
-      '-ac', '1',
-      '-ar', String(SAMPLE_RATE),
-      'pipe:1',
-    ])
-
-    const chunks: Buffer[] = []
-    ff.stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
-    ff.stderr.on('data', () => {}) // suppress ffmpeg console noise
-
-    ff.stdout.on('end', () => {
-      const combined = Buffer.concat(chunks)
-      // Float32Array requires aligned 4-byte boundary
-      const aligned = combined.buffer.slice(
-        combined.byteOffset,
-        combined.byteOffset + combined.byteLength,
-      )
-      resolve({
-        samples:    new Float32Array(aligned),
-        sampleRate: SAMPLE_RATE,
-      })
-    })
-
-    ff.on('error', (err) => reject(new Error(`ffmpeg not found or failed: ${err.message}. Install ffmpeg and ensure it is on your PATH.`)))
-    ff.on('close', (code) => {
-      if (code !== 0 && chunks.length === 0) {
-        reject(new Error(`ffmpeg exited with code ${code}`))
-      }
-    })
-
-    ff.stdin.write(webmBuffer)
-    ff.stdin.end()
-  })
-}
-
-export async function analyzeAudioHandler(args: { capture_id: string }) {
-  let buffer: Buffer
-  try {
-    buffer = await waitForCapture(args.capture_id, 2000)
-  } catch {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Capture "${args.capture_id}" not found. Run capture_audio first.`,
-      }],
-    }
-  }
-
+export async function analyzeAudioHandler(args: AudioSourceArgs) {
   let samples: Float32Array
   let sampleRate: number
-
+  let label: string
   try {
-    const decoded = await decodeWebmToPcm(buffer)
-    samples = decoded.samples
-    sampleRate = decoded.sampleRate
+    const audio = await loadAudio(args)
+    label = audio.label
+    ;({ samples, sampleRate } = await decodeToPcm(audio.bytes))
   } catch (err: unknown) {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Could not decode audio: ${err instanceof Error ? err.message : String(err)}`,
-      }],
-    }
+    const msg = err instanceof AudioSourceError ? err.message : `Could not decode audio: ${err instanceof Error ? err.message : String(err)}`
+    return { content: [{ type: 'text' as const, text: msg }] }
   }
 
   const report = analyzePcm(samples, sampleRate)
 
   const text = [
-    `── Audio Analysis Report ──────────────────────────────`,
+    `── Audio Analysis Report: ${label} ──`,
     `Duration:          ${report.durationSeconds.toFixed(2)}s`,
     ``,
     `── Loudness ─────────────────────────────────────────`,
@@ -103,8 +42,14 @@ export async function analyzeAudioHandler(args: { capture_id: string }) {
     ``,
     `── Rhythm ────────────────────────────────────────────`,
     `Estimated BPM:     ${report.estimatedBpm ?? 'not detected'}`,
+    `Tempo candidates:  ${report.tempoCandidates.map(c => `${c.bpm} (${c.strength})`).join(', ') || 'n/a'}`,
     `Onset count:       ${report.onsetCount}`,
     `Timing jitter:     ${report.onsetTimingStdDevMs.toFixed(1)} ms std dev`,
+    ``,
+    `── Harmony ───────────────────────────────────────────`,
+    report.key
+      ? `Key:               ${report.key.name}  (r=${report.key.correlation}, margin ${report.key.margin}; next: ${report.key.alternatives.map(a => `${a.name} ${a.correlation}`).join(', ')})`
+      : `Key:               not detected`,
     ``,
     `── Summary ───────────────────────────────────────────`,
     report.summary,

@@ -1,12 +1,13 @@
 {
   "name": "audio-debug-mcp",
   "version": "1.0.0",
-  "description": "MCP server that gives Claude Code ears — captures and analyzes audio from a running web app",
+  "description": "MCP server that gives Claude Code ears \u00e2\u20ac\u201d captures and analyzes audio from a running web app",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "dev": "node --import tsx/esm src/index.ts"
+    "dev": "node --import tsx/esm src/index.ts",
+    "test": "node --import tsx/esm --test src/**/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

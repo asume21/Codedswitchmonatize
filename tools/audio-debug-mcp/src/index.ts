@@ -6,7 +6,7 @@
  *
  * Tools:
  *   capture_audio   — records N milliseconds of what the app is outputting
- *   analyze_audio   — runs signal analysis on a capture (RMS, BPM, spectrum, etc.)
+ *   analyze_audio   — signal + musical analysis of a capture or audio file (RMS, tempo, key, spectrum…)
  *   describe_audio  — sends the capture to Gemini/GPT-4o for plain-English description
  *   diff_audio      — compares two captures and flags what changed
  *
@@ -41,21 +41,21 @@ server.tool(
 
 server.tool(
   'analyze_audio',
-  'Run signal analysis on a captured audio clip. Returns RMS, peak dB, clipping, spectral centroid, frequency band energy, estimated BPM, and timing jitter.',
+  'Run signal analysis on a captured clip OR a local audio file (pass capture_id or file). Returns loudness, clipping, tone, band energy, tempo with runner-up candidates, key with runners-up, and timing jitter.',
   analyzeAudioSchema,
   analyzeAudioHandler,
 )
 
 server.tool(
   'describe_audio',
-  'Send a captured audio clip to Gemini or GPT-4o to get a plain-English description of what it sounds like — useful when something sounds wrong but you cannot describe it.',
+  'Send a captured clip OR a local audio file (capture_id or file) to Gemini or GPT-4o for a plain-English description of what it sounds like.',
   describeAudioSchema,
   describeAudioHandler,
 )
 
 server.tool(
   'diff_audio',
-  'Compare two audio captures and flag what changed — loudness, tone, timing, clipping. Use this before and after a code change to verify the audio impact.',
+  'Compare two clips — each a capture_id or a file — and flag what changed: loudness, tone, tempo, key, timing, clipping. Use before/after a code change, or a render vs. what was asked for.',
   diffAudioSchema,
   diffAudioHandler,
 )
