@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogoMark } from "@/components/brand/Logo";
+import { COMPANY, companyDisplayName } from "@/lib/company";
 import {
   Music, Zap, MessageSquare, Code, Shield, Sparkles, ChevronRight,
   CheckCircle2, Globe, Github, Twitter, Instagram, LogIn, UserPlus,
@@ -734,16 +735,17 @@ export default function Landing() {
             <div className="space-y-6">
               <h4 className="text-sm font-black uppercase tracking-[0.2em] text-white">Company</h4>
               <ul className="space-y-4 text-sm text-white/40 font-bold tracking-tight">
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">About Us</a></li>
+                <li><Link href="/about" className="hover:text-cyan-400 transition-colors">About Us</Link></li>
                 <li><Link href="/privacy" className="hover:text-cyan-400 transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-cyan-400 transition-colors">Terms of Service</Link></li>
-                <li><a href="#" className="hover:text-cyan-400 transition-colors">Contact Support</a></li>
+                <li><a href={`mailto:${COMPANY.contactEmail}`} className="hover:text-cyan-400 transition-colors">Contact Support</a></li>
+                <li><a href={`mailto:${COMPANY.contactEmail}`} className="hover:text-cyan-400 transition-colors normal-case">{COMPANY.contactEmail}</a></li>
               </ul>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-12 border-t border-white/5 text-[10px] uppercase tracking-[0.3em] font-black text-white/20">
-            <p>© 2026 CodedSwitch. Built for the next generation of producers.</p>
+            <p>© 2026 {companyDisplayName}. Built for the next generation of producers.</p>
             <div className="flex items-center gap-6">
               <span className="flex items-center gap-2"><Globe className="w-3 h-3" /> Global</span>
               <span className="flex items-center gap-2 text-cyan-500/50"><Activity className="w-3 h-3" /> Organism: Online</span>

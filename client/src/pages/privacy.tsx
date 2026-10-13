@@ -1,4 +1,5 @@
 import React from "react";
+import { COMPANY, companyDisplayName } from "@/lib/company";
 import { Link } from "wouter";
 import { Shield, ArrowLeft } from "lucide-react";
 
@@ -93,14 +94,14 @@ export default function PrivacyPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-white uppercase tracking-wider border-l-2 border-cyan-500 pl-3">7. Contact Us</h2>
             <p>
-              If you have any questions regarding this Privacy Policy or your data controls, please contact our privacy compliance team at <span className="text-cyan-400 font-semibold">support@codedswitch.com</span>.
+              If you have any questions regarding this Privacy Policy or your data controls, please contact our privacy compliance team at <a href={`mailto:${COMPANY.contactEmail}`} className="text-cyan-400 font-semibold hover:underline">{COMPANY.contactEmail}</a>.
             </p>
           </section>
         </div>
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-cyan-500/50 font-bold uppercase tracking-widest">
-          © 2026 CodedSwitch. All Rights Reserved.
+          © 2026 {companyDisplayName}. All Rights Reserved.
         </div>
       </div>
     </div>

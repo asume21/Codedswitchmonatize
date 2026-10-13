@@ -99,6 +99,7 @@ const SongStructureLanding = React.lazy(() => import("@/pages/song-structure").c
 const DemoPage = React.lazy(() => import("@/pages/DemoPage").catch(() => ({ default: ChunkReloadFallback })));
 const PrivacyPage = React.lazy(() => import("@/pages/privacy").catch(() => ({ default: ChunkReloadFallback })));
 const TermsPage = React.lazy(() => import("@/pages/terms").catch(() => ({ default: ChunkReloadFallback })));
+const AboutPage = React.lazy(() => import("@/pages/about").catch(() => ({ default: ChunkReloadFallback })));
 
 
 // Loading fallback component
@@ -309,6 +310,8 @@ function App() {
               <Route path="/demo" component={DemoPage} />
               <Route path="/privacy" component={PrivacyPage} />
               <Route path="/terms" component={TermsPage} />
+              <Route path="/about" component={AboutPage} />
+              <Route path="/contact" component={AboutPage} />
               
               {/* ============================================
                   LIGHTWEIGHT ROUTES - No audio providers

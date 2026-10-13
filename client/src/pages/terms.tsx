@@ -1,4 +1,5 @@
 import React from "react";
+import { COMPANY, companyDisplayName } from "@/lib/company";
 import { Link } from "wouter";
 import { Scale, ArrowLeft } from "lucide-react";
 
@@ -34,7 +35,7 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-white uppercase tracking-wider border-l-2 border-cyan-500 pl-3">1. Agreement to Terms</h2>
             <p>
-              By accessing or using the CodedSwitch workstation, AI generators, website, and related services, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not access or use the application.
+              These Terms of Service are an agreement between you and {companyDisplayName} ("CodedSwitch," "we," "us"), the operator of {COMPANY.website.replace(/^https?:\/\//, "")}. By accessing or using the CodedSwitch workstation, AI generators, website, and related services, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not access or use the application.
             </p>
           </section>
 
@@ -92,14 +93,22 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-white uppercase tracking-wider border-l-2 border-cyan-500 pl-3">7. Governing Law</h2>
             <p>
-              These Terms of Service shall be governed by and construed in accordance with the laws of the jurisdiction in which CodedSwitch operates, without regard to conflict of law principles. Any dispute arising out of or relating to these terms shall be subject to the exclusive jurisdiction of the competent courts in that region.
+              These Terms of Service shall be governed by and construed in accordance with the laws of {COMPANY.jurisdiction ?? "the jurisdiction in which CodedSwitch operates"}, without regard to conflict of law principles. Any dispute arising out of or relating to these terms shall be subject to the exclusive jurisdiction of the competent courts {COMPANY.jurisdiction ? "located there" : "in that region"}.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-lg font-bold text-white uppercase tracking-wider border-l-2 border-cyan-500 pl-3">8. Contact</h2>
+            <p>
+              Questions about these Terms can be sent to {companyDisplayName} at{" "}
+              <a href={`mailto:${COMPANY.contactEmail}`} className="text-cyan-400 font-semibold hover:underline">{COMPANY.contactEmail}</a>.
             </p>
           </section>
         </div>
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-cyan-500/50 font-bold uppercase tracking-widest">
-          © 2026 CodedSwitch. All Rights Reserved.
+          © 2026 {companyDisplayName}. All Rights Reserved.
         </div>
       </div>
     </div>
