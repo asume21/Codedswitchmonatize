@@ -50,6 +50,10 @@ export default function AboutPage() {
               )}
               <dt className="text-cyan-400/70 font-semibold uppercase text-xs tracking-wider pt-0.5">Founder</dt>
               <dd className="text-white">{COMPANY.founder}</dd>
+              <dt className="text-cyan-400/70 font-semibold uppercase text-xs tracking-wider pt-0.5">Founded</dt>
+              <dd className="text-white">{COMPANY.founded}</dd>
+              <dt className="text-cyan-400/70 font-semibold uppercase text-xs tracking-wider pt-0.5">Location</dt>
+              <dd className="text-white">{COMPANY.location}</dd>
               <dt className="text-cyan-400/70 font-semibold uppercase text-xs tracking-wider pt-0.5">Website</dt>
               <dd className="text-white">{COMPANY.website.replace(/^https?:\/\//, "")}</dd>
             </dl>
