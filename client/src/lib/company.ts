@@ -8,7 +8,7 @@
 export const COMPANY = {
   brandName: "CodedSwitch",
   /** Registered entity name exactly as filed, e.g. "CodedSwitch LLC". */
-  legalName: "CodedSwitch" as string | null,
+  legalName: "CodedSwitch LLC" as string | null,
   /** State/country whose laws govern the Terms, e.g. "the State of Texas". */
   jurisdiction: "the State of Utah, United States" as string | null,
   founder: "Rusty Alsup",
