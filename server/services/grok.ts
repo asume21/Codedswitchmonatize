@@ -199,10 +199,11 @@ async function callClaude(messages: any[], options: any): Promise<ChatCompletion
 
   const response = await anthropicClient.beta.messages.create({
     model: claudeModel,
-    // Callers size max_tokens for GPT-style models; Claude's thinking counts
-    // toward it too, so a small cap would cut the answer off.
-    max_tokens: Math.max(options.max_tokens ?? 0, 16000),
-    // Chat, lyrics and assistant replies don't need deep reasoning.
+    // The caller's cap is a cost limit (see chatInput.ts) — never raise it.
+    // Same default as buildRequestPayload().
+    max_tokens: options.max_tokens ?? 3000,
+    // Chat, lyrics and assistant replies don't need deep reasoning; low
+    // effort also keeps thinking from eating the capped budget.
     output_config: { effort: 'low' },
     // A policy decline is retried on Opus 4.8 inside the same call.
     betas: ['server-side-fallback-2026-06-01'],
