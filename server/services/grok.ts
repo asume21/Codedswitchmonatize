@@ -212,7 +212,9 @@ async function callClaude(messages: any[], options: any): Promise<ChatCompletion
     messages: turns,
   });
   if (response.stop_reason === 'refusal') {
-    throw new Error('Claude declined the request');
+    // Final: Opus 4.8 already declined too, so makeAICall must not pay a
+    // third provider to try the same request.
+    throw Object.assign(new Error('Claude declined the request'), { final: true });
   }
 
   const text = response.content
@@ -323,7 +325,10 @@ function buildRequestPayload(
 function handleAuthFailure(provider: AIProvider, error: any) {
   const status = error?.status || error?.statusCode;
   const message = String(error?.error || error?.message || '').toLowerCase();
-  const badKey = [401, 403].includes(status) || (status === 400 && message.includes('api key'));
+  // Only a rejected key — a 403 can be transient (permissions, region), and
+  // switching a provider off is process-wide for every user.
+  const badKey = status === 401 ||
+    ([400, 403].includes(status) && (message.includes('api key') || message.includes('api-key')));
   if (!badKey) return;
   console.warn(`⚠️ Disabling ${provider} after authentication error.`);
   if (provider === 'gemini') geminiClient = null;
@@ -362,6 +367,7 @@ export async function makeAICall(messages: any[], options: any = {}): Promise<Ch
       console.error(`❌ ${provider} API call failed:`, error);
       handleAuthFailure(provider, error);
       lastError = error;
+      if ((error as { final?: boolean })?.final) break;
       if (ordered[i + 1]) {
         console.log(`🔄 Falling back to ${ordered[i + 1].provider}...`);
       }
