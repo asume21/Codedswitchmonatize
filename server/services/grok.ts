@@ -1,10 +1,13 @@
 import { OLLAMA_DEFAULT_MODEL } from './localAI';
 import OpenAI from "openai";
-import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
+import Anthropic from "@anthropic-ai/sdk";
+import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 
-type AIProvider = 'ollama' | 'grok' | 'openai';
+type AIProvider = 'gemini' | 'claude' | 'openai' | 'grok' | 'ollama';
 
 // Load API keys (server-only)
+const geminiApiKey = process.env.GEMINI_API_KEY?.trim();
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim();
 const xaiApiKey = process.env.XAI_API_KEY?.trim();
 const openaiApiKey = process.env.OPENAI_API_KEY?.trim();
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL?.trim(); // e.g. http://localhost:11434
@@ -13,17 +16,45 @@ const ollamaBaseUrl = process.env.OLLAMA_BASE_URL?.trim(); // e.g. http://localh
 // different models. One source of truth now.
 const ollamaModel = OLLAMA_DEFAULT_MODEL;
 
+// 'gemini-flash-latest' tracks the current Flash on purpose — a pinned version
+// starts 404ing when Google retires it (see composer.ts).
+const geminiModel = process.env.GEMINI_MODEL?.trim() || 'gemini-flash-latest';
+const claudeModel = process.env.CLAUDE_CHAT_MODEL?.trim() || 'claude-opus-5-5';
+const openaiModel = process.env.OPENAI_CHAT_MODEL?.trim() || 'gpt-4.1';
+
 // Debug logging for API key detection
 console.log('🔑 AI API Key Status:');
-console.log(`  XAI_API_KEY: ${xaiApiKey ? `Present (${xaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
+console.log(`  GEMINI_API_KEY: ${geminiApiKey ? 'Present' : 'Missing'}`);
+console.log(`  ANTHROPIC_API_KEY: ${anthropicApiKey ? 'Present' : 'Missing'}`);
 console.log(`  OPENAI_API_KEY: ${openaiApiKey ? `Present (${openaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
+console.log(`  XAI_API_KEY: ${xaiApiKey ? `Present (${xaiApiKey.substring(0, 8)}...)` : 'Missing'}`);
 console.log(`  OLLAMA_BASE_URL: ${ollamaBaseUrl || 'Not set'}`);
 
 // Shared timeout to avoid slow requests blocking the route
 const AI_TIMEOUT_MS = 30000; // Increased to 30s for production reliability
 const AI_RESPONSE_DEADLINE_MS = 35000; // hard cap per request before fallback
 
-// Configure Ollama client (local LLM — free inference, highest priority)
+// Configure Gemini client — Google's OpenAI-compatible endpoint, so it shares
+// buildRequestPayload() with the other OpenAI-style providers.
+let geminiClient: OpenAI | null = null;
+if (geminiApiKey) {
+  geminiClient = new OpenAI({
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    apiKey: geminiApiKey,
+    timeout: AI_TIMEOUT_MS
+  });
+  console.log(`✅ Gemini client initialized (model: ${geminiModel})`);
+}
+
+// Configure Claude client — Anthropic SDK; callClaude() maps its reply to the
+// ChatCompletion shape every caller of makeAICall() reads.
+let anthropicClient: Anthropic | null = null;
+if (anthropicApiKey) {
+  anthropicClient = new Anthropic({ apiKey: anthropicApiKey, timeout: AI_TIMEOUT_MS, maxRetries: 1 });
+  console.log(`✅ Claude client initialized (model: ${claudeModel})`);
+}
+
+// Configure Ollama client (local LLM — only used if OLLAMA_BASE_URL is set)
 let ollamaClient: OpenAI | null = null;
 if (ollamaBaseUrl) {
   ollamaClient = new OpenAI({
@@ -48,14 +79,13 @@ if (xaiApiKey && xaiApiKey.startsWith('xai-')) {
 }
 
 export async function performAIProviderSelfTest() {
-  const preferred = getPreferredClient();
-  if (!preferred) {
+  const first = getProviderChain()[0];
+  if (!first) {
     throw new Error('No AI API keys configured');
   }
 
-  const { client, model, provider } = preferred;
-  const payload = buildRequestPayload(
-    model,
+  const start = Date.now();
+  const response = await first.call(
     [
       { role: 'system', content: 'You are a health-check daemon. Reply with a tiny JSON object.' },
       { role: 'user', content: 'Respond with {"status":"ok"} and nothing else.' }
@@ -63,19 +93,16 @@ export async function performAIProviderSelfTest() {
     {
       response_format: { type: 'json_object' },
       temperature: 0,
-      max_tokens: 32
-    },
-    provider as AIProvider
+      // Gemini Flash spends part of the budget thinking; 32 could come back empty.
+      max_tokens: 256
+    }
   );
-
-  const start = Date.now();
-  const response = await client.chat.completions.create(payload);
   const latencyMs = Date.now() - start;
   const content = response.choices?.[0]?.message?.content || '{}';
 
   return {
-    provider,
-    model,
+    provider: first.provider,
+    model: first.model,
     latencyMs,
     raw: content
   };
@@ -112,53 +139,129 @@ if (openaiApiKey && openaiApiKey.startsWith('sk-')) {
   console.warn(`⚠️ OPENAI_API_KEY present but doesn't start with 'sk-': ${openaiApiKey.substring(0, 8)}...`);
 }
 
+type ProviderEntry = {
+  provider: AIProvider;
+  model: string;
+  call: (messages: any[], options: any) => Promise<ChatCompletion>;
+};
+
+function openAICompatEntry(client: OpenAI, model: string, provider: AIProvider): ProviderEntry {
+  return {
+    provider,
+    model,
+    call: (messages, options) =>
+      client.chat.completions.create(buildRequestPayload(model, messages, options, provider)),
+  };
+}
+
+// Provider order: Gemini (cheapest) → Claude → ChatGPT, then Grok and Ollama
+// only if their keys/URLs are still set. Rebuilt on every call because
+// handleAuthFailure() can switch a provider off at runtime.
+function getProviderChain(): ProviderEntry[] {
+  const chain: ProviderEntry[] = [];
+  if (geminiClient) chain.push(openAICompatEntry(geminiClient, geminiModel, 'gemini'));
+  if (anthropicClient) chain.push({ provider: 'claude', model: claudeModel, call: callClaude });
+  if (openaiClient) chain.push(openAICompatEntry(openaiClient, openaiModel, 'openai'));
+  if (grokClient) chain.push(openAICompatEntry(grokClient, 'grok-3', 'grok'));
+  if (ollamaClient) chain.push(openAICompatEntry(ollamaClient, ollamaModel, 'ollama'));
+  return chain;
+}
+
 // Check if we have at least one working AI client
-if (!ollamaClient && !grokClient && !openaiClient) {
+const startupChain = getProviderChain();
+if (!startupChain.length) {
   console.warn("❌ No AI providers configured. AI features will use fallback patterns.");
 } else {
-  const primary = ollamaClient ? `Ollama (${ollamaModel})` : grokClient ? 'Grok (xAI)' : 'OpenAI';
-  const fallbacks = [grokClient && 'Grok', openaiClient && 'OpenAI'].filter(Boolean).join(', ');
-  console.log(`🤖 AI Provider: ${primary}${fallbacks ? ` → fallbacks: ${fallbacks}` : ''}`);
+  console.log(`🤖 AI Providers: ${startupChain.map(p => `${p.provider} (${p.model})`).join(' → ')}`);
 }
 
-// Determine preferred AI provider — Ollama first (free), then Grok, then OpenAI
-function getPreferredClient(): { client: OpenAI; model: string; provider: AIProvider } | null {
-  if (ollamaClient) return { client: ollamaClient, model: ollamaModel, provider: 'ollama' };
-  if (grokClient) return { client: grokClient, model: 'grok-3', provider: 'grok' };
-  if (openaiClient) return { client: openaiClient, model: 'gpt-4', provider: 'openai' };
-  return null;
+function textOf(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(part => (part && typeof part === 'object' && 'text' in part ? String((part as { text: unknown }).text) : ''))
+      .join('');
+  }
+  return '';
 }
 
-function getClientByProvider(provider?: string): { client: OpenAI; model: string; provider: AIProvider } | null {
-  if (provider === 'ollama' && ollamaClient) {
-    return { client: ollamaClient, model: ollamaModel, provider: 'ollama' };
+async function callClaude(messages: any[], options: any): Promise<ChatCompletion> {
+  if (!anthropicClient) throw new Error('Claude client not configured');
+
+  // OpenAI-style system messages become Claude's top-level system prompt.
+  const systemParts = messages.filter(m => m.role === 'system').map(m => textOf(m.content));
+  if (options.response_format) {
+    systemParts.push('Respond with only a valid JSON object — no prose, no code fences.');
   }
-  if (provider === 'grok' && grokClient) {
-    return { client: grokClient, model: 'grok-3', provider: 'grok' };
+  const turns: Anthropic.Beta.BetaMessageParam[] = messages
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: textOf(m.content) }));
+
+  const response = await anthropicClient.beta.messages.create({
+    model: claudeModel,
+    // Callers size max_tokens for GPT-style models; Claude's thinking counts
+    // toward it too, so a small cap would cut the answer off.
+    max_tokens: Math.max(options.max_tokens ?? 0, 16000),
+    // Chat, lyrics and assistant replies don't need deep reasoning.
+    output_config: { effort: 'low' },
+    // A policy decline is retried on Opus 4.8 inside the same call.
+    betas: ['server-side-fallback-2026-06-01'],
+    fallbacks: [{ model: 'claude-opus-4-8' }],
+    ...(systemParts.length ? { system: systemParts.join('\n\n') } : {}),
+    messages: turns,
+  });
+  if (response.stop_reason === 'refusal') {
+    throw new Error('Claude declined the request');
   }
-  if (provider === 'openai' && openaiClient) {
-    return { client: openaiClient, model: 'gpt-4', provider: 'openai' };
-  }
-  return null;
+
+  const text = response.content
+    .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+  return {
+    id: response.id,
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: response.model,
+    choices: [{
+      index: 0,
+      logprobs: null,
+      finish_reason: response.stop_reason === 'max_tokens' ? 'length' : 'stop',
+      message: { role: 'assistant', content: text, refusal: null },
+    }],
+  };
 }
 
 export function getAIProviderStatus() {
   return {
-    ollama: {
-      configured: Boolean(ollamaBaseUrl),
-      clientReady: Boolean(ollamaClient),
-      model: ollamaModel,
-      note: ollamaBaseUrl ? `${ollamaBaseUrl} (${ollamaModel})` : 'Set OLLAMA_BASE_URL to enable'
+    gemini: {
+      configured: Boolean(geminiApiKey),
+      clientReady: Boolean(geminiClient),
+      model: geminiModel,
+      note: geminiApiKey ? 'Key detected' : 'Missing GEMINI_API_KEY'
+    },
+    claude: {
+      configured: Boolean(anthropicApiKey),
+      clientReady: Boolean(anthropicClient),
+      model: claudeModel,
+      note: anthropicApiKey ? 'Key detected' : 'Missing ANTHROPIC_API_KEY'
+    },
+    openai: {
+      configured: Boolean(openaiApiKey),
+      clientReady: Boolean(openaiClient),
+      model: openaiModel,
+      note: openaiApiKey ? 'Key detected' : 'Missing OPENAI_API_KEY'
     },
     grok: {
       configured: Boolean(xaiApiKey),
       clientReady: Boolean(grokClient),
       note: xaiApiKey ? 'Key detected' : 'Missing XAI_API_KEY'
     },
-    openai: {
-      configured: Boolean(openaiApiKey),
-      clientReady: Boolean(openaiClient),
-      note: openaiApiKey ? 'Key detected' : 'Missing OPENAI_API_KEY'
+    ollama: {
+      configured: Boolean(ollamaBaseUrl),
+      clientReady: Boolean(ollamaClient),
+      model: ollamaModel,
+      note: ollamaBaseUrl ? `${ollamaBaseUrl} (${ollamaModel})` : 'Set OLLAMA_BASE_URL to enable'
     }
   };
 }
@@ -192,8 +295,9 @@ function buildRequestPayload(
   }
 
   if (options.response_format) {
-    // Grok supports it; OpenAI only on 4.1/4o+; Ollama: Llama 3.1+ supports it via OpenAI-compat API
+    // Gemini and Grok support it; OpenAI only on 4.1/4o+; Ollama: Llama 3.1+ supports it via OpenAI-compat API
     const canUseStructured =
+      provider === 'gemini' ||
       provider === 'grok' ||
       provider === 'ollama' ||
       modelSupportsStructuredOutput(model);
@@ -213,54 +317,44 @@ function buildRequestPayload(
   return payload;
 }
 
+// Switches a provider off for the rest of the process once its key is rejected,
+// so later requests stop paying the round-trip to it.
 function handleAuthFailure(provider: AIProvider, error: any) {
   const status = error?.status || error?.statusCode;
   const message = String(error?.error || error?.message || '').toLowerCase();
-  if ([400, 401, 403].includes(status) && message.includes('api key')) {
-    if (provider === 'grok') {
-      console.warn('⚠️ Disabling Grok client after authentication error.');
-      grokClient = null;
-    } else if (provider === 'openai') {
-      console.warn('⚠️ Disabling OpenAI client after authentication error.');
-      openaiClient = null;
-    } else if (provider === 'ollama') {
-      console.warn('⚠️ Disabling Ollama client after connection error.');
-      ollamaClient = null;
-    }
-  }
+  const badKey = [401, 403].includes(status) || (status === 400 && message.includes('api key'));
+  if (!badKey) return;
+  console.warn(`⚠️ Disabling ${provider} after authentication error.`);
+  if (provider === 'gemini') geminiClient = null;
+  else if (provider === 'claude') anthropicClient = null;
+  else if (provider === 'openai') openaiClient = null;
+  else if (provider === 'grok') grokClient = null;
+  else if (provider === 'ollama') ollamaClient = null;
 }
 
-// Helper function to make AI calls with fallback: Ollama → Grok → OpenAI
-export async function makeAICall(messages: any[], options: any = {}) {
+// Helper function to make AI calls with fallback down the provider chain
+// (see getProviderChain). options.preferredProvider moves that provider first.
+export async function makeAICall(messages: any[], options: any = {}): Promise<ChatCompletion> {
+  const chain = getProviderChain();
+  if (!chain.length) {
+    throw new Error("No AI providers configured (set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)");
+  }
+
   const requestedProvider =
     typeof options?.preferredProvider === 'string'
       ? String(options.preferredProvider).toLowerCase()
       : undefined;
-  const preferred = getClientByProvider(requestedProvider) || getPreferredClient();
-
-  if (!preferred) {
-    throw new Error("No AI providers configured (set OLLAMA_BASE_URL, XAI_API_KEY, or OPENAI_API_KEY)");
-  }
-
-  // Build ordered fallback chain starting from preferred provider.
-  // OpenAI is intentionally NOT in the chain — user opted out of GPT fallback.
-  const allProviders: Array<{ client: OpenAI; model: string; provider: AIProvider }> = [];
-  if (ollamaClient)  allProviders.push({ client: ollamaClient,  model: ollamaModel, provider: 'ollama' });
-  if (grokClient)    allProviders.push({ client: grokClient,    model: 'grok-3',    provider: 'grok' });
-
-  // Start from the requested/preferred provider
-  const startIdx = allProviders.findIndex(p => p.provider === preferred.provider);
+  const startIdx = chain.findIndex(p => p.provider === requestedProvider);
   const ordered = startIdx > 0
-    ? [...allProviders.slice(startIdx), ...allProviders.slice(0, startIdx)]
-    : allProviders;
+    ? [...chain.slice(startIdx), ...chain.slice(0, startIdx)]
+    : chain;
 
   let lastError: unknown;
   for (let i = 0; i < ordered.length; i++) {
-    const { client, model, provider } = ordered[i];
+    const { provider, model, call } = ordered[i];
     try {
       console.log(`🤖 Making ${provider} API call with model ${model}`);
-      const payload = buildRequestPayload(model, messages, options, provider);
-      const response = await client.chat.completions.create(payload);
+      const response = await call(messages, options);
       console.log(`✅ ${provider} API call successful`);
       return response;
     } catch (error) {
@@ -642,10 +736,18 @@ Return JSON with format:
   }
 }
 
-// Export a function to get the preferred AI client
+// Older routes call getAIClient().chat.completions.create({ model: 'grok-3', ... })
+// directly. Route those through the provider chain too; the model name they
+// pass is ignored in favour of each provider's own.
 export function getAIClient() {
-  const preferred = getPreferredClient();
-  return preferred?.client || null;
+  if (!getProviderChain().length) return null;
+  return {
+    chat: {
+      completions: {
+        create: (params: any) => makeAICall(params.messages, params),
+      },
+    },
+  } as unknown as OpenAI;
 }
 
 // Enhanced fallback that actually uses music theory
