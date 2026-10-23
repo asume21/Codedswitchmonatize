@@ -25,6 +25,7 @@ import { getTechnique, DEFAULT_TECHNIQUE_ID, defaultTechniqueForMode } from '../
 import type { TechniqueContext } from '../techniques/types'
 import { getLivePartStart, livePartStartOffset, msUntilTransportTime, quantizeGridTime } from './CompositionClock'
 import { applyGroovePocket, buildHumanizeTemplate } from './groove'
+import { retirePart } from './partLifecycle'
 import {
   conformChordToInstrument,
   midiToNote,
@@ -1150,9 +1151,7 @@ export class ChordGenerator extends GeneratorBase {
   stopPart(): void {
     if (this.part) {
       logPart('chord', 'stopPart', { behavior: String(this.currentBehavior) })
-      this.part.stop()
-      this.part.dispose()
-      this.part = null
+      this.part = retirePart(this.part)
     }
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())

@@ -15,6 +15,7 @@ import { OState }              from '../state/types'
 import { getConductor }        from '../conductor/Conductor'
 import { mulberry32, getSessionSalt, hashString } from './freeplay/utils'
 import { applyGroovePocket, GROOVE_SLOT_COUNT } from './groove'
+import { retirePart } from './partLifecycle'
 
 const GENRE_VELOCITY_PROFILES: Record<string, (velocity: number) => number> = {
   'latin': (v: number) => v < 0.6 ? v * 0.7 : v,
@@ -913,9 +914,7 @@ export class DrumGenerator extends GeneratorBase {
     this.clearMicroFill()
     if (this.part) {
       logPart('drum', 'stopPart', { state: String(this.part.state), enabled: this.enabled })
-      this.part.stop()
-      this.part.dispose()
-      this.part = null
+      this.part = retirePart(this.part)
     }
     this.lastTriggerByVoice.clear()
   }

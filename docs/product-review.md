@@ -438,6 +438,13 @@ duplicates & cleanup. "≈" = same root cause, fix together.
     ACE can't be held to the band's chords (needs audio-conditioned render or
     stems); three ACE tag builders still exist (server `tagPresets`, composer
     `acePrompt`, unused Conductor `buildAceStepFrame`) — collapse to one.
+23. **K9** Audio cut-outs everywhere (Organism + piano roll): four generators'
+    `stopPart()` ran `part.stop(); part.dispose()` and Tone's negative-time RangeError
+    (-1.93e-12) skipped the dispose — orphan Parts kept playing under the rebuilt
+    ones, and the same throw aborted engine start (silence). → one `retirePart()`.
+    Open gaps: render thread (`AudioOutputDevice`) measured ~1 core on prod even
+    with the band STOPPED — not explained by this, likely a second cause; three
+    older sites keep their own try/catch; not yet heard.
 
 ---
 
@@ -488,3 +495,4 @@ app (UI / wiring), or the user's ear (anything about how music sounds).
 | Collaboration (S7) | Real-time co-editing (CRDT, e.g. Yjs) on cloud projects | Not built — the site copy claiming it must change | Large; cloud projects (its precondition) now exist | — |
 | `noteToMidi` flats | Correct enharmonic mapping | Db→C#, Eb→D#… (was 2 semitones sharp) | — | unit test |
 | **K8** Organism Render | Render = the song the band is playing: same plan, tempo, key, chords and players (ace-everywhere spec Step 3 items 2+4) | `buildRenderRequest` reads the loaded plan (tags, mood, bar-length duration) else the Conductor score (subGenre, key+scale), the transport bpm, and the live players; sends an exact `prompt` so server genre presets ("jazz samples") no longer apply; server bounds caller prompts to 1,000 chars | Chords/progression can't be enforced — public ACE is tags-only text2music; three ACE tag builders remain (doubles); not clicked in the browser yet; **needs his ear** | 7 unit tests |
+| **K9** Cut-outs (Organism + piano roll) | Every Part retired through one path that cannot skip `dispose()`; idle render-thread cost near zero; heard clean | `retirePart()` (partLifecycle.ts) in Bass/Chord/Drum/Melody `stopPart()` | Idle render thread ~1 core on prod still unexplained (likely a 2nd cause); 3 older guarded `oldPart.stop()` sites not migrated; **needs his ear** | 5 unit tests + organism suite (791) |

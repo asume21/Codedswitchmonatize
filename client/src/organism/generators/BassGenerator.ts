@@ -43,6 +43,7 @@ import {
 } from '../performers'
 import { getConductor } from '../conductor/Conductor'
 import { applyGroovePocket } from './groove'
+import { retirePart } from './partLifecycle'
 
 export class BassGenerator extends GeneratorBase {
   /** The performer's real multisample when it has one, else its sampler preset. */
@@ -964,12 +965,8 @@ export class BassGenerator extends GeneratorBase {
   /** Public so the orchestrator can hard-cut the part on a live preset swap
    *  (see GeneratorOrchestrator.cutActivePartsForSwap). Otherwise internal. */
   stopPart(): void {
-    if (this.part) {
-      this.part.stop()
-      this.part.dispose()
-      this.part = null
-    }
-    
+    this.part = retirePart(this.part)
+
     try {
       this.synth.volume.cancelScheduledValues(Tone.now())
       if (this.synth instanceof Tone.MonoSynth) {

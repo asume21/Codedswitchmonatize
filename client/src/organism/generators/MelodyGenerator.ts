@@ -55,6 +55,7 @@ import {
 } from './melody/performerExpression'
 import { applyVoiceLeading } from './melody/voiceLeading'
 import { applySoloistEmbellishments } from './melody/soloistEmbellishments'
+import { retirePart } from './partLifecycle'
 
 const normalizePitchClass = (pitchClass: number): number =>
   ((Math.round(pitchClass) % 12) + 12) % 12
@@ -1651,11 +1652,7 @@ export class MelodyGenerator extends GeneratorBase {
   // Matches GeneratorBase's `abstract stopPart(): void` — must not be private,
   // since GeneratorOrchestrator calls it directly on generator instances.
   stopPart(): void {
-    if (this.part) {
-      this.part.stop()
-      this.part.dispose()
-      this.part = null
-    }
+    this.part = retirePart(this.part)
     if (this.phraseRefreshEventId !== null) {
       try { Tone.getTransport().clear(this.phraseRefreshEventId) } catch { /* */ }
       this.phraseRefreshEventId = null
