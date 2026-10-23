@@ -445,6 +445,13 @@ duplicates & cleanup. "≈" = same root cause, fix together.
     Open gaps: render thread (`AudioOutputDevice`) measured ~1 core on prod even
     with the band STOPPED — not explained by this, likely a second cause; three
     older sites keep their own try/catch; not yet heard.
+24. **K10** The studio audio engine initialized 3x at once: `audioEngine.initialize()`
+    set its guard only AFTER an await, so concurrent callers (`use-audio` from several
+    components) each rebuilt the drum voices without disposing — 9 MetalSynths, ~342
+    always-running ConstantSourceNodes, about half the render thread (measured on prod
+    by stopping sources: thread 61% → 24% → 0%). → single-flight init + drum voices
+    built on first fallback hit. Open gap: the Organism's own ~310 ConstantSources and
+    13 oscillators run permanently too (a Tone.Signal per param) — next candidate.
 
 ---
 
@@ -496,3 +503,4 @@ app (UI / wiring), or the user's ear (anything about how music sounds).
 | `noteToMidi` flats | Correct enharmonic mapping | Db→C#, Eb→D#… (was 2 semitones sharp) | — | unit test |
 | **K8** Organism Render | Render = the song the band is playing: same plan, tempo, key, chords and players (ace-everywhere spec Step 3 items 2+4) | `buildRenderRequest` reads the loaded plan (tags, mood, bar-length duration) else the Conductor score (subGenre, key+scale), the transport bpm, and the live players; sends an exact `prompt` so server genre presets ("jazz samples") no longer apply; server bounds caller prompts to 1,000 chars | Chords/progression can't be enforced — public ACE is tags-only text2music; three ACE tag builders remain (doubles); not clicked in the browser yet; **needs his ear** | 7 unit tests |
 | **K9** Cut-outs (Organism + piano roll) | Every Part retired through one path that cannot skip `dispose()`; idle render-thread cost near zero; heard clean | `retirePart()` (partLifecycle.ts) in Bass/Chord/Drum/Melody `stopPart()` | Idle render thread ~1 core on prod still unexplained (likely a 2nd cause); 3 older guarded `oldPart.stop()` sites not migrated; **needs his ear** | 5 unit tests + organism suite (791) |
+| **K10** Render-thread load at idle | Every always-running source justified; audio thread near idle when nothing plays; heard clean | `initialize()` single-flight; synthetic drum voices lazy (built on first fallback hit) — removes ~342 of 728 running sources | Organism graph still holds ~310 ConstantSources + 13 oscillators running permanently; not yet re-measured on prod after deploy; **needs his ear** | 6 unit tests (concurrent init, lazy voices, retry, dispose) |

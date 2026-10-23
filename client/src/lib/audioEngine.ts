@@ -18,10 +18,11 @@ type DrumType = 'kick' | 'snare' | 'hihat' | 'openhat' | 'clap' | 'tom' | 'crash
 // Singleton pattern to ensure only one AudioEngine instance
 let audioEngineInstance: AudioEngine | null = null;
 
-class AudioEngine {
+export class AudioEngine {
   private samplers: Record<string, Tone.Sampler> = {};
   private synths: Record<string, Tone.PolySynth> = {}; // Add synths for instruments!
   private isInitialized = false;
+  private initPromise: Promise<void> | null = null;
   private loadingProgress: Record<string, number> = {};
   private totalSamples = 0;
   private loadedSamples = 0;
@@ -62,9 +63,23 @@ class AudioEngine {
   }
 
   // Core initialization
-  async initialize() {
-    if (this.isInitialized) return;
-    
+  //
+  // Single-flight. Several components call this on the same gesture; with only
+  // the boolean guard, every caller passed it during the await below and rebuilt
+  // the instruments without disposing the old ones. Measured on prod 2026-10-23:
+  // three concurrent inits left 9 MetalSynths holding ~342 always-running
+  // ConstantSourceNodes — about half the audio render thread, heard as cut-outs
+  // in the Organism and the piano roll alike.
+  initialize(): Promise<void> {
+    if (this.isInitialized) return Promise.resolve();
+    this.initPromise ??= this.runInitialize().catch((err) => {
+      this.initPromise = null; // a failed init must not wedge every later call
+      throw err;
+    });
+    return this.initPromise;
+  }
+
+  private async runInitialize() {
     // Use shared context for Tone.js — getAudioContext() already sets
     // the global Tone context. Do NOT create a new Tone.Context here;
     // duplicate contexts spawn competing scheduler loops → audio stalls.
@@ -81,7 +96,7 @@ class AudioEngine {
     } catch (error) {
       console.warn('Realistic audio engine unavailable, using synthetic fallback', error);
     }
-    this.setupDrumVoices();
+    // Drum voices are NOT built here — see getDrumVoice().
     this.setupInstrumentSynths(); // Initialize melodic instruments!
     this.setupMetronome();
     this.isInitialized = true;
@@ -205,7 +220,7 @@ class AudioEngine {
       return;
     }
 
-    const drumVoice = this.drumVoices[drum];
+    const drumVoice = this.getDrumVoice(drum);
     if (drumVoice) {
       const levelDb = Tone.gainToDb(Math.max(0.05, Math.min(1, velocity)));
       if (this.drumBus) {
@@ -290,87 +305,121 @@ class AudioEngine {
     this.drumBus?.dispose();
     this.drumBus = null;
     requestTransportCancel();
+    this.initPromise = null;
     this.isInitialized = false;
   }
 
-  private setupDrumVoices() {
-    this.drumBus?.dispose();
-    this.drumBus = new Tone.Volume(-6).toDestination();
+  /**
+   * The synthetic drums are only a FALLBACK (realistic samples are tried first),
+   * so each voice is built the first time it is actually needed. Built eagerly,
+   * the three MetalSynths alone kept ~114 ConstantSourceNodes running on the
+   * audio thread for every visitor, whether a fallback drum ever played or not.
+   */
+  private getDrumVoice(drum: DrumType): Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth | undefined {
+    const existing = this.drumVoices[drum];
+    if (existing) return existing;
 
-    const connect = <T extends Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth>(voice: T) => {
-      voice.connect(this.drumBus!);
-      return voice;
-    };
+    if (!this.drumBus) {
+      this.drumBus = new Tone.Volume(-6);
+      if (this.targetNode) this.drumBus.connect(this.targetNode);
+      else this.drumBus.toDestination();
+    }
 
-    const kick = connect(new Tone.MembraneSynth());
-    kick.pitchDecay = 0.02;
-    kick.octaves = 4;
-    kick.oscillator.type = 'sine';
-    kick.envelope.attack = 0.001;
-    kick.envelope.decay = 0.4;
-    kick.envelope.sustain = 0.01;
-    kick.envelope.release = 0.4;
-    this.drumVoices.kick = kick;
+    let voice: Tone.MembraneSynth | Tone.NoiseSynth | Tone.MetalSynth;
+    switch (drum) {
+      case 'kick': {
+        const kick = new Tone.MembraneSynth();
+        kick.pitchDecay = 0.02;
+        kick.octaves = 4;
+        kick.oscillator.type = 'sine';
+        kick.envelope.attack = 0.001;
+        kick.envelope.decay = 0.4;
+        kick.envelope.sustain = 0.01;
+        kick.envelope.release = 0.4;
+        voice = kick;
+        break;
+      }
+      case 'snare': {
+        const snare = new Tone.NoiseSynth();
+        snare.noise.type = 'white';
+        snare.envelope.attack = 0.001;
+        snare.envelope.decay = 0.2;
+        snare.envelope.sustain = 0;
+        voice = snare;
+        break;
+      }
+      case 'hihat': {
+        const hihat = new Tone.MetalSynth();
+        hihat.frequency.setValueAtTime(250, Tone.now());
+        hihat.envelope.attack = 0.001;
+        hihat.envelope.decay = 0.1;
+        hihat.envelope.release = 0.01;
+        hihat.harmonicity = 5.1;
+        hihat.modulationIndex = 32;
+        voice = hihat;
+        break;
+      }
+      case 'openhat': {
+        const openhat = new Tone.MetalSynth();
+        openhat.frequency.setValueAtTime(220, Tone.now());
+        openhat.envelope.attack = 0.001;
+        openhat.envelope.decay = 0.35;
+        openhat.envelope.release = 0.12;
+        openhat.harmonicity = 6.1;
+        openhat.modulationIndex = 36;
+        voice = openhat;
+        break;
+      }
+      case 'clap': {
+        const clap = new Tone.NoiseSynth();
+        clap.noise.type = 'pink';
+        clap.envelope.attack = 0.001;
+        clap.envelope.decay = 0.25;
+        clap.envelope.sustain = 0;
+        voice = clap;
+        break;
+      }
+      case 'perc': {
+        const perc = new Tone.NoiseSynth();
+        perc.noise.type = 'white';
+        perc.envelope.attack = 0.001;
+        perc.envelope.decay = 0.08;
+        perc.envelope.sustain = 0;
+        voice = perc;
+        break;
+      }
+      case 'tom': {
+        const tom = new Tone.MembraneSynth();
+        tom.pitchDecay = 0.008;
+        tom.octaves = 2;
+        tom.oscillator.type = 'sine';
+        tom.envelope.attack = 0.001;
+        tom.envelope.decay = 0.5;
+        tom.envelope.sustain = 0.1;
+        tom.envelope.release = 0.3;
+        voice = tom;
+        break;
+      }
+      case 'crash': {
+        const crash = new Tone.MetalSynth();
+        crash.frequency.setValueAtTime(200, Tone.now());
+        crash.envelope.attack = 0.001;
+        crash.envelope.decay = 1.4;
+        crash.envelope.release = 1;
+        crash.harmonicity = 12;
+        crash.modulationIndex = 20;
+        crash.resonance = 7000;
+        crash.octaves = 2;
+        voice = crash;
+        break;
+      }
+      default:
+        return undefined;
+    }
 
-    const snare = connect(new Tone.NoiseSynth());
-    snare.noise.type = 'white';
-    snare.envelope.attack = 0.001;
-    snare.envelope.decay = 0.2;
-    snare.envelope.sustain = 0;
-    this.drumVoices.snare = snare;
-
-    const hihat = connect(new Tone.MetalSynth());
-    hihat.frequency.setValueAtTime(250, Tone.now());
-    hihat.envelope.attack = 0.001;
-    hihat.envelope.decay = 0.1;
-    hihat.envelope.release = 0.01;
-    hihat.harmonicity = 5.1;
-    hihat.modulationIndex = 32;
-    this.drumVoices.hihat = hihat;
-
-    const openhat = connect(new Tone.MetalSynth());
-    openhat.frequency.setValueAtTime(220, Tone.now());
-    openhat.envelope.attack = 0.001;
-    openhat.envelope.decay = 0.35;
-    openhat.envelope.release = 0.12;
-    openhat.harmonicity = 6.1;
-    openhat.modulationIndex = 36;
-    this.drumVoices.openhat = openhat;
-
-    const clap = connect(new Tone.NoiseSynth());
-    clap.noise.type = 'pink';
-    clap.envelope.attack = 0.001;
-    clap.envelope.decay = 0.25;
-    clap.envelope.sustain = 0;
-    this.drumVoices.clap = clap;
-
-    const perc = connect(new Tone.NoiseSynth());
-    perc.noise.type = 'white';
-    perc.envelope.attack = 0.001;
-    perc.envelope.decay = 0.08;
-    perc.envelope.sustain = 0;
-    this.drumVoices.perc = perc;
-
-    const tom = connect(new Tone.MembraneSynth());
-    tom.pitchDecay = 0.008;
-    tom.octaves = 2;
-    tom.oscillator.type = 'sine';
-    tom.envelope.attack = 0.001;
-    tom.envelope.decay = 0.5;
-    tom.envelope.sustain = 0.1;
-    tom.envelope.release = 0.3;
-    this.drumVoices.tom = tom;
-
-    const crash = connect(new Tone.MetalSynth());
-    crash.frequency.setValueAtTime(200, Tone.now());
-    crash.envelope.attack = 0.001;
-    crash.envelope.decay = 1.4;
-    crash.envelope.release = 1;
-    crash.harmonicity = 12;
-    crash.modulationIndex = 20;
-    crash.resonance = 7000;
-    crash.octaves = 2;
-    this.drumVoices.crash = crash;
+    voice.connect(this.drumBus);
+    this.drumVoices[drum] = voice;
+    return voice;
   }
 
   private setupInstrumentSynths() {
